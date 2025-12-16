@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from groq import Groq
 
+from misata.curve_fitting import CurveFitter
 from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig, Table
 
 
@@ -75,6 +76,11 @@ For transactional tables, provide:
 ### Foreign Key Rules:
 - foreign_key columns reference parent table's "id" column
 - Parent can be either reference table (plans.id) or transactional table (users.id)
+
+### Advanced Distributions (Optional):
+Instead of guessing parameters, you can provide "control_points" to draw the shape.
+Format: {"distribution": "normal", "control_points": [{"x": 10, "y": 0.1}, {"x": 50, "y": 0.9}]}
+Misata will mathematically solve for the best parameters.
 
 ## OUTPUT FORMAT
 
@@ -176,27 +182,102 @@ when plotted, produces that exact chart."""
 
 class LLMSchemaGenerator:
     """
-    Generate realistic schemas from natural language using Groq Llama 3.3.
+    Generate realistic schemas from natural language using LLMs.
+    
+    Supports multiple providers:
+    - groq: Groq Cloud (Llama 3.3) - Fast, free tier
+    - openai: OpenAI (GPT-4o) - Best quality
+    - ollama: Local Ollama - Free, private
     
     This is the "brain" of Misata - what makes it genuinely AI-powered.
     """
     
-    def __init__(self, api_key: Optional[str] = None):
+    # Provider configurations
+    PROVIDERS = {
+        "groq": {
+            "base_url": None,  # Uses default
+            "env_key": "GROQ_API_KEY",
+            "default_model": "llama-3.3-70b-versatile",
+        },
+        "openai": {
+            "base_url": None,
+            "env_key": "OPENAI_API_KEY", 
+            "default_model": "gpt-4o-mini",
+        },
+        "ollama": {
+            "base_url": "http://localhost:11434/v1",
+            "env_key": None,  # No key needed for local
+            "default_model": "llama3",
+        },
+    }
+    
+    def __init__(
+        self, 
+        provider: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
         """
         Initialize the LLM generator.
         
         Args:
-            api_key: Groq API key. If not provided, reads from GROQ_API_KEY env var.
+            provider: LLM provider ("groq", "openai", "ollama"). 
+                      Defaults to MISATA_PROVIDER env var or "groq".
+            api_key: API key. If not provided, reads from provider's env var.
+            model: Model name. If not provided, uses provider default.
+            base_url: Custom API base URL (for Ollama or compatible APIs).
         """
-        self.api_key = api_key or os.environ.get("GROQ_API_KEY")
-        if not self.api_key:
+        # Determine provider
+        self.provider = provider or os.environ.get("MISATA_PROVIDER", "groq").lower()
+        
+        if self.provider not in self.PROVIDERS:
+            raise ValueError(f"Unknown provider: {self.provider}. Use: {list(self.PROVIDERS.keys())}")
+        
+        config = self.PROVIDERS[self.provider]
+        
+        # Get API key
+        self.api_key = api_key
+        if not self.api_key and config["env_key"]:
+            self.api_key = os.environ.get(config["env_key"])
+        
+        if not self.api_key and self.provider != "ollama":
+            env_key = config["env_key"]
             raise ValueError(
-                "Groq API key required. Set GROQ_API_KEY environment variable "
-                "or pass api_key parameter. Get your key at: https://console.groq.com"
+                f"{self.provider.title()} API key required. "
+                f"Set {env_key} environment variable or pass api_key parameter."
             )
         
-        self.client = Groq(api_key=self.api_key)
-        self.model = "llama-3.3-70b-versatile"
+        # Set model
+        self.model = model or config["default_model"]
+        
+        # Set base URL
+        self.base_url = base_url or config["base_url"]
+        
+        # Initialize client (all providers use OpenAI-compatible API)
+        if self.provider == "groq":
+            self.client = Groq(api_key=self.api_key)
+        else:
+            # OpenAI and Ollama use openai package
+            try:
+                from openai import OpenAI
+            except ImportError:
+                raise ImportError(
+                    f"openai package required for {self.provider}. "
+                    "Install with: pip install openai"
+                )
+            
+            client_kwargs = {}
+            if self.api_key:
+                client_kwargs["api_key"] = self.api_key
+            if self.base_url:
+                client_kwargs["base_url"] = self.base_url
+            
+            # Ollama doesn't need a real API key
+            if self.provider == "ollama":
+                client_kwargs["api_key"] = "ollama"
+            
+            self.client = OpenAI(**client_kwargs)
     
     def generate_from_story(
         self,
@@ -293,6 +374,19 @@ Include reference tables with inline_data for lookup values and transactional ta
             if "choices" not in normalized:
                 normalized["choices"] = ["A", "B", "C"]
         
+        # Curve Fitting for 'control_points'
+        if "control_points" in normalized:
+            try:
+                points = normalized.pop("control_points")
+                dist_type = normalized.get("distribution", "normal")
+                fitter = CurveFitter()
+                fitted_params = fitter.fit_distribution(points, dist_type)
+                # Merge fitted params, keeping any manual overrides if they exist (or overwriting? let's overwrite for safety)
+                normalized.update(fitted_params)
+            except Exception as e:
+                # If fitting fails, fallback to defaults or keep what we have
+                pass
+
         return normalized
     
     def _parse_schema(self, schema_dict: Dict) -> SchemaConfig:

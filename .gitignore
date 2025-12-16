@@ -1,6 +1,7 @@
 # Environment files
 .env
 .env.local
+.env.*
 
 # Python
 __pycache__/
@@ -22,11 +23,20 @@ lib64/
 venv/
 .venv/
 
+# ===================================
+# PRIVATE - DO NOT PUSH TO PUBLIC
+# ===================================
+web/
+tests/
+jman_output/
+llm_test/
+ml_demo_output/
+demo_*.py
+
 # Generated data
 generated_data/
 test_data/
 *.csv
-!examples/**/*.csv
 
 # IDE
 .vscode/
@@ -39,22 +49,9 @@ test_data/
 .DS_Store
 Thumbs.db
 
-# Node (web UI)
-web/node_modules/
-web/.next/
-web/out/
-
-# Misc
+# Logs and testing
 *.log
 .coverage
 htmlcov/
 .pytest_cache/
 .mypy_cache/
-
-# Next.js
-web/node_modules/
-web/.next/
-
-# Next.js
-web/node_modules/
-web/.next/

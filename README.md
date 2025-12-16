@@ -1,191 +1,247 @@
 # 🧠 Misata
 
-**AI-Powered Synthetic Data Engine**
+**Generate realistic multi-table datasets from natural language.**
 
-Generate industry-realistic data that's indistinguishable from the real thing. Powered by Groq Llama 3.3 for intelligent schema generation.
+No schema writing. No training data. Just describe what you need.
 
-[![Version](https://img.shields.io/badge/version-2.0.0-purple.svg)]()
+[![Version](https://img.shields.io/badge/version-0.1.0--beta-purple.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10+-green.svg)]()
 
-## ✨ Features
+## ✨ What Makes Misata Different
 
-🧠 **AI-Powered Schema Generation** - Describe your data in plain English  
-📊 **Graph Reverse Engineering** - Describe a chart, get matching data  
-⚡ **Blazing Fast** - 250K+ rows/second with vectorized operations  
-🔗 **Referential Integrity** - Automatic parent-child relationship enforcement  
-📈 **Statistical Control** - Apply growth, seasonality, crashes, trends  
-🎨 **Beautiful Web UI** - Visual studio for data generation  
+| Feature | Faker | SDV | **Misata** |
+|---------|-------|-----|------------|
+| Natural language input | ❌ | ❌ | ✅ |
+| Auto schema generation | ❌ | ❌ | ✅ |
+| Relational integrity | ❌ | ✅ | ✅ |
+| Business constraints | ❌ | ❌ | ✅ |
+| No training data needed | ✅ | ❌ | ✅ |
+| Streaming (10M+ rows) | ❌ | ❌ | ✅ |
 
 ## 🚀 Quick Start
 
-### Installation
-
 ```bash
-cd /Users/muhammedrasin/Misata
-pip install -e .
+pip install misata
 ```
 
-### Set Groq API Key (for LLM features)
+### With Groq (Free, Fast)
 
 ```bash
-# Get your free key: https://console.groq.com
-export GROQ_API_KEY=your_key_here
+export GROQ_API_KEY=your_key  # Get free: https://console.groq.com
+misata generate --story "A SaaS with 50K users, subscriptions, and payments" --use-llm
 ```
 
-### Generate Data
+### With OpenAI
 
 ```bash
-# Rule-based generation (fast, no API needed)
-misata generate --story "SaaS company with 50K users, 20% churn in Q3"
-
-# LLM-powered generation (intelligent, realistic)
-misata generate --story "Mobile fitness app with workout tracking" --use-llm
-
-# Reverse engineer from chart description
-misata graph "Revenue growing from $100K to $1M over 2 years with Q2 dips"
+export OPENAI_API_KEY=your_key
+misata generate --story "E-commerce with products and orders" --use-llm --provider openai
 ```
 
-### Start Web UI
+### With Ollama (Local, Free, Private)
 
 ```bash
-# Terminal 1: Start API server
-misata serve --port 8000
-
-# Terminal 2: Start web UI
-cd web && npm run dev
+ollama run llama3  # Start Ollama first
+misata generate --story "Fitness app with workouts" --use-llm --provider ollama
 ```
 
-Open http://localhost:3000 for the visual studio!
+## 📊 Example Output
 
-## 📖 Usage
+```
+$ misata generate --story "A fitness app with 50K users" --use-llm
 
-### CLI Commands
+🧠 Using Groq (llama-3.3-70b-versatile) for intelligent parsing...
+✅ LLM schema generated successfully!
 
-| Command | Description |
-|---------|-------------|
-| `misata generate` | Generate data from story or config |
-| `misata graph` | Reverse engineer data from chart description |
-| `misata parse` | Parse story and output config file |
-| `misata serve` | Start the API server |
-| `misata examples` | Show usage examples |
+📋 Schema: FitnessApp
+   Tables: 5
+   Relationships: 4
 
-### Python API
+🔧 Generating 5 table(s)...
+
+   ✓ exercises     (10 rows)
+   ✓ plans         (5 rows)
+   ✓ users         (50,000 rows)
+   ✓ subscriptions (45,000 rows)
+   ✓ workouts      (500,000 rows)
+
+⏱️  Generation time: 2.34 seconds
+🚀 Performance: 213,675 rows/second
+💾 Data saved to: ./generated_data
+```
+
+## 💻 Python API
 
 ```python
 from misata import DataSimulator, SchemaConfig
 from misata.llm_parser import LLMSchemaGenerator
 
-# With LLM (intelligent)
-llm = LLMSchemaGenerator()
+# Generate schema from story
+llm = LLMSchemaGenerator(provider="groq")  # or "openai", "ollama"
 config = llm.generate_from_story(
-    "A mobile fitness app with 50K users tracking workouts, "
-    "heavy January signups, 60% drop by March, 15% premium conversion"
+    "A mobile fitness app with 50K users, workout tracking, "
+    "premium subscriptions, and January signup spikes"
 )
 
 # Generate data
-simulator = DataSimulator(config)
-data = simulator.generate_all()
-
-# Export
-simulator.export_to_csv("./output")
+for table_name, batch in DataSimulator(config).generate_all():
+    print(f"Generated {len(batch)} rows for {table_name}")
 ```
 
-### Graph Reverse Engineering
+## 🔧 CLI Reference
+
+```bash
+# Basic generation (rule-based, no API key needed)
+misata generate --story "SaaS company with users and subscriptions"
+
+# LLM-powered generation
+misata generate --story "..." --use-llm
+
+# Specify provider and model
+misata generate --story "..." --use-llm --provider ollama --model llama3
+
+# Custom output directory
+misata generate --story "..." --use-llm --output-dir ./my_data
+
+# Set row count
+misata generate --story "..." --use-llm --rows 100000
+
+# Reproducible with seed
+misata generate --story "..." --use-llm --seed 42
+```
+
+## 🎯 Business Rule Constraints
+
+Define rules like "employees can't log >8 hours/day":
 
 ```python
-from misata.llm_parser import LLMSchemaGenerator
+from misata import Constraint, Table
 
-llm = LLMSchemaGenerator()
-config = llm.generate_from_graph("""
-Monthly revenue line chart showing:
-- Start: $100K in January 2023
-- End: $1M by December 2024
-- Exponential growth curve
-- 20% seasonal dip every Q2
-- One-time 50% crash in October 2023 with 3-month recovery
-""")
-
-# The generated data will produce exactly this pattern when plotted!
+timesheets = Table(
+    name="timesheets",
+    row_count=10000,
+    constraints=[
+        Constraint(
+            name="max_daily_hours",
+            type="sum_limit",
+            group_by=["employee_id", "date"],
+            column="hours",
+            value=8.0,
+            action="redistribute"
+        )
+    ]
+)
 ```
 
-## 🎨 Web UI
+## 🔑 LLM Providers
 
-The web UI provides three modes:
+| Provider | Env Variable | Free Tier | Notes |
+|----------|--------------|-----------|-------|
+| **Groq** | `GROQ_API_KEY` | ✅ 30 req/min | Fastest, recommended |
+| **OpenAI** | `OPENAI_API_KEY` | ❌ | Best quality |
+| **Ollama** | None | ✅ Local | Private, no internet |
 
-1. **Story Mode** - Natural language input with AI parsing
-2. **Graph Mode** - Describe your desired chart, get matching data
-3. **Visual Builder** - Drag-and-drop schema designer (coming soon)
+## 📈 Extending Data Pools
 
-## 🏗️ Architecture
+```python
+from misata import TextGenerator
 
+# Add custom names
+TextGenerator.extend_pool("first_names", ["Arjun", "Priya", "Rahul"])
+
+# Load from file
+TextGenerator.load_pools_from_file("custom_pools.json")
+
+# Save for reuse
+TextGenerator.save_pools_to_file("expanded_pools.json")
 ```
-misata/
-├── misata/
-│   ├── __init__.py          # Package exports
-│   ├── schema.py            # Pydantic models
-│   ├── simulator.py         # Vectorized generator
-│   ├── modifiers.py         # Mathematical functions
-│   ├── llm_parser.py        # Groq Llama 3.3 integration
-│   ├── story_parser.py      # Rule-based parser
-│   ├── api.py               # FastAPI backend
-│   ├── codegen.py           # Script generator
-│   └── cli.py               # CLI interface
-├── web/                     # Next.js web UI
-│   └── src/app/
-├── examples/                # Demo scripts
-└── pyproject.toml
+
+## 🤖 ML Training Data
+
+Make your synthetic data **indistinguishable from real-world data** with noise injection:
+
+```python
+from misata import add_noise, NoiseInjector
+
+# Quick noise injection
+noisy_df = add_noise(df,
+    null_rate=0.05,      # 5% missing values
+    outlier_rate=0.02,   # 2% statistical outliers
+    typo_rate=0.01,      # 1% typos in text
+    duplicate_rate=0.03, # 3% duplicate rows
+    seed=42
+)
+
+# Advanced: Temporal distribution drift
+injector = NoiseInjector(seed=42)
+df = injector.apply_temporal_drift(df, 
+    date_column="created_at",
+    value_column="revenue", 
+    drift_rate=0.15,      # 15% increase over time
+    drift_direction="up"
+)
+```
+
+### Attribute Customization
+
+```python
+from misata import Customizer, ColumnOverride
+import numpy as np
+
+customizer = Customizer(seed=42)
+
+# Custom age distribution (realistic, not uniform)
+customizer.add_override("users", ColumnOverride(
+    name="age",
+    generator=lambda n: np.random.normal(35, 12, n).clip(18, 80).astype(int)
+))
+
+# Conditional values based on other columns
+customizer.add_conditional("orders", "shipping_cost", {
+    "country": {"US": 5.99, "UK": 9.99, "DE": 7.99}
+})
+
+# Apply to generated data
+df = customizer.apply(df, "users")
 ```
 
 ## ⚡ Performance
 
 | Rows | Time | Speed |
 |------|------|-------|
-| 10K | 0.04s | 250K rows/sec |
-| 100K | 0.4s | 250K rows/sec |
-| 1M | 4s | 250K rows/sec |
+| 10K | 0.03s | 333K rows/sec |
+| 100K | 0.26s | 385K rows/sec |
+| 1M | 2.6s | 390K rows/sec |
+| 10M | 26s | 390K rows/sec (streaming) |
 
-## 🔑 API Keys
+## � Try It Now
 
-### Groq (Required for LLM features)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/examples/getting_started.ipynb)
 
-1. Go to https://console.groq.com
-2. Create an account (free)
-3. Generate an API key
-4. Set environment variable: `export GROQ_API_KEY=your_key`
+Try Misata in your browser without installing anything!
 
-**Free tier:** 30 requests/minute, sufficient for most use cases.
+## 💼 Enterprise & Consulting
 
-## 🛠️ Development
+**Need help with complex scenarios?**
 
-```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+- 🏢 Custom enterprise data schemas (10M+ rows)
+- 🔧 Integration with your existing pipelines
+- 📊 Industry-specific realistic data generation
+- 🎓 Training and onboarding for your team
 
-# Run tests
-pytest
+📧 **Contact: rasinbinabdulla@gmail.com**
 
-# Format code
-black misata/
+## �📄 License
 
-# Type check
-mypy misata/
-```
-
-## 📄 License
-
-MIT License - see LICENSE file.
+MIT License
 
 ## 👤 Author
 
-Built with ❤️ by **Muhammed Rasin**
-
-Powered by:
-- 🧠 Groq Llama 3.3
-- ⚡ NumPy & Pandas
-- 🎭 Mimesis
-- 🌐 FastAPI & Next.js
+Built by **Muhammed Rasin**
 
 ---
 
-**Misata** - Making synthetic data indistinguishable from reality.
+**Misata** - From story to synthetic database in one command.
+
+

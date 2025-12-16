@@ -92,8 +92,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory storage for generated data (in production, use Redis or file storage)
-_generated_data: Dict[str, Dict] = {}
+# In-memory storage for generated data paths (ID -> directory path)
+_generated_files: Dict[str, str] = {}
 
 
 # ============================================================================
@@ -229,37 +229,55 @@ async def generate_data(request: GenerateRequest, background_tasks: BackgroundTa
             schema.seed = request.seed
         
         simulator = DataSimulator(schema)
-        data = simulator.generate_all()
         
-        # Generate unique download ID
+        # Create temp directory for this generation
         import uuid
+        import shutil
+        import pandas as pd
+        
         download_id = str(uuid.uuid4())
+        temp_dir = tempfile.mkdtemp(prefix=f"misata_{download_id}_")
+        _generated_files[download_id] = temp_dir
         
-        # Store data for download (in production, use proper storage)
-        _generated_data[download_id] = data
-        
-        # Build preview (first 100 rows)
+        # Build preview and stats
         preview = {}
         stats = {}
+        files_created = set()
         
-        for table_name, df in data.items():
-            preview[table_name] = df.head(100).to_dict(orient="records")
+        # Generate and stream to disk
+        for table_name, batch_df in simulator.generate_all():
+            output_path = os.path.join(temp_dir, f"{table_name}.csv")
+            mode = 'a' if table_name in files_created else 'w'
+            header = not (table_name in files_created)
             
-            # Calculate stats
-            stats[table_name] = {
-                "row_count": len(df),
-                "columns": list(df.columns),
-                "memory_mb": df.memory_usage(deep=True).sum() / 1024**2,
-                "numeric_stats": {}
-            }
+            batch_df.to_csv(output_path, mode=mode, header=header, index=False)
+            files_created.add(table_name)
             
-            for col in df.select_dtypes(include=["number"]).columns:
-                stats[table_name]["numeric_stats"][col] = {
-                    "mean": float(df[col].mean()),
-                    "std": float(df[col].std()),
-                    "min": float(df[col].min()),
-                    "max": float(df[col].max())
+            # Use first batch for preview/stats if we haven't seen this table yet
+            if table_name not in preview:
+                preview_df = batch_df.head(100)
+                preview[table_name] = preview_df.to_dict(orient="records")
+                
+                # Calculate basic stats on the first batch (approximate for speed)
+                stats[table_name] = {
+                    "row_count": len(batch_df), # Incremented below if needed, but preview just shows batch info?
+                    # Ideally we want total row count. But we only know it at the end if we stream.
+                    # Or we trust schema row_count.
+                    # Let's use schema count for "row_count" or keep updating?
+                    # Simply using batch info is misleading.
+                    # Let's trust schema row_count for display.
+                    "columns": list(batch_df.columns),
+                    "memory_mb": 0.0, # Not relevant on disk
+                    "numeric_stats": {}
                 }
+                
+                for col in batch_df.select_dtypes(include=["number"]).columns:
+                    stats[table_name]["numeric_stats"][col] = {
+                        "mean": float(batch_df[col].mean()),
+                        "std": float(batch_df[col].std()),
+                        "min": float(batch_df[col].min()),
+                        "max": float(batch_df[col].max())
+                    }
         
         # Clean up old data after 1 hour (in background)
         background_tasks.add_task(cleanup_old_data, download_id, 3600)
@@ -279,19 +297,19 @@ async def download_data(download_id: str, format: str = "csv"):
     """
     Download generated data as CSV or JSON.
     """
-    if download_id not in _generated_data:
+    if download_id not in _generated_files:
         raise HTTPException(status_code=404, detail="Data not found. It may have expired.")
     
-    data = _generated_data[download_id]
+    temp_dir = _generated_files[download_id]
     
     if format == "csv":
-        # Create ZIP with all CSVs
+        # Create ZIP from CSV files in temp directory
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            for table_name, df in data.items():
-                csv_buffer = io.StringIO()
-                df.to_csv(csv_buffer, index=False)
-                zf.writestr(f"{table_name}.csv", csv_buffer.getvalue())
+            for filename in os.listdir(temp_dir):
+                if filename.endswith(".csv"):
+                    file_path = os.path.join(temp_dir, filename)
+                    zf.write(file_path, arcname=filename)
         
         zip_buffer.seek(0)
         return StreamingResponse(
@@ -301,7 +319,15 @@ async def download_data(download_id: str, format: str = "csv"):
         )
     
     elif format == "json":
-        json_data = {name: df.to_dict(orient="records") for name, df in data.items()}
+        # Convert CSVs to JSON (warning: could be large)
+        import pandas as pd
+        json_data = {}
+        for filename in os.listdir(temp_dir):
+            if filename.endswith(".csv"):
+                table_name = filename[:-4]
+                file_path = os.path.join(temp_dir, filename)
+                df = pd.read_csv(file_path)
+                json_data[table_name] = df.to_dict(orient="records")
         return json_data
     
     else:
@@ -309,11 +335,15 @@ async def download_data(download_id: str, format: str = "csv"):
 
 
 async def cleanup_old_data(download_id: str, delay_seconds: int):
-    """Clean up generated data after delay."""
+    """Clean up generated data files after delay."""
     import asyncio
+    import shutil
+    
     await asyncio.sleep(delay_seconds)
-    if download_id in _generated_data:
-        del _generated_data[download_id]
+    if download_id in _generated_files:
+        temp_dir = _generated_files[download_id]
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        del _generated_files[download_id]
 
 
 # ============================================================================

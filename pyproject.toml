@@ -1,17 +1,41 @@
 [project]
 name = "misata"
-version = "2.0.0"
-description = "Misata - AI-Powered Synthetic Data Engine | Generate industry-realistic data from natural language"
+version = "0.1.0-beta"
+description = "AI-Powered Synthetic Data Engine - Generate realistic multi-table datasets from natural language"
 authors = [
-    {name = "Muhammed Rasin", email = "your.email@example.com"}
+    {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
 ]
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
+keywords = [
+    "synthetic-data",
+    "data-generation", 
+    "fake-data",
+    "machine-learning",
+    "testing",
+    "llm",
+    "ai",
+    "database",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Database",
+]
 dependencies = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
     "pydantic>=2.0.0",
-    "mimesis>=11.0.0",
     "click>=8.1.0",
     "pyyaml>=6.0",
     "rich>=13.0.0",
@@ -19,7 +43,15 @@ dependencies = [
     "fastapi>=0.109.0",
     "uvicorn>=0.27.0",
     "python-multipart>=0.0.6",
+    "simpleeval>=0.9.0",
+    "scipy>=1.10.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/rasinmuhammed/misata"
+Documentation = "https://github.com/rasinmuhammed/misata#readme"
+Repository = "https://github.com/rasinmuhammed/misata"
+Issues = "https://github.com/rasinmuhammed/misata/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -39,7 +71,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["misata*"]
-exclude = ["web*", "examples*", "tests*"]
+exclude = ["web*", "tests*"]
 
 [tool.black]
 line-length = 100
@@ -60,4 +92,3 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-

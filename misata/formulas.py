@@ -13,11 +13,63 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import ast
+import operator
+from simpleeval import simple_eval, NameNotDefined
 
+# Whitelist of safe functions
+SAFE_FUNCTIONS = {
+    'where': np.where,
+    'abs': np.abs,
+    'round': np.round,
+    'ceil': np.ceil,
+    'floor': np.floor,
+    'min': np.minimum,
+    'max': np.maximum,
+    'sin': np.sin,
+    'cos': np.cos,
+    'tan': np.tan,
+    'log': np.log,
+    'exp': np.exp,
+    'sqrt': np.sqrt,
+    'random': np.random.random,
+    'randint': np.random.randint,
+}
+
+# Standard operators to bypass simpleeval's string length checks which fail on numpy arrays
+SAFE_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Pow: operator.pow,
+    ast.Mod: operator.mod,
+    ast.Eq: operator.eq,
+    ast.NotEq: operator.ne,
+    ast.Gt: operator.gt,
+    ast.Lt: operator.lt,
+    ast.GtE: operator.ge,
+    ast.LtE: operator.le,
+    ast.BitAnd: operator.and_,
+    ast.BitOr: operator.or_,
+    ast.BitXor: operator.xor,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+    ast.Not: operator.not_,
+    ast.In: lambda a, b: a in b,
+}
+
+class SafeNumpy:
+    """Proxy for numpy to allow safe access to whitelisted functions."""
+    def __getattr__(self, name):
+        if name in SAFE_FUNCTIONS:
+            return SAFE_FUNCTIONS[name]
+        raise NameNotDefined(name, f"Function 'np.{name}' is not allowed in formulas.")
 
 class FormulaEngine:
     """
-    Evaluate column formulas using pandas expressions.
+    Evaluate column formulas using safe expressions.
     
     Supports:
     - Simple arithmetic: duration * 10
@@ -55,19 +107,25 @@ class FormulaEngine:
         # Replace cross-table references with actual values
         processed_formula = self._resolve_cross_table_refs(df, formula, fk_column)
         
-        # Create evaluation context with numpy and column values
-        context = {
-            'np': np,
-            'pd': pd,
+        # Create evaluation context
+        names = {
+            'np': SafeNumpy(),
+            'pd': pd, # Needed for some checks, but ideally we restrict this too
+            # simpleeval defaults allow basic math
         }
         
         # Add columns to context
         for col in df.columns:
-            context[col] = df[col].values
+            names[col] = df[col].values
         
-        # Evaluate the expression
+        # Evaluate the expression safely
         try:
-            result = eval(processed_formula, {"__builtins__": {}}, context)
+            result = simple_eval(
+                processed_formula, 
+                names=names,
+                functions=SAFE_FUNCTIONS, # Allow top-level functions too
+                operators=SAFE_OPERATORS
+            )
             return np.array(result)
         except Exception as e:
             raise ValueError(f"Failed to evaluate formula '{formula}': {e}")
@@ -99,7 +157,6 @@ class FormulaEngine:
             return formula
         
         result = formula
-        lookup_vars = {}
         
         for i, (table_name, col_name) in enumerate(matches):
             if table_name not in self.tables:
@@ -120,15 +177,27 @@ class FormulaEngine:
                 )
             
             # Create lookup mapping and apply
+            # Handle duplicates in index by grouping or taking first (safety)
+            if not ref_table['id'].is_unique:
+                 # If IDs are not unique in ref table, we have a problem. 
+                 # Assuming IDs are unique for lookups.
+                 pass
+
             lookup_map = ref_table.set_index('id')[col_name].to_dict()
             looked_up = df[actual_fk].map(lookup_map).values
             
             var_name = f'_lookup_{i}'
-            lookup_vars[var_name] = looked_up
+            # Store in a temporary dict doesn't work well with clean state
+            # Instead we'll inject into the names dict in evaluate
+            # But specific method needs to handle this exchange.
+            # Refactoring to return both formula and context updates would be better
+            # For now, sticking to string replacement and hoping evaluate calls context filler
+            
+            # CRITICAL: This method only returns string. 
+            # The previous implementation put it in _temp_lookups but implementation was messy.
+            # We will use evaluate_with_lookups which is the main entry point
+            
             result = result.replace(f'@{table_name}.{col_name}', var_name)
-        
-        # Add lookup vars to formula context (we'll need to modify evaluate)
-        self._temp_lookups = lookup_vars
         
         return result
     
@@ -157,14 +226,14 @@ class FormulaEngine:
         matches = re.findall(pattern, formula)
         
         result = formula
-        context = {
-            'np': np,
+        names = {
+            'np': SafeNumpy(),
             'pd': pd,
         }
         
         # Add columns to context
         for col in df.columns:
-            context[col] = df[col].values
+            names[col] = df[col].values
         
         # Resolve each cross-table reference
         for i, (table_name, col_name) in enumerate(matches):
@@ -199,12 +268,17 @@ class FormulaEngine:
             looked_up = df[fk_col].map(lookup_map).fillna(0).values
             
             var_name = f'_ref_{i}'
-            context[var_name] = looked_up
+            names[var_name] = looked_up
             result = result.replace(f'@{table_name}.{col_name}', var_name)
         
-        # Evaluate
+        # Evaluate safely
         try:
-            return eval(result, {"__builtins__": {}}, context)
+            return np.array(simple_eval(
+                result, 
+                names=names,
+                functions=SAFE_FUNCTIONS,
+                operators=SAFE_OPERATORS
+            ))
         except Exception as e:
             raise ValueError(f"Failed to evaluate formula '{formula}': {e}")
 

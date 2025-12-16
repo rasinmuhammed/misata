@@ -90,10 +90,21 @@ class TestDataSimulator:
             ]
         )
     
+
+    def generate_and_collect(self, simulator):
+        """Helper to consume generator and collect all data."""
+        data = {}
+        for table_name, batch_df in simulator.generate_all():
+            if table_name in data:
+                data[table_name] = pd.concat([data[table_name], batch_df], ignore_index=True)
+            else:
+                data[table_name] = batch_df
+        return data
+
     def test_simple_generation(self, simple_schema):
         """Test basic data generation."""
         simulator = DataSimulator(simple_schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         assert "users" in data
         assert len(data["users"]) == 100
@@ -102,7 +113,7 @@ class TestDataSimulator:
     def test_age_bounds(self, simple_schema):
         """Test that age values respect bounds."""
         simulator = DataSimulator(simple_schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         ages = data["users"]["age"]
         assert ages.min() >= 18
@@ -111,7 +122,7 @@ class TestDataSimulator:
     def test_email_format(self, simple_schema):
         """Test that emails contain @."""
         simulator = DataSimulator(simple_schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         emails = data["users"]["email"]
         assert all("@" in str(email) for email in emails)
@@ -119,7 +130,7 @@ class TestDataSimulator:
     def test_boolean_distribution(self, simple_schema):
         """Test boolean probability is approximately correct."""
         simulator = DataSimulator(simple_schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         active_rate = data["users"]["active"].mean()
         # With probability 0.7, expect between 0.5 and 0.9
@@ -128,7 +139,7 @@ class TestDataSimulator:
     def test_foreign_key_integrity(self, schema_with_fk):
         """Test that all foreign keys reference valid parent IDs."""
         simulator = DataSimulator(schema_with_fk)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         user_ids = set(data["users"]["id"])
         order_user_ids = set(data["orders"]["user_id"])
@@ -139,7 +150,7 @@ class TestDataSimulator:
     def test_reference_table_uses_inline_data(self, reference_table_schema):
         """Test that reference tables use inline data."""
         simulator = DataSimulator(reference_table_schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         # Plans should have exactly 3 rows from inline_data
         assert len(data["plans"]) == 3
@@ -149,7 +160,7 @@ class TestDataSimulator:
     def test_fk_to_reference_table(self, reference_table_schema):
         """Test FK references to reference table."""
         simulator = DataSimulator(reference_table_schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         plan_ids = set(data["plans"]["id"])
         sub_plan_ids = set(data["subscriptions"]["plan_id"])
@@ -161,8 +172,8 @@ class TestDataSimulator:
         sim1 = DataSimulator(simple_schema)
         sim2 = DataSimulator(simple_schema)
         
-        data1 = sim1.generate_all()
-        data2 = sim2.generate_all()
+        data1 = self.generate_and_collect(sim1)
+        data2 = self.generate_and_collect(sim2)
         
         # Numeric columns should be identical (mimesis text isn't fully seedable)
         pd.testing.assert_series_equal(data1["users"]["id"], data2["users"]["id"])
@@ -182,6 +193,16 @@ class TestDataSimulator:
 class TestDistributions:
     """Tests for distribution accuracy."""
     
+    def generate_and_collect(self, simulator):
+        """Helper to consume generator and collect all data."""
+        data = {}
+        for table_name, batch_df in simulator.generate_all():
+            if table_name in data:
+                data[table_name] = pd.concat([data[table_name], batch_df], ignore_index=True)
+            else:
+                data[table_name] = batch_df
+        return data
+
     def test_normal_distribution_mean(self):
         """Test normal distribution generates correct mean."""
         schema = SchemaConfig(
@@ -197,7 +218,7 @@ class TestDistributions:
             }
         )
         simulator = DataSimulator(schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         mean = data["data"]["value"].mean()
         # Mean should be close to 100
@@ -219,7 +240,7 @@ class TestDistributions:
             }
         )
         simulator = DataSimulator(schema)
-        data = simulator.generate_all()
+        data = self.generate_and_collect(simulator)
         
         counts = data["data"]["status"].value_counts(normalize=True)
         
@@ -227,3 +248,4 @@ class TestDistributions:
         assert 0.45 < counts.get("A", 0) < 0.55
         assert 0.25 < counts.get("B", 0) < 0.35
         assert 0.15 < counts.get("C", 0) < 0.25
+

@@ -79,7 +79,21 @@ def main() -> None:
     "--use-llm",
     is_flag=True,
     default=False,
-    help="Use LLM (Groq Llama 3.3) for intelligent schema generation",
+    help="Use LLM for intelligent schema generation",
+)
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["groq", "openai", "ollama"]),
+    default=None,
+    help="LLM provider (groq, openai, ollama). Default: MISATA_PROVIDER env or groq",
+)
+@click.option(
+    "--model",
+    "-m",
+    type=str,
+    default=None,
+    help="LLM model name (e.g., llama3, gpt-4o-mini)",
 )
 @click.option(
     "--export-script",
@@ -94,6 +108,8 @@ def generate(
     rows: int,
     seed: Optional[int],
     use_llm: bool,
+    provider: Optional[str],
+    model: Optional[str],
     export_script: Optional[str],
 ) -> None:
     """
@@ -133,19 +149,25 @@ def generate(
             try:
                 from misata.llm_parser import LLMSchemaGenerator
                 
-                console.print("🧠 [purple]Using LLM (Groq Llama 3.3) for intelligent parsing...[/purple]")
+                # Determine provider for display
+                display_provider = provider or os.environ.get("MISATA_PROVIDER", "groq")
+                display_model = model or LLMSchemaGenerator.PROVIDERS.get(display_provider, {}).get("default_model", "")
+                
+                console.print(f"🧠 [purple]Using {display_provider.title()} ({display_model}) for intelligent parsing...[/purple]")
                 
                 with console.status("[purple]Generating schema with AI...[/purple]"):
-                    llm = LLMSchemaGenerator()
+                    llm = LLMSchemaGenerator(provider=provider, model=model)
                     schema_config = llm.generate_from_story(story, default_rows=rows)
                 
                 console.print("✅ [green]LLM schema generated successfully![/green]")
             except ValueError as e:
-                if "GROQ_API_KEY" in str(e):
-                    console.print("\n[red]❌ Groq API key required for LLM mode.[/red]")
-                    console.print("   Set your API key: [yellow]export GROQ_API_KEY=your_key[/yellow]")
-                    console.print("   Get a free key: [cyan]https://console.groq.com[/cyan]")
-                    console.print("\n   Or use without --use-llm for rule-based parsing.")
+                error_msg = str(e)
+                if "API key required" in error_msg:
+                    console.print(f"\n[red]❌ {error_msg}[/red]")
+                    console.print("\n   Options:")
+                    console.print("   • [yellow]export GROQ_API_KEY=xxx[/yellow] (free: https://console.groq.com)")
+                    console.print("   • [yellow]export OPENAI_API_KEY=xxx[/yellow]")
+                    console.print("   • [yellow]--provider ollama[/yellow] (local, no key needed)")
                     sys.exit(1)
                 raise
         else:
@@ -180,21 +202,40 @@ def generate(
     
     # Generate data
     console.print(f"\n⚙️  Initializing simulator...")
+    # Default batch size is 10k, good for CLI
     simulator = DataSimulator(schema_config)
     
     console.print(f"\n🔧 Generating {len(schema_config.tables)} table(s)...\n")
     
     start_time = time.time()
+    total_rows = 0
+    
+    # Prepare export
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    files_created = set()
     
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
+        TextColumn("{task.completed:,} rows"),
         console=console,
     ) as progress:
         task = progress.add_task("Generating data...", total=None)
-        data = simulator.generate_all()
-        progress.update(task, completed=True)
-    
+        
+        for table_name, batch_df in simulator.generate_all():
+            # Write to disk immediately
+            output_path = os.path.join(output_dir, f"{table_name}.csv")
+            mode = 'a' if table_name in files_created else 'w'
+            header = not (table_name in files_created)
+            
+            batch_df.to_csv(output_path, mode=mode, header=header, index=False)
+            files_created.add(table_name)
+            
+            batch_size = len(batch_df)
+            total_rows += batch_size
+            progress.update(task, advance=batch_size, description=f"Generating {table_name}...")
+            
     elapsed = time.time() - start_time
     
     # Display summary
@@ -204,14 +245,10 @@ def generate(
     console.print(f"\n⏱️  Generation time: [cyan]{elapsed:.2f} seconds[/cyan]")
     
     # Calculate performance metrics
-    total_rows = sum(len(df) for df in data.values())
     rows_per_sec = total_rows / elapsed if elapsed > 0 else 0
     console.print(f"🚀 Performance: [green]{rows_per_sec:,.0f} rows/second[/green]")
     
-    # Export to CSV
-    console.print(f"\n💾 Exporting to: [cyan]{output_dir}[/cyan]")
-    simulator.export_to_csv(output_dir)
-    
+    console.print(f"\n💾 Data saved to: [cyan]{output_dir}[/cyan]")
     console.print(f"\n[bold green]✓ Done![/bold green]")
 
 
@@ -254,13 +291,32 @@ def graph(description: str, output_dir: str) -> None:
         console.print("\n🔧 Generating data...")
         
         start_time = time.time()
-        data = simulator.generate_all()
+        
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        files_created = set()
+        total_rows = 0
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Generating...", total=None)
+            for table_name, batch_df in simulator.generate_all():
+                output_path = os.path.join(output_dir, f"{table_name}.csv")
+                mode = 'a' if table_name in files_created else 'w'
+                header = not (table_name in files_created)
+                batch_df.to_csv(output_path, mode=mode, header=header, index=False)
+                files_created.add(table_name)
+                
+                total_rows += len(batch_df)
+                progress.update(task, advance=len(batch_df))
+        
         elapsed = time.time() - start_time
         
         console.print(simulator.get_summary())
         console.print(f"\n⏱️  Generation time: [cyan]{elapsed:.2f}s[/cyan]")
-        
-        simulator.export_to_csv(output_dir)
         console.print(f"\n[bold green]✓ Data exported to {output_dir}[/bold green]")
         
     except ValueError as e:
@@ -421,7 +477,7 @@ def examples() -> None:
     
     console.print("\n[bold]Industry Templates:[/bold]")
     console.print("  Available: saas, ecommerce, fitness, healthcare")
-    console.print("  Example: [cyan]misata template saas --users 10000[/cyan]")
+    console.print("  Example: [cyan]misata template <name> [OPTIONS][/cyan]")
 
 
 @main.command()
@@ -474,7 +530,7 @@ def template(template_name: str, output_dir: str, scale: float, validate: bool) 
         
         schema_config = template_to_schema(template_name, row_multiplier=scale)
         
-        console.print(f"\\n📊 Schema: [bold]{schema_config.name}[/bold]")
+        console.print(f"\n📊 Schema: [bold]{schema_config.name}[/bold]")
         console.print(f"   Tables: {len(schema_config.tables)}")
         console.print(f"   Relationships: {len(schema_config.relationships)}")
         
@@ -485,30 +541,69 @@ def template(template_name: str, output_dir: str, scale: float, validate: bool) 
         console.print(f"   Transactional tables: {trans_tables}")
         
         # Generate data
-        console.print(f"\\n⚙️  Generating data...")
+        console.print(f"\n⚙️  Generating data...")
         simulator = DataSimulator(schema_config)
         
         start_time = time.time()
-        data = simulator.generate_all()
+        
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        files_created = set()
+        total_rows = 0
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            TextColumn("{task.completed:,} rows"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Generating...", total=None)
+            
+            for table_name, batch_df in simulator.generate_all():
+                output_path = os.path.join(output_dir, f"{table_name}.csv")
+                mode = 'a' if table_name in files_created else 'w'
+                header = not (table_name in files_created)
+                
+                batch_df.to_csv(output_path, mode=mode, header=header, index=False)
+                files_created.add(table_name)
+                
+                total_rows += len(batch_df)
+                progress.update(task, advance=len(batch_df), description=f"Generating {table_name}...")
+        
         elapsed = time.time() - start_time
         
         console.print(simulator.get_summary())
-        console.print(f"\\n⏱️  Generation time: [cyan]{elapsed:.2f}s[/cyan]")
+        console.print(f"\n⏱️  Generation time: [cyan]{elapsed:.2f}s[/cyan]")
+        console.print(f"\n[bold green]✓ Data exported to {output_dir}[/bold green]")
         
         # Run validation if enabled
         if validate:
-            console.print("\\n🔍 Running validation...")
-            from misata.validation import validate_data
-            report = validate_data(data, schema_config)
-            
-            if report.is_clean:
-                console.print("[green]✅ All validations passed![/green]")
-            else:
-                console.print(report.summary())
-        
-        # Export
-        simulator.export_to_csv(output_dir)
-        console.print(f"\\n[bold green]✓ Data exported to {output_dir}[/bold green]")
+            console.print("\n🔍 Running validation on exported files...")
+            try:
+                # Validate by reading back files (or sample)
+                # For now, let's read the full files, assuming they fit in memory for small template demos
+                # In production, validation should support streaming or sampling
+                import pandas as pd
+                from pathlib import Path
+                from misata.validation import validate_data
+                
+                tables = {}
+                data_path = Path(output_dir)
+                for csv_file in data_path.glob("*.csv"):
+                    # Basic check if it's one of ours
+                    if csv_file.stem in [t.name for t in schema_config.tables]:
+                         # Warning: reading potentially large files
+                         # TODO: implement scalable validation
+                         tables[csv_file.stem] = pd.read_csv(csv_file)
+                
+                report = validate_data(tables, schema_config)
+                
+                if report.is_clean:
+                    console.print("[green]✅ All validations passed![/green]")
+                else:
+                    console.print(report.summary())
+            except Exception as e:
+                console.print(f"[yellow]⚠️ Validation failed (memory issue or other): {e}[/yellow]")
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")

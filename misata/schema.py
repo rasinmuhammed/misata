@@ -39,8 +39,9 @@ class Column(BaseModel):
             raise ValueError("Categorical columns must have 'choices' in distribution_params")
         
         if col_type == "date":
-            if "start" not in v or "end" not in v:
-                raise ValueError("Date columns must have 'start' and 'end' in distribution_params")
+            if "relative_to" not in v:
+                if "start" not in v or "end" not in v:
+                    raise ValueError("Date columns must have 'start' and 'end' OR 'relative_to' in distribution_params")
         
         if col_type in ["int", "float"]:
             if "distribution" not in v:
@@ -70,6 +71,7 @@ class Table(BaseModel):
     description: Optional[str] = None
     is_reference: bool = False
     inline_data: Optional[List[Dict[str, Any]]] = None
+    constraints: List["Constraint"] = Field(default_factory=list)
 
 
 
@@ -93,6 +95,50 @@ class Relationship(BaseModel):
     parent_key: str
     child_key: str
     temporal_constraint: bool = False
+    filters: Optional[Dict[str, Any]] = None  # e.g., {"status": "active"}
+
+
+class Constraint(BaseModel):
+    """
+    Defines a business rule constraint to enforce during generation.
+    
+    Constraints are applied after generating a batch to ensure data
+    adheres to real-world business rules.
+    
+    Attributes:
+        name: Descriptive name of the constraint
+        type: Type of constraint (max_per_group, min_per_group, unique_combination, sum_limit)
+        group_by: List of columns to group by (e.g., ["employee_id", "date"])
+        column: The column to constrain
+        value: The constraint value (e.g., 8 for max 8 hours)
+        action: What to do when constraint is violated (cap, redistribute, error)
+    
+    Examples:
+        # Max 8 hours per employee per day
+        Constraint(
+            name="max_daily_hours",
+            type="max_per_group",
+            group_by=["employee_id", "date"],
+            column="hours",
+            value=8,
+            action="cap"
+        )
+        
+        # Each employee-project-date combination must be unique
+        Constraint(
+            name="unique_timesheet_entry",
+            type="unique_combination",
+            group_by=["employee_id", "project_id", "date"],
+            action="drop"
+        )
+    """
+    
+    name: str
+    type: Literal["max_per_group", "min_per_group", "sum_limit", "unique_combination"]
+    group_by: List[str] = Field(default_factory=list)
+    column: Optional[str] = None  # Not needed for unique_combination
+    value: Optional[float] = None  # The limit value
+    action: Literal["cap", "redistribute", "drop", "error"] = "cap"
 
 
 class ScenarioEvent(BaseModel):

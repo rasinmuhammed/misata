@@ -33,11 +33,12 @@ class ScriptGenerator:
         """Generate import statements."""
         return """import pandas as pd
 import numpy as np
-import mimesis
-from mimesis.locales import Locale
 import warnings
 from collections import defaultdict, deque
 import os
+
+# Pure Python text generator (no external dependencies)
+from misata.generators import TextGenerator
 """
     
     def _generate_config_dict(self) -> str:
@@ -105,7 +106,7 @@ import os
         script_parts.append("    seed = CONFIG.get('seed', 42)")
         script_parts.append("    np.random.seed(seed)")
         script_parts.append("    rng = np.random.default_rng(seed)")
-        script_parts.append("    generic = mimesis.Generic(locale=Locale.EN)")
+        script_parts.append("    text_gen = TextGenerator(seed=seed)")
         script_parts.append("    ")
         script_parts.append("    # TODO: Import and use DataSimulator from Misata")
         script_parts.append("    # For now, this is a placeholder")
