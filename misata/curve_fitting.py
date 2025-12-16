@@ -8,7 +8,7 @@ This allows users/LLMs to "draw" a distribution shape rather than
 guessing abstract parameters like alpha/beta/gamma.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import numpy as np
 from scipy.optimize import minimize
@@ -18,7 +18,7 @@ class CurveFitter:
     """
     Fits statistical distributions to control points using optimization.
     """
-    
+
     def __init__(self):
         """Initialize the curve fitter."""
         self.distributions = {
@@ -31,29 +31,29 @@ class CurveFitter:
         }
 
     def fit_distribution(
-        self, 
-        targets: List[Dict[str, float]], 
+        self,
+        targets: List[Dict[str, float]],
         distribution_type: str = "normal"
     ) -> Dict[str, float]:
         """
         Find best parameters for a distribution to match target points.
-        
+
         Args:
             targets: List of points dicts [{"x": 10, "y": 0.1}, ...]
                      where x is the value and y is the desired PDF probability density.
             distribution_type: Name of distribution to fit.
-            
+
         Returns:
             Dictionary of best-fit parameters (e.g., {"mean": 10, "std": 5})
         """
         if distribution_type not in self.distributions:
             raise ValueError(f"Unsupported distribution: {distribution_type}")
-            
+
         dist_func = self.distributions[distribution_type]
         points = np.array([(p["x"], p["y"]) for p in targets])
         x_vals = points[:, 0]
         y_targets = points[:, 1]
-        
+
         # Define objective function (MSE)
         def objective(params):
             try:
@@ -75,7 +75,7 @@ class CurveFitter:
                 else:
                      # General fallback?
                      return 1e9
-                
+
                 # Mean Squared Error
                 mse = np.mean((y_pred - y_targets) ** 2)
                 return mse
@@ -88,11 +88,11 @@ class CurveFitter:
             initial_guess = [np.mean(x_vals)]
         elif distribution_type == "lognormal":
             initial_guess = [1.0, np.mean(x_vals)]
-            
+
         # Optimize
         result = minimize(objective, initial_guess, method='Nelder-Mead')
         best_params = result.x
-        
+
         # Map back to named parameters
         if distribution_type == "normal":
             return {"mean": float(best_params[0]), "std": float(abs(best_params[1]))}
@@ -102,5 +102,5 @@ class CurveFitter:
              return {"min": float(best_params[0]), "max": float(best_params[0] + abs(best_params[1]))}
         elif distribution_type == "lognormal":
             return {"shape": float(abs(best_params[0])), "scale": float(abs(best_params[1]))}
-            
+
         return {}

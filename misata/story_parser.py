@@ -9,7 +9,6 @@ This module provides rule-based pattern matching to extract:
 """
 
 import re
-from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig, Table
@@ -18,11 +17,11 @@ from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig, Tab
 class StoryParser:
     """
     Parses natural language stories into SchemaConfig objects.
-    
+
     Uses regex patterns and template matching for MVP version.
     Future: Can be enhanced with LLM integration.
     """
-    
+
     # Pattern definitions
     SCALE_PATTERNS = {
         r"(\d+[KkMm]?)\s*users": "users",
@@ -31,7 +30,7 @@ class StoryParser:
         r"(\d+[KkMm]?)\s*orders": "orders",
         r"(\d+[KkMm]?)\s*projects": "projects",
     }
-    
+
     TEMPORAL_PATTERNS = {
         r"(\d+)%\s*growth": ("growth", "rate"),
         r"(\d+)%\s*churn": ("churn", "rate"),
@@ -39,58 +38,58 @@ class StoryParser:
         r"seasonality": ("seasonality", None),
         r"seasonal": ("seasonality", None),
     }
-    
+
     DOMAIN_KEYWORDS = {
         "saas": ["saas", "subscription", "mrr", "arr", "churn"],
         "ecommerce": ["ecommerce", "e-commerce", "orders", "cart", "products"],
         "pharma": ["pharma", "research", "timesheet", "clinical", "trials"],
         "fintech": ["fintech", "transactions", "payments", "wallet"],
     }
-    
+
     def __init__(self):
         """Initialize the story parser."""
         self.detected_domain: Optional[str] = None
         self.scale_params: Dict[str, int] = {}
         self.temporal_events: List[Tuple[str, Any]] = []
-    
+
     def _parse_number(self, num_str: str) -> int:
         """Parse number strings like '50K', '1.5M' to integers."""
         num_str = num_str.strip().upper()
-        
+
         if num_str.endswith('K'):
             return int(float(num_str[:-1]) * 1000)
         elif num_str.endswith('M'):
             return int(float(num_str[:-1]) * 1_000_000)
         else:
             return int(num_str)
-    
+
     def _detect_domain(self, story: str) -> Optional[str]:
         """Detect business domain from story text."""
         story_lower = story.lower()
-        
+
         for domain, keywords in self.DOMAIN_KEYWORDS.items():
             for keyword in keywords:
                 if keyword in story_lower:
                     return domain
-        
+
         return None
-    
+
     def _extract_scale(self, story: str) -> Dict[str, int]:
         """Extract scale parameters (number of records) from story."""
         scale_params = {}
-        
+
         for pattern, entity_type in self.SCALE_PATTERNS.items():
             match = re.search(pattern, story, re.IGNORECASE)
             if match:
                 num_str = match.group(1)
                 scale_params[entity_type] = self._parse_number(num_str)
-        
+
         return scale_params
-    
+
     def _extract_temporal_events(self, story: str) -> List[Tuple[str, Any]]:
         """Extract temporal patterns (growth, churn, crashes, etc.)."""
         events = []
-        
+
         for pattern, (event_type, param_type) in self.TEMPORAL_PATTERNS.items():
             matches = re.finditer(pattern, story, re.IGNORECASE)
             for match in matches:
@@ -102,20 +101,20 @@ class StoryParser:
                     events.append((event_type, date_str))
                 else:
                     events.append((event_type, None))
-        
+
         return events
-    
+
     def parse(self, story: str, default_rows: int = 10000) -> SchemaConfig:
         """
         Parse a natural language story into a SchemaConfig.
-        
+
         Args:
             story: Natural language description of the data to generate
             default_rows: Default number of rows if not specified in story
-        
+
         Returns:
             SchemaConfig object ready for data generation
-        
+
         Example:
             >>> parser = StoryParser()
             >>> config = parser.parse(
@@ -126,7 +125,7 @@ class StoryParser:
         self.detected_domain = self._detect_domain(story)
         self.scale_params = self._extract_scale(story)
         self.temporal_events = self._extract_temporal_events(story)
-        
+
         # Build schema based on detected domain
         if self.detected_domain == "saas":
             return self._build_saas_schema(story, default_rows)
@@ -137,12 +136,12 @@ class StoryParser:
         else:
             # Generic schema
             return self._build_generic_schema(story, default_rows)
-    
+
     def _build_saas_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a SaaS-specific schema."""
         num_users = self.scale_params.get("users", default_rows)
         num_subscriptions = int(num_users * 1.2)  # Some users have multiple subs
-        
+
         # Define tables
         tables = [
             Table(name="users", row_count=num_users, description="User accounts"),
@@ -152,7 +151,7 @@ class StoryParser:
                 description="User subscriptions",
             ),
         ]
-        
+
         # Define columns
         columns = {
             "users": [
@@ -207,7 +206,7 @@ class StoryParser:
                 ),
             ],
         }
-        
+
         # Define relationships
         relationships = [
             Relationship(
@@ -217,7 +216,7 @@ class StoryParser:
                 child_key="user_id",
             ),
         ]
-        
+
         # Build scenario events from temporal patterns
         events = []
         for event_type, value in self.temporal_events:
@@ -247,7 +246,7 @@ class StoryParser:
                         description=f"Growth rate of {value*100:.0f}%",
                     )
                 )
-        
+
         return SchemaConfig(
             name="SaaS Dataset",
             description=f"Generated from story: {story}",
@@ -256,17 +255,17 @@ class StoryParser:
             relationships=relationships,
             events=events,
         )
-    
+
     def _build_ecommerce_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build an E-commerce-specific schema."""
         num_customers = self.scale_params.get("users", default_rows)
         num_orders = self.scale_params.get("orders", int(num_customers * 3))
-        
+
         tables = [
             Table(name="customers", row_count=num_customers),
             Table(name="orders", row_count=num_orders),
         ]
-        
+
         columns = {
             "customers": [
                 Column(name="customer_id", type="int", distribution_params={"min": 1, "max": num_customers}),
@@ -299,7 +298,7 @@ class StoryParser:
                 ),
             ],
         }
-        
+
         relationships = [
             Relationship(
                 parent_table="customers",
@@ -308,7 +307,7 @@ class StoryParser:
                 child_key="customer_id",
             ),
         ]
-        
+
         return SchemaConfig(
             name="E-commerce Dataset",
             description=f"Generated from story: {story}",
@@ -317,17 +316,17 @@ class StoryParser:
             relationships=relationships,
             events=[],
         )
-    
+
     def _build_pharma_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a Pharma services-specific schema."""
         num_projects = self.scale_params.get("projects", default_rows // 100)
         num_timesheets = default_rows
-        
+
         tables = [
             Table(name="research_projects", row_count=num_projects),
             Table(name="timesheets", row_count=num_timesheets),
         ]
-        
+
         columns = {
             "research_projects": [
                 Column(name="project_id", type="int", distribution_params={"min": 1, "max": num_projects}),
@@ -369,7 +368,7 @@ class StoryParser:
                 ),
             ],
         }
-        
+
         relationships = [
             Relationship(
                 parent_table="research_projects",
@@ -378,7 +377,7 @@ class StoryParser:
                 child_key="project_id",
             ),
         ]
-        
+
         return SchemaConfig(
             name="Pharma Services Dataset",
             description=f"Generated from story: {story}",
@@ -387,13 +386,13 @@ class StoryParser:
             relationships=relationships,
             events=[],
         )
-    
+
     def _build_generic_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a generic schema when domain is not detected."""
         tables = [
             Table(name="main_table", row_count=default_rows),
         ]
-        
+
         columns = {
             "main_table": [
                 Column(name="id", type="int", distribution_params={"min": 1, "max": default_rows}),
@@ -415,7 +414,7 @@ class StoryParser:
                 ),
             ],
         }
-        
+
         return SchemaConfig(
             name="Generic Dataset",
             description=f"Generated from story: {story}",

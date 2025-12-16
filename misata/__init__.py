@@ -6,7 +6,7 @@ Supports OpenAI, Groq, Gemini, and Ollama for intelligent schema generation.
 
 Usage:
     from misata import DataSimulator, SchemaConfig
-    
+
     # Or use the CLI:
     #   misata generate --story "A SaaS with 50k users..."
 """

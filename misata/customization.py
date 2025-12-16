@@ -8,7 +8,7 @@ Allows users to:
 - Apply transformations post-generation
 """
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ import pandas as pd
 class ColumnOverride:
     """
     Define custom generation logic for a specific column.
-    
+
     Usage:
         override = ColumnOverride(
             name="price",
@@ -25,7 +25,7 @@ class ColumnOverride:
             post_process=lambda x: round(x, 2)
         )
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -37,7 +37,7 @@ class ColumnOverride:
     ):
         """
         Initialize a column override.
-        
+
         Args:
             name: Column name to override
             generator: Function that takes size N and returns N values
@@ -52,17 +52,17 @@ class ColumnOverride:
         self.conditional = conditional
         self.post_process = post_process
         self.null_rate = null_rate
-    
+
     def apply(self, df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
         """Apply this override to a DataFrame."""
         result = df.copy()
-        
+
         if self.generator is not None:
             result[self.name] = self.generator(len(df))
-        
+
         elif self.value_pool is not None:
             result[self.name] = rng.choice(self.value_pool, size=len(df))
-        
+
         # Apply conditional overrides
         if self.conditional is not None:
             for cond_col, value_map in self.conditional.items():
@@ -71,23 +71,23 @@ class ColumnOverride:
                 for cond_value, override_value in value_map.items():
                     mask = result[cond_col] == cond_value
                     result.loc[mask, self.name] = override_value
-        
+
         # Apply post-processing
         if self.post_process is not None:
             result[self.name] = result[self.name].apply(self.post_process)
-        
+
         # Inject nulls
         if self.null_rate > 0:
             mask = rng.random(len(result)) < self.null_rate
             result.loc[mask, self.name] = np.nan
-        
+
         return result
 
 
 class Customizer:
     """
     Central customization engine for attribute-level control.
-    
+
     Usage:
         customizer = Customizer()
         customizer.add_override("users", ColumnOverride(
@@ -97,22 +97,22 @@ class Customizer:
         customizer.add_conditional("orders", "shipping_cost", {
             "country": {"US": 5.99, "UK": 9.99, "CA": 7.99}
         })
-        
+
         df = customizer.apply(df, "users")
     """
-    
+
     def __init__(self, seed: Optional[int] = None):
         """Initialize the customizer."""
         self.overrides: Dict[str, List[ColumnOverride]] = {}
         self.rng = np.random.default_rng(seed)
-    
+
     def add_override(self, table: str, override: ColumnOverride) -> "Customizer":
         """Add a column override for a table."""
         if table not in self.overrides:
             self.overrides[table] = []
         self.overrides[table].append(override)
         return self
-    
+
     def add_conditional(
         self,
         table: str,
@@ -121,12 +121,12 @@ class Customizer:
     ) -> "Customizer":
         """
         Add a conditional value override.
-        
+
         Args:
             table: Table name
             column: Column to override
             conditions: {condition_column: {condition_value: new_value}}
-            
+
         Example:
             customizer.add_conditional("products", "tax_rate", {
                 "category": {"Electronics": 0.08, "Food": 0.0, "Clothing": 0.05}
@@ -134,7 +134,7 @@ class Customizer:
         """
         override = ColumnOverride(name=column, conditional=conditions)
         return self.add_override(table, override)
-    
+
     def add_value_pool(
         self,
         table: str,
@@ -144,7 +144,7 @@ class Customizer:
     ) -> "Customizer":
         """
         Add a custom value pool for a column.
-        
+
         Args:
             table: Table name
             column: Column to override
@@ -157,10 +157,10 @@ class Customizer:
         else:
             def gen(n):
                 return self.rng.choice(values, size=n)
-        
+
         override = ColumnOverride(name=column, generator=gen)
         return self.add_override(table, override)
-    
+
     def add_formula(
         self,
         table: str,
@@ -169,14 +169,14 @@ class Customizer:
     ) -> "Customizer":
         """
         Add a formula-based column using other columns.
-        
+
         Args:
             table: Table name
             column: Column to create/override
             formula: Function that takes DataFrame and returns Series
-            
+
         Example:
-            customizer.add_formula("orders", "total", 
+            customizer.add_formula("orders", "total",
                 lambda df: df["quantity"] * df["unit_price"] * (1 + df["tax_rate"]))
         """
         # Store as a special override that uses post-processing
@@ -184,25 +184,25 @@ class Customizer:
             def __init__(self, name, formula_fn):
                 super().__init__(name=name)
                 self.formula_fn = formula_fn
-            
+
             def apply(self, df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
                 result = df.copy()
                 result[self.name] = self.formula_fn(result)
                 return result
-        
+
         override = FormulaOverride(column, formula)
         return self.add_override(table, override)
-    
+
     def apply(self, df: pd.DataFrame, table: str) -> pd.DataFrame:
         """Apply all overrides for a table to a DataFrame."""
         result = df.copy()
-        
+
         if table not in self.overrides:
             return result
-        
+
         for override in self.overrides[table]:
             result = override.apply(result, self.rng)
-        
+
         return result
 
 

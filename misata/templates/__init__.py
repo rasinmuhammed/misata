@@ -7,9 +7,7 @@ Each template provides:
 - Industry-specific column definitions
 """
 
-import json
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 from misata.schema import SchemaConfig, Table, Column, Relationship
 
@@ -350,13 +348,13 @@ TEMPLATES = {
 def get_template(name: str) -> Dict[str, Any]:
     """
     Get a template by name.
-    
+
     Args:
         name: Template name (saas, ecommerce, fitness, healthcare)
-        
+
     Returns:
         Template dictionary
-        
+
     Raises:
         ValueError: If template not found
     """
@@ -374,24 +372,22 @@ def list_templates() -> List[str]:
 def template_to_schema(template_name: str, row_multiplier: float = 1.0) -> SchemaConfig:
     """
     Convert a template to a SchemaConfig.
-    
+
     Args:
         template_name: Name of template
         row_multiplier: Multiply row counts by this factor
-        
+
     Returns:
         SchemaConfig ready for generation
     """
-    from misata.llm_parser import LLMSchemaGenerator
-    
     template = get_template(template_name)
-    
+
     # Adjust row counts
     if row_multiplier != 1.0:
         for table in template["tables"]:
             if "row_count" in table and not table.get("is_reference"):
                 table["row_count"] = int(table["row_count"] * row_multiplier)
-    
+
     # Parse tables
     tables = []
     for t in template["tables"]:
@@ -401,7 +397,7 @@ def template_to_schema(template_name: str, row_multiplier: float = 1.0) -> Schem
             is_reference=t.get("is_reference", False),
             inline_data=t.get("inline_data"),
         ))
-    
+
     # Parse columns
     columns = {}
     for table_name, cols in template["columns"].items():
@@ -414,7 +410,7 @@ def template_to_schema(template_name: str, row_multiplier: float = 1.0) -> Schem
                 nullable=c.get("nullable", False),
                 unique=c.get("unique", False),
             ))
-    
+
     # Add inferred columns for reference tables
     for table in tables:
         if table.is_reference and table.inline_data and table.name not in columns:
@@ -426,10 +422,9 @@ def template_to_schema(template_name: str, row_multiplier: float = 1.0) -> Schem
                     type="text",  # Will be inferred
                     distribution_params={},
                 ))
-    
+
     # Parse relationships
     relationships = []
-    from misata.schema import Relationship
     for r in template["relationships"]:
         relationships.append(Relationship(
             parent_table=r["parent_table"],
@@ -437,7 +432,7 @@ def template_to_schema(template_name: str, row_multiplier: float = 1.0) -> Schem
             parent_key=r["parent_key"],
             child_key=r["child_key"],
         ))
-    
+
     return SchemaConfig(
         name=template["name"],
         description=template.get("description"),

@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from misata import DataSimulator, SchemaConfig
@@ -130,7 +130,7 @@ async def health_check():
 async def generate_schema_from_story(request: StoryRequest):
     """
     Generate schema from natural language story using LLM.
-    
+
     This is the core AI feature - describe your data needs in plain English.
     """
     try:
@@ -139,13 +139,13 @@ async def generate_schema_from_story(request: StoryRequest):
             request.story,
             default_rows=request.default_rows
         )
-        
+
         return SchemaResponse(
             schema_config=schema.model_dump(),
             tables_count=len(schema.tables),
             total_rows=sum(t.row_count for t in schema.tables)
         )
-    
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -156,19 +156,19 @@ async def generate_schema_from_story(request: StoryRequest):
 async def generate_schema_from_graph(request: GraphRequest):
     """
     REVERSE ENGINEERING: Generate schema that produces desired chart patterns.
-    
+
     Describe your chart, get data that matches it exactly.
     """
     try:
         llm = LLMSchemaGenerator()
         schema = llm.generate_from_graph(request.description)
-        
+
         return SchemaResponse(
             schema_config=schema.model_dump(),
             tables_count=len(schema.tables),
             total_rows=sum(t.row_count for t in schema.tables)
         )
-    
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -184,13 +184,13 @@ async def enhance_schema(request: EnhanceRequest):
         llm = LLMSchemaGenerator()
         existing = SchemaConfig(**request.schema_config)
         enhanced = llm.enhance_schema(existing, request.enhancement)
-        
+
         return SchemaResponse(
             schema_config=enhanced.model_dump(),
             tables_count=len(enhanced.tables),
             total_rows=sum(t.row_count for t in enhanced.tables)
         )
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Schema enhancement failed: {str(e)}")
 
@@ -204,9 +204,9 @@ async def get_industry_suggestions(request: IndustrySuggestionsRequest):
         llm = LLMSchemaGenerator()
         schema = SchemaConfig(**request.schema_config)
         suggestions = llm.suggest_industry_improvements(schema, request.industry)
-        
+
         return suggestions
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
 
@@ -219,45 +219,43 @@ async def get_industry_suggestions(request: IndustrySuggestionsRequest):
 async def generate_data(request: GenerateRequest, background_tasks: BackgroundTasks):
     """
     Generate synthetic data from schema configuration.
-    
+
     Returns a preview (first 100 rows per table) and a download ID for full data.
     """
     try:
         schema = SchemaConfig(**request.schema_config)
-        
+
         if request.seed is not None:
             schema.seed = request.seed
-        
+
         simulator = DataSimulator(schema)
-        
+
         # Create temp directory for this generation
         import uuid
-        import shutil
-        import pandas as pd
-        
+
         download_id = str(uuid.uuid4())
         temp_dir = tempfile.mkdtemp(prefix=f"misata_{download_id}_")
         _generated_files[download_id] = temp_dir
-        
+
         # Build preview and stats
         preview = {}
         stats = {}
         files_created = set()
-        
+
         # Generate and stream to disk
         for table_name, batch_df in simulator.generate_all():
             output_path = os.path.join(temp_dir, f"{table_name}.csv")
             mode = 'a' if table_name in files_created else 'w'
-            header = not (table_name in files_created)
-            
+            header = table_name not in files_created
+
             batch_df.to_csv(output_path, mode=mode, header=header, index=False)
             files_created.add(table_name)
-            
+
             # Use first batch for preview/stats if we haven't seen this table yet
             if table_name not in preview:
                 preview_df = batch_df.head(100)
                 preview[table_name] = preview_df.to_dict(orient="records")
-                
+
                 # Calculate basic stats on the first batch (approximate for speed)
                 stats[table_name] = {
                     "row_count": len(batch_df), # Incremented below if needed, but preview just shows batch info?
@@ -270,7 +268,7 @@ async def generate_data(request: GenerateRequest, background_tasks: BackgroundTa
                     "memory_mb": 0.0, # Not relevant on disk
                     "numeric_stats": {}
                 }
-                
+
                 for col in batch_df.select_dtypes(include=["number"]).columns:
                     stats[table_name]["numeric_stats"][col] = {
                         "mean": float(batch_df[col].mean()),
@@ -278,16 +276,16 @@ async def generate_data(request: GenerateRequest, background_tasks: BackgroundTa
                         "min": float(batch_df[col].min()),
                         "max": float(batch_df[col].max())
                     }
-        
+
         # Clean up old data after 1 hour (in background)
         background_tasks.add_task(cleanup_old_data, download_id, 3600)
-        
+
         return DataPreviewResponse(
             tables=preview,
             stats=stats,
             download_id=download_id
         )
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Data generation failed: {str(e)}")
 
@@ -299,9 +297,9 @@ async def download_data(download_id: str, format: str = "csv"):
     """
     if download_id not in _generated_files:
         raise HTTPException(status_code=404, detail="Data not found. It may have expired.")
-    
+
     temp_dir = _generated_files[download_id]
-    
+
     if format == "csv":
         # Create ZIP from CSV files in temp directory
         zip_buffer = io.BytesIO()
@@ -310,14 +308,14 @@ async def download_data(download_id: str, format: str = "csv"):
                 if filename.endswith(".csv"):
                     file_path = os.path.join(temp_dir, filename)
                     zf.write(file_path, arcname=filename)
-        
+
         zip_buffer.seek(0)
         return StreamingResponse(
             zip_buffer,
             media_type="application/zip",
             headers={"Content-Disposition": f"attachment; filename=misata_data_{download_id[:8]}.zip"}
         )
-    
+
     elif format == "json":
         # Convert CSVs to JSON (warning: could be large)
         import pandas as pd
@@ -329,7 +327,7 @@ async def download_data(download_id: str, format: str = "csv"):
                 df = pd.read_csv(file_path)
                 json_data[table_name] = df.to_dict(orient="records")
         return json_data
-    
+
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
 
@@ -338,7 +336,7 @@ async def cleanup_old_data(download_id: str, delay_seconds: int):
     """Clean up generated data files after delay."""
     import asyncio
     import shutil
-    
+
     await asyncio.sleep(delay_seconds)
     if download_id in _generated_files:
         temp_dir = _generated_files[download_id]
@@ -381,12 +379,12 @@ async def preview_distribution(
     Preview what a distribution will look like before generating.
     """
     import numpy as np
-    
+
     rng = np.random.default_rng(42)
-    
+
     if column_type in ["int", "float"]:
         dist = distribution_params.get("distribution", "normal")
-        
+
         if dist == "normal":
             values = rng.normal(
                 distribution_params.get("mean", 100),
@@ -406,19 +404,19 @@ async def preview_distribution(
             )
         else:
             values = rng.normal(100, 20, sample_size)
-        
+
         # Apply constraints
         if "min" in distribution_params:
             values = np.maximum(values, distribution_params["min"])
         if "max" in distribution_params:
             values = np.minimum(values, distribution_params["max"])
-        
+
         if column_type == "int":
             values = values.astype(int)
-        
+
         # Return histogram data
         hist, bin_edges = np.histogram(values, bins=50)
-        
+
         return {
             "histogram": {
                 "counts": hist.tolist(),
@@ -432,23 +430,23 @@ async def preview_distribution(
             },
             "sample": values[:20].tolist()
         }
-    
+
     elif column_type == "categorical":
         choices = distribution_params.get("choices", ["A", "B", "C"])
         probs = distribution_params.get("probabilities")
-        
+
         if probs:
             probs = np.array(probs)
             probs = probs / probs.sum()
-        
+
         values = rng.choice(choices, size=sample_size, p=probs)
         unique, counts = np.unique(values, return_counts=True)
-        
+
         return {
             "distribution": {choice: int(count) for choice, count in zip(unique, counts)},
             "sample": values[:20].tolist()
         }
-    
+
     else:
         return {"error": f"Preview not supported for type: {column_type}"}
 

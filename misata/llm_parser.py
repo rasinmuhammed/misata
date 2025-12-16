@@ -11,7 +11,7 @@ including:
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 from groq import Groq
 
@@ -27,7 +27,7 @@ def _load_env():
         Path(__file__).parent.parent / ".env",
         Path.home() / ".misata" / ".env",
     ]
-    
+
     for env_path in env_paths:
         if env_path.exists():
             with open(env_path) as f:
@@ -169,7 +169,7 @@ Generate schemas following this exact pattern. The reference table inline_data i
 
 
 GRAPH_REVERSE_PROMPT = """You are Misata, an expert at reverse-engineering data patterns.
-Given a description of a desired chart or graph pattern, generate a schema that will 
+Given a description of a desired chart or graph pattern, generate a schema that will
 produce data matching that EXACT pattern when plotted.
 
 Follow the same two-tier table structure:
@@ -183,15 +183,15 @@ when plotted, produces that exact chart."""
 class LLMSchemaGenerator:
     """
     Generate realistic schemas from natural language using LLMs.
-    
+
     Supports multiple providers:
     - groq: Groq Cloud (Llama 3.3) - Fast, free tier
     - openai: OpenAI (GPT-4o) - Best quality
     - ollama: Local Ollama - Free, private
-    
+
     This is the "brain" of Misata - what makes it genuinely AI-powered.
     """
-    
+
     # Provider configurations
     PROVIDERS = {
         "groq": {
@@ -201,7 +201,7 @@ class LLMSchemaGenerator:
         },
         "openai": {
             "base_url": None,
-            "env_key": "OPENAI_API_KEY", 
+            "env_key": "OPENAI_API_KEY",
             "default_model": "gpt-4o-mini",
         },
         "ollama": {
@@ -210,9 +210,9 @@ class LLMSchemaGenerator:
             "default_model": "llama3",
         },
     }
-    
+
     def __init__(
-        self, 
+        self,
         provider: Optional[str] = None,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
@@ -220,9 +220,9 @@ class LLMSchemaGenerator:
     ):
         """
         Initialize the LLM generator.
-        
+
         Args:
-            provider: LLM provider ("groq", "openai", "ollama"). 
+            provider: LLM provider ("groq", "openai", "ollama").
                       Defaults to MISATA_PROVIDER env var or "groq".
             api_key: API key. If not provided, reads from provider's env var.
             model: Model name. If not provided, uses provider default.
@@ -230,30 +230,30 @@ class LLMSchemaGenerator:
         """
         # Determine provider
         self.provider = provider or os.environ.get("MISATA_PROVIDER", "groq").lower()
-        
+
         if self.provider not in self.PROVIDERS:
             raise ValueError(f"Unknown provider: {self.provider}. Use: {list(self.PROVIDERS.keys())}")
-        
+
         config = self.PROVIDERS[self.provider]
-        
+
         # Get API key
         self.api_key = api_key
         if not self.api_key and config["env_key"]:
             self.api_key = os.environ.get(config["env_key"])
-        
+
         if not self.api_key and self.provider != "ollama":
             env_key = config["env_key"]
             raise ValueError(
                 f"{self.provider.title()} API key required. "
                 f"Set {env_key} environment variable or pass api_key parameter."
             )
-        
+
         # Set model
         self.model = model or config["default_model"]
-        
+
         # Set base URL
         self.base_url = base_url or config["base_url"]
-        
+
         # Initialize client (all providers use OpenAI-compatible API)
         if self.provider == "groq":
             self.client = Groq(api_key=self.api_key)
@@ -266,19 +266,19 @@ class LLMSchemaGenerator:
                     f"openai package required for {self.provider}. "
                     "Install with: pip install openai"
                 )
-            
+
             client_kwargs = {}
             if self.api_key:
                 client_kwargs["api_key"] = self.api_key
             if self.base_url:
                 client_kwargs["base_url"] = self.base_url
-            
+
             # Ollama doesn't need a real API key
             if self.provider == "ollama":
                 client_kwargs["api_key"] = "ollama"
-            
+
             self.client = OpenAI(**client_kwargs)
-    
+
     def generate_from_story(
         self,
         story: str,
@@ -287,12 +287,12 @@ class LLMSchemaGenerator:
     ) -> SchemaConfig:
         """
         Generate a realistic schema from a natural language story.
-        
+
         Args:
             story: Natural language description of the data needs
             default_rows: Default row count if not specified in story
             temperature: LLM temperature (lower = more consistent)
-        
+
         Returns:
             SchemaConfig ready for data generation
         """
@@ -319,10 +319,10 @@ Output valid JSON. Think about what lookup/reference data is needed, then what t
             max_tokens=6000,
             response_format={"type": "json_object"}
         )
-        
+
         schema_dict = json.loads(response.choices[0].message.content)
         return self._parse_schema(schema_dict)
-    
+
     def generate_from_graph(
         self,
         graph_description: str,
@@ -348,14 +348,14 @@ Include reference tables with inline_data for lookup values and transactional ta
             max_tokens=6000,
             response_format={"type": "json_object"}
         )
-        
+
         schema_dict = json.loads(response.choices[0].message.content)
         return self._parse_schema(schema_dict)
-    
+
     def _normalize_distribution_params(self, col_type: str, params: Dict) -> Dict:
         """Normalize LLM output variations in distribution_params."""
         normalized = params.copy()
-        
+
         # Normalize date column parameters
         if col_type == "date":
             if "start_date" in normalized and "start" not in normalized:
@@ -366,14 +366,14 @@ Include reference tables with inline_data for lookup values and transactional ta
                 normalized["start"] = "2023-01-01"
             if "end" not in normalized:
                 normalized["end"] = "2024-12-31"
-        
+
         # Normalize categorical parameters
         if col_type == "categorical":
             if "options" in normalized and "choices" not in normalized:
                 normalized["choices"] = normalized.pop("options")
             if "choices" not in normalized:
                 normalized["choices"] = ["A", "B", "C"]
-        
+
         # Curve Fitting for 'control_points'
         if "control_points" in normalized:
             try:
@@ -383,22 +383,22 @@ Include reference tables with inline_data for lookup values and transactional ta
                 fitted_params = fitter.fit_distribution(points, dist_type)
                 # Merge fitted params, keeping any manual overrides if they exist (or overwriting? let's overwrite for safety)
                 normalized.update(fitted_params)
-            except Exception as e:
+            except Exception:
                 # If fitting fails, fallback to defaults or keep what we have
                 pass
 
         return normalized
-    
+
     def _parse_schema(self, schema_dict: Dict) -> SchemaConfig:
         """Parse LLM output into validated SchemaConfig."""
-        
+
         # Parse tables
         tables = []
         for t in schema_dict.get("tables", []):
             is_ref = t.get("is_reference", False)
             inline = t.get("inline_data", None)
             row_count = t.get("row_count", len(inline) if inline else 100)
-            
+
             tables.append(Table(
                 name=t["name"],
                 row_count=row_count,
@@ -406,7 +406,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 is_reference=is_ref,
                 inline_data=inline
             ))
-        
+
         # Parse columns (only for transactional tables, reference tables use inline_data)
         columns = {}
         for table_name, cols in schema_dict.get("columns", {}).items():
@@ -415,7 +415,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 col_type = c.get("type", "text")
                 raw_params = c.get("distribution_params", {})
                 normalized_params = self._normalize_distribution_params(col_type, raw_params)
-                
+
                 columns[table_name].append(Column(
                     name=c["name"],
                     type=col_type,
@@ -423,7 +423,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     nullable=c.get("nullable", False),
                     unique=c.get("unique", False)
                 ))
-        
+
         # For reference tables without columns, create columns from inline_data
         for table in tables:
             if table.is_reference and table.inline_data and table.name not in columns:
@@ -442,7 +442,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                         type=col_type,
                         distribution_params={}
                     ))
-        
+
         # Parse relationships
         relationships = []
         for r in schema_dict.get("relationships", []):
@@ -453,7 +453,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 child_key=r["child_key"],
                 temporal_constraint=r.get("temporal_constraint", False)
             ))
-        
+
         # Parse events
         events = []
         for e in schema_dict.get("events", []):
@@ -468,7 +468,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 modifier_value=e["modifier_value"],
                 description=e.get("description")
             ))
-        
+
         return SchemaConfig(
             name=schema_dict.get("name", "Generated Dataset"),
             description=schema_dict.get("description"),
