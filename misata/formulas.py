@@ -1,0 +1,288 @@
+"""
+Formula engine for derived columns.
+
+This module enables columns that are computed from other columns,
+supporting expressions like:
+- calories_burned = duration_minutes * @exercises.calories_per_minute
+- total_price = quantity * @products.price
+- discount_amount = total_price * 0.1
+"""
+
+import re
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+
+
+class FormulaEngine:
+    """
+    Evaluate column formulas using pandas expressions.
+    
+    Supports:
+    - Simple arithmetic: duration * 10
+    - Column references: quantity * unit_price
+    - Cross-table references: @exercises.calories_per_minute
+    - Conditional expressions: np.where(status == 'active', 1, 0)
+    """
+    
+    def __init__(self, tables: Dict[str, pd.DataFrame]):
+        """
+        Initialize with generated tables for cross-table lookups.
+        
+        Args:
+            tables: Dict mapping table names to DataFrames
+        """
+        self.tables = tables
+    
+    def evaluate(
+        self,
+        df: pd.DataFrame,
+        formula: str,
+        fk_column: Optional[str] = None,
+    ) -> np.ndarray:
+        """
+        Evaluate a formula on a DataFrame.
+        
+        Args:
+            df: DataFrame to evaluate on
+            formula: Expression string
+            fk_column: Foreign key column name for cross-table lookups
+            
+        Returns:
+            Array of computed values
+        """
+        # Replace cross-table references with actual values
+        processed_formula = self._resolve_cross_table_refs(df, formula, fk_column)
+        
+        # Create evaluation context with numpy and column values
+        context = {
+            'np': np,
+            'pd': pd,
+        }
+        
+        # Add columns to context
+        for col in df.columns:
+            context[col] = df[col].values
+        
+        # Evaluate the expression
+        try:
+            result = eval(processed_formula, {"__builtins__": {}}, context)
+            return np.array(result)
+        except Exception as e:
+            raise ValueError(f"Failed to evaluate formula '{formula}': {e}")
+    
+    def _resolve_cross_table_refs(
+        self,
+        df: pd.DataFrame,
+        formula: str,
+        fk_column: Optional[str] = None,
+    ) -> str:
+        """
+        Replace @table.column references with actual looked-up values.
+        
+        Pattern: @tablename.columnname
+        
+        Args:
+            df: Current DataFrame
+            formula: Formula with potential cross-table refs
+            fk_column: FK column to use for lookups
+            
+        Returns:
+            Formula with refs replaced by _lookup_N variables
+        """
+        # Pattern to match @table.column
+        pattern = r'@(\w+)\.(\w+)'
+        matches = re.findall(pattern, formula)
+        
+        if not matches:
+            return formula
+        
+        result = formula
+        lookup_vars = {}
+        
+        for i, (table_name, col_name) in enumerate(matches):
+            if table_name not in self.tables:
+                raise ValueError(f"Table '{table_name}' not found for formula lookup")
+            
+            ref_table = self.tables[table_name]
+            
+            if col_name not in ref_table.columns:
+                raise ValueError(f"Column '{col_name}' not found in table '{table_name}'")
+            
+            # Determine the FK column to use for lookup
+            actual_fk = fk_column or f"{table_name}_id"
+            
+            if actual_fk not in df.columns:
+                raise ValueError(
+                    f"Cannot lookup @{table_name}.{col_name}: "
+                    f"no foreign key column '{actual_fk}' in current table"
+                )
+            
+            # Create lookup mapping and apply
+            lookup_map = ref_table.set_index('id')[col_name].to_dict()
+            looked_up = df[actual_fk].map(lookup_map).values
+            
+            var_name = f'_lookup_{i}'
+            lookup_vars[var_name] = looked_up
+            result = result.replace(f'@{table_name}.{col_name}', var_name)
+        
+        # Add lookup vars to formula context (we'll need to modify evaluate)
+        self._temp_lookups = lookup_vars
+        
+        return result
+    
+    def evaluate_with_lookups(
+        self,
+        df: pd.DataFrame,
+        formula: str,
+        fk_mappings: Optional[Dict[str, str]] = None,
+    ) -> np.ndarray:
+        """
+        Evaluate formula with automatic cross-table lookups.
+        
+        Args:
+            df: DataFrame to evaluate on
+            formula: Expression with @table.column references
+            fk_mappings: Optional dict mapping table name to FK column name
+                         e.g., {"exercises": "exercise_id", "products": "product_id"}
+            
+        Returns:
+            Array of computed values
+        """
+        fk_mappings = fk_mappings or {}
+        
+        # Pattern to match @table.column
+        pattern = r'@(\w+)\.(\w+)'
+        matches = re.findall(pattern, formula)
+        
+        result = formula
+        context = {
+            'np': np,
+            'pd': pd,
+        }
+        
+        # Add columns to context
+        for col in df.columns:
+            context[col] = df[col].values
+        
+        # Resolve each cross-table reference
+        for i, (table_name, col_name) in enumerate(matches):
+            if table_name not in self.tables:
+                raise ValueError(f"Table '{table_name}' not found")
+            
+            ref_table = self.tables[table_name]
+            
+            # Determine FK column
+            fk_col = fk_mappings.get(table_name, f"{table_name}_id")
+            if fk_col.endswith("s_id"):
+                # Try without trailing 's' (exercises -> exercise_id)
+                alt_fk = fk_col.replace("s_id", "_id")
+                if alt_fk in df.columns:
+                    fk_col = alt_fk
+            
+            if fk_col not in df.columns:
+                # Try common patterns
+                for pattern_fk in [f"{table_name}_id", f"{table_name[:-1]}_id", "id"]:
+                    if pattern_fk in df.columns:
+                        fk_col = pattern_fk
+                        break
+            
+            if fk_col not in df.columns:
+                raise ValueError(f"No FK column found for table '{table_name}'")
+            
+            # Create lookup and add to context
+            if 'id' not in ref_table.columns:
+                raise ValueError(f"Reference table '{table_name}' has no 'id' column")
+            
+            lookup_map = ref_table.set_index('id')[col_name].to_dict()
+            looked_up = df[fk_col].map(lookup_map).fillna(0).values
+            
+            var_name = f'_ref_{i}'
+            context[var_name] = looked_up
+            result = result.replace(f'@{table_name}.{col_name}', var_name)
+        
+        # Evaluate
+        try:
+            return eval(result, {"__builtins__": {}}, context)
+        except Exception as e:
+            raise ValueError(f"Failed to evaluate formula '{formula}': {e}")
+
+
+class FormulaColumn:
+    """
+    Definition of a formula-based column.
+    """
+    
+    def __init__(
+        self,
+        name: str,
+        formula: str,
+        result_type: str = "float",
+        fk_mappings: Optional[Dict[str, str]] = None,
+    ):
+        """
+        Define a formula column.
+        
+        Args:
+            name: Column name
+            formula: Expression (can include @table.column refs)
+            result_type: Type of result (int, float, boolean)
+            fk_mappings: Map table names to FK column names
+        """
+        self.name = name
+        self.formula = formula
+        self.result_type = result_type
+        self.fk_mappings = fk_mappings or {}
+    
+    def evaluate(
+        self,
+        df: pd.DataFrame,
+        tables: Dict[str, pd.DataFrame],
+    ) -> np.ndarray:
+        """
+        Evaluate this formula column.
+        
+        Args:
+            df: Current table DataFrame
+            tables: All generated tables for cross-table lookups
+            
+        Returns:
+            Array of computed values
+        """
+        engine = FormulaEngine(tables)
+        result = engine.evaluate_with_lookups(df, self.formula, self.fk_mappings)
+        
+        # Cast to result type
+        if self.result_type == "int":
+            return result.astype(int)
+        elif self.result_type == "float":
+            return result.astype(float)
+        elif self.result_type == "boolean":
+            return result.astype(bool)
+        
+        return result
+
+
+def apply_formula_columns(
+    df: pd.DataFrame,
+    formulas: List[FormulaColumn],
+    tables: Dict[str, pd.DataFrame],
+) -> pd.DataFrame:
+    """
+    Apply formula columns to a DataFrame.
+    
+    Args:
+        df: DataFrame to add columns to
+        formulas: List of formula column definitions
+        tables: All tables for cross-table lookups
+        
+    Returns:
+        DataFrame with formula columns added
+    """
+    result = df.copy()
+    
+    for formula_col in formulas:
+        result[formula_col.name] = formula_col.evaluate(result, tables)
+    
+    return result

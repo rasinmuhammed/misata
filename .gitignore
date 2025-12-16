@@ -1,0 +1,60 @@
+# Environment files
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+venv/
+.venv/
+
+# Generated data
+generated_data/
+test_data/
+*.csv
+!examples/**/*.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (web UI)
+web/node_modules/
+web/.next/
+web/out/
+
+# Misc
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Next.js
+web/node_modules/
+web/.next/
+
+# Next.js
+web/node_modules/
+web/.next/
