@@ -24,7 +24,11 @@ def _load_env():
     """Load environment variables from .env file."""
     env_paths = [
         Path.cwd() / ".env",
-        Path(__file__).parent.parent / ".env",
+        Path.cwd().parent / ".env",  # apps/.env or api parent
+        Path.cwd().parent.parent / ".env",  # Misata root from apps/api
+        Path(__file__).parent.parent / ".env",  # packages/core/.env
+        Path(__file__).parent.parent.parent / ".env",  # packages/.env
+        Path(__file__).parent.parent.parent.parent / ".env",  # Misata root from packages/core/misata
         Path.home() / ".misata" / ".env",
     ]
 
@@ -35,7 +39,9 @@ def _load_env():
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
                         key, _, value = line.partition("=")
-                        os.environ.setdefault(key.strip(), value.strip())
+                        # Remove quotes if present
+                        value = value.strip().strip("'\"")
+                        os.environ.setdefault(key.strip(), value)
             break
 
 _load_env()
@@ -81,6 +87,39 @@ For transactional tables, provide:
 Instead of guessing parameters, you can provide "control_points" to draw the shape.
 Format: {"distribution": "normal", "control_points": [{"x": 10, "y": 0.1}, {"x": 50, "y": 0.9}]}
 Misata will mathematically solve for the best parameters.
+
+### SMART DEFAULTS (Use These for Realistic Data):
+
+**Age columns:**
+- type: "int", distribution: "normal", mean: 35, std: 12, min: 18, max: 80
+
+**Price/Amount columns:**
+- type: "float", distribution: "exponential", scale: 50, min: 0.01, decimals: 2
+- OR for products: uniform min: 9.99, max: 499.99
+
+**Rating columns (1-5 stars):**
+- type: "int", distribution: "categorical", choices: [1,2,3,4,5], probabilities: [0.05, 0.08, 0.15, 0.32, 0.40]
+
+**Quantity/Count columns:**
+- type: "int", distribution: "poisson", lambda: 3, min: 1
+
+**Duration (minutes):**
+- type: "int", distribution: "normal", mean: 45, std: 20, min: 5, max: 180
+
+**Percentage columns:**
+- type: "float", distribution: "uniform", min: 0.0, max: 100.0, decimals: 1
+
+**Status columns:**
+- type: "categorical", choices: ["active", "inactive", "pending"], probabilities: [0.70, 0.20, 0.10]
+
+**Boolean probabilities:**
+- is_verified: probability: 0.85
+- is_premium: probability: 0.25
+- is_active: probability: 0.80
+
+**Date columns:**
+- For recent data: bias last 30% of range with 70% of values
+- Always use realistic date ranges (not 1970-2100)
 
 ## OUTPUT FORMAT
 

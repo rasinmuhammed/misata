@@ -9,9 +9,13 @@ Usage:
 
     # Or use the CLI:
     #   misata generate --story "A SaaS with 50k users..."
+    
+    # Or use pre-built templates:
+    from misata.templates.library import load_template
+    config = load_template("ecommerce")
 """
 
-__version__ = "0.1.0-beta"
+__version__ = "0.2.0-beta"
 __author__ = "Muhammed Rasin"
 
 from misata.schema import (
@@ -26,6 +30,8 @@ from misata.simulator import DataSimulator
 from misata.generators import TextGenerator
 from misata.noise import NoiseInjector, add_noise
 from misata.customization import Customizer, ColumnOverride
+from misata.quality import DataQualityChecker, check_quality
+from misata.templates.library import load_template, list_templates
 
 __all__ = [
     # Core
@@ -43,6 +49,11 @@ __all__ = [
     "add_noise",
     "Customizer",
     "ColumnOverride",
+    # Quality
+    "DataQualityChecker",
+    "check_quality",
+    # Templates
+    "load_template",
+    "list_templates",
 ]
-
 

@@ -35,7 +35,8 @@ class DataSimulator:
     """
 
     def __init__(self, config: SchemaConfig,
-                 apply_semantic_fixes: bool = True, batch_size: int = 10_000):
+                 apply_semantic_fixes: bool = True, batch_size: int = 10_000,
+                 smart_mode: bool = False, use_llm: bool = True):
         """
         Initialize the simulator.
 
@@ -43,13 +44,19 @@ class DataSimulator:
             config: Schema configuration defining tables, columns, and relationships
             apply_semantic_fixes: Auto-fix column types based on semantic patterns
             batch_size: Number of rows to generate per batch
+            smart_mode: Enable LLM-powered context-aware value generation
+            use_llm: If smart_mode is True, whether to use LLM (vs curated fallbacks)
         """
         self.config = config
         self.context: Dict[str, pd.DataFrame] = {}  # Lightweight context (IDs only)
         self.text_gen = TextGenerator(seed=config.seed)
         self.batch_size = batch_size
+        self.smart_mode = smart_mode
+        self.use_llm = use_llm
+        self._smart_gen = None  # Lazy init
         self._unique_pools: Dict[str, np.ndarray] = {}  # Store pre-generated unique values
         self._unique_counters: Dict[str, int] = {}      # Track usage of unique pools
+        self._smart_pools: Dict[str, np.ndarray] = {}   # Cache smart value pools
 
         # Apply semantic inference to fix column types
         if apply_semantic_fixes:
@@ -60,6 +67,16 @@ class DataSimulator:
         seed = config.seed if config.seed is not None else np.random.randint(0, 2**32 - 1)
         self.rng = np.random.default_rng(seed)
         np.random.seed(seed)  # For legacy numpy.random calls
+    
+    def _get_smart_gen(self):
+        """Lazy initialize SmartValueGenerator."""
+        if self._smart_gen is None:
+            try:
+                from misata.smart_values import SmartValueGenerator
+                self._smart_gen = SmartValueGenerator()
+            except Exception:
+                self._smart_gen = None
+        return self._smart_gen
 
     def topological_sort(self) -> List[str]:
         """
@@ -210,13 +227,21 @@ class DataSimulator:
 
         # CATEGORICAL
         if column.type == "categorical":
-            choices = params["choices"]
+            choices = params.get("choices", ["A", "B", "C"])
             probabilities = params.get("probabilities", None)
 
+            # Ensure choices is a list
+            if not isinstance(choices, list):
+                choices = list(choices)
+
             if probabilities is not None:
-                # Normalize probabilities
-                probabilities = np.array(probabilities)
-                probabilities = probabilities / probabilities.sum()
+                # Convert to float array and normalize
+                probabilities = np.array(probabilities, dtype=float)
+                prob_sum = probabilities.sum()
+                if prob_sum > 0:
+                    probabilities = probabilities / prob_sum
+                else:
+                    probabilities = None
 
             values = self.rng.choice(choices, size=size, p=probabilities)
             return values
@@ -413,6 +438,35 @@ class DataSimulator:
         # TEXT
         elif column.type == "text":
             text_type = params.get("text_type", "sentence")
+            
+            # Smart value generation - check for domain-specific content
+            smart_generate = params.get("smart_generate", False) or self.smart_mode
+            if smart_generate:
+                smart_gen = self._get_smart_gen()
+                if smart_gen:
+                    # Check for explicit domain hint or auto-detect
+                    domain_hint = params.get("domain_hint")
+                    context = params.get("context", "")
+                    
+                    # Create cache key for this column's pool
+                    pool_key = f"{table_name}.{column.name}"
+                    
+                    if pool_key not in self._smart_pools:
+                        pool = smart_gen.get_pool(
+                            column_name=column.name,
+                            table_name=table_name,
+                            domain_hint=domain_hint,
+                            context=context,
+                            size=100,
+                            use_llm=self.use_llm,
+                        )
+                        if pool:
+                            self._smart_pools[pool_key] = np.array(pool)
+                    
+                    if pool_key in self._smart_pools:
+                        pool = self._smart_pools[pool_key]
+                        values = self.rng.choice(pool, size=size)
+                        return values
 
             if text_type == "name":
                 values = np.array([self.text_gen.name() for _ in range(size)])
@@ -439,6 +493,28 @@ class DataSimulator:
         elif column.type == "boolean":
             probability = params.get("probability", 0.5)
             values = self.rng.random(size) < probability
+            return values
+
+        # TIME
+        elif column.type == "time":
+            # Generate random times as HH:MM:SS strings
+            start_hour = params.get("start_hour", 0)
+            end_hour = params.get("end_hour", 24)
+            hours = self.rng.integers(start_hour, end_hour, size=size)
+            minutes = self.rng.integers(0, 60, size=size)
+            seconds = self.rng.integers(0, 60, size=size)
+            values = np.array([f"{h:02d}:{m:02d}:{s:02d}" for h, m, s in zip(hours, minutes, seconds)])
+            return values
+
+        # DATETIME
+        elif column.type == "datetime":
+            # Generate random datetimes within a range
+            start = pd.to_datetime(params.get("start", "2020-01-01"))
+            end = pd.to_datetime(params.get("end", "2024-12-31"))
+            start_int = start.value
+            end_int = end.value
+            random_ints = self.rng.integers(start_int, end_int, size=size)
+            values = pd.to_datetime(random_ints)
             return values
 
         else:

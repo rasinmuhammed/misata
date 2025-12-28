@@ -23,7 +23,7 @@ class Column(BaseModel):
     """
 
     name: str
-    type: Literal["int", "float", "date", "categorical", "foreign_key", "text", "boolean"]
+    type: Literal["int", "float", "date", "time", "datetime", "categorical", "foreign_key", "text", "boolean"]
     distribution_params: Dict[str, Any] = Field(default_factory=dict)
     nullable: bool = False
     unique: bool = False
@@ -39,8 +39,13 @@ class Column(BaseModel):
 
         if col_type == "date":
             if "relative_to" not in v:
-                if "start" not in v or "end" not in v:
-                    raise ValueError("Date columns must have 'start' and 'end' OR 'relative_to' in distribution_params")
+                # Provide sensible defaults if start/end not specified
+                if "start" not in v:
+                    from datetime import datetime, timedelta
+                    v["start"] = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+                if "end" not in v:
+                    from datetime import datetime
+                    v["end"] = datetime.now().strftime("%Y-%m-%d")
 
         if col_type in ["int", "float"]:
             if "distribution" not in v:
