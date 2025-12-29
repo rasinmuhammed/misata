@@ -15,7 +15,7 @@ Usage:
     config = load_template("ecommerce")
 """
 
-__version__ = "0.2.0-beta"
+__version__ = "0.3.0b0"
 __author__ = "Muhammed Rasin"
 
 from misata.schema import (
@@ -28,10 +28,50 @@ from misata.schema import (
 )
 from misata.simulator import DataSimulator
 from misata.generators import TextGenerator
+from misata.generators.base import (
+    BaseGenerator,
+    IntegerGenerator,
+    FloatGenerator,
+    BooleanGenerator,
+    CategoricalGenerator,
+    DateGenerator,
+    ForeignKeyGenerator,
+    GeneratorFactory,
+)
+from misata.constraints import (
+    BaseConstraint,
+    SumConstraint,
+    RangeConstraint,
+    UniqueConstraint,
+    NotNullConstraint,
+    RatioConstraint,
+    ConstraintEngine,
+)
+from misata.context import GenerationContext
+from misata.exceptions import (
+    MisataError,
+    SchemaValidationError,
+    ColumnGenerationError,
+    LLMError,
+    ConfigurationError,
+    ExportError,
+)
+from misata.smart_values import SmartValueGenerator
 from misata.noise import NoiseInjector, add_noise
 from misata.customization import Customizer, ColumnOverride
 from misata.quality import DataQualityChecker, check_quality
 from misata.templates.library import load_template, list_templates
+from misata.profiles import (
+    DistributionProfile,
+    get_profile,
+    list_profiles,
+    generate_with_profile,
+)
+from misata.generators.base import (
+    ConditionalCategoricalGenerator,
+    CONDITIONAL_LOOKUPS,
+    create_conditional_generator,
+)
 
 __all__ = [
     # Core
@@ -42,8 +82,43 @@ __all__ = [
     "SchemaConfig",
     "Table",
     "DataSimulator",
-    # Extensibility
+    # Generators
     "TextGenerator",
+    "BaseGenerator",
+    "IntegerGenerator",
+    "FloatGenerator",
+    "BooleanGenerator",
+    "CategoricalGenerator",
+    "DateGenerator",
+    "ForeignKeyGenerator",
+    "GeneratorFactory",
+    "ConditionalCategoricalGenerator",
+    "CONDITIONAL_LOOKUPS",
+    "create_conditional_generator",
+    # Constraints
+    "BaseConstraint",
+    "SumConstraint",
+    "RangeConstraint",
+    "UniqueConstraint",
+    "NotNullConstraint",
+    "RatioConstraint",
+    "ConstraintEngine",
+    # Context
+    "GenerationContext",
+    # Exceptions
+    "MisataError",
+    "SchemaValidationError",
+    "ColumnGenerationError",
+    "LLMError",
+    "ConfigurationError",
+    "ExportError",
+    # Smart Values
+    "SmartValueGenerator",
+    # Distribution Profiles
+    "DistributionProfile",
+    "get_profile",
+    "list_profiles",
+    "generate_with_profile",
     # ML-ready features
     "NoiseInjector",
     "add_noise",

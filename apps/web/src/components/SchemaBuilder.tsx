@@ -21,6 +21,7 @@ import ShareModal from './ShareModal';
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';
 import { useSchemaStore } from '@/store/schemaStore';
 import { submitJob, pollJobUntilComplete, downloadJobFiles, JobResponse } from '@/lib/api';
+import { validateSchema, SchemaValidationResult } from '@/lib/validation';
 import {
     Plus,
     Share2,
@@ -28,6 +29,7 @@ import {
     Loader2,
     CheckCircle,
     AlertCircle,
+    AlertTriangle,
     X,
     FileText,
     Layers,
@@ -188,11 +190,43 @@ export default function SchemaBuilder() {
             return;
         }
 
+        // Pre-generation schema validation
+        const validationResult = validateSchema({
+            tables: tables.map(t => ({
+                id: t.id,
+                name: t.name,
+                rowCount: t.rowCount,
+                columns: t.columns.map(c => ({
+                    id: c.id,
+                    name: c.name,
+                    type: c.type,
+                })),
+            })),
+        });
+
+        if (!validationResult.isValid) {
+            // Format the validation errors
+            const errorMessages = validationResult.errors
+                .map(e => `• ${e.path}: ${e.message}`)
+                .join('\n');
+            setError(`Schema validation failed:\n${errorMessages}`);
+            return;
+        }
+
+        // Show warnings but proceed
+        if (validationResult.warnings.length > 0) {
+            console.warn('Schema validation warnings:', validationResult.warnings);
+        }
+
         setIsGenerating(true);
         setProgress(0);
-        setStatusMessage('Submitting job...');
+        setStatusMessage('Validating schema...');
         setError(null);
         setResult(null);
+
+        // Small delay to show validation step
+        await new Promise(resolve => setTimeout(resolve, 200));
+        setStatusMessage('Submitting job...');
 
         try {
             const schemaConfig = getSchemaConfig();

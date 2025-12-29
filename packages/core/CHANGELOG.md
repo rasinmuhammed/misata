@@ -5,6 +5,54 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0b0] - 2025-12-29
+
+### Added
+
+#### Distribution Profiles (`misata.profiles`)
+- **12+ pre-built statistical distributions** matching real-world patterns
+- `salary_tech` - Gaussian mixture ($50k-$500k, mean ~$145k)
+- `salary_usd` - Lognormal for general US salaries
+- `age_adult` / `age_population` - Realistic age demographics
+- `price_retail` / `price_saas` - E-commerce and SaaS pricing
+- `transaction_amount` - Pareto distribution for transactions
+- `rating_5star` - Beta distribution skewed toward high ratings
+- `nps_score`, `conversion_rate`, `churn_rate` - Business metrics
+- Helper functions: `get_profile()`, `list_profiles()`, `generate_with_profile()`
+
+#### Conditional Generation
+- **New Class**: `ConditionalCategoricalGenerator` for hierarchical data
+- Generate values dependent on parent column (e.g., state matches country)
+- 4 built-in lookup tables:
+  - `country_to_state` - 8 countries with states/provinces
+  - `department_to_role` - 7 departments with job titles
+  - `category_to_subcategory` - Product category hierarchies
+  - `industry_to_company_type` - Industry-specific company types
+- Factory: `create_conditional_generator(lookup_name, parent_column)`
+
+#### Realistic Edge Cases
+- **Null Injection**: `BaseGenerator.inject_nulls(values, null_rate)`
+- **Outlier Injection**: `BaseGenerator.inject_outliers(values, outlier_rate)`
+- **Post-processing**: `BaseGenerator.post_process(values, params)`
+
+#### Template Composition
+- `SmartValueGenerator.generate_with_template()` for unlimited variety
+- `SmartValueGenerator.generate_composite_pool()` for domain templates
+- Templates: `address`, `email`, `product`, `company_name`
+- ID templates: `order_id`, `invoice_number`, `sku`, `username`
+
+#### Enhanced Exports
+- All generators: `IntegerGenerator`, `FloatGenerator`, `BooleanGenerator`, etc.
+- All constraints: `SumConstraint`, `RangeConstraint`, `UniqueConstraint`, etc.
+- New: `GenerationContext`, `SmartValueGenerator`, `DistributionProfile`
+- Exceptions: `MisataError`, `ColumnGenerationError`, `LLMError`, etc.
+
+### Changed
+- `SmartValueGenerator.get_pool()` now defaults to larger pool sizes
+- Improved `smart_generate()` sampling with `random.choices()`
+
+---
+
 ## [0.2.0-beta] - 2024-12-28
 
 ### Added

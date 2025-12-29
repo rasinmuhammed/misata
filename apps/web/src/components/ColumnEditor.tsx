@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Column, useSchemaStore } from '@/store/schemaStore';
-import { Sparkles, Brain } from 'lucide-react';
+import { validateColumnName, validateDistributionParams, ValidationResult } from '@/lib/validation';
+import { Sparkles, Brain, AlertCircle, AlertTriangle } from 'lucide-react';
 
 interface ColumnEditorProps {
     tableId: string;
@@ -71,7 +72,29 @@ export default function ColumnEditor({ tableId, column, onClose }: ColumnEditorP
         column.distributionParams?.context as string || ''
     );
 
+    // Get current table for validation
+    const currentTable = tables.find(t => t.id === tableId);
+    const tableName = currentTable?.name || '';
+    const existingColumnNames = (currentTable?.columns || [])
+        .filter(c => c.id !== column.id)
+        .map(c => c.name);
+
+    // Inline validation for column name
+    const nameValidation = useMemo((): ValidationResult => {
+        return validateColumnName(name, existingColumnNames, tableName);
+    }, [name, existingColumnNames, tableName]);
+
+    // Inline validation for distribution params
+    const paramsValidation = useMemo((): ValidationResult => {
+        const params = { min, max, values: choices.split(',').map(c => c.trim()).filter(Boolean) };
+        return validateDistributionParams(type, distribution, params);
+    }, [type, distribution, min, max, choices]);
+
+    // Can save only if validation passes
+    const canSave = nameValidation.isValid && paramsValidation.isValid;
+
     const handleSave = () => {
+        if (!canSave) return;
         const distributionParams: Record<string, unknown> = { distribution };
 
         if (type === 'categorical') {
@@ -134,9 +157,22 @@ export default function ColumnEditor({ tableId, column, onClose }: ColumnEditorP
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="input"
+                        className={`input ${!nameValidation.isValid ? 'border-red-500 focus:ring-red-500/30' : nameValidation.warning ? 'border-yellow-500 focus:ring-yellow-500/30' : ''}`}
                         placeholder="column_name"
                     />
+                    {/* Validation message for column name */}
+                    {!nameValidation.isValid && (
+                        <div className="flex items-center gap-1.5 mt-2 text-red-400 text-xs">
+                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                            <span>{nameValidation.error}</span>
+                        </div>
+                    )}
+                    {nameValidation.warning && (
+                        <div className="flex items-center gap-1.5 mt-2 text-yellow-400 text-xs">
+                            <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                            <span>{nameValidation.warning}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Column Type */}
@@ -307,7 +343,12 @@ export default function ColumnEditor({ tableId, column, onClose }: ColumnEditorP
                         <button onClick={onClose} className="btn btn-secondary">
                             Cancel
                         </button>
-                        <button onClick={handleSave} className="btn btn-primary">
+                        <button
+                            onClick={handleSave}
+                            disabled={!canSave}
+                            className={`btn btn-primary ${!canSave ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={!canSave ? 'Fix validation errors to save' : 'Save changes'}
+                        >
                             Save Changes
                         </button>
                     </div>

@@ -580,14 +580,183 @@ Return ONLY a JSON array of strings, no explanation. Example:
     def get_fallback_pool(self, domain: str) -> List[str]:
         """Get curated fallback pool for a domain."""
         return self.FALLBACK_POOLS.get(domain, [])
+    
+    def generate_with_template(
+        self,
+        template: str,
+        size: int,
+        components: Dict[str, List[str]],
+    ) -> List[str]:
+        """Generate text by substituting template components.
+        
+        This creates more variety by combining parts rather than
+        picking from a fixed pool.
+        
+        Args:
+            template: String template with {component_name} placeholders
+            size: Number of values to generate
+            components: Dict mapping component names to value lists
+            
+        Returns:
+            List of generated strings
+            
+        Example:
+            template = "{first_name} {last_name}"
+            components = {
+                "first_name": ["John", "Jane", "Alex"],
+                "last_name": ["Smith", "Johnson", "Williams"],
+            }
+            values = gen.generate_with_template(template, 100, components)
+            # Returns: ["John Smith", "Jane Williams", "Alex Johnson", ...]
+        """
+        import random
+        
+        results = []
+        for _ in range(size):
+            text = template
+            for key, values in components.items():
+                if f"{{{key}}}" in text:
+                    text = text.replace(f"{{{key}}}", random.choice(values), 1)
+            results.append(text)
+        
+        return results
+    
+    def generate_composite_pool(
+        self,
+        domain: str,
+        size: int = 200,
+    ) -> List[str]:
+        """Generate larger pools using template composition.
+        
+        Instead of calling LLM for 200 values, we compose
+        templates with varied components.
+        
+        Args:
+            domain: Semantic domain
+            size: Target pool size
+            
+        Returns:
+            List of composed values
+        """
+        import random
+        
+        # Domain-specific templates
+        templates = {
+            "address": {
+                "template": "{number} {street_name} {street_type}, {city}, {state}",
+                "components": {
+                    "number": [str(i) for i in range(100, 10000)],
+                    "street_name": ["Oak", "Maple", "Cedar", "Pine", "Elm", "Birch", "Walnut", "Cherry", "Willow", "Aspen",
+                                   "Main", "First", "Second", "Third", "Park", "Lake", "River", "Hill", "Valley", "Spring"],
+                    "street_type": ["Street", "Avenue", "Boulevard", "Lane", "Drive", "Court", "Place", "Road", "Way", "Circle"],
+                    "city": ["Springfield", "Riverside", "Franklin", "Georgetown", "Clinton", "Salem", "Madison", "Bristol", "Fairview", "Newport"],
+                    "state": ["CA", "TX", "NY", "FL", "IL", "PA", "OH", "GA", "MI", "NC", "WA", "CO", "AZ", "MA", "VA"],
+                },
+            },
+            "email": {
+                "template": "{name_part}{separator}{domain_part}@{provider}.{tld}",
+                "components": {
+                    "name_part": ["john", "jane", "alex", "sam", "chris", "pat", "taylor", "jordan", "casey", "morgan",
+                                 "mike", "lisa", "david", "emma", "ryan", "kate", "nick", "amy", "steve", "jen"],
+                    "separator": ["", ".", "_", ""],
+                    "domain_part": ["smith", "jones", "work", "mail", "pro", "dev", "biz", "123", "2024", "online"],
+                    "provider": ["gmail", "yahoo", "outlook", "hotmail", "icloud", "proton", "fastmail", "zoho"],
+                    "tld": ["com", "com", "com", "org", "net", "io", "co"],
+                },
+            },
+            "product": {
+                "template": "{adjective} {material} {item_type} - {size_color}",
+                "components": {
+                    "adjective": ["Premium", "Ultra", "Pro", "Classic", "Modern", "Sleek", "Essential", "Deluxe", "Elite", "Smart"],
+                    "material": ["Stainless Steel", "Bamboo", "Ceramic", "Leather", "Cotton", "Titanium", "Wood", "Glass", "Silicone", "Carbon Fiber"],
+                    "item_type": ["Water Bottle", "Phone Case", "Backpack", "Wallet", "Watch Band", "Desk Lamp", "Speaker", "Charging Dock", "Notebook", "Organizer"],
+                    "size_color": ["Black/Large", "White/Medium", "Navy/Standard", "Gray/Compact", "Red/XL", "Brown/Regular", "Silver/Slim", "Green/Mini"],
+                },
+            },
+            "company_name": {
+                "template": "{prefix} {industry_word} {suffix}",
+                "components": {
+                    "prefix": ["Nova", "Apex", "Prime", "Vertex", "Quantum", "Fusion", "Nexus", "Stellar", "Vector", "Atlas",
+                              "Blue", "Red", "Green", "Global", "United", "First", "New", "Smart", "Tech", "Digital"],
+                    "industry_word": ["Solutions", "Systems", "Tech", "Labs", "Works", "Group", "Partners", "Dynamics", "Innovations", "Ventures",
+                                     "Digital", "Logic", "Flow", "Wave", "Net", "Cloud", "Data", "Edge", "Core", "Sync"],
+                    "suffix": ["Inc", "Corp", "LLC", "Co", "Ltd", "GmbH", "Technologies", "International", "Enterprises", "Holdings"],
+                },
+            },
+        }
+        
+        if domain in templates:
+            config = templates[domain]
+            return self.generate_with_template(
+                config["template"],
+                size,
+                config["components"]
+            )
+        
+        # Fall back to curated pool with random sampling
+        base_pool = self.FALLBACK_POOLS.get(domain, [])
+        if len(base_pool) >= size:
+            return random.sample(base_pool, size)
+        elif len(base_pool) > 0:
+            # Repeat with slight variations
+            result = []
+            for i in range(size):
+                base = random.choice(base_pool)
+                if random.random() < 0.3:  # 30% chance to add suffix
+                    suffix = random.choice([" (v2)", " Pro", " Plus", " - Updated", " 2.0", ""])
+                    base = base + suffix
+                result.append(base)
+            return result
+        
+        return []
+
+
+# ============ Template Registry ============
+
+COMPOSITION_TEMPLATES = {
+    "order_id": "{prefix}-{year}-{number}",
+    "invoice_number": "INV-{year}{month}-{number}",
+    "tracking_number": "{carrier}{number}{check}",
+    "sku": "{category}-{brand}-{variant}-{size}",
+    "username": "{adjective}{noun}{number}",
+}
+
+TEMPLATE_COMPONENTS = {
+    "order_id": {
+        "prefix": ["ORD", "SO", "PO", "WO", "REQ"],
+        "year": ["2023", "2024", "2025"],
+        "number": [str(i).zfill(6) for i in range(1, 1000)],
+    },
+    "invoice_number": {
+        "year": ["23", "24", "25"],
+        "month": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"],
+        "number": [str(i).zfill(4) for i in range(1, 10000)],
+    },
+    "tracking_number": {
+        "carrier": ["1Z", "9400", "92", "420"],
+        "number": [str(i).zfill(12) for i in range(100000000000, 100001000000)],
+        "check": [str(i) for i in range(10)],
+    },
+    "sku": {
+        "category": ["ELC", "CLO", "HOM", "SPT", "TOY", "BOK"],
+        "brand": ["APP", "SAM", "NIK", "ADI", "SON", "LG"],
+        "variant": ["BLK", "WHT", "RED", "BLU", "GRN", "GRY"],
+        "size": ["S", "M", "L", "XL", "XXL", "OS"],
+    },
+    "username": {
+        "adjective": ["cool", "super", "mega", "ultra", "epic", "pro", "fast", "swift", "bold", "smart"],
+        "noun": ["ninja", "tiger", "dragon", "wolf", "hawk", "bear", "lion", "eagle", "shark", "fox"],
+        "number": [str(i) for i in range(1, 1000)],
+    },
+}
 
 
 # Convenience function for quick testing
 def smart_generate(column_name: str, table_name: str = "", size: int = 10) -> List[str]:
     """Quick smart value generation for testing."""
     gen = SmartValueGenerator()
-    pool = gen.get_pool(column_name, table_name)
+    pool = gen.get_pool(column_name, table_name, size=max(size * 2, 50))
     if pool:
         import random
-        return random.sample(pool, min(size, len(pool)))
+        return random.choices(pool, k=size)
     return []

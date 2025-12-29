@@ -1,10 +1,11 @@
 "use client";
 
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { useSchemaStore, Column } from '@/store/schemaStore';
 import ColumnEditor from './ColumnEditor';
 import DataPreview from './DataPreview';
+import { validateTableName, validateRowCount, ValidationResult } from '@/lib/validation';
 import {
     Hash,
     Type,
@@ -15,7 +16,9 @@ import {
     Plus,
     Eye,
     X,
-    Check
+    Check,
+    AlertCircle,
+    AlertTriangle
 } from 'lucide-react';
 
 interface TableNodeData extends Record<string, unknown> {
@@ -45,12 +48,30 @@ interface TableNodeProps {
 }
 
 function TableNode({ id, data, selected }: TableNodeProps) {
-    const { setSelectedTable, addColumn, updateTable, removeTable } = useSchemaStore();
+    const { tables, setSelectedTable, addColumn, updateTable, removeTable } = useSchemaStore();
     const [editingColumn, setEditingColumn] = useState<Column | null>(null);
     const [isEditingName, setIsEditingName] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [tableName, setTableName] = useState(data.label);
     const [rowCount, setRowCount] = useState(data.rowCount);
+
+    // Inline validation for table name
+    const tableNameValidation = useMemo((): ValidationResult => {
+        if (!isEditingName) return { isValid: true };
+        const otherTableNames = tables
+            .filter(t => t.id !== data.tableId)
+            .map(t => t.name);
+        return validateTableName(tableName, otherTableNames);
+    }, [tableName, isEditingName, tables, data.tableId]);
+
+    // Inline validation for row count
+    const rowCountValidation = useMemo((): ValidationResult => {
+        if (!isEditingName) return { isValid: true };
+        return validateRowCount(rowCount);
+    }, [rowCount, isEditingName]);
+
+    // Can save only if both validations pass
+    const canSave = tableNameValidation.isValid && rowCountValidation.isValid;
 
     const handleClick = useCallback(() => {
         setSelectedTable(data.tableId);
@@ -72,9 +93,16 @@ function TableNode({ id, data, selected }: TableNodeProps) {
     }, []);
 
     const handleNameSave = useCallback(() => {
+        if (!canSave) return;
         updateTable(data.tableId, { name: tableName, rowCount });
         setIsEditingName(false);
-    }, [data.tableId, tableName, rowCount, updateTable]);
+    }, [data.tableId, tableName, rowCount, updateTable, canSave]);
+
+    const handleCancelEdit = useCallback(() => {
+        setTableName(data.label);
+        setRowCount(data.rowCount);
+        setIsEditingName(false);
+    }, [data.label, data.rowCount]);
 
     const handleDelete = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -110,28 +138,90 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                     </button>
 
                     {isEditingName ? (
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <input
-                                type="text"
-                                value={tableName}
-                                onChange={(e) => setTableName(e.target.value)}
-                                className="flex-1 px-2 py-1 text-sm bg-white/20 border border-white/30 rounded text-white placeholder-white/50"
-                                autoFocus
-                                onKeyDown={(e) => e.key === 'Enter' && handleNameSave()}
-                            />
-                            <input
-                                type="number"
-                                value={rowCount}
-                                onChange={(e) => setRowCount(Number(e.target.value))}
-                                className="w-20 px-2 py-1 text-sm bg-white/20 border border-white/30 rounded text-white"
-                                min={1}
-                            />
-                            <button
-                                onClick={handleNameSave}
-                                className="px-2 py-1 bg-white/20 rounded text-white hover:bg-white/30"
-                            >
-                                <Check className="w-4 h-4" />
-                            </button>
+                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <input
+                                        type="text"
+                                        value={tableName}
+                                        onChange={(e) => setTableName(e.target.value)}
+                                        className={`w-full px-2 py-1 text-sm bg-white/20 border rounded text-white placeholder-white/50 ${!tableNameValidation.isValid
+                                                ? 'border-red-400 bg-red-400/20'
+                                                : tableNameValidation.warning
+                                                    ? 'border-yellow-400 bg-yellow-400/10'
+                                                    : 'border-white/30'
+                                            }`}
+                                        placeholder="Table name"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && canSave) handleNameSave();
+                                            if (e.key === 'Escape') handleCancelEdit();
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <input
+                                        type="number"
+                                        value={rowCount}
+                                        onChange={(e) => setRowCount(Number(e.target.value))}
+                                        className={`w-20 px-2 py-1 text-sm bg-white/20 border rounded text-white ${!rowCountValidation.isValid
+                                                ? 'border-red-400 bg-red-400/20'
+                                                : rowCountValidation.warning
+                                                    ? 'border-yellow-400 bg-yellow-400/10'
+                                                    : 'border-white/30'
+                                            }`}
+                                        min={1}
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleNameSave}
+                                    disabled={!canSave}
+                                    className={`px-2 py-1 rounded text-white transition-colors ${canSave
+                                            ? 'bg-white/20 hover:bg-white/30'
+                                            : 'bg-white/10 opacity-50 cursor-not-allowed'
+                                        }`}
+                                    title={canSave ? 'Save' : 'Fix validation errors'}
+                                >
+                                    <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={handleCancelEdit}
+                                    className="px-2 py-1 bg-white/10 rounded text-white hover:bg-white/20 transition-colors"
+                                    title="Cancel"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                            {/* Validation messages */}
+                            {(!tableNameValidation.isValid || tableNameValidation.warning ||
+                                !rowCountValidation.isValid || rowCountValidation.warning) && (
+                                    <div className="space-y-1">
+                                        {!tableNameValidation.isValid && (
+                                            <div className="flex items-center gap-1.5 text-red-200 text-xs">
+                                                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                <span>{tableNameValidation.error}</span>
+                                            </div>
+                                        )}
+                                        {tableNameValidation.warning && (
+                                            <div className="flex items-center gap-1.5 text-yellow-200 text-xs">
+                                                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                                                <span>{tableNameValidation.warning}</span>
+                                            </div>
+                                        )}
+                                        {!rowCountValidation.isValid && (
+                                            <div className="flex items-center gap-1.5 text-red-200 text-xs">
+                                                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                <span>{rowCountValidation.error}</span>
+                                            </div>
+                                        )}
+                                        {rowCountValidation.warning && (
+                                            <div className="flex items-center gap-1.5 text-yellow-200 text-xs">
+                                                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                                                <span>{rowCountValidation.warning}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                         </div>
                     ) : (
                         <div className="flex items-center justify-between pr-8">
