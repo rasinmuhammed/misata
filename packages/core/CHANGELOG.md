@@ -5,6 +5,28 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1b0] - 2026-01-03
+
+### Performance (3.8x Faster Text Generation!)
+- **Text Pooling**: Generate pool of 10k values once, sample with NumPy
+  - Before: 390K rows/sec → After: **1.48M rows/sec**
+  - 1 million names now generates in 0.6s instead of 2.5s
+- `TEXT_POOL_SIZE = 10,000` configurable constant
+
+### Realism (Correlated Columns!)
+- **`depends_on` parameter**: Columns can now depend on other column values
+  - Numeric mapping: `salary` based on `job_title` (Intern→$40k, CTO→$250k)
+  - Categorical mapping: `state` based on `country`
+  - Boolean probability: `churned` based on `plan` (free→40%, enterprise→2%)
+- Vectorized conditional generation using `np.select` for speed
+
+### Memory Efficiency
+- **`MAX_CONTEXT_ROWS = 50,000`**: Context storage capped to prevent RAM explosion
+- Large parent tables (10M+ rows) no longer crash child generation
+- Reservoir sampling for random FK selection from capped context
+
+---
+
 ## [0.3.0b0] - 2025-12-29
 
 ### Added

@@ -16,7 +16,9 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from misata.generators import TextGenerator
+from misata.generators.base import TextGenerator as _FactoryTextGenerator  # Generator factory version
+# Use the original generators.py TextGenerator which supports seed
+from misata.generators_legacy import TextGenerator
 from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig
 
 
@@ -33,6 +35,10 @@ class DataSimulator:
         text_gen: TextGenerator for entity generation
         rng: NumPy random generator for reproducibility
     """
+
+    # Performance constants
+    MAX_CONTEXT_ROWS = 50000  # Cap context storage for memory efficiency
+    TEXT_POOL_SIZE = 10000    # Size of text value pools for vectorized sampling
 
     def __init__(self, config: SchemaConfig,
                  apply_semantic_fixes: bool = True, batch_size: int = 10_000,
@@ -57,6 +63,7 @@ class DataSimulator:
         self._unique_pools: Dict[str, np.ndarray] = {}  # Store pre-generated unique values
         self._unique_counters: Dict[str, int] = {}      # Track usage of unique pools
         self._smart_pools: Dict[str, np.ndarray] = {}   # Cache smart value pools
+        self._text_pools: Dict[str, np.ndarray] = {}    # Cache text pools for vectorized sampling
 
         # Apply semantic inference to fix column types
         if apply_semantic_fixes:
@@ -199,10 +206,24 @@ class DataSimulator:
         ctx_df = df[cols_to_store].copy()
 
         if table_name not in self.context:
+            # First batch: store up to MAX_CONTEXT_ROWS
+            if len(ctx_df) > self.MAX_CONTEXT_ROWS:
+                ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=self.config.seed)
             self.context[table_name] = ctx_df
         else:
-            # Append to existing context
-            self.context[table_name] = pd.concat([self.context[table_name], ctx_df], ignore_index=True)
+            # Append to existing context, but cap at MAX_CONTEXT_ROWS
+            current_len = len(self.context[table_name])
+            if current_len >= self.MAX_CONTEXT_ROWS:
+                # Already at capacity, use reservoir sampling for randomness
+                # Replace some existing rows with new ones (probability-based)
+                return  # Skip appending, we have enough IDs
+            
+            remaining_space = self.MAX_CONTEXT_ROWS - current_len
+            rows_to_add = ctx_df.iloc[:remaining_space]
+            self.context[table_name] = pd.concat(
+                [self.context[table_name], rows_to_add], 
+                ignore_index=True
+            )
 
     def generate_column(
         self,
@@ -225,6 +246,70 @@ class DataSimulator:
         """
         params = column.distribution_params
 
+        # ========== CORRELATED COLUMN GENERATION ==========
+        # If this column depends on another column's value, use conditional distribution
+        if "depends_on" in params and table_data is not None:
+            parent_col = params["depends_on"]
+            mapping = params.get("mapping", {})
+            
+            if parent_col in table_data.columns and mapping:
+                parent_values = table_data[parent_col].values
+                
+                # Check if it's numeric or categorical mapping
+                first_val = next(iter(mapping.values()))
+                if isinstance(first_val, dict) and "mean" in first_val:
+                    # Numeric conditional distribution (e.g., salary based on job_title)
+                    # mapping = {"Intern": {"mean": 40000, "std": 5000}, "CTO": {"mean": 200000, "std": 30000}}
+                    values = np.zeros(size)
+                    for key, dist in mapping.items():
+                        mask = parent_values == key
+                        count = mask.sum()
+                        if count > 0:
+                            mean = dist.get("mean", 50000)
+                            std = dist.get("std", mean * 0.1)
+                            values[mask] = self.rng.normal(mean, std, count)
+                    
+                    # Handle values that didn't match any key (use default)
+                    default = params.get("default", {"mean": 50000, "std": 10000})
+                    unmatched = ~np.isin(parent_values, list(mapping.keys()))
+                    if unmatched.sum() > 0:
+                        values[unmatched] = self.rng.normal(
+                            default.get("mean", 50000), 
+                            default.get("std", 10000), 
+                            unmatched.sum()
+                        )
+                    return values
+                    
+                elif isinstance(first_val, list):
+                    # Categorical conditional (e.g., state based on country)
+                    # mapping = {"USA": ["CA", "TX", "NY"], "UK": ["England", "Scotland"]}
+                    values = np.empty(size, dtype=object)
+                    for key, choices in mapping.items():
+                        mask = parent_values == key
+                        count = mask.sum()
+                        if count > 0:
+                            values[mask] = self.rng.choice(choices, count)
+                    
+                    # Default for unmatched
+                    default_choices = params.get("default", ["Unknown"])
+                    unmatched = values == None  # noqa
+                    if unmatched.sum() > 0:
+                        values[unmatched] = self.rng.choice(default_choices, unmatched.sum())
+                    return values
+                    
+                elif isinstance(first_val, (int, float)):
+                    # Probability-based boolean (e.g., churn probability based on plan)
+                    # mapping = {"free": 0.3, "pro": 0.1, "enterprise": 0.05}
+                    values = np.zeros(size, dtype=bool)
+                    for key, prob in mapping.items():
+                        mask = parent_values == key
+                        count = mask.sum()
+                        if count > 0:
+                            values[mask] = self.rng.random(count) < prob
+                    return values
+
+        # ========== STANDARD COLUMN GENERATION ==========
+        
         # CATEGORICAL
         if column.type == "categorical":
             choices = params.get("choices", ["A", "B", "C"])
@@ -469,23 +554,59 @@ class DataSimulator:
                         return values
 
             if text_type == "name":
-                values = np.array([self.text_gen.name() for _ in range(size)])
+                pool_key = "text_name"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.name() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             elif text_type == "email":
-                values = np.array([self.text_gen.email() for _ in range(size)])
+                pool_key = "text_email"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.email() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             elif text_type == "company":
-                values = np.array([self.text_gen.company() for _ in range(size)])
+                pool_key = "text_company"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.company() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             elif text_type == "sentence":
-                values = np.array([self.text_gen.sentence() for _ in range(size)])
+                pool_key = "text_sentence"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.sentence() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             elif text_type == "word":
-                values = np.array([self.text_gen.word() for _ in range(size)])
+                pool_key = "text_word"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.word() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             elif text_type == "address":
-                values = np.array([self.text_gen.full_address() for _ in range(size)])
+                pool_key = "text_address"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.full_address() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             elif text_type == "phone":
-                values = np.array([self.text_gen.phone_number() for _ in range(size)])
+                pool_key = "text_phone"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.phone_number() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             elif text_type == "url":
-                values = np.array([self.text_gen.url() for _ in range(size)])
+                pool_key = "text_url"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.url() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
             else:
-                values = np.array([self.text_gen.sentence() for _ in range(size)])
+                pool_key = "text_sentence"
+                if pool_key not in self._text_pools:
+                    pool_size = min(size, self.TEXT_POOL_SIZE)
+                    self._text_pools[pool_key] = np.array([self.text_gen.sentence() for _ in range(pool_size)])
+                values = self.rng.choice(self._text_pools[pool_key], size=size)
 
             return values
 
