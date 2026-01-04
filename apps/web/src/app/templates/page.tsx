@@ -107,7 +107,7 @@ const templates: Template[] = [
                 { name: 'id', type: 'int', distribution_params: { distribution: 'sequence' } },
                 { name: 'user_id', type: 'foreign_key', distribution_params: { reference_table: 'users' } },
                 { name: 'event_type', type: 'categorical', distribution_params: { choices: ['page_view', 'click', 'signup', 'purchase'] } },
-                { name: 'timestamp', type: 'date' },
+                { name: 'event_time', type: 'date' },
             ],
         },
         relationships: [
@@ -189,7 +189,7 @@ const templates: Template[] = [
                 { name: 'account_id', type: 'foreign_key', distribution_params: { reference_table: 'accounts' } },
                 { name: 'amount', type: 'float', distribution_params: { distribution: 'normal', mean: 150, std: 500 } },
                 { name: 'type', type: 'categorical', distribution_params: { choices: ['deposit', 'withdrawal', 'transfer'] } },
-                { name: 'timestamp', type: 'date' },
+                { name: 'event_time', type: 'date' },
                 { name: 'is_fraud', type: 'boolean', distribution_params: { probability: 0.02 } },
             ],
         },
@@ -209,7 +209,7 @@ const categories = [
 
 export default function TemplatesPage() {
     const router = useRouter();
-    const { addTable, addRelationship } = useSchemaStore();
+    const { addTable, addRelationship, clearSchema } = useSchemaStore();
     const [selectedCategory, setSelectedCategory] = useState('all');
 
     const filteredTemplates = templates.filter(
@@ -217,6 +217,9 @@ export default function TemplatesPage() {
     );
 
     const handleUseTemplate = useCallback((template: Template) => {
+        // Clear existing schema before loading template
+        clearSchema();
+
         const tableIdMap: Record<string, string> = {};
 
         template.tables.forEach((tableData, index) => {
@@ -256,8 +259,8 @@ export default function TemplatesPage() {
             });
         });
 
-        router.push('/');
-    }, [addTable, addRelationship, router]);
+        router.push('/builder');
+    }, [addTable, addRelationship, clearSchema, router]);
 
     return (
         <div className="p-8 max-w-6xl mx-auto animate-fade-in">

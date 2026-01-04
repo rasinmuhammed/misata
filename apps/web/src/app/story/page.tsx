@@ -59,12 +59,20 @@ interface GeneratedSchema {
     tables: Array<{ name: string; row_count: number }>;
     columns: Record<string, Array<{ name: string; type: string; distribution_params?: Record<string, unknown> }>>;
     relationships: Array<{ parent_table: string; child_table: string; parent_key: string; child_key: string }>;
+    outcome_constraints?: Array<{
+        table_name: string;
+        column_name: string;
+        curve_points: Array<{ timestamp: string; value: number }>;
+        time_unit: string;
+        avg_transaction_value?: number;
+    }>;
 }
 
 export default function StoryPage() {
     const router = useRouter();
-    const { addTable, addRelationship, clearSchema } = useSchemaStore();
+    const { addTable, addRelationship, addOrUpdateConstraint, setSchemaName, clearSchema } = useSchemaStore();
 
+    const [datasetName, setDatasetName] = useState('');
     const [story, setStory] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedSchema, setGeneratedSchema] = useState<GeneratedSchema | null>(null);
@@ -106,18 +114,24 @@ export default function StoryPage() {
         clearSchema();
 
         const tableIdMap: Record<string, string> = {};
+        const columnIdMap: Record<string, string> = {};
 
         generatedSchema.tables.forEach((tableData, index) => {
             const tableId = `table_${Date.now()}_${index}`;
             tableIdMap[tableData.name] = tableId;
 
             const columns: Column[] = (generatedSchema.columns[tableData.name] || []).map(
-                (col, colIdx) => ({
-                    id: `col_${Date.now()}_${index}_${colIdx}`,
-                    name: col.name,
-                    type: col.type as Column['type'],
-                    distributionParams: col.distribution_params,
-                })
+                (col, colIdx) => {
+                    const colId = `col_${Date.now()}_${index}_${colIdx}`;
+                    columnIdMap[`${tableData.name}.${col.name}`] = colId;
+
+                    return {
+                        id: colId,
+                        name: col.name,
+                        type: col.type as Column['type'],
+                        distributionParams: col.distribution_params,
+                    };
+                }
             );
 
             const newTable: TableNode = {
@@ -144,8 +158,28 @@ export default function StoryPage() {
             });
         });
 
+        // Map Outcome Constraints (Metrics)
+        generatedSchema.outcome_constraints?.forEach((oc, index) => {
+            const tableId = tableIdMap[oc.table_name];
+            const columnId = columnIdMap[`${oc.table_name}.${oc.column_name}`];
+
+            if (tableId && columnId) {
+                addOrUpdateConstraint({
+                    id: `oc_${Date.now()}_${index}`,
+                    tableId,
+                    columnId,
+                    curvePoints: oc.curve_points,
+                    timeUnit: oc.time_unit as any,
+                    avgTransactionValue: oc.avg_transaction_value
+                });
+            }
+        });
+
+        // Set Dataset Name
+        setSchemaName(datasetName.trim() || 'Untitled Dataset');
+
         router.push('/builder');
-    }, [generatedSchema, addTable, addRelationship, clearSchema, router]);
+    }, [generatedSchema, datasetName, addTable, addRelationship, addOrUpdateConstraint, setSchemaName, clearSchema, router]);
 
     return (
         <div className="p-8 max-w-4xl mx-auto animate-fade-in">
@@ -194,6 +228,20 @@ export default function StoryPage() {
 
             {/* Input */}
             <div className="card p-6 mb-6">
+                {/* Dataset Name Input */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                        Dataset Name <span className="text-[var(--text-muted)] font-normal">(optional)</span>
+                    </label>
+                    <input
+                        type="text"
+                        value={datasetName}
+                        onChange={(e) => setDatasetName(e.target.value)}
+                        placeholder="e.g., Marketing Analytics Q1"
+                        className="input w-full"
+                    />
+                </div>
+
                 <label className="block text-sm font-medium text-[var(--text-secondary)] mb-3">
                     Your Data Story
                 </label>

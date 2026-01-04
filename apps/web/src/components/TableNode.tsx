@@ -2,9 +2,10 @@
 
 import { memo, useCallback, useState, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { useSchemaStore, Column } from '@/store/schemaStore';
+import { useSchemaStore, Column, OutcomeConstraint, CurvePoint } from '@/store/schemaStore';
 import ColumnEditor from './ColumnEditor';
 import DataPreview from './DataPreview';
+import CurveEditor from './CurveEditor';
 import { validateTableName, validateRowCount, ValidationResult } from '@/lib/validation';
 import {
     Hash,
@@ -18,7 +19,8 @@ import {
     X,
     Check,
     AlertCircle,
-    AlertTriangle
+    AlertTriangle,
+    TrendingUp
 } from 'lucide-react';
 
 interface TableNodeData extends Record<string, unknown> {
@@ -48,12 +50,13 @@ interface TableNodeProps {
 }
 
 function TableNode({ id, data, selected }: TableNodeProps) {
-    const { tables, setSelectedTable, addColumn, updateTable, removeTable } = useSchemaStore();
+    const { tables, setSelectedTable, addColumn, updateTable, removeTable, getConstraintForColumn, addOrUpdateConstraint } = useSchemaStore();
     const [editingColumn, setEditingColumn] = useState<Column | null>(null);
     const [isEditingName, setIsEditingName] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [tableName, setTableName] = useState(data.label);
     const [rowCount, setRowCount] = useState(data.rowCount);
+    const [curveEditorColumn, setCurveEditorColumn] = useState<Column | null>(null);
 
     // Inline validation for table name
     const tableNameValidation = useMemo((): ValidationResult => {
@@ -146,10 +149,10 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                                         value={tableName}
                                         onChange={(e) => setTableName(e.target.value)}
                                         className={`w-full px-2 py-1 text-sm bg-white/20 border rounded text-white placeholder-white/50 ${!tableNameValidation.isValid
-                                                ? 'border-red-400 bg-red-400/20'
-                                                : tableNameValidation.warning
-                                                    ? 'border-yellow-400 bg-yellow-400/10'
-                                                    : 'border-white/30'
+                                            ? 'border-red-400 bg-red-400/20'
+                                            : tableNameValidation.warning
+                                                ? 'border-yellow-400 bg-yellow-400/10'
+                                                : 'border-white/30'
                                             }`}
                                         placeholder="Table name"
                                         autoFocus
@@ -165,10 +168,10 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                                         value={rowCount}
                                         onChange={(e) => setRowCount(Number(e.target.value))}
                                         className={`w-20 px-2 py-1 text-sm bg-white/20 border rounded text-white ${!rowCountValidation.isValid
-                                                ? 'border-red-400 bg-red-400/20'
-                                                : rowCountValidation.warning
-                                                    ? 'border-yellow-400 bg-yellow-400/10'
-                                                    : 'border-white/30'
+                                            ? 'border-red-400 bg-red-400/20'
+                                            : rowCountValidation.warning
+                                                ? 'border-yellow-400 bg-yellow-400/10'
+                                                : 'border-white/30'
                                             }`}
                                         min={1}
                                     />
@@ -177,8 +180,8 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                                     onClick={handleNameSave}
                                     disabled={!canSave}
                                     className={`px-2 py-1 rounded text-white transition-colors ${canSave
-                                            ? 'bg-white/20 hover:bg-white/30'
-                                            : 'bg-white/10 opacity-50 cursor-not-allowed'
+                                        ? 'bg-white/20 hover:bg-white/30'
+                                        : 'bg-white/10 opacity-50 cursor-not-allowed'
                                         }`}
                                     title={canSave ? 'Save' : 'Fix validation errors'}
                                 >
@@ -238,6 +241,8 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                     {data.columns.map((col: Column) => {
                         const config = typeConfig[col.type] || { color: 'bg-gray-400', icon: Hash };
                         const Icon = config.icon;
+                        const isNumeric = col.type === 'int' || col.type === 'float';
+                        const hasConstraint = getConstraintForColumn(col.id);
 
                         return (
                             <div
@@ -266,6 +271,21 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                                     <Icon className="w-3 h-3 text-white" strokeWidth={2.5} />
                                 </span>
                                 <span className="text-[#3A5A40] text-xs flex-1 truncate font-medium">{col.name}</span>
+
+                                {/* Constraint indicator for numeric columns */}
+                                {isNumeric && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCurveEditorColumn(col);
+                                        }}
+                                        className={`p-1 rounded transition-colors ${hasConstraint ? 'bg-[#588157] text-white' : 'text-[#8B9185] hover:bg-[#E8E6E0] hover:text-[#3A5A40]'}`}
+                                        title={hasConstraint ? 'Edit outcome constraint' : 'Add outcome constraint'}
+                                    >
+                                        <TrendingUp className="w-3 h-3" />
+                                    </button>
+                                )}
+
                                 <span className="text-[#8B9185] text-[10px] uppercase tracking-wider font-medium">{col.type}</span>
                             </div>
                         );
@@ -297,6 +317,10 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                     tableId={data.tableId}
                     column={editingColumn}
                     onClose={() => setEditingColumn(null)}
+                    onOpenCurveEditor={() => {
+                        setCurveEditorColumn(editingColumn);
+                        setEditingColumn(null);
+                    }}
                 />
             )}
 
@@ -306,6 +330,30 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
             />
+
+            {/* MOONSHOT: Curve Editor Modal */}
+            {curveEditorColumn && (
+                <CurveEditor
+                    constraint={getConstraintForColumn(curveEditorColumn.id) || {
+                        id: `constraint_${Date.now()}`,
+                        tableId: data.tableId,
+                        columnId: curveEditorColumn.id,
+                        curvePoints: Array.from({ length: 12 }, (_, i) => ({
+                            timestamp: new Date(new Date().getFullYear(), i, 1).toISOString(),
+                            value: 100000,
+                        })),
+                        timeUnit: 'month',
+                        avgTransactionValue: 50,
+                    }}
+                    tableName={data.label}
+                    columnName={curveEditorColumn.name}
+                    onSave={(updatedConstraint) => {
+                        addOrUpdateConstraint(updatedConstraint);
+                        setCurveEditorColumn(null);
+                    }}
+                    onClose={() => setCurveEditorColumn(null)}
+                />
+            )}
         </>
     );
 }

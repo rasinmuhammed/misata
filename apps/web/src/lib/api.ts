@@ -14,6 +14,13 @@ export interface SchemaConfig {
     tables: { name: string; row_count: number }[];
     columns: Record<string, { name: string; type: string; distribution_params?: Record<string, unknown> }[]>;
     relationships?: { parent_table: string; child_table: string; parent_key: string; child_key: string }[];
+    outcome_constraints?: {
+        table_name: string;
+        column_name: string;
+        curve_points: { timestamp: string; value: number }[];
+        time_unit: string;
+        avg_transaction_value?: number;
+    }[];
 }
 
 export interface LLMSchemaResponse {
@@ -24,10 +31,16 @@ export interface LLMSchemaResponse {
 // ============ Job Management ============
 
 export async function submitJob(schemaConfig: SchemaConfig): Promise<JobResponse> {
+    // Extract outcome_constraints if present
+    const outcomeConstraints = (schemaConfig as any).outcome_constraints || [];
+
     const response = await fetch(`${API_BASE_URL}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schema_config: schemaConfig }),
+        body: JSON.stringify({
+            schema_config: schemaConfig,
+            outcome_constraints: outcomeConstraints.length > 0 ? outcomeConstraints : undefined,
+        }),
     });
 
     if (!response.ok) {
@@ -140,14 +153,30 @@ export async function getCompletedJobs(): Promise<CompletedJobInfo[]> {
 
 // ============ LLM Schema Generation ============
 
+// Get stored LLM settings
+function getLLMSettings(): { provider: string; apiKey: string | null } {
+    if (typeof window === 'undefined') {
+        return { provider: 'groq', apiKey: null };
+    }
+    const provider = localStorage.getItem('misata_llm_provider') || 'groq';
+    const apiKey = sessionStorage.getItem(`misata_${provider}_key`) || null;
+    return { provider, apiKey };
+}
+
 export async function generateSchemaFromStory(
     story: string,
     onStream?: (chunk: string) => void
 ): Promise<LLMSchemaResponse> {
+    const { provider, apiKey } = getLLMSettings();
+
     const response = await fetch(`${API_BASE_URL}/schema/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ story }),
+        body: JSON.stringify({
+            story,
+            provider,
+            api_key: apiKey  // Pass API key from frontend settings
+        }),
     });
 
     if (!response.ok) {
@@ -178,7 +207,18 @@ export async function generateSchemaFromStory(
         return JSON.parse(result);
     }
 
-    return response.json();
+    const data = await response.json();
+
+    // Backend returns raw SchemaConfig, not wrapped in {schema: ...}
+    // Wrap it in the expected format
+    if (data.schema) {
+        return data;  // Already wrapped
+    }
+
+    return {
+        schema: data,
+        explanation: data.description || `Generated schema with ${data.tables?.length || 0} tables`
+    };
 }
 
 // ============ Health Check ============

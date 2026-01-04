@@ -56,7 +56,7 @@ export function validateTableName(name: string, existingNames: string[] = []): V
 
     // Check for reserved keywords
     if (SQL_RESERVED_KEYWORDS.has(trimmedName.toLowerCase())) {
-        return { isValid: false, error: `"${trimmedName}" is a SQL reserved keyword` };
+        return { isValid: true, warning: `"${trimmedName}" is a SQL reserved keyword - strict SQL databases may require quoting` };
     }
 
     // Check for duplicates (case-insensitive)
@@ -112,7 +112,7 @@ export function validateColumnName(
 
     // Check for reserved keywords
     if (SQL_RESERVED_KEYWORDS.has(trimmedName.toLowerCase())) {
-        return { isValid: false, error: `"${trimmedName}" is a SQL reserved keyword` };
+        return { isValid: true, warning: `"${trimmedName}" is a SQL reserved keyword - strict SQL databases may require quoting` };
     }
 
     // Check for duplicates within the same table

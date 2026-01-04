@@ -5,6 +5,40 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0b0] - 2026-01-03
+
+### 📊 Outcome Curve Designer (KILLER FEATURE!)
+**Draw the business outcome you want. Misata generates transactions that aggregate to your exact curve.**
+
+```
+User draws: Revenue from $100K → $700K over 12 months (hockey stick)
+Misata generates: 36,863 individual transactions
+When aggregated: 94.85% match score to target curve!
+```
+
+- 8 preset curve shapes: Linear, Exponential, Hockey Stick, Seasonal, SaaS, Churn Decline, V-Recovery, Plateau
+- Configure metric type, time granularity, scale
+- Dirichlet-based amount distribution for realistic variance
+- Instant verification of generated vs target curve
+
+### 🎨 Misata Studio GUI
+- **4 Input Modes**: Outcome Curve, LLM Story, Distribution Designer, Sample Data
+- **Schema Builder**: Review and edit columns before generating
+- **Schema Inference**: Auto-detect types from uploaded CSV
+
+### Installation
+```bash
+pip install misata[studio]
+misata studio
+```
+
+### New Files
+- `misata/studio/outcome_curve.py` - Reverse time-series generation engine
+- `misata/studio/inference.py` - Schema inference from data
+- `misata/studio/app.py` - Streamlit UI with 3-step wizard
+
+---
+
 ## [0.3.1b0] - 2026-01-03
 
 ### Performance (3.8x Faster Text Generation!)

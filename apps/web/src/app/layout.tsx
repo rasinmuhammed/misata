@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Karla, JetBrains_Mono, Pinyon_Script } from "next/font/google";
+import { Cormorant_Garamond, Karla, JetBrains_Mono, Pinyon_Script, Cinzel } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
 import ConditionalLayout from "@/components/ConditionalLayout";
@@ -32,6 +32,13 @@ const pinyon = Pinyon_Script({
   display: "swap",
 });
 
+const cinzel = Cinzel({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-cinzel",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Misata - AI-Powered Synthetic Data Engine",
   description: "Generate realistic multi-table datasets from natural language stories",
@@ -45,7 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${cormorant.variable} ${karla.variable} ${jetbrains.variable} ${pinyon.variable} font-sans antialiased`} suppressHydrationWarning>
+      <body className={`${cormorant.variable} ${karla.variable} ${jetbrains.variable} ${pinyon.variable} ${cinzel.variable} font-sans antialiased`} suppressHydrationWarning>
         <ToastProvider>
           <ConditionalLayout>
             {children}

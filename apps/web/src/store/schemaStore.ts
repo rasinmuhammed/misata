@@ -26,6 +26,21 @@ export interface Relationship {
     targetColumn: string;
 }
 
+// MOONSHOT: Outcome Constraint
+export interface CurvePoint {
+    timestamp: string; // ISO date string for the period
+    value: number;     // Target value for this period
+}
+
+export interface OutcomeConstraint {
+    id: string;
+    tableId: string;
+    columnId: string;
+    curvePoints: CurvePoint[];
+    timeUnit: 'day' | 'week' | 'month' | 'quarter' | 'year';
+    avgTransactionValue?: number;
+}
+
 interface SchemaSnapshot {
     tables: TableNode[];
     relationships: Relationship[];
@@ -36,9 +51,17 @@ interface SchemaState {
     relationships: Relationship[];
     selectedTableId: string | null;
 
+    // MOONSHOT: Outcome Constraints
+    outcomeConstraints: OutcomeConstraint[];
+    activeConstraintColumnId: string | null; // Currently editing constraint
+
     // History for undo/redo
     history: SchemaSnapshot[];
     historyIndex: number;
+
+    // Metadata
+    schemaName: string;
+    setSchemaName: (name: string) => void;
 
     // Actions
     addTable: (table: TableNode) => void;
@@ -51,6 +74,12 @@ interface SchemaState {
     addRelationship: (rel: Relationship) => void;
     removeRelationship: (id: string) => void;
     getSchemaConfig: () => Record<string, unknown>;
+
+    // MOONSHOT: Constraint Actions
+    setActiveConstraintColumn: (columnId: string | null) => void;
+    addOrUpdateConstraint: (constraint: OutcomeConstraint) => void;
+    removeConstraint: (constraintId: string) => void;
+    getConstraintForColumn: (columnId: string) => OutcomeConstraint | undefined;
 
     // New actions for functionality
     clearSchema: () => void;
@@ -68,8 +97,13 @@ export const useSchemaStore = create<SchemaState>()(
             tables: [],
             relationships: [],
             selectedTableId: null,
+            outcomeConstraints: [],
+            activeConstraintColumnId: null,
             history: [],
             historyIndex: -1,
+            schemaName: 'Generated Schema',
+
+            setSchemaName: (name) => set({ schemaName: name }),
 
             saveToHistory: () => set((state) => {
                 const snapshot: SchemaSnapshot = {
@@ -186,7 +220,9 @@ export const useSchemaStore = create<SchemaState>()(
                 set({
                     tables: [],
                     relationships: [],
+                    outcomeConstraints: [],
                     selectedTableId: null,
+                    schemaName: 'Generated Schema',
                 });
             },
 
@@ -201,10 +237,10 @@ export const useSchemaStore = create<SchemaState>()(
 
             // Export to SchemaConfig format for API
             getSchemaConfig: () => {
-                const { tables, relationships } = get();
+                const { tables, relationships, outcomeConstraints } = get();
 
                 return {
-                    name: "Generated Schema",
+                    name: get().schemaName,
                     tables: tables.map((t) => ({
                         name: t.name,
                         row_count: t.rowCount,
@@ -227,7 +263,40 @@ export const useSchemaStore = create<SchemaState>()(
                             child_key: r.targetColumn,
                         };
                     }),
+                    // MOONSHOT: Include outcome constraints in the API payload
+                    outcome_constraints: outcomeConstraints.map((oc) => {
+                        const table = tables.find((t) => t.id === oc.tableId);
+                        const column = table?.columns.find((c) => c.id === oc.columnId);
+                        return {
+                            table_name: table?.name || oc.tableId,
+                            column_name: column?.name || oc.columnId,
+                            curve_points: oc.curvePoints,
+                            time_unit: oc.timeUnit,
+                            avg_transaction_value: oc.avgTransactionValue,
+                        };
+                    }),
                 };
+            },
+
+            // MOONSHOT: Constraint Actions
+            setActiveConstraintColumn: (columnId) => set({ activeConstraintColumnId: columnId }),
+
+            addOrUpdateConstraint: (constraint) => set((state) => {
+                const existingIndex = state.outcomeConstraints.findIndex(c => c.id === constraint.id);
+                if (existingIndex >= 0) {
+                    const updated = [...state.outcomeConstraints];
+                    updated[existingIndex] = constraint;
+                    return { outcomeConstraints: updated };
+                }
+                return { outcomeConstraints: [...state.outcomeConstraints, constraint] };
+            }),
+
+            removeConstraint: (constraintId) => set((state) => ({
+                outcomeConstraints: state.outcomeConstraints.filter(c => c.id !== constraintId),
+            })),
+
+            getConstraintForColumn: (columnId) => {
+                return get().outcomeConstraints.find(c => c.columnId === columnId);
             },
         }),
         {
@@ -235,6 +304,8 @@ export const useSchemaStore = create<SchemaState>()(
             partialize: (state) => ({
                 tables: state.tables,
                 relationships: state.relationships,
+                outcomeConstraints: state.outcomeConstraints,
+                schemaName: state.schemaName,
             }),
         }
     )

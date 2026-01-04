@@ -675,6 +675,37 @@ def templates_list() -> None:
     console.print("\\nUsage: [cyan]misata template <name> [OPTIONS][/cyan]")
 
 
+@main.command()
+@click.option("--port", "-p", type=int, default=8501, help="Port to run Studio on")
+@click.option("--host", "-h", type=str, default="localhost", help="Host to bind to")
+@click.option("--no-browser", is_flag=True, help="Don't open browser automatically")
+def studio(port: int, host: str, no_browser: bool) -> None:
+    """
+    Launch Misata Studio - the visual schema designer.
+
+    Features:
+    - Upload CSV to reverse-engineer schema
+    - Visual distribution curve editor (Reverse Graph)
+    - Generate millions of matching rows
+
+    Example:
+
+        misata studio
+        misata studio --port 8080
+    """
+    print_banner()
+    console.print("\n🎨 [bold purple]Launching Misata Studio...[/bold purple]")
+    console.print(f"   URL: [cyan]http://{host}:{port}[/cyan]")
+    console.print("\nPress [bold]Ctrl+C[/bold] to stop.\n")
+
+    try:
+        from misata.studio import launch
+        launch(port=port, host=host, open_browser=not no_browser)
+    except ImportError:
+        console.print("[red]Error: Misata Studio requires additional dependencies.[/red]")
+        console.print("Install with: [cyan]pip install misata[studio][/cyan]")
+
+
 if __name__ == "__main__":
     main()
 

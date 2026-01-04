@@ -16,7 +16,7 @@ from typing import Dict, Optional
 from groq import Groq
 
 from misata.curve_fitting import CurveFitter
-from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig, Table
+from misata.schema import Column, OutcomeCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 
 
 # Load .env file if it exists
@@ -203,6 +203,60 @@ Misata will mathematically solve for the best parameters.
 - Reference tables have ACTUAL DATA in inline_data (plans with real prices!)
 - Transactional tables use foreign_key to REFERENCE those tables
 - When workout.exercise_id = 3, it means "Yoga" because exercises table has {id: 3, name: "Yoga"}
+
+## TEMPORAL PATTERNS & OUTCOME CURVES (CRITICAL!)
+
+If the user describes ANY temporal/seasonal patterns in their data, you MUST extract them as "outcome_curves".
+
+### Pattern Keywords to Look For:
+- "dip in [month]" → Low point in that month
+- "peak in [month]" → High point in that month  
+- "seasonal" → Repeating pattern across months
+- "growth" → Upward trend
+- "decline" → Downward trend
+- "spike in [month]" → Sudden increase
+- Month names (January-December) with descriptors
+
+### Output Format for Patterns:
+Add an "outcome_curves" array to your JSON output:
+
+"outcome_curves": [
+  {
+    "table": "transactions",
+    "column": "amount", 
+    "time_column": "date",
+    "pattern_type": "seasonal",
+    "description": "Revenue dip in September, peak in December",
+    "curve_points": [
+      {"month": 1, "relative_value": 0.6},
+      {"month": 2, "relative_value": 0.55},
+      {"month": 3, "relative_value": 0.5},
+      {"month": 4, "relative_value": 0.55},
+      {"month": 5, "relative_value": 0.6},
+      {"month": 6, "relative_value": 0.65},
+      {"month": 7, "relative_value": 0.6},
+      {"month": 8, "relative_value": 0.5},
+      {"month": 9, "relative_value": 0.3},
+      {"month": 10, "relative_value": 0.5},
+      {"month": 11, "relative_value": 0.75},
+      {"month": 12, "relative_value": 1.0}
+    ]
+  }
+]
+
+### Rules for curve_points:
+- relative_value is 0.0 to 1.0 (1.0 = maximum, 0.0 = minimum)
+- Always include all 12 months
+- "dip" = low relative_value (0.2-0.4)
+- "peak" = high relative_value (0.8-1.0)
+- Interpolate smoothly between specified points
+
+### Example Prompt → Outcome Curve:
+User: "SaaS revenue with a dip in September and peak in December"
+→ curve_points should show:
+  - September (month 9): relative_value ~0.3 (dip)
+  - December (month 12): relative_value ~1.0 (peak)
+  - Other months: smooth interpolation
 
 Generate schemas following this exact pattern. The reference table inline_data is the source of truth."""
 
@@ -508,6 +562,20 @@ Include reference tables with inline_data for lookup values and transactional ta
                 description=e.get("description")
             ))
 
+        # Parse outcome curves (temporal patterns from natural language)
+        outcome_curves = []
+        for c in schema_dict.get("outcome_curves", []):
+            if not all(key in c for key in ["table", "column"]):
+                continue
+            outcome_curves.append(OutcomeCurve(
+                table=c["table"],
+                column=c["column"],
+                time_column=c.get("time_column", "date"),
+                pattern_type=c.get("pattern_type", "seasonal"),
+                description=c.get("description"),
+                curve_points=c.get("curve_points", [])
+            ))
+
         return SchemaConfig(
             name=schema_dict.get("name", "Generated Dataset"),
             description=schema_dict.get("description"),
@@ -515,6 +583,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             columns=columns,
             relationships=relationships,
             events=events,
+            outcome_curves=outcome_curves,
             seed=schema_dict.get("seed", 42)
         )
 

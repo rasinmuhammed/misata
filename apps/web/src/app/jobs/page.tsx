@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getJobStatus, downloadJobFiles, JobResponse, getCompletedJobs, deleteJob } from '@/lib/api';
+import { useToast } from '@/components/ToastProvider';
 import DataViewer from '@/components/DataViewer';
 import QualityReport from '@/components/QualityReport';
 import {
@@ -96,6 +97,7 @@ export default function JobsPage() {
     const [viewingJobId, setViewingJobId] = useState<string | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const { addToast } = useToast();
 
     // Sync with server completed jobs
     const syncServerJobs = useCallback(async () => {
@@ -211,8 +213,9 @@ export default function JobsPage() {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            addToast('Download started', 'success');
         } catch (err) {
-            alert(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            addToast(`Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
     }, []);
 
@@ -224,7 +227,7 @@ export default function JobsPage() {
             const report = await response.json();
             setSelectedReport(report);
         } catch (err) {
-            alert(`Failed to load report: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            addToast(`Failed to load report: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         } finally {
             setLoadingReport(null);
         }
@@ -234,18 +237,21 @@ export default function JobsPage() {
         setIsDeleting(true);
         try {
             await deleteJob(jobId);
-            setJobs(prev => {
-                const updated = prev.filter(j => j.id !== jobId);
-                localStorage.setItem('misata_jobs', JSON.stringify(updated));
-                return updated;
-            });
-            setConfirmDeleteId(null);
+            addToast('Dataset deleted successfully', 'success');
         } catch (err) {
-            alert(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        } finally {
-            setIsDeleting(false);
+            // Even if backend fails (404), remove from localStorage
+            // This handles case where job exists locally but not on server
+            console.warn('Backend delete failed, removing from local state:', err);
         }
-    }, []);
+        // Always remove from local state
+        setJobs(prev => {
+            const updated = prev.filter(j => j.id !== jobId);
+            localStorage.setItem('misata_jobs', JSON.stringify(updated));
+            return updated;
+        });
+        setConfirmDeleteId(null);
+        setIsDeleting(false);
+    }, [addToast]);
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -415,14 +421,18 @@ export default function JobsPage() {
                                                     <Download className="w-3.5 h-3.5" />
                                                     Download
                                                 </button>
-                                                <button
-                                                    onClick={() => setConfirmDeleteId(job.id)}
-                                                    className="btn btn-ghost btn-sm text-[var(--error)] hover:bg-[var(--error-muted)]"
-                                                    title="Delete dataset"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
                                             </>
+                                        )}
+
+                                        {/* Delete button for all jobs (SUCCESS or FAILURE) */}
+                                        {(job.status === 'SUCCESS' || job.status === 'FAILURE') && (
+                                            <button
+                                                onClick={() => setConfirmDeleteId(job.id)}
+                                                className="btn btn-ghost btn-sm text-[var(--error)] hover:bg-[var(--error-muted)]"
+                                                title="Delete dataset"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
                                         )}
                                     </div>
                                 </div>

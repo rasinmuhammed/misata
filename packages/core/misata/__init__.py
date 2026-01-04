@@ -15,7 +15,7 @@ Usage:
     config = load_template("ecommerce")
 """
 
-__version__ = "0.3.1b0"
+__version__ = "0.4.0b0"
 __author__ = "Muhammed Rasin"
 
 from misata.schema import (

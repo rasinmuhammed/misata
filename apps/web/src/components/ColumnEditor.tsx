@@ -1,24 +1,39 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Column, useSchemaStore } from '@/store/schemaStore';
 import { validateColumnName, validateDistributionParams, ValidationResult } from '@/lib/validation';
-import { Sparkles, Brain, AlertCircle, AlertTriangle } from 'lucide-react';
+import {
+    X,
+    Hash,
+    Type,
+    Calendar,
+    List,
+    ToggleLeft,
+    Link2,
+    AlertCircle,
+    AlertTriangle,
+    TrendingUp,
+    Save,
+    Trash2
+} from 'lucide-react';
 
 interface ColumnEditorProps {
     tableId: string;
     column: Column;
     onClose: () => void;
+    onOpenCurveEditor?: () => void;
 }
 
 const columnTypes = [
-    { value: 'int', label: 'Integer', icon: '🔢' },
-    { value: 'float', label: 'Float', icon: '📊' },
-    { value: 'text', label: 'Text', icon: '📝' },
-    { value: 'date', label: 'Date', icon: '📅' },
-    { value: 'categorical', label: 'Categorical', icon: '🏷️' },
-    { value: 'boolean', label: 'Boolean', icon: '✓' },
-    { value: 'foreign_key', label: 'Foreign Key', icon: '🔗' },
+    { value: 'int', label: 'Integer', icon: Hash, color: '#5B8A8A' },
+    { value: 'float', label: 'Float', icon: Hash, color: '#7A9A7A' },
+    { value: 'text', label: 'Text', icon: Type, color: '#588157' },
+    { value: 'date', label: 'Date', icon: Calendar, color: '#D4A574' },
+    { value: 'categorical', label: 'Categorical', icon: List, color: '#A3B18A' },
+    { value: 'boolean', label: 'Boolean', icon: ToggleLeft, color: '#8B7355' },
+    { value: 'foreign_key', label: 'Foreign Key', icon: Link2, color: '#3A5A40' },
 ];
 
 const distributions: Record<string, string[]> = {
@@ -33,21 +48,8 @@ const distributions: Record<string, string[]> = {
     foreign_key: ['reference'],
 };
 
-const smartDomains = [
-    { value: '', label: 'Auto-detect from column name' },
-    { value: 'disease', label: 'Medical - Diseases/Conditions' },
-    { value: 'prescription', label: 'Medical - Prescriptions' },
-    { value: 'procedure', label: 'Medical - Procedures' },
-    { value: 'symptom', label: 'Medical - Symptoms' },
-    { value: 'job_title', label: 'HR - Job Titles' },
-    { value: 'department', label: 'HR - Departments' },
-    { value: 'product', label: 'Retail - Products' },
-    { value: 'category', label: 'Retail - Categories' },
-    { value: 'custom', label: 'Custom (specify context)' },
-];
-
-export default function ColumnEditor({ tableId, column, onClose }: ColumnEditorProps) {
-    const { updateColumn, removeColumn, tables } = useSchemaStore();
+export default function ColumnEditor({ tableId, column, onClose, onOpenCurveEditor }: ColumnEditorProps) {
+    const { updateColumn, removeColumn, tables, getConstraintForColumn } = useSchemaStore();
 
     const [name, setName] = useState(column.name);
     const [type, setType] = useState<Column['type']>(column.type);
@@ -61,23 +63,16 @@ export default function ColumnEditor({ tableId, column, onClose }: ColumnEditorP
     const [max, setMax] = useState(column.distributionParams?.max as number || 100);
     const [refTable, setRefTable] = useState(column.distributionParams?.reference_table as string || '');
 
-    // Smart generation state
-    const [smartGenerate, setSmartGenerate] = useState(
-        column.distributionParams?.smart_generate as boolean || false
-    );
-    const [domainHint, setDomainHint] = useState(
-        column.distributionParams?.domain_hint as string || ''
-    );
-    const [context, setContext] = useState(
-        column.distributionParams?.context as string || ''
-    );
-
     // Get current table for validation
     const currentTable = tables.find(t => t.id === tableId);
     const tableName = currentTable?.name || '';
     const existingColumnNames = (currentTable?.columns || [])
         .filter(c => c.id !== column.id)
         .map(c => c.name);
+
+    // Check if this column has an outcome constraint
+    const hasConstraint = getConstraintForColumn(column.id);
+    const isNumeric = type === 'int' || type === 'float';
 
     // Inline validation for column name
     const nameValidation = useMemo((): ValidationResult => {
@@ -107,17 +102,6 @@ export default function ColumnEditor({ tableId, column, onClose }: ColumnEditorP
         } else if (type === 'foreign_key') {
             distributionParams.reference_table = refTable;
             distributionParams.reference_column = 'id';
-        } else if (type === 'text') {
-            // Add smart generation params for text columns
-            distributionParams.smart_generate = smartGenerate;
-            if (smartGenerate) {
-                if (domainHint && domainHint !== 'custom') {
-                    distributionParams.domain_hint = domainHint;
-                }
-                if (context) {
-                    distributionParams.context = context;
-                }
-            }
         }
 
         updateColumn(tableId, column.id, {
@@ -136,225 +120,266 @@ export default function ColumnEditor({ tableId, column, onClose }: ColumnEditorP
         }
     };
 
-    return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-            <div className="card w-full max-w-md p-6 m-4 max-h-[90vh] overflow-y-auto">
+    const handleOpenCurveEditor = () => {
+        onClose();
+        if (onOpenCurveEditor) {
+            onOpenCurveEditor();
+        }
+    };
+
+    // Use Portal to render at document body level (escapes TableNode container)
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-2xl mx-4 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+                style={{ background: '#FEFEFE', border: '1px solid rgba(58, 90, 64, 0.15)' }}
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
+                <div
+                    className="flex items-center justify-between px-6 py-4"
+                    style={{ background: '#3A5A40' }}
+                >
                     <h2 className="text-lg font-semibold text-white">Edit Column</h2>
                     <button
                         onClick={onClose}
-                        className="text-zinc-500 hover:text-white transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-white/10 transition text-white/80 hover:text-white"
                     >
-                        ✕
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                {/* Column Name */}
-                <div className="mb-4">
-                    <label className="block text-sm text-zinc-400 mb-2">Column Name</label>
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className={`input ${!nameValidation.isValid ? 'border-red-500 focus:ring-red-500/30' : nameValidation.warning ? 'border-yellow-500 focus:ring-yellow-500/30' : ''}`}
-                        placeholder="column_name"
-                    />
-                    {/* Validation message for column name */}
-                    {!nameValidation.isValid && (
-                        <div className="flex items-center gap-1.5 mt-2 text-red-400 text-xs">
-                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                            <span>{nameValidation.error}</span>
-                        </div>
-                    )}
-                    {nameValidation.warning && (
-                        <div className="flex items-center gap-1.5 mt-2 text-yellow-400 text-xs">
-                            <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                            <span>{nameValidation.warning}</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Column Type */}
-                <div className="mb-4">
-                    <label className="block text-sm text-zinc-400 mb-2">Data Type</label>
-                    <div className="grid grid-cols-4 gap-2">
-                        {columnTypes.map((ct) => (
-                            <button
-                                key={ct.value}
-                                onClick={() => {
-                                    setType(ct.value as Column['type']);
-                                    setDistribution(distributions[ct.value as keyof typeof distributions][0]);
-                                }}
-                                className={`p-2 rounded-lg text-center transition-all ${type === ct.value
-                                    ? 'bg-violet-600/20 border border-violet-600 text-violet-400'
-                                    : 'bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                                    }`}
-                            >
-                                <div className="text-lg mb-1">{ct.icon}</div>
-                                <div className="text-xs">{ct.label}</div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Distribution */}
-                <div className="mb-4">
-                    <label className="block text-sm text-zinc-400 mb-2">Distribution</label>
-                    <select
-                        value={distribution}
-                        onChange={(e) => setDistribution(e.target.value)}
-                        className="input"
-                    >
-                        {distributions[type]?.map((d) => (
-                            <option key={d} value={d}>{d}</option>
-                        ))}
-                    </select>
-                </div>
-
-                {/* Smart Generation Controls for Text columns */}
-                {type === 'text' && (
-                    <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/30">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-violet-400" />
-                                <span className="text-sm font-medium text-violet-300">Smart Generation</span>
-                            </div>
-                            <button
-                                onClick={() => setSmartGenerate(!smartGenerate)}
-                                className={`w-12 h-6 rounded-full transition-colors relative ${smartGenerate
-                                    ? 'bg-violet-600'
-                                    : 'bg-zinc-700'
-                                    }`}
-                            >
-                                <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${smartGenerate ? 'translate-x-6' : 'translate-x-0.5'
-                                    }`} />
-                            </button>
-                        </div>
-
-                        {smartGenerate && (
-                            <div className="space-y-3 mt-3 pt-3 border-t border-violet-500/20">
-                                <p className="text-xs text-zinc-400 flex items-center gap-1">
-                                    <Brain className="w-3 h-3" />
-                                    Uses LLM to generate realistic domain-specific values
-                                </p>
-
-                                <div>
-                                    <label className="block text-xs text-zinc-400 mb-1.5">Domain</label>
-                                    <select
-                                        value={domainHint}
-                                        onChange={(e) => setDomainHint(e.target.value)}
-                                        className="input text-sm"
-                                    >
-                                        {smartDomains.map((d) => (
-                                            <option key={d.value} value={d.value}>{d.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {(domainHint === 'custom' || domainHint === '') && (
-                                    <div>
-                                        <label className="block text-xs text-zinc-400 mb-1.5">
-                                            {domainHint === 'custom' ? 'Custom Context' : 'Additional Context (optional)'}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={context}
-                                            onChange={(e) => setContext(e.target.value)}
-                                            className="input text-sm"
-                                            placeholder={domainHint === 'custom'
-                                                ? "e.g., 'startup SaaS company job titles'"
-                                                : "e.g., 'emergency room setting'"
-                                            }
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Type-specific Parameters */}
-                {type === 'categorical' && (
-                    <div className="mb-4">
-                        <label className="block text-sm text-zinc-400 mb-2">
-                            Choices (comma-separated)
+                <div className="p-6 space-y-5 flex-1 overflow-y-auto">
+                    {/* Column Name */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#3A5A40' }}>
+                            Column Name
                         </label>
                         <input
                             type="text"
-                            value={choices}
-                            onChange={(e) => setChoices(e.target.value)}
-                            className="input"
-                            placeholder="red, blue, green"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-lg border text-sm"
+                            style={{
+                                borderColor: !nameValidation.isValid ? '#EF4444' : 'rgba(58, 90, 64, 0.2)',
+                                background: '#F5F3EF'
+                            }}
+                            placeholder="column_name"
                         />
+                        {!nameValidation.isValid && (
+                            <div className="flex items-center gap-1.5 mt-2 text-red-500 text-xs">
+                                <AlertCircle className="w-3 h-3" />
+                                <span>{nameValidation.error}</span>
+                            </div>
+                        )}
+                        {nameValidation.warning && (
+                            <div className="flex items-center gap-1.5 mt-2 text-amber-600 text-xs">
+                                <AlertTriangle className="w-3 h-3" />
+                                <span>{nameValidation.warning}</span>
+                            </div>
+                        )}
                     </div>
-                )}
 
-                {(type === 'int' || type === 'float') && distribution === 'uniform' && (
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label className="block text-sm text-zinc-400 mb-2">Min</label>
-                            <input
-                                type="number"
-                                value={min}
-                                onChange={(e) => setMin(Number(e.target.value))}
-                                className="input"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-zinc-400 mb-2">Max</label>
-                            <input
-                                type="number"
-                                value={max}
-                                onChange={(e) => setMax(Number(e.target.value))}
-                                className="input"
-                            />
+                    {/* Column Type */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#3A5A40' }}>
+                            Data Type
+                        </label>
+                        <div className="grid grid-cols-4 gap-2">
+                            {columnTypes.map((ct) => {
+                                const Icon = ct.icon;
+                                return (
+                                    <button
+                                        key={ct.value}
+                                        onClick={() => {
+                                            setType(ct.value as Column['type']);
+                                            setDistribution(distributions[ct.value as keyof typeof distributions][0]);
+                                        }}
+                                        className="p-3 rounded-xl text-center transition-all border"
+                                        style={{
+                                            background: type === ct.value ? `${ct.color}15` : '#F5F3EF',
+                                            borderColor: type === ct.value ? ct.color : 'transparent',
+                                        }}
+                                    >
+                                        <div
+                                            className="w-8 h-8 rounded-lg mx-auto mb-1.5 flex items-center justify-center"
+                                            style={{ background: ct.color }}
+                                        >
+                                            <Icon className="w-4 h-4 text-white" />
+                                        </div>
+                                        <div className="text-xs font-medium" style={{ color: '#3A5A40' }}>
+                                            {ct.label}
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
-                )}
 
-                {type === 'foreign_key' && (
-                    <div className="mb-4">
-                        <label className="block text-sm text-zinc-400 mb-2">Reference Table</label>
+                    {/* Distribution */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2" style={{ color: '#3A5A40' }}>
+                            Distribution
+                        </label>
                         <select
-                            value={refTable}
-                            onChange={(e) => setRefTable(e.target.value)}
-                            className="input"
+                            value={distribution}
+                            onChange={(e) => setDistribution(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-lg border text-sm"
+                            style={{ borderColor: 'rgba(58, 90, 64, 0.2)', background: '#F5F3EF' }}
                         >
-                            <option value="">Select table...</option>
-                            {tables
-                                .filter(t => t.id !== tableId)
-                                .map((t) => (
-                                    <option key={t.id} value={t.name}>{t.name}</option>
-                                ))}
+                            {distributions[type]?.map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                            ))}
                         </select>
                     </div>
-                )}
+
+                    {/* Outcome Constraint Button (for numeric columns) */}
+                    {isNumeric && (
+                        <div
+                            className="p-4 rounded-xl border"
+                            style={{
+                                background: hasConstraint ? 'rgba(88, 129, 87, 0.1)' : '#F5F3EF',
+                                borderColor: hasConstraint ? '#588157' : 'rgba(58, 90, 64, 0.15)'
+                            }}
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                        style={{ background: hasConstraint ? '#588157' : 'rgba(58, 90, 64, 0.15)' }}
+                                    >
+                                        <TrendingUp className="w-5 h-5" style={{ color: hasConstraint ? '#FFF' : '#3A5A40' }} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium" style={{ color: '#3A5A40' }}>
+                                            Outcome Constraint
+                                        </p>
+                                        <p className="text-xs" style={{ color: '#6B7164' }}>
+                                            {hasConstraint ? 'Curve applied - click to edit' : 'Draw a revenue/outcome curve'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleOpenCurveEditor}
+                                    className="px-4 py-2 text-sm font-medium rounded-lg transition"
+                                    style={{
+                                        background: hasConstraint ? '#588157' : 'rgba(58, 90, 64, 0.15)',
+                                        color: hasConstraint ? '#FFF' : '#3A5A40'
+                                    }}
+                                >
+                                    {hasConstraint ? 'Edit Curve' : 'Add Curve'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Type-specific Parameters */}
+                    {type === 'categorical' && (
+                        <div>
+                            <label className="block text-sm font-medium mb-2" style={{ color: '#3A5A40' }}>
+                                Choices (comma-separated)
+                            </label>
+                            <input
+                                type="text"
+                                value={choices}
+                                onChange={(e) => setChoices(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-lg border text-sm"
+                                style={{ borderColor: 'rgba(58, 90, 64, 0.2)', background: '#F5F3EF' }}
+                                placeholder="red, blue, green"
+                            />
+                        </div>
+                    )}
+
+                    {(type === 'int' || type === 'float') && distribution === 'uniform' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#3A5A40' }}>Min</label>
+                                <input
+                                    type="number"
+                                    value={min}
+                                    onChange={(e) => setMin(Number(e.target.value))}
+                                    className="w-full px-4 py-2.5 rounded-lg border text-sm"
+                                    style={{ borderColor: 'rgba(58, 90, 64, 0.2)', background: '#F5F3EF' }}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#3A5A40' }}>Max</label>
+                                <input
+                                    type="number"
+                                    value={max}
+                                    onChange={(e) => setMax(Number(e.target.value))}
+                                    className="w-full px-4 py-2.5 rounded-lg border text-sm"
+                                    style={{ borderColor: 'rgba(58, 90, 64, 0.2)', background: '#F5F3EF' }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {type === 'foreign_key' && (
+                        <div>
+                            <label className="block text-sm font-medium mb-2" style={{ color: '#3A5A40' }}>
+                                Reference Table
+                            </label>
+                            <select
+                                value={refTable}
+                                onChange={(e) => setRefTable(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-lg border text-sm"
+                                style={{ borderColor: 'rgba(58, 90, 64, 0.2)', background: '#F5F3EF' }}
+                            >
+                                <option value="">Select table...</option>
+                                {tables
+                                    .filter(t => t.id !== tableId)
+                                    .map((t) => (
+                                        <option key={t.id} value={t.name}>{t.name}</option>
+                                    ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
+                <div
+                    className="flex items-center justify-between px-6 py-4"
+                    style={{ borderTop: '1px solid rgba(58, 90, 64, 0.1)', background: '#F5F3EF' }}
+                >
                     <button
                         onClick={handleDelete}
-                        className="btn bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20"
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition text-red-600 hover:bg-red-50"
                     >
-                        Delete Column
+                        <Trash2 className="w-4 h-4" />
+                        Delete
                     </button>
                     <div className="flex gap-2">
-                        <button onClick={onClose} className="btn btn-secondary">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 text-sm font-medium rounded-lg border transition hover:bg-white"
+                            style={{ borderColor: 'rgba(58, 90, 64, 0.2)', color: '#3A5A40' }}
+                        >
                             Cancel
                         </button>
                         <button
                             onClick={handleSave}
                             disabled={!canSave}
-                            className={`btn btn-primary ${!canSave ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title={!canSave ? 'Fix validation errors to save' : 'Save changes'}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-white transition"
+                            style={{
+                                background: canSave ? '#588157' : '#A3B18A',
+                                opacity: canSave ? 1 : 0.6,
+                                cursor: canSave ? 'pointer' : 'not-allowed'
+                            }}
                         >
-                            Save Changes
+                            <Save className="w-4 h-4" />
+                            Save
                         </button>
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
-

@@ -15,7 +15,8 @@ import {
     Calendar,
     ToggleLeft,
     List,
-    Link2
+    Link2,
+    Activity
 } from 'lucide-react';
 
 const columnTypes = [
@@ -35,9 +36,13 @@ const endpoints = [
     { method: 'POST', path: '/jobs', description: 'Submit data generation job' },
     { method: 'GET', path: '/jobs/{id}', description: 'Get job status and progress' },
     { method: 'GET', path: '/jobs/{id}/download', description: 'Download generated files (CSV/ZIP)' },
-    { method: 'GET', path: '/jobs/{id}/quality-report', description: 'Get data quality statistics' },
+    { method: 'GET', path: '/jobs/{id}/quality-report', description: 'Get statistical quality scores' },
+    { method: 'GET', path: '/jobs/{id}/export/json', description: 'Export full job data as JSON' },
+    { method: 'GET', path: '/jobs/{id}/export/sql', description: 'Export SQL CREATE/INSERT statements' },
     { method: 'POST', path: '/schema/generate', description: 'Generate schema from natural language' },
     { method: 'GET', path: '/templates', description: 'List available schema templates' },
+    { method: 'GET', path: '/config/llm', description: 'Get current LLM configuration' },
+    { method: 'POST', path: '/config/llm', description: 'Update LLM provider/key' },
 ];
 
 const shortcuts = [
@@ -94,6 +99,25 @@ export default function DocsPage() {
                                 <a href="#shortcuts" className="flex items-center gap-2 px-2 py-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded transition-colors">
                                     <Keyboard className="w-3.5 h-3.5" />
                                     Shortcuts
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2 px-2">
+                            Advanced
+                        </h4>
+                        <ul className="space-y-1">
+                            <li>
+                                <a href="#quality-reports" className="flex items-center gap-2 px-2 py-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded transition-colors">
+                                    <Activity className="w-3.5 h-3.5" />
+                                    Quality Reports
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#exports" className="flex items-center gap-2 px-2 py-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded transition-colors">
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    Exports
                                 </a>
                             </li>
                         </ul>
@@ -191,6 +215,49 @@ export default function DocsPage() {
                     </div>
                 </section>
 
+                {/* Quality Reports */}
+                <section id="quality-reports" className="mb-12 scroll-mt-8">
+                    <h2 className="text-title text-[var(--text-primary)] mb-4 flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-[var(--brand-primary-light)]" />
+                        Quality Reports
+                    </h2>
+                    <div className="card p-6">
+                        <p className="text-sm text-[var(--text-secondary)] mb-4">
+                            Misata generates statistical quality scores for every job to ensure data reliability:
+                        </p>
+                        <ul className="list-disc list-outside ml-5 space-y-2 text-sm text-[var(--text-secondary)]">
+                            <li><strong className="text-[var(--text-primary)]">Completeness</strong>: Percentage of non-null values</li>
+                            <li><strong className="text-[var(--text-primary)]">Integrity</strong>: Referential integrity checks for foreign keys</li>
+                            <li><strong className="text-[var(--text-primary)]">Coverage</strong>: Statistical distribution overlap with expected parameters</li>
+                        </ul>
+                        <p className="mt-4 text-sm text-[var(--text-secondary)]">
+                            Access via: <code className="bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded text-[var(--brand-primary-light)]">GET /jobs/:id/quality-report</code>
+                        </p>
+                    </div>
+                </section>
+
+                {/* Exports */}
+                <section id="exports" className="mb-12 scroll-mt-8">
+                    <h2 className="text-title text-[var(--text-primary)] mb-4 flex items-center gap-2">
+                        <ExternalLink className="w-5 h-5 text-[var(--brand-primary-light)]" />
+                        Exports & Integrations
+                    </h2>
+                    <div className="card p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-4 bg-[var(--bg-secondary)] rounded-lg">
+                                <h3 className="font-medium text-[var(--text-primary)] mb-2">JSON Format</h3>
+                                <p className="text-xs text-[var(--text-secondary)] mb-2">Full hierarchical structure including metadata.</p>
+                                <code className="text-xs text-[var(--brand-primary-light)]">/jobs/:id/export/json</code>
+                            </div>
+                            <div className="p-4 bg-[var(--bg-secondary)] rounded-lg">
+                                <h3 className="font-medium text-[var(--text-primary)] mb-2">SQL Dump</h3>
+                                <p className="text-xs text-[var(--text-secondary)] mb-2">CREATE TABLE and INSERT statements.</p>
+                                <code className="text-xs text-[var(--brand-primary-light)]">/jobs/:id/export/sql</code>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* API Reference */}
                 <section id="api-reference" className="mb-12 scroll-mt-8">
                     <h2 className="text-title text-[var(--text-primary)] mb-4 flex items-center gap-2">
@@ -208,7 +275,7 @@ export default function DocsPage() {
                             </thead>
                             <tbody>
                                 {endpoints.map((ep) => (
-                                    <tr key={ep.path} className="border-b border-[var(--border-subtle)] last:border-0">
+                                    <tr key={`${ep.method}-${ep.path}`} className="border-b border-[var(--border-subtle)] last:border-0">
                                         <td className="py-3 px-4">
                                             <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${ep.method === 'GET'
                                                 ? 'bg-[var(--success-muted)] text-[var(--success)]'

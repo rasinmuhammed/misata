@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-    { href: '/', label: 'Schema Builder', icon: Layers },
+    { href: '/builder', label: 'Schema Builder', icon: Layers },
     { href: '/story', label: 'Story Mode', icon: Sparkles },
     { href: '/templates', label: 'Templates', icon: LayoutGrid },
     { href: '/jobs', label: 'Jobs', icon: Activity },
@@ -62,10 +62,10 @@ export default function Sidebar() {
                     borderBottom: '1px solid rgba(255,255,255,0.1)'
                 }}
             >
-                <Link href="/" style={{ textDecoration: 'none' }}>
+                <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
                     <span
                         style={{
-                            fontSize: '38px',
+                            fontSize: '32px',
                             fontFamily: 'var(--font-pinyon), Pinyon Script, cursive',
                             fontWeight: 400,
                             color: 'rgba(255,255,255,0.98)',
@@ -75,14 +75,25 @@ export default function Sidebar() {
                     >
                         Misata
                     </span>
+                    <span
+                        style={{
+                            fontSize: '14px',
+                            fontFamily: 'var(--font-cinzel), Cinzel, serif',
+                            fontWeight: 500,
+                            color: 'rgba(255,255,255,0.7)',
+                            letterSpacing: '0.15em',
+                            textTransform: 'uppercase'
+                        }}
+                    >
+                        Studio
+                    </span>
                 </Link>
             </div>
 
             {/* Navigation */}
             <nav style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {navItems.map((item) => {
-                    const isActive = pathname === item.href ||
-                        (item.href === '/' && pathname === '/builder');
+                    const isActive = pathname === item.href;
                     const Icon = item.icon;
 
                     return (

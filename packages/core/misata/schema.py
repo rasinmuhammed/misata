@@ -192,6 +192,29 @@ class ScenarioEvent(BaseModel):
     description: Optional[str] = None
 
 
+class OutcomeCurve(BaseModel):
+    """
+    Defines a temporal/seasonal pattern for a numeric column.
+    
+    This is extracted from natural language descriptions like:
+    "Revenue with a dip in September and peak in December"
+    
+    Attributes:
+        table: Table containing the column to constrain
+        column: Numeric column to apply the curve to
+        time_column: Date/time column for grouping
+        pattern_type: Type of pattern (seasonal, growth, decline, etc.)
+        description: Human-readable description of the pattern
+        curve_points: Monthly relative values (0.0-1.0)
+    """
+    table: str
+    column: str
+    time_column: str = "date"
+    pattern_type: str = "seasonal"
+    description: Optional[str] = None
+    curve_points: List[Dict[str, float]] = Field(default_factory=list)
+
+
 class SchemaConfig(BaseModel):
     """
     Complete configuration for synthetic data generation.
@@ -206,6 +229,7 @@ class SchemaConfig(BaseModel):
         columns: Mapping of table names to their column definitions
         relationships: List of inter-table relationships
         events: List of scenario events to apply
+        outcome_curves: List of temporal patterns for constrained generation
         seed: Random seed for reproducibility
     """
 
@@ -215,6 +239,7 @@ class SchemaConfig(BaseModel):
     columns: Dict[str, List[Column]]
     relationships: List[Relationship] = Field(default_factory=list)
     events: List[ScenarioEvent] = Field(default_factory=list)
+    outcome_curves: List[OutcomeCurve] = Field(default_factory=list)
     seed: Optional[int] = None
 
     @field_validator("columns")

@@ -508,28 +508,35 @@ export default function SchemaBuilder() {
                     nodeTypes={nodeTypes}
                     fitView
                     style={{ background: '#DAD7CD' }}
+                    proOptions={{ hideAttribution: true }}
                 >
                     <Background
                         variant={BackgroundVariant.Dots}
                         gap={24}
-                        size={1.5}
-                        color="rgba(58, 90, 64, 0.12)"
+                        size={1}
+                        color="rgba(58, 90, 64, 0.08)"
                     />
                     <Controls
-                        className="!rounded-lg !shadow-md"
+                        className="!rounded-lg !shadow-md !bottom-4 !left-4"
                         style={{
                             background: '#FEFEFE',
                             border: '1px solid rgba(58, 90, 64, 0.15)'
                         }}
+                        showInteractive={false}
                     />
+                    {/* MiniMap - positioned bottom right */}
                     <MiniMap
-                        className="!rounded-lg !shadow-md"
+                        className="!rounded-lg !shadow-md !bottom-4 !right-4 !top-auto !left-auto"
                         style={{
                             background: '#F5F3EF',
-                            border: '1px solid rgba(58, 90, 64, 0.15)'
+                            border: '1px solid rgba(58, 90, 64, 0.15)',
+                            width: 120,
+                            height: 80
                         }}
                         nodeColor="#588157"
                         maskColor="rgba(218, 215, 205, 0.85)"
+                        zoomable
+                        pannable
                     />
                 </ReactFlow>
             </div>
