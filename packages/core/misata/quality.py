@@ -11,13 +11,15 @@ This module validates generated synthetic data for:
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 import warnings
+import numpy as np
+import pandas as pd # type: ignore
 
 
 @dataclass
 class QualityIssue:
     """Represents a single data quality issue."""
     severity: str  # "error", "warning", "info"
-    category: str  # "distribution", "integrity", "temporal", "domain"
+    category: str  # "distribution", "integrity", "temporal", "domain", "time_series"
     table: str
     column: Optional[str]
     message: str
@@ -107,19 +109,12 @@ class DataQualityChecker:
     
     def check_distribution_plausibility(
         self,
-        df: "pd.DataFrame",
+        df: pd.DataFrame,
         table_name: str,
     ) -> None:
         """
         Check if numeric distributions are plausible for their domains.
-        
-        Args:
-            df: DataFrame to check
-            table_name: Name of the table
         """
-        import pandas as pd
-        import numpy as np
-        
         for col in df.columns:
             col_lower = col.lower()
             
@@ -162,15 +157,11 @@ class DataQualityChecker:
     
     def check_referential_integrity(
         self,
-        tables: Dict[str, "pd.DataFrame"],
+        tables: Dict[str, pd.DataFrame],
         relationships: List[Any],
     ) -> None:
         """
         Verify all foreign key references are valid.
-        
-        Args:
-            tables: Dict of table_name -> DataFrame
-            relationships: List of Relationship objects
         """
         for rel in relationships:
             parent_table = rel.parent_table
@@ -221,19 +212,12 @@ class DataQualityChecker:
     
     def check_temporal_consistency(
         self,
-        df: "pd.DataFrame",
+        df: pd.DataFrame,
         table_name: str,
     ) -> None:
         """
         Ensure temporal columns are consistent.
-        
-        Checks:
-        - created_at < updated_at
-        - start_date < end_date
-        - birth_date in past
         """
-        import pandas as pd
-        
         date_cols = [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
         
         # Check created < updated
@@ -266,23 +250,83 @@ class DataQualityChecker:
                     f"{future_births} rows have birth_date in the future",
                     {"violation_count": future_births}
                 )
+
+    def check_time_series_properties(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+    ) -> None:
+        """
+        Analyze time series properties (Autocorrelation, Trend, Seasonality).
+        Adds 'info' level insights to the report.
+        """
+        # Find Date Column
+        date_cols = [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
+        if not date_cols:
+            return
+
+        time_col = date_cols[0] # Use first date col
+        
+        # Find Metric Columns (Float/Int)
+        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) and c not in ['id']]
+        
+        for col in numeric_cols:
+            # Skip if low cardinality
+            if df[col].nunique() < 10:
+                continue
+                
+            # Sort by time
+            ts_df = df.sort_values(time_col)
+            series = ts_df[col].values
+            
+            if len(series) < 5:
+                continue
+
+            # 1. Autocorrelation (Lag-1)
+            # Simple manual calculation
+            if len(series) > 2:
+                # Handle possible NaNs
+                s_clean = series[~np.isnan(series)]
+                if len(s_clean) > 2:
+                    lag1 = np.corrcoef(s_clean[:-1], s_clean[1:])[0, 1]
+                    
+                    if not np.isnan(lag1):
+                         if abs(lag1) > 0.7:
+                             msg = f"Strong temporal logic detected (Lag-1 Autocorrelation: {lag1:.2f})"
+                             self._add_issue("info", "time_series", table_name, col, msg, {"lag1": lag1})
+                         elif abs(lag1) < 0.1:
+                             msg = f"Data appears random/noisy (Lag-1 Autocorrelation: {lag1:.2f})"
+                             self._add_issue("info", "time_series", table_name, col, msg, {"lag1": lag1})
+
+            # 2. Trend Detection
+            if len(series) > 10:
+                # Linear fit
+                x = np.arange(len(series))
+                # Handle NaNs replacement for trend check
+                s_filled = pd.Series(series).fillna(method='ffill').fillna(0).values
+                
+                slope, _ = np.polyfit(x, s_filled, 1)
+                
+                # Normalize slope to be % change per step relative to mean
+                mean_val = np.mean(s_filled)
+                if abs(mean_val) > 0.01:
+                    normalized_slope = slope / mean_val
+                    if abs(normalized_slope) * len(series) > 0.2: # Total change > 20%
+                        trend_dir = "Growth" if slope > 0 else "Decline"
+                        self._add_issue(
+                            "info", "time_series", table_name, col, 
+                            f"Significant {trend_dir} Trend Detected",
+                            {"slope": slope}
+                        )
     
     def check_all(
         self,
-        tables: Dict[str, "pd.DataFrame"],
+        tables: Dict[str, pd.DataFrame],
         relationships: Optional[List[Any]] = None,
         schema: Optional[Any] = None,
     ) -> QualityReport:
         """
         Run all quality checks and generate a report.
-        
-        Args:
-            tables: Dict of table_name -> DataFrame
-            relationships: Optional list of Relationship objects
-            schema: Optional SchemaConfig for additional checks
-            
-        Returns:
-            QualityReport with score and issues
         """
         self.issues = []  # Reset
         
@@ -290,6 +334,7 @@ class DataQualityChecker:
         for table_name, df in tables.items():
             self.check_distribution_plausibility(df, table_name)
             self.check_temporal_consistency(df, table_name)
+            self.check_time_series_properties(df, table_name)
         
         # Check referential integrity
         if relationships:
@@ -303,7 +348,7 @@ class DataQualityChecker:
             elif issue.severity == "warning":
                 base_score -= 3
             else:
-                base_score -= 1
+                base_score -= 1 # Info subtracts 1 for now (maybe 0 later)
         
         score = max(0, min(100, base_score))
         
@@ -323,7 +368,7 @@ class DataQualityChecker:
         )
 
 
-def check_quality(tables: Dict[str, "pd.DataFrame"], **kwargs) -> QualityReport:
+def check_quality(tables: Dict[str, pd.DataFrame], **kwargs) -> QualityReport:
     """Convenience function for quick quality checks."""
     checker = DataQualityChecker()
     return checker.check_all(tables, **kwargs)

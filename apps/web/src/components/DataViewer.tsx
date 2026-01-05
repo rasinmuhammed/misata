@@ -39,8 +39,14 @@ function TimeSeriesChart({ data, title }: { data: TimeSeriesData | null; title: 
         );
     }
 
-    const maxValue = Math.max(...data.data_points.map(p => p.value));
-    const minValue = Math.min(...data.data_points.map(p => p.value));
+    // Proactive hardening: Ensure values are numbers
+    const validPoints = data.data_points.map(p => ({
+        ...p,
+        value: Number(p.value) || 0
+    }));
+
+    const maxValue = Math.max(...validPoints.map(p => p.value)) || 100; // Fallback to avoid div/0 / 0
+    const minValue = Math.min(...validPoints.map(p => p.value));
     const range = maxValue - minValue || 1;
 
     return (
@@ -53,7 +59,7 @@ function TimeSeriesChart({ data, title }: { data: TimeSeriesData | null; title: 
             </div>
 
             {/* Chart */}
-            <div className="relative h-64 flex items-end gap-1 border-b border-l" style={{ borderColor: 'rgba(58, 90, 64, 0.2)' }}>
+            <div className="relative h-64 flex items-stretch gap-1 border-b border-l" style={{ borderColor: 'rgba(58, 90, 64, 0.2)' }}>
                 {/* Y-axis labels */}
                 <div className="absolute left-0 top-0 bottom-0 w-16 flex flex-col justify-between text-xs -ml-16 pr-2" style={{ color: '#6B7164' }}>
                     <span>{maxValue.toLocaleString()}</span>
@@ -67,9 +73,9 @@ function TimeSeriesChart({ data, title }: { data: TimeSeriesData | null; title: 
                     return (
                         <div
                             key={i}
-                            className="flex-1 flex flex-col items-center justify-end group"
+                            className="flex-1 flex flex-col items-center justify-end group h-full"
                         >
-                            <div className="relative w-full flex justify-center">
+                            <div className="relative w-full flex justify-center h-full items-end">
                                 {/* Tooltip */}
                                 <div className="absolute -top-8 bg-[#3A5A40] text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                                     {point.value.toLocaleString()}
@@ -301,6 +307,15 @@ export default function DataViewer({ jobId, isOpen, onClose }: DataViewerProps) 
                         <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#588157' }} />
                     </div>
                 )}
+
+                {/* DEBUG: Show Chart Data Raw */}
+                {viewMode === 'chart' && chartData && (
+                    <details className="px-6 py-2 bg-gray-100 text-xs font-mono border-b overflow-auto max-h-32">
+                        <summary className="cursor-pointer text-gray-500 hover:text-gray-800">Debug Chart JSON</summary>
+                        <pre>{JSON.stringify(chartData, null, 2)}</pre>
+                    </details>
+                )}
+
 
                 {/* Error State */}
                 {error && (

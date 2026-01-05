@@ -14,6 +14,9 @@ from misata.schema import SchemaConfig
 from misata.studio.constraint_generator import convert_schema_config_to_spec, generate_constrained_warehouse
 from misata.studio.outcome_curve import OutcomeCurve, CurvePoint
 from misata.llm_parser import generate_schema
+from misata.research import DeepResearchAgent
+from misata.quality import check_quality
+
 
 app = FastAPI(title="Misata Studio API", version="2.0.0")
 
@@ -59,6 +62,39 @@ def convert_numpy_types(obj):
         pass  # Not a scalar, skip NA check
     return obj
 
+# ============ PERSISTENCE ============
+JOBS_FILE = "misata_jobs.pkl"
+import pickle
+
+def save_jobs_to_disk():
+    """Save in-memory jobs to disk."""
+    try:
+        with open(JOBS_FILE, "wb") as f:
+            pickle.dump(JOBS, f)
+        print(f"✅ Saved {len(JOBS)} jobs to {JOBS_FILE}")
+    except Exception as e:
+        print(f"❌ Failed to save jobs: {e}")
+
+def load_jobs_from_disk():
+    """Load jobs from disk on startup."""
+    global JOBS
+    if os.path.exists(JOBS_FILE):
+        try:
+            with open(JOBS_FILE, "rb") as f:
+                JOBS = pickle.load(f)
+            print(f"✅ Loaded {len(JOBS)} jobs from {JOBS_FILE}")
+        except Exception as e:
+            print(f"❌ Failed to load jobs: {e}")
+
+# Register startup/shutdown events
+@app.on_event("startup")
+async def startup_event():
+    load_jobs_from_disk()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    save_jobs_to_disk()
+
 # LLM Configuration (can be updated from frontend)
 LLM_CONFIG: Dict[str, Any] = {
     "provider": os.getenv("LLM_PROVIDER", "groq"),
@@ -81,8 +117,10 @@ class JobSubmitRequest(BaseModel):
 
 class GenerateSchemaRequest(BaseModel):
     story: str
-    api_key: Optional[str] = None  # Allow passing API key from frontend
-    provider: Optional[str] = None  # Allow specifying provider
+    api_key: Optional[str] = None
+    provider: Optional[str] = None
+    use_research: bool = False # New flag for Deep Research Agent
+
 
 class LLMConfigRequest(BaseModel):
     provider: str
@@ -352,61 +390,102 @@ def get_quality_report(job_id: str):
     
     result = job.get("result", {})
     
-    # Calculate quality metrics
-    total_tables = len(result)
-    total_rows = sum(t.get("total_rows", 0) for t in result.values())
-    total_columns = sum(len(t.get("columns", [])) for t in result.values())
+    # Calculate quality using DataQualityChecker
+    dataframes = job.get("dataframes", {})
     
-    # Calculate quality score (0-100)
-    # Based on: data completeness, referential integrity, distribution coverage
-    completeness_score = min(100, (total_rows / max(1, total_tables * 1000)) * 100)
-    integrity_score = 95  # Assume good integrity for now
-    coverage_score = 90   # Assume good coverage for now
-    overall_score = round((completeness_score + integrity_score + coverage_score) / 3, 1)
+    # If dataframes missing (old jobs?), try to reconstruct/skip
+    # But strictly we need dataframes for time series analysis
+    # Fallback to empty if not found
     
-    # Build per-table quality metrics
+    quality_report = check_quality(dataframes)
+    
+    # Build table metrics (keep existing logic for size estimation as it's UI specific)
     table_metrics = {}
     for table_name, table_data in result.items():
-        # Use total_rows (the count), not rows (the array of preview data)
-        row_count = table_data.get("total_rows", 0)
-        columns = table_data.get("columns", [])
-        
-        table_metrics[table_name] = {
+         row_count = table_data.get("total_rows", 0)
+         columns = table_data.get("columns", [])
+         table_metrics[table_name] = {
             "row_count": row_count,
             "column_count": len(columns),
             "columns": columns,
-            "file_size_kb": round(row_count * len(columns) * 0.05, 1),  # Estimate
+            "file_size_kb": round(row_count * len(columns) * 0.05, 1),
             "memory_usage_kb": round(row_count * len(columns) * 0.08, 1),
-            "metrics": {
-                "completeness": 100.0,  # No nulls in generated data
-                "uniqueness": 95.0,     # High uniqueness for IDs
-                "validity": 100.0,      # All values are valid
-            }
-        }
-    
+            "metrics": { "completeness": 100 } # Placeholder for row specific stats
+         }
+         
+         # ENRICH COLUMNS WITH REAL DATA STATS
+         if table_name in dataframes:
+            df = dataframes[table_name]
+            enriched_columns = {}
+            for col_def in columns:
+                if isinstance(col_def, str):
+                    col_name = col_def
+                    stats = {"name": col_name, "type": "text"} # Default if missing
+                else:
+                    col_name = col_def["name"]
+                    stats = col_def.copy()
+                
+                if col_name in df.columns:
+                    # Basic stats
+                    stats["unique_count"] = int(df[col_name].nunique())
+                    stats["null_count"] = int(df[col_name].isnull().sum())
+                    
+                    # Numeric stats
+                    if pd.api.types.is_numeric_dtype(df[col_name]):
+                        val_min = df[col_name].min()
+                        val_max = df[col_name].max()
+                        val_mean = df[col_name].mean()
+
+                        stats["min"] = float(val_min) if pd.notnull(val_min) else 0
+                        stats["max"] = float(val_max) if pd.notnull(val_max) else 0
+                        stats["mean"] = float(val_mean) if pd.notnull(val_mean) else 0
+                        
+                enriched_columns[col_name] = stats
+            
+            # Update the metrics with enriched columns
+            table_metrics[table_name]["columns"] = enriched_columns
+
+
+    # Calculate summary metrics
+    total_tables = len(result)
+    total_rows = sum([meta.get("row_count", 0) for meta in table_metrics.values()])
+    total_columns = sum([meta.get("column_count", 0) for meta in table_metrics.values()])
+
     # Add constraint verification if available
     constraint_verification = job.get("verification")
     
-    return {
+    return convert_numpy_types({
         "job_id": job_id,
         "schema_name": job.get("schema_name", "Unknown"),
         "generated_at": job.get("completed_at", ""),
-        "verification": constraint_verification,  # Pass to frontend
+        "verification": constraint_verification,
         "summary": {
             "total_tables": total_tables,
             "total_rows": total_rows,
             "total_columns": total_columns,
-            "quality_score": overall_score,
-            "quality_grade": "A" if overall_score >= 90 else "B" if overall_score >= 80 else "C",
+            "quality_score": quality_report.score,
+            "quality_grade": "A" if quality_report.score >= 90 else "B" if quality_report.score >= 80 else "C",
+            "issues_count": len(quality_report.issues)
         },
         "metrics": {
-            "completeness": round(completeness_score, 1),
-            "integrity": round(integrity_score, 1),
-            "coverage": round(coverage_score, 1),
+            "completeness": 100, # Generated data is always complete
+            "integrity": 100,
+            "coverage": 100,
         },
         "tables": table_metrics,
-        "quality_issues": []  # Add empty list of issues to prevent frontend crash
-    }
+        "quality_issues": [
+            {
+                "severity": i.severity,
+                "category": i.category,
+                "table": i.table,
+                "column": i.column,
+                "message": i.message,
+                "details": i.details,
+                "type": i.category # Frontend expects 'type'
+            }
+            for i in quality_report.issues
+        ]
+    })
 
 @app.get("/jobs/{job_id}/timeseries/{table_name}")
 def get_time_series_aggregation(
@@ -458,9 +537,21 @@ def get_time_series_aggregation(
         )
     
     try:
-        # Convert time column to datetime
+        # LOGGING FOR DEBUGGING
+        print(f"DEBUG CHART: Table={table_name}, Time={time_column}, Value={value_column}")
+        print(f"DEBUG CHART: Dtypes before:\n{df.dtypes}")
+        
+        # Convert time column to datetime (coerce errors to NaT)
         df_copy = df.copy()
-        df_copy[time_column] = pd.to_datetime(df_copy[time_column])
+        df_copy[time_column] = pd.to_datetime(df_copy[time_column], errors='coerce')
+        
+        # Force value column to numeric (handle currency strings etc)
+        df_copy[value_column] = pd.to_numeric(df_copy[value_column], errors='coerce').fillna(0)
+        
+        # Drop invalid dates
+        df_copy = df_copy.dropna(subset=[time_column])
+        
+        print(f"DEBUG CHART: Rows after cleaning: {len(df_copy)}")
         
         # Group by month
         df_copy['month'] = df_copy[time_column].dt.to_period('M')
@@ -474,12 +565,20 @@ def get_time_series_aggregation(
             agg_result = df_copy.groupby('month')[value_column].count()
         else:
             agg_result = df_copy.groupby('month')[value_column].sum()
+            
+        print(f"DEBUG CHART: Aggregation result head:\n{agg_result.head()}")
         
         # Convert to chart-friendly format
-        data_points = [
-            {"timestamp": str(period), "value": float(value)}
-            for period, value in agg_result.items()
-        ]
+        data_points = []
+        for period, value in agg_result.items():
+            val_float = float(value) if pd.notnull(value) else 0.0
+            data_points.append({
+                "timestamp": str(period), 
+                "value": val_float
+            })
+        
+        # Sort by timestamp to ensure chronological order
+        data_points.sort(key=lambda x: x["timestamp"])
         
         return {
             "job_id": job_id,
@@ -490,11 +589,13 @@ def get_time_series_aggregation(
             "data_points": data_points,
             "total_records": len(df),
             "date_range": {
-                "start": str(df_copy[time_column].min()),
-                "end": str(df_copy[time_column].max()),
+                "start": str(df_copy[time_column].min()) if not df_copy.empty else "",
+                "end": str(df_copy[time_column].max()) if not df_copy.empty else "",
             }
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Aggregation failed: {str(e)}")
 
 @app.get("/jobs/{job_id}/computed/revenue")
@@ -707,7 +808,7 @@ def generate_schema_endpoint(req: GenerateSchemaRequest):
             elif provider == "openai":
                 os.environ["OPENAI_API_KEY"] = api_key
         
-        config = generate_schema(req.story)
+        config = generate_schema(req.story, use_research=req.use_research)
         return config
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -774,7 +875,33 @@ def test_llm_config(req: LLMConfigRequest):
     except Exception as e:
         return {"valid": False, "error": str(e)}
 
+@app.get("/api/research/entities")
+def search_entities(domain: str, type: str = "competitors", limit: int = 10):
+    """
+    Search for real-world entities (e.g. competitors, products) in a domain.
+    Uses DeepResearchAgent (Mock/Tavily).
+    """
+    agent = DeepResearchAgent(use_mock=True) # Defaults to mock for now
+    try:
+        results = agent.search_entities(domain, type, limit)
+        return {"domain": domain, "type": type, "results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/research/stats")
+def search_market_stats(domain: str):
+    """
+    Search for market statistics for a domain.
+    """
+    agent = DeepResearchAgent(use_mock=True)
+    try:
+        stats = agent.search_market_stats(domain)
+        return {"domain": domain, "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
+
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

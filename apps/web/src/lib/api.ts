@@ -165,7 +165,8 @@ function getLLMSettings(): { provider: string; apiKey: string | null } {
 
 export async function generateSchemaFromStory(
     story: string,
-    onStream?: (chunk: string) => void
+    onStream?: (chunk: string) => void,
+    useResearch: boolean = false
 ): Promise<LLMSchemaResponse> {
     const { provider, apiKey } = getLLMSettings();
 
@@ -175,7 +176,8 @@ export async function generateSchemaFromStory(
         body: JSON.stringify({
             story,
             provider,
-            api_key: apiKey  // Pass API key from frontend settings
+            api_key: apiKey,  // Pass API key from frontend settings
+            use_research: useResearch
         }),
     });
 

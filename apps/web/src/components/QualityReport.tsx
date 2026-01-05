@@ -79,6 +79,7 @@ interface QualityIssue {
     percentage?: number;
     value?: number;
     note?: string;
+    message?: string;
 }
 
 interface QualityReportData {
@@ -247,6 +248,9 @@ export default function QualityReport({ report, isOpen, onClose }: QualityReport
     };
 
     const getIssueDescription = (issue: QualityIssue) => {
+        if (issue.type === 'time_series') {
+            return issue.message || issue.note;
+        }
         switch (issue.type) {
             case 'high_nulls':
                 return `${issue.column} has ${issue.percentage}% null values`;
@@ -257,9 +261,11 @@ export default function QualityReport({ report, isOpen, onClose }: QualityReport
             case 'all_unique':
                 return `${issue.column}: ${issue.note}`;
             default:
-                return issue.note || 'Unknown issue';
+                return issue.message || issue.note || 'Unknown issue';
         }
     };
+
+    const timeSeriesIssues = report.quality_issues.filter(i => i.type === 'time_series');
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
@@ -267,6 +273,25 @@ export default function QualityReport({ report, isOpen, onClose }: QualityReport
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-[var(--border-subtle)]">
                     <div className="flex items-center gap-3">
+                        {/* Time Series Insights (New) */}
+                        {timeSeriesIssues.length > 0 && activeTab === 'overview' && (
+                            <div className="fixed bottom-8 right-8 z-50 animate-slide-up">
+                                <div className="bg-indigo-900 text-white p-4 rounded-xl shadow-xl border border-indigo-700 max-w-sm">
+                                    <div className="flex items-center gap-2 mb-2 font-semibold text-indigo-100">
+                                        <TrendingUp className="w-4 h-4" />
+                                        Data Scientist Insights
+                                    </div>
+                                    <div className="space-y-2">
+                                        {timeSeriesIssues.slice(0, 3).map((issue, idx) => (
+                                            <div key={idx} className="text-xs bg-indigo-800/50 p-2 rounded border border-indigo-700/50">
+                                                <span className="font-medium text-indigo-300">{issue.table}.{issue.column}:</span> {issue.message}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Revenue Model Verification (Automated EDA) */}
                         {report.verification && (
                             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6 w-full">

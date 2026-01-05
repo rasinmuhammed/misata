@@ -45,6 +45,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "simpleeval>=0.9.0",
     "scipy>=1.10.0",
+    "networkx>=3.0",
 ]
 
 [project.urls]

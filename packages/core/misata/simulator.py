@@ -761,6 +761,9 @@ class DataSimulator:
 
             # Apply business rule constraints
             df_batch = self.apply_constraints(df_batch, table)
+            
+            # Apply outcome curves (Trends/Seasonality)
+            df_batch = self.apply_outcome_curves(df_batch, table_name)
 
             # Update context for future batches/tables
             self._update_context(table_name, df_batch)
@@ -786,6 +789,103 @@ class DataSimulator:
         for constraint in table.constraints:
             df = self._apply_single_constraint(df, constraint)
 
+        return df
+
+    def apply_outcome_curves(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """
+        Apply temporal outcome curves to force data to match trends/seasonality.
+        
+        This overrides the base distribution with the high-level constraints
+        defined in the prompt (e.g. "seasonal peaks", "upward trend").
+        """
+        if not hasattr(self.config, 'outcome_curves') or not self.config.outcome_curves:
+            return df
+
+        # Filter curves for this table
+        curves = [c for c in self.config.outcome_curves if c.get('table') == table_name]
+        
+        for curve in curves:
+            try:
+                target_col = curve['column']
+                time_col = curve['time_column']
+                points = curve.get('curve_points', [])
+                
+                if target_col not in df.columns or time_col not in df.columns:
+                    continue
+                    
+                if not points:
+                    continue
+
+                # Sort points by order (month or progress)
+                points.sort(key=lambda x: x.get('month', x.get('x', 0)))
+
+                pattern_type = curve.get('pattern_type', 'seasonal')
+                
+                # Extract time components
+                if not pd.api.types.is_datetime64_any_dtype(df[time_col]):
+                    timestamps = pd.to_datetime(df[time_col], errors='coerce')
+                else:
+                    timestamps = df[time_col]
+
+                # Initialize factors
+                row_factors = np.ones(len(df))
+
+                # STRATEGY 1: SEASONAL (Cyclic 1-12)
+                if pattern_type in ['seasonal', 'cyclic']:
+                    months = timestamps.dt.month
+                    scaling_factors = np.ones(13) # Index 1-12
+                    
+                    x_known = np.array([p['month'] for p in points])
+                    y_known = np.array([p['relative_value'] for p in points])
+                    
+                    for m in range(1, 13):
+                        if m < x_known.min():
+                            scaling_factors[m] = y_known[0]
+                        elif m > x_known.max():
+                            scaling_factors[m] = y_known[-1]
+                        else:
+                            scaling_factors[m] = np.interp(m, x_known, y_known)
+                    
+                    row_factors = scaling_factors[months.fillna(1).astype(int).values]
+
+                # STRATEGY 2: GROWTH/TREND (Linear over absolute time)
+                elif pattern_type in ['growth', 'trend', 'increase', 'decline']:
+                    # Normalize time to 0.0 - 1.0 range
+                    t_min = timestamps.min()
+                    t_max = timestamps.max()
+                    
+                    if t_min == t_max:
+                        row_factors = np.ones(len(df))
+                    else:
+                        # Convert to numeric (timestamps)
+                        t_numerics = timestamps.astype(np.int64)
+                        t_start = t_numerics.min()
+                        t_range = t_numerics.max() - t_start
+                        
+                        # Normalize 0.0 to 1.0
+                        t_norm = (t_numerics - t_start) / t_range
+                        
+                        # Map points (assume points are mapped 1-12 or 0.0-1.0?)
+                        # The LLM outputs "month" 1-12 usually. Let's map 1=Start, 12=End?
+                        # Or safer: interpolating 1-12 across the whole range.
+                        
+                        x_known = np.array([p['month'] for p in points])
+                        y_known = np.array([p['relative_value'] for p in points])
+                        
+                        # Normalize x_known to 0.0-1.0 range (assuming 1..12 scale from LLM)
+                        # If LLM says Month 1 to 12, we treat 1 as 0.0 and 12 as 1.0
+                        x_known_norm = (x_known - 1) / 11.0 # 1->0, 12->1
+                        
+                        # Interpolate
+                        row_factors = np.interp(t_norm, x_known_norm, y_known)
+
+                # Apply!
+                df[target_col] = df[target_col] * row_factors
+                
+            except Exception as e:
+                warnings.warn(f"Failed to apply outcome curve for {table_name}: {e}")
+                continue
+                
         return df
 
     def _apply_single_constraint(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:

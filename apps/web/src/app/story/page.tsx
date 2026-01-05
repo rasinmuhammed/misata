@@ -18,7 +18,9 @@ import {
     Columns3,
     GitBranch,
     RefreshCw,
-    Wand2
+    Wand2,
+    Globe,
+    Search
 } from 'lucide-react';
 
 const examples = [
@@ -74,6 +76,7 @@ export default function StoryPage() {
 
     const [datasetName, setDatasetName] = useState('');
     const [story, setStory] = useState('');
+    const [useResearch, setUseResearch] = useState(false); // New State
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedSchema, setGeneratedSchema] = useState<GeneratedSchema | null>(null);
     const [explanation, setExplanation] = useState('');
@@ -93,7 +96,8 @@ export default function StoryPage() {
                 story,
                 (chunk) => {
                     setStreamedText(prev => prev + chunk);
-                }
+                },
+                useResearch // Pass the flag
             );
 
             if (result.schema) {
@@ -240,6 +244,34 @@ export default function StoryPage() {
                         placeholder="e.g., Marketing Analytics Q1"
                         className="input w-full"
                     />
+                </div>
+
+                {/* Deep Research Toggle */}
+                <div className="mb-4 bg-[var(--bg-nebula)] rounded-lg p-3 border border-[var(--border-glass)] flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
+                            <Globe className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-[var(--text-primary)]">Deep Research Mode</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">Beta</span>
+                            </div>
+                            <p className="text-xs text-[var(--text-muted)]">
+                                Allow agent to search the web for real-world competitors & trends
+                            </p>
+                        </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={useResearch}
+                            onChange={(e) => setUseResearch(e.target.checked)}
+                            disabled={isGenerating}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--brand-primary)]"></div>
+                    </label>
                 </div>
 
                 <label className="block text-sm font-medium text-[var(--text-secondary)] mb-3">
