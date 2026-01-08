@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/assets/logo.png" alt="Misata Logo" width="120">
-</p>
 
 <h1 align="center">Misata</h1>
 <p align="center">
@@ -12,6 +9,7 @@
   <a href="https://pypi.org/project/misata/"><img src="https://img.shields.io/pypi/pyversions/misata" alt="Python versions"></a>
   <a href="https://github.com/rasinmuhammed/misata/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
   <a href="https://github.com/rasinmuhammed/misata/stargazers"><img src="https://img.shields.io/github/stars/rasinmuhammed/misata?style=social" alt="GitHub stars"></a>
+  <a href="https://pepy.tech/projects/misata"><img src="https://static.pepy.tech/personalized-badge/misata?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=Downloads" alt="PyPI Downloads"></a>
 </p>
 
 <p align="center">
