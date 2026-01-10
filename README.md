@@ -21,6 +21,9 @@
 
 ## 🚀 MisataStudio - Coming Soon!
 
+<img width="1300" height="753" alt="Screenshot 2026-01-10 at 11 12 04 PM" src="https://github.com/user-attachments/assets/9336d3db-0ec1-40d4-affd-7fd9a8ce10e2" />
+
+
 <p align="center">
   <strong>The next evolution of synthetic data generation</strong>
 </p>
