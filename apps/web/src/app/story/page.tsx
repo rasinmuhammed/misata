@@ -61,6 +61,14 @@ interface GeneratedSchema {
     tables: Array<{ name: string; row_count: number }>;
     columns: Record<string, Array<{ name: string; type: string; distribution_params?: Record<string, unknown> }>>;
     relationships: Array<{ parent_table: string; child_table: string; parent_key: string; child_key: string }>;
+    outcome_curves?: Array<{
+        table: string;
+        column: string;
+        time_column: string;
+        pattern_type: string;
+        description: string;
+        curve_points: Array<{ month: number; relative_value: number }>;
+    }>;
     outcome_constraints?: Array<{
         table_name: string;
         column_name: string;
@@ -162,7 +170,7 @@ export default function StoryPage() {
             });
         });
 
-        // Map Outcome Constraints (Metrics)
+        // Map Outcome Constraints (Metrics) - Legacy format
         generatedSchema.outcome_constraints?.forEach((oc, index) => {
             const tableId = tableIdMap[oc.table_name];
             const columnId = columnIdMap[`${oc.table_name}.${oc.column_name}`];
@@ -176,6 +184,33 @@ export default function StoryPage() {
                     timeUnit: oc.time_unit as any,
                     avgTransactionValue: oc.avg_transaction_value
                 });
+            }
+        });
+
+        // Map Outcome Curves (LLM format) - NEW
+        generatedSchema.outcome_curves?.forEach((curve, index) => {
+            const tableId = tableIdMap[curve.table];
+            const columnId = columnIdMap[`${curve.table}.${curve.column}`];
+
+            if (tableId && columnId) {
+                // Convert month/relative_value to timestamp/value format
+                const curvePoints = curve.curve_points.map(p => ({
+                    timestamp: `2025-${String(p.month).padStart(2, '0')}-15`,
+                    value: p.relative_value * 10000 // Scale to actual values
+                }));
+
+                addOrUpdateConstraint({
+                    id: `curve_${Date.now()}_${index}`,
+                    tableId,
+                    columnId,
+                    curvePoints,
+                    timeUnit: 'month' as any,
+                    patternType: curve.pattern_type,
+                    description: curve.description
+                });
+                console.log(`[IMPORT] Added curve constraint: ${curve.table}.${curve.column} (${curve.pattern_type})`);
+            } else {
+                console.warn(`[IMPORT] Could not map curve: tableId=${tableId}, columnId=${columnId}, table=${curve.table}, column=${curve.column}`);
             }
         });
 
@@ -404,6 +439,39 @@ export default function StoryPage() {
                             <p className="text-xs text-[var(--text-tertiary)]">Relations</p>
                         </div>
                     </div>
+
+                    {/* Extracted Constraints / Outcome Curves */}
+                    {generatedSchema.outcome_curves && generatedSchema.outcome_curves.length > 0 && (
+                        <div className="mb-4 p-4 rounded-lg border border-[var(--accent-aurora)]/30 bg-[var(--accent-aurora)]/5">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Sparkles className="w-4 h-4 text-[var(--accent-aurora)]" />
+                                <span className="text-sm font-medium text-[var(--text-primary)]">
+                                    Detected Patterns & Constraints
+                                </span>
+                            </div>
+                            <div className="space-y-2">
+                                {generatedSchema.outcome_curves.map((curve, idx) => (
+                                    <div key={idx} className="flex items-start gap-3 text-xs">
+                                        <span className="badge bg-[var(--accent-aurora)]/20 text-[var(--accent-aurora)] capitalize">
+                                            {curve.pattern_type}
+                                        </span>
+                                        <div className="flex-1">
+                                            <p className="text-[var(--text-secondary)]">
+                                                <span className="font-medium">{curve.table}.{curve.column}</span>
+                                                {' → '}
+                                                {curve.description}
+                                            </p>
+                                            <p className="text-[var(--text-muted)] mt-1">
+                                                Key points: {curve.curve_points.map(p =>
+                                                    `M${p.month}: ${(p.relative_value * 100).toFixed(0)}%`
+                                                ).join(', ')}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Table List */}
                     <div className="space-y-2">

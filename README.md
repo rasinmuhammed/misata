@@ -19,6 +19,26 @@
 
 ---
 
+## 🚀 MisataStudio - Coming Soon!
+
+<p align="center">
+  <strong>The next evolution of synthetic data generation</strong>
+</p>
+
+**MisataStudio** is our upcoming visual IDE for synthetic data engineering, featuring:
+
+| Feature | Description |
+|---------|-------------|
+| 🎨 **Visual Schema Builder** | Drag-and-drop table design with live preview |
+| 🤖 **Multi-Agent Pipeline** | AI agents for schema, domain, and validation |
+| ✅ **100% Constraint Compliance** | Guaranteed business rule enforcement |
+| 📈 **Outcome Curve Targeting** | Generate data that hits specific metrics |
+| 🔀 **Causal "What-If" Queries** | Interventional scenario simulation |
+
+**Stay tuned for early access!**
+
+---
+
 ## ✨ Features
 
 | Feature | Description |
@@ -255,13 +275,6 @@ pytest tests/
 ## 📄 License
 
 MIT License - see [LICENSE](./LICENSE) for details.
-
-## 🙏 Acknowledgments
-
-- [Groq](https://groq.com) for fast LLM inference
-- [NumPy](https://numpy.org) for vectorized operations
-- [Pydantic](https://pydantic.dev) for data validation
-- [Faker](https://faker.readthedocs.io) for realistic fake data
 
 ---
 

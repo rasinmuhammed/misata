@@ -434,6 +434,17 @@ export default function JobsPage() {
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         )}
+
+                                        {/* Delete button for queued/processing jobs */}
+                                        {(job.status === 'PENDING' || job.status === 'PROGRESS') && (
+                                            <button
+                                                onClick={() => setConfirmDeleteId(job.id)}
+                                                className="btn btn-ghost btn-sm text-[var(--error)] hover:bg-[var(--error-muted)]"
+                                                title="Cancel job"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

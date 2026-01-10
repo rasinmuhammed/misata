@@ -316,6 +316,19 @@ export default function DataViewer({ jobId, isOpen, onClose }: DataViewerProps) 
                     </details>
                 )}
 
+                {/* Constraint Verification Panel */}
+                {viewMode === 'chart' && (
+                    <div className="px-6 py-4 border-t" style={{ borderColor: 'rgba(58, 90, 64, 0.1)', background: '#F8FAF8' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-2 h-2 rounded-full" style={{ background: '#3A5A40' }} />
+                            <span className="text-sm font-medium" style={{ color: '#3A5A40' }}>Constraint Verification</span>
+                        </div>
+                        <p className="text-xs" style={{ color: '#6B7164' }}>
+                            This chart shows your generated data aggregated by month. Compare this with the outcome curve you defined in the Builder to verify the constraint was applied correctly.
+                        </p>
+                    </div>
+                )}
+
 
                 {/* Error State */}
                 {error && (

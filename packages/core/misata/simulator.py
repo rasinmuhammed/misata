@@ -799,22 +799,53 @@ class DataSimulator:
         defined in the prompt (e.g. "seasonal peaks", "upward trend").
         """
         if not hasattr(self.config, 'outcome_curves') or not self.config.outcome_curves:
+            print(f"[CURVE DEBUG] No outcome_curves found in config for {table_name}")
             return df
 
-        # Filter curves for this table
-        curves = [c for c in self.config.outcome_curves if c.get('table') == table_name]
+        print(f"[CURVE DEBUG] Found {len(self.config.outcome_curves)} curves in config")
+        
+        # Filter curves for this table - handle both dict and Pydantic object
+        curves = []
+        for c in self.config.outcome_curves:
+            # Get table name from curve (handle both dict and object)
+            c_table = c.table if hasattr(c, 'table') else c.get('table')
+            if c_table == table_name:
+                curves.append(c)
+        
+        print(f"[CURVE DEBUG] {len(curves)} curves match table '{table_name}'")
         
         for curve in curves:
             try:
-                target_col = curve['column']
-                time_col = curve['time_column']
-                points = curve.get('curve_points', [])
+                # Access attributes (Pydantic) or dict keys
+                target_col = curve.column if hasattr(curve, 'column') else curve['column']
+                time_col = curve.time_column if hasattr(curve, 'time_column') else curve['time_column']
+                points = curve.curve_points if hasattr(curve, 'curve_points') else curve.get('curve_points', [])
+                pattern_type = curve.pattern_type if hasattr(curve, 'pattern_type') else curve.get('pattern_type', 'seasonal')
                 
-                if target_col not in df.columns or time_col not in df.columns:
+                print(f"[CURVE DEBUG] Applying curve: table={table_name}, col={target_col}, time_col={time_col}, pattern={pattern_type}")
+                print(f"[CURVE DEBUG] DF columns: {list(df.columns)}")
+                
+                if target_col not in df.columns:
+                    print(f"[CURVE DEBUG] Target column '{target_col}' not in DataFrame!")
+                    continue
+                if time_col not in df.columns:
+                    print(f"[CURVE DEBUG] Time column '{time_col}' not in DataFrame!")
                     continue
                     
                 if not points:
+                    print(f"[CURVE DEBUG] No curve points!")
                     continue
+                
+                # Convert Pydantic CurvePoint objects to dicts if needed
+                point_dicts = []
+                for p in points:
+                    if hasattr(p, 'month'):
+                        point_dicts.append({'month': p.month, 'relative_value': p.relative_value})
+                    else:
+                        point_dicts.append(p)
+                points = point_dicts
+                
+                print(f"[CURVE DEBUG] Points: {points}")
 
                 # Sort points by order (month or progress)
                 points.sort(key=lambda x: x.get('month', x.get('x', 0)))

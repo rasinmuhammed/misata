@@ -34,6 +34,19 @@ from misata.studio.outcome_curve import (
 from misata.causal.graph import get_saas_template, CausalGraph
 from misata.causal.solver import CausalSolver
 
+# Import ConstraintEngine for 100% business rule compliance (MisataStudio)
+try:
+    from misata.studio_constraints.z3_solver import (
+        ConstraintEngine, 
+        add_common_business_rules,
+        create_constraint_engine
+    )
+    CONSTRAINT_ENGINE_AVAILABLE = True
+except ImportError:
+    CONSTRAINT_ENGINE_AVAILABLE = False
+    ConstraintEngine = None
+    # Silent - this is optional for studio features
+
 
 
 @dataclass
@@ -184,7 +197,58 @@ class ConstrainedWarehouseGenerator:
             )
             self.generated_tables[table.name] = self._generate_fact_table(table, constraint)
         
+        # 5. ENFORCE BUSINESS RULES (100% Compliance) - Key Differentiator!
+        if CONSTRAINT_ENGINE_AVAILABLE:
+            self._enforce_business_rules()
+        
         return self.generated_tables
+
+    def _enforce_business_rules(self):
+        """
+        Post-generation step to ensure 100% business rule compliance.
+        This is what differentiates us from Gretel (probabilistic only).
+        """
+        if not CONSTRAINT_ENGINE_AVAILABLE:
+            return
+        
+        engine = create_constraint_engine()
+        
+        # Build schema dict for rule detection
+        schema_dict = {
+            "tables": [{"name": t.name} for t in self.spec.tables],
+            "columns": {
+                t.name: [{"name": c.name, "type": c.type, "distribution_params": {
+                    "min": c.min_val,
+                    "max": c.max_val
+                }} for c in t.columns]
+                for t in self.spec.tables
+            }
+        }
+        
+        # Auto-add common business rules
+        add_common_business_rules(engine, schema_dict)
+        
+        # Apply constraints to each table
+        total_violations = 0
+        for table_name, df in self.generated_tables.items():
+            if len(df) == 0:
+                continue
+            
+            # Validate
+            result = engine.validate(df)
+            
+            if not result["is_100_percent_compliant"]:
+                violations = len(df) - result["valid_rows"]
+                total_violations += violations
+                print(f"[CONSTRAINT] {table_name}: {violations} violations found, fixing...")
+                
+                # Fix violations by filtering
+                self.generated_tables[table_name] = engine.filter_valid(df)
+        
+        if total_violations > 0:
+            print(f"[CONSTRAINT] Total violations fixed: {total_violations} rows removed")
+        else:
+            print(f"[CONSTRAINT] ✅ All tables 100% compliant!")
 
     def _generate_causal_flow(self):
         """
@@ -596,43 +660,58 @@ def create_service_company_schema(
 
 def convert_schema_config_to_spec(
     config: SchemaConfig,
-    revenue_curve: Optional[OutcomeCurve] = None
+    revenue_curve: Optional[OutcomeCurve] = None,
+    fact_table_override: Optional[str] = None,
+    date_col_override: Optional[str] = None,
+    amount_col_override: Optional[str] = None
 ) -> WarehouseSpec:
-    """Convert a generic SchemaConfig (e.g. from LLM) to a WarehouseSpec."""
+    """Convert a generic SchemaConfig (e.g. from LLM) to a WarehouseSpec.
+    
+    If fact_table_override is provided, use that instead of heuristic detection.
+    """
     
     table_specs = []
     fact_table_name = None
     date_col_name = None
     amount_col_name = None
     
-    # 1. Identify Fact Table Heuristically (largest table with date + amount)
-    # or just pick the one with most rows that isn't reference
-    candidate_tables = []
-    
-    for table_name, columns in config.columns.items():
-        # Find table definition
-        table_def = next((t for t in config.tables if t.name == table_name), None)
-        if not table_def or table_def.is_reference:
-            continue
-            
-        has_date = any(c.type == 'date' for c in columns)
-        has_amount = any(c.name in ['amount', 'price', 'total', 'revenue', 'value', 'cost'] and c.type in ['float', 'int'] for c in columns)
+    # Use overrides if provided (from LLM curve specification)
+    if fact_table_override:
+        fact_table_name = fact_table_override
+        date_col_name = date_col_override
+        amount_col_name = amount_col_override
+        print(f"[SPEC DEBUG] Using LLM overrides: fact={fact_table_name}, date={date_col_name}, amount={amount_col_name}")
+    else:
+        # 1. Identify Fact Table Heuristically (largest table with date + amount)
+        # or just pick the one with most rows that isn't reference
+        candidate_tables = []
         
-        if has_date and has_amount:
-            candidate_tables.append({
-                "name": table_name,
-                "rows": table_def.row_count,
-                "date_col": next(c.name for c in columns if c.type == 'date'),
-                "amount_col": next(c.name for c in columns if c.name in ['amount', 'price', 'total', 'revenue', 'value', 'cost'] and c.type in ['float', 'int'])
-            })
-    
-    # Sort candidates by row count (fact tables are usually largest)
-    if candidate_tables:
-        candidate_tables.sort(key=lambda x: x["rows"], reverse=True)
-        best_candidate = candidate_tables[0]
-        fact_table_name = best_candidate["name"]
-        date_col_name = best_candidate["date_col"]
-        amount_col_name = best_candidate["amount_col"]
+        for table_name, columns in config.columns.items():
+            # Find table definition
+            table_def = next((t for t in config.tables if t.name == table_name), None)
+            if not table_def or table_def.is_reference:
+                continue
+                
+            has_date = any(c.type in ['date', 'datetime'] for c in columns)
+            # Broader amount detection - any float/int column that's not id/count
+            amount_cols = [c.name for c in columns if c.type in ['float', 'int'] and c.name not in ['id', 'count'] and not c.name.endswith('_id')]
+            
+            if has_date and amount_cols:
+                candidate_tables.append({
+                    "name": table_name,
+                    "rows": table_def.row_count,
+                    "date_col": next(c.name for c in columns if c.type in ['date', 'datetime']),
+                    "amount_col": amount_cols[0]  # Pick first numeric column
+                })
+        
+        # Sort candidates by row count (fact tables are usually largest)
+        if candidate_tables:
+            candidate_tables.sort(key=lambda x: x["rows"], reverse=True)
+            best_candidate = candidate_tables[0]
+            fact_table_name = best_candidate["name"]
+            date_col_name = best_candidate["date_col"]
+            amount_col_name = best_candidate["amount_col"]
+            print(f"[SPEC DEBUG] Heuristic detected: fact={fact_table_name}, date={date_col_name}, amount={amount_col_name}")
     
     # 2. Convert Tables
     for table in config.tables:

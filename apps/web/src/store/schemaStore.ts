@@ -39,6 +39,8 @@ export interface OutcomeConstraint {
     curvePoints: CurvePoint[];
     timeUnit: 'day' | 'week' | 'month' | 'quarter' | 'year';
     avgTransactionValue?: number;
+    patternType?: string; // 'seasonal', 'growth', 'trend', etc.
+    description?: string; // Human-readable description from LLM
 }
 
 interface SchemaSnapshot {
@@ -273,6 +275,24 @@ export const useSchemaStore = create<SchemaState>()(
                             curve_points: oc.curvePoints,
                             time_unit: oc.timeUnit,
                             avg_transaction_value: oc.avgTransactionValue,
+                        };
+                    }),
+                    // Also include as outcome_curves format for LLM-style constraints
+                    outcome_curves: outcomeConstraints.map((oc) => {
+                        const table = tables.find((t) => t.id === oc.tableId);
+                        const column = table?.columns.find((c) => c.id === oc.columnId);
+                        // Find a date column in the same table
+                        const dateCol = table?.columns.find((c) => c.type === 'date');
+                        return {
+                            table: table?.name || oc.tableId,
+                            column: column?.name || oc.columnId,
+                            time_column: dateCol?.name || 'date',
+                            pattern_type: oc.patternType || 'seasonal',
+                            description: oc.description || 'User-defined constraint',
+                            curve_points: oc.curvePoints.map(p => ({
+                                month: new Date(p.timestamp).getMonth() + 1,
+                                relative_value: p.value / 10000 // Normalize back to 0-1
+                            }))
                         };
                     }),
                 };

@@ -142,13 +142,23 @@ async def run_generation_job(job_id: str, schema_dict: Dict[str, Any], outcome_c
         revenue_curve = None
         if outcome_constraints and len(outcome_constraints) > 0:
             oc = outcome_constraints[0]  # Use FIRST constraint as primary revenue curve
-            curve_points = [
-                CurvePoint(
-                    timestamp=datetime.fromisoformat(p['timestamp'].replace('Z', '+00:00')) if isinstance(p['timestamp'], str) else p['timestamp'],
-                    value=float(p['value'])
-                )
-                for p in oc.curve_points
-            ]
+            curve_points = []
+            for p in oc.curve_points:
+                # Handle both dict and object formats
+                if hasattr(p, 'timestamp'):
+                    ts = p.timestamp
+                    val = p.value
+                elif isinstance(p, dict):
+                    ts = p.get('timestamp')
+                    val = p.get('value', 0)
+                else:
+                    continue
+                
+                # Parse timestamp if string
+                if isinstance(ts, str):
+                    ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                
+                curve_points.append(CurvePoint(timestamp=ts, value=float(val)))
             revenue_curve = OutcomeCurve(
                 metric_name='revenue',
                 time_unit=oc.time_unit,
@@ -161,17 +171,21 @@ async def run_generation_job(job_id: str, schema_dict: Dict[str, Any], outcome_c
         # This enables Story Mode patterns like "dip in September, peak in December"
         if not revenue_curve and schema_config.outcome_curves:
             llm_curve = schema_config.outcome_curves[0]  # Use first curve
+            print(f"[CONSTRAINT DEBUG] LLM curve found: table={llm_curve.table}, col={llm_curve.column}, time_col={llm_curve.time_column}")
+            print(f"[CONSTRAINT DEBUG] Pattern: {llm_curve.pattern_type}, Description: {llm_curve.description}")
+            print(f"[CONSTRAINT DEBUG] Points: {[(p.month, p.relative_value) for p in llm_curve.curve_points]}")
+            
             base_value = 10000  # Base monthly value to scale relative values
-            start_date = datetime(2025, 1, 1)  # Start from Jan 2025
             
             # Convert monthly relative values to actual curve points
             curve_points = []
             for point in llm_curve.curve_points:
-                month = point.get('month', 1)
-                relative_value = point.get('relative_value', 0.5)
+                month = point.month if hasattr(point, 'month') else point.get('month', 1)
+                relative_value = point.relative_value if hasattr(point, 'relative_value') else point.get('relative_value', 0.5)
                 timestamp = datetime(2025, month, 15)  # Mid-month
                 actual_value = base_value * relative_value
                 curve_points.append(CurvePoint(timestamp=timestamp, value=actual_value))
+                print(f"[CONSTRAINT DEBUG] Point: month={month}, relative={relative_value}, actual={actual_value}")
             
             if curve_points:
                 revenue_curve = OutcomeCurve(
@@ -182,9 +196,25 @@ async def run_generation_job(job_id: str, schema_dict: Dict[str, Any], outcome_c
                 )
                 JOBS[job_id]["message"] = f"Applying LLM-extracted pattern: {llm_curve.description or 'seasonal curve'}..."
                 JOBS[job_id]["outcome_curve_applied"] = True
+                
+                # CRITICAL: Store the LLM's target table/column for constraint targeting
+                JOBS[job_id]["llm_fact_table"] = llm_curve.table
+                JOBS[job_id]["llm_amount_col"] = llm_curve.column
+                JOBS[job_id]["llm_date_col"] = llm_curve.time_column
+                print(f"[CONSTRAINT DEBUG] Revenue curve created with {len(curve_points)} points")
         
-        # 3. Convert to WarehouseSpec
-        spec = convert_schema_config_to_spec(schema_config, revenue_curve=revenue_curve)
+        # 3. Convert to WarehouseSpec (pass LLM curve target info)
+        llm_fact_table = JOBS[job_id].get("llm_fact_table")
+        llm_amount_col = JOBS[job_id].get("llm_amount_col")
+        llm_date_col = JOBS[job_id].get("llm_date_col")
+        
+        spec = convert_schema_config_to_spec(
+            schema_config, 
+            revenue_curve=revenue_curve,
+            fact_table_override=llm_fact_table,
+            date_col_override=llm_date_col,
+            amount_col_override=llm_amount_col
+        )
         
         JOBS[job_id]["message"] = "Generating entities..."
         JOBS[job_id]["progress"] = 30
@@ -239,6 +269,30 @@ async def run_generation_job(job_id: str, schema_dict: Dict[str, Any], outcome_c
         JOBS[job_id]["verification"] = verification_result  # Store verification report
         JOBS[job_id]["dataframes"] = full_dataframes  # Store for download
         JOBS[job_id]["completed_at"] = datetime.now().isoformat()
+        
+        # Store extracted constraints for UI display
+        JOBS[job_id]["outcome_curves"] = [
+            {
+                "table": c.table,
+                "column": c.column,
+                "time_column": c.time_column,
+                "pattern_type": c.pattern_type,
+                "description": c.description,
+                "curve_points": [{"month": p.month, "relative_value": p.relative_value} for p in c.curve_points]
+            }
+            for c in schema_config.outcome_curves
+        ] if schema_config.outcome_curves else []
+        
+        # Extract date ranges from schema
+        date_ranges = {}
+        for table in schema_config.tables:
+            for col in schema_config.get_columns(table.name):
+                if col.type == "date" and "start" in col.distribution_params:
+                    date_ranges[f"{table.name}.{col.name}"] = {
+                        "start": col.distribution_params.get("start"),
+                        "end": col.distribution_params.get("end")
+                    }
+        JOBS[job_id]["date_ranges"] = date_ranges
         
     except Exception as e:
         JOBS[job_id]["status"] = "FAILURE"
@@ -309,6 +363,15 @@ def get_job_status(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     # Convert numpy types for JSON serialization
     return convert_numpy_types(JOBS[job_id])
+
+@app.delete("/jobs/{job_id}")
+def delete_job(job_id: str):
+    """Delete a job from the queue."""
+    if job_id not in JOBS:
+        raise HTTPException(status_code=404, detail="Job not found")
+    del JOBS[job_id]
+    save_jobs_to_disk()  # Persist the deletion
+    return {"message": f"Job {job_id} deleted successfully"}
 
 @app.get("/jobs/{job_id}/data")
 def get_job_data(job_id: str, limit: int = 100):

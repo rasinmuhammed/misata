@@ -16,6 +16,20 @@ from misata.generators.base import (
     TextGenerator,
 )
 
+# Optional SDV-based generators (require: pip install sdv)
+try:
+    from misata.generators.copula import (
+        CopulaGenerator,
+        ConstraintAwareCopulaGenerator,
+        create_copula_generator,
+    )
+    COPULA_AVAILABLE = True
+except ImportError:
+    COPULA_AVAILABLE = False
+    CopulaGenerator = None
+    ConstraintAwareCopulaGenerator = None
+    create_copula_generator = None
+
 __all__ = [
     "BaseGenerator",
     "GeneratorFactory",
@@ -26,4 +40,9 @@ __all__ = [
     "DateGenerator",
     "TextGenerator",
     "ForeignKeyGenerator",
+    # Optional SDV
+    "CopulaGenerator",
+    "ConstraintAwareCopulaGenerator",
+    "create_copula_generator",
+    "COPULA_AVAILABLE",
 ]
