@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 
-const fullWidthRoutes = ['/landing'];
+const fullWidthRoutes = ['/landing', '/workspace'];
 
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();

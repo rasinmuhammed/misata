@@ -55,7 +55,7 @@ function TableNode({ id, data, selected }: TableNodeProps) {
     const [isEditingName, setIsEditingName] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [tableName, setTableName] = useState(data.label);
-    const [rowCount, setRowCount] = useState(data.rowCount);
+    const [rowCount, setRowCount] = useState(data.rowCount || 100);
     const [curveEditorColumn, setCurveEditorColumn] = useState<Column | null>(null);
 
     // Inline validation for table name
@@ -230,7 +230,7 @@ function TableNode({ id, data, selected }: TableNodeProps) {
                         <div className="flex items-center justify-between pr-8">
                             <span className="text-white font-semibold text-sm">{data.label}</span>
                             <span className="text-white/80 text-xs bg-white/15 px-2 py-0.5 rounded-full">
-                                {data.rowCount.toLocaleString()} rows
+                                {(data.rowCount || 100).toLocaleString()} rows
                             </span>
                         </div>
                     )}

@@ -107,7 +107,7 @@ export default function HomePage() {
           {/* CTA Buttons */}
           <div className="flex justify-center gap-4 mb-16">
             <button
-              onClick={() => router.push('/story')}
+              onClick={() => router.push('/workspace')}
               className="flex items-center gap-2 px-6 py-3 rounded-xl text-white font-medium transition-all hover:scale-105 shadow-lg"
               style={{
                 background: 'linear-gradient(135deg, #588157 0%, #3A5A40 100%)',
@@ -115,10 +115,10 @@ export default function HomePage() {
               }}
             >
               <Play className="w-4 h-4" />
-              Start with AI Story
+              Open MisataStudio
             </button>
             <button
-              onClick={() => router.push('/builder')}
+              onClick={() => router.push('/workspace')}
               className="flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all hover:scale-105"
               style={{
                 background: '#FFF',
@@ -128,7 +128,7 @@ export default function HomePage() {
               }}
             >
               <Layers className="w-4 h-4" />
-              Open Schema Builder
+              View Documentation
             </button>
           </div>
 
@@ -283,12 +283,12 @@ export default function HomePage() {
             Start with a simple story and watch Misata transform it into a complete, production-ready dataset.
           </p>
           <button
-            onClick={() => router.push('/story')}
+            onClick={() => router.push('/workspace')}
             className="inline-flex items-center gap-2 px-8 py-3 rounded-xl font-medium transition-all hover:scale-105"
             style={{ background: '#FFF', color: '#344E41' }}
           >
             <Sparkles className="w-4 h-4" />
-            Try AI Story Mode Free
+            Launch MisataStudio
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

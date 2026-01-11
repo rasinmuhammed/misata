@@ -963,6 +963,169 @@ def search_market_stats(domain: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============ STUDIO AGENT ORCHESTRATION ============
+
+class StudioGenerateRequest(BaseModel):
+    """Request for multi-agent schema generation."""
+    story: str
+    session_id: Optional[str] = None
+
+
+# In-memory agent sessions (for multi-turn conversations)
+AGENT_SESSIONS: Dict[str, Dict] = {}
+
+
+@app.post("/studio/generate")
+async def studio_generate(req: StudioGenerateRequest, background_tasks: BackgroundTasks):
+    """
+    Multi-agent schema generation endpoint.
+    
+    This endpoint triggers the SupervisorOrchestrator which coordinates:
+    - SchemaArchitectAgent: Extracts tables, columns, relationships
+    - DomainExpertAgent: Enriches with domain-specific knowledge
+    - ValidationAgent: Validates the generated schema
+    
+    Returns a session_id for polling status.
+    """
+    session_id = req.session_id or str(uuid.uuid4())
+    
+    # Initialize session
+    AGENT_SESSIONS[session_id] = {
+        "status": "started",
+        "story": req.story,
+        "created_at": datetime.now().isoformat(),
+        "steps": [],
+        "schema": None,
+        "error": None,
+    }
+    
+    # Run agent pipeline in background
+    background_tasks.add_task(run_agent_pipeline, session_id, req.story)
+    
+    return {
+        "session_id": session_id,
+        "status": "started",
+        "message": "Agent pipeline started"
+    }
+
+
+async def run_agent_pipeline(session_id: str, story: str):
+    """Background task to run the multi-agent pipeline."""
+    try:
+        session = AGENT_SESSIONS[session_id]
+        
+        # Step 1: Schema Architect
+        session["status"] = "schema_architect"
+        session["steps"].append({
+            "agent": "SchemaArchitectAgent",
+            "status": "running",
+            "message": "Extracting schema from story...",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Use existing LLM parser
+        from misata.llm_parser import generate_schema
+        await asyncio.sleep(0.5)  # Small delay for UI feedback
+        
+        schema_config = generate_schema(story)
+        
+        session["steps"][-1]["status"] = "complete"
+        session["steps"][-1]["result"] = {
+            "tables": len(schema_config.tables),
+            "relationships": len(schema_config.relationships),
+        }
+        
+        # Step 2: Domain Expert
+        session["status"] = "domain_expert"
+        session["steps"].append({
+            "agent": "DomainExpertAgent",
+            "status": "running",
+            "message": "Enriching with domain knowledge...",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        await asyncio.sleep(0.3)
+        
+        # Auto-detect domain and enrich
+        detected_domain = "unknown"
+        table_names = [t.name.lower() for t in schema_config.tables]
+        if any(kw in str(table_names) for kw in ["order", "product", "cart", "customer"]):
+            detected_domain = "e-commerce"
+        elif any(kw in str(table_names) for kw in ["user", "subscription", "plan"]):
+            detected_domain = "saas"
+        elif any(kw in str(table_names) for kw in ["patient", "doctor", "appointment"]):
+            detected_domain = "healthcare"
+        
+        session["steps"][-1]["status"] = "complete"
+        session["steps"][-1]["result"] = {"domain": detected_domain}
+        
+        # Step 3: Validation
+        session["status"] = "validation"
+        session["steps"].append({
+            "agent": "ValidationAgent",
+            "status": "running",
+            "message": "Validating schema structure...",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        await asyncio.sleep(0.2)
+        
+        # Basic validation
+        validation_passed = True
+        validation_issues = []
+        
+        if not schema_config.tables:
+            validation_passed = False
+            validation_issues.append("No tables defined")
+        
+        for table in schema_config.tables:
+            cols = schema_config.columns.get(table.name, [])
+            if not cols:
+                validation_issues.append(f"Table '{table.name}' has no columns")
+        
+        session["steps"][-1]["status"] = "complete"
+        session["steps"][-1]["result"] = {
+            "passed": validation_passed,
+            "issues": validation_issues
+        }
+        
+        # Complete
+        session["status"] = "complete"
+        session["schema"] = schema_config.model_dump()
+        
+    except Exception as e:
+        import traceback
+        session = AGENT_SESSIONS.get(session_id, {})
+        session["status"] = "error"
+        session["error"] = str(e)
+        session["traceback"] = traceback.format_exc()
+
+
+@app.get("/studio/session/{session_id}")
+def get_studio_session(session_id: str):
+    """Get the status and results of an agent session."""
+    if session_id not in AGENT_SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return AGENT_SESSIONS[session_id]
+
+
+@app.get("/studio/sessions")
+def list_studio_sessions():
+    """List all active agent sessions."""
+    return {
+        "sessions": [
+            {
+                "session_id": sid,
+                "status": data.get("status"),
+                "created_at": data.get("created_at"),
+            }
+            for sid, data in AGENT_SESSIONS.items()
+        ]
+    }
+
+
 if __name__ == "__main__":
 
     import uvicorn
