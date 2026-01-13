@@ -25,7 +25,7 @@
 
 
 <p align="center">
-  <strong>The next evolution of synthetic data generation</strong>
+  <strong>The figma of synthetic data generation</strong>
 </p>
 
 **MisataStudio** is our upcoming visual IDE for synthetic data engineering, featuring:
