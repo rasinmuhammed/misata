@@ -1,286 +1,247 @@
+# 🧠 Misata
 
-<h1 align="center">Misata</h1>
-<p align="center">
-  <strong>AI-Powered Synthetic Data Engine</strong>
-</p>
+**Generate realistic multi-table datasets from natural language.**
 
-<p align="center">
-  <a href="https://pypi.org/project/misata/"><img src="https://img.shields.io/pypi/v/misata?color=blue" alt="PyPI version"></a>
-  <a href="https://pypi.org/project/misata/"><img src="https://img.shields.io/pypi/pyversions/misata" alt="Python versions"></a>
-  <a href="https://github.com/rasinmuhammed/misata/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
-  <a href="https://github.com/rasinmuhammed/misata/stargazers"><img src="https://img.shields.io/github/stars/rasinmuhammed/misata?style=social" alt="GitHub stars"></a>
-  <a href="https://pepy.tech/projects/misata"><img src="https://static.pepy.tech/personalized-badge/misata?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=Downloads" alt="PyPI Downloads"></a>
-</p>
+No schema writing. No training data. Just describe what you need.
 
-<p align="center">
-  Generate realistic, multi-table synthetic datasets from natural language descriptions.<br>
-  Perfect for testing, development, ML training, and demos.
-</p>
+[![Version](https://img.shields.io/badge/version-0.2.0--beta-purple.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
+[![Python](https://img.shields.io/badge/python-3.10+-green.svg)]()
 
----
+## ✨ What Makes Misata Different
 
-## 🚀 MisataStudio - Coming Soon!
-
-<img width="1300" height="753" alt="Screenshot 2026-01-10 at 11 12 04 PM" src="https://github.com/user-attachments/assets/9336d3db-0ec1-40d4-affd-7fd9a8ce10e2" />
-
-
-<p align="center">
-  <strong>The next evolution of synthetic data generation</strong>
-</p>
-
-**MisataStudio** is our upcoming visual IDE for synthetic data engineering, featuring:
-
-| Feature | Description |
-|---------|-------------|
-| 🎨 **Visual Schema Builder** | Drag-and-drop table design with live preview |
-| 🤖 **Multi-Agent Pipeline** | AI agents for schema, domain, and validation |
-| ✅ **100% Constraint Compliance** | Guaranteed business rule enforcement |
-| 📈 **Outcome Curve Targeting** | Generate data that hits specific metrics |
-| 🔀 **Causal "What-If" Queries** | Interventional scenario simulation |
-
-**Stay tuned for early access!**
-
----
-
-## ✨ Features
-
-| Feature | Description |
-|---------|-------------|
-| 🗣️ **Natural Language → Schema** | Describe your data needs in plain English |
-| 🤖 **LLM-Powered Intelligence** | Uses Groq/OpenAI for smart schema generation |
-| 🔗 **Multi-Table Relationships** | Automatic foreign key handling with referential integrity |
-| 📊 **Statistical Distributions** | Normal, uniform, Poisson, exponential, and more |
-| 🎯 **Business Constraints** | Sum limits, ratios, temporal ordering |
-| ⚡ **Blazing Fast** | 250,000 rows/second with vectorized NumPy |
-| 🧠 **Smart Value Generation** | Domain-aware realistic values (medical, HR, retail) |
-| 📈 **Reverse Engineering** | Describe a chart, get matching data |
+| Feature | Faker | SDV | **Misata** |
+|---------|-------|-----|------------|
+| Natural language input | ❌ | ❌ | ✅ |
+| Auto schema generation | ❌ | ❌ | ✅ |
+| Relational integrity | ❌ | ✅ | ✅ |
+| Business constraints | ❌ | ❌ | ✅ |
+| No training data needed | ✅ | ❌ | ✅ |
+| Streaming (10M+ rows) | ❌ | ❌ | ✅ |
 
 ## 🚀 Quick Start
-
-### Installation
 
 ```bash
 pip install misata
 ```
 
-### Set up your LLM API key
+### With Groq (Free, Fast)
 
 ```bash
-# Option 1: Environment variable
-export GROQ_API_KEY=your_key_here
-
-# Option 2: .env file
-echo "GROQ_API_KEY=your_key_here" > .env
+export GROQ_API_KEY=your_key  # Get free: https://console.groq.com
+misata generate --story "A SaaS with 50K users, subscriptions, and payments" --use-llm
 ```
 
-Get a free API key at [console.groq.com](https://console.groq.com)
-
-### Generate Your First Dataset
+### With OpenAI
 
 ```bash
-# From natural language
-misata generate --story "SaaS company with 10K users, 20% churn in Q3" --output-dir ./data
-
-# With LLM intelligence
-misata generate --story "Hospital with patients and doctors" --use-llm --output-dir ./hospital
-
-# From industry template
-misata template saas --output-dir ./saas_data
+export OPENAI_API_KEY=your_key
+misata generate --story "E-commerce with products and orders" --use-llm --provider openai
 ```
 
-### Python API
+### With Ollama (Local, Free, Private)
 
-```python
-from misata import DataSimulator, SchemaConfig
-from misata.llm_parser import LLMSchemaGenerator
-
-# With LLM (recommended)
-llm = LLMSchemaGenerator()
-config = llm.generate_from_story("Fitness app with 50K users, workout tracking")
-
-# Generate data
-simulator = DataSimulator(config, seed=42)
-simulator.export_to_csv("./fitness_data")
-
-# Or iterate over batches
-for table_name, batch_df in simulator.generate_all():
-    print(f"Generated {len(batch_df)} rows for {table_name}")
+```bash
+ollama run llama3  # Start Ollama first
+misata generate --story "Fitness app with workouts" --use-llm --provider ollama
 ```
 
 ## 📊 Example Output
 
 ```
-# Generated from: "Hospital with patients and doctors"
+$ misata generate --story "A fitness app with 50K users" --use-llm
 
-patients.csv (10,000 rows)
-├── id, name, date_of_birth, blood_type, doctor_id
-├── Referential integrity with doctors table ✓
-└── Realistic column distributions ✓
+🧠 Using Groq (llama-3.3-70b-versatile) for intelligent parsing...
+✅ LLM schema generated successfully!
 
-doctors.csv (100 rows)
-├── id, name, specialty, department, hire_date
-└── LLM-generated realistic specialties ✓
+📋 Schema: FitnessApp
+   Tables: 5
+   Relationships: 4
 
-appointments.csv (25,000 rows)
-├── id, patient_id, doctor_id, date, diagnosis
-├── Foreign keys to both tables ✓
-└── Temporal constraints (appointment after hire) ✓
+🔧 Generating 5 table(s)...
+
+   ✓ exercises     (10 rows)
+   ✓ plans         (5 rows)
+   ✓ users         (50,000 rows)
+   ✓ subscriptions (45,000 rows)
+   ✓ workouts      (500,000 rows)
+
+⏱️  Generation time: 2.34 seconds
+🚀 Performance: 213,675 rows/second
+💾 Data saved to: ./generated_data
 ```
 
-## 🎯 Use Cases
-
-| Use Case | How Misata Helps |
-|----------|------------------|
-| **Unit Testing** | Generate consistent test fixtures |
-| **Load Testing** | Create millions of rows quickly |
-| **ML Training** | Synthetic training data with realistic patterns |
-| **Demo Data** | Beautiful, realistic data for demos |
-| **Development** | No more waiting for production data |
-| **Privacy** | No PII in synthetic data |
-
-## 📖 Documentation
-
-- [Quick Start Guide](./QUICKSTART.md)
-- [CLI Reference](#cli-commands)
-- [Python API](#python-api)
-- [Schema DSL](#schema-configuration)
-- [Templates](#templates)
-
-## 💻 CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `misata generate` | Generate data from story or config |
-| `misata template` | Use an industry template |
-| `misata graph` | Reverse-engineer from chart description |
-| `misata parse` | Preview generated schema config |
-| `misata serve` | Start API server for web UI |
-| `misata templates` | List available templates |
-
-### Examples
-
-```bash
-# Generate with specific row count
-misata generate --story "E-commerce with orders" --rows 100000
-
-# Use different LLM provider
-misata generate --story "..." --use-llm --provider openai
-
-# Export as Parquet
-misata generate --story "..." --format parquet
-
-# With seed for reproducibility
-misata generate --story "..." --seed 42
-```
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                    Natural Language                  │
-│         "SaaS company with 50K users..."            │
-└─────────────────────┬───────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────┐
-│              LLMSchemaGenerator                      │
-│  • Groq (Llama 3.3) / OpenAI (GPT-4) / Ollama       │
-│  • Generates SchemaConfig with relationships        │
-└─────────────────────┬───────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────┐
-│                  DataSimulator                       │
-│  • Topological sort for dependencies                │
-│  • Vectorized NumPy generation                      │
-│  • Batch processing for large datasets              │
-└─────────────────────┬───────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────┐
-│                CSV / Parquet / JSON                  │
-│         users.csv, orders.csv, events.csv           │
-└─────────────────────────────────────────────────────┘
-```
-
-## 📋 Schema Configuration
+## 💻 Python API
 
 ```python
-from misata import SchemaConfig, Table, Column, Relationship
+from misata import DataSimulator, SchemaConfig
+from misata.llm_parser import LLMSchemaGenerator
 
-config = SchemaConfig(
-    name="My Schema",
-    tables=[
-        Table(name="users", row_count=10000),
-        Table(name="orders", row_count=50000),
-    ],
-    columns={
-        "users": [
-            Column(name="id", type="int", distribution_params={"distribution": "sequence"}),
-            Column(name="name", type="text", distribution_params={"text_type": "name"}),
-            Column(name="email", type="text", distribution_params={"text_type": "email"}),
-            Column(name="age", type="int", distribution_params={"distribution": "normal", "mean": 35, "std": 10}),
-        ],
-        "orders": [
-            Column(name="id", type="int", distribution_params={"distribution": "sequence"}),
-            Column(name="user_id", type="foreign_key"),
-            Column(name="amount", type="float", distribution_params={"min": 10, "max": 500}),
-            Column(name="status", type="categorical", distribution_params={"choices": ["pending", "shipped", "delivered"]}),
-        ],
-    },
-    relationships=[
-        Relationship(parent_table="users", child_table="orders", parent_key="id", child_key="user_id"),
-    ],
+# Generate schema from story
+llm = LLMSchemaGenerator(provider="groq")  # or "openai", "ollama"
+config = llm.generate_from_story(
+    "A mobile fitness app with 50K users, workout tracking, "
+    "premium subscriptions, and January signup spikes"
+)
+
+# Generate data
+for table_name, batch in DataSimulator(config).generate_all():
+    print(f"Generated {len(batch)} rows for {table_name}")
+```
+
+## 🔧 CLI Reference
+
+```bash
+# Basic generation (rule-based, no API key needed)
+misata generate --story "SaaS company with users and subscriptions"
+
+# LLM-powered generation
+misata generate --story "..." --use-llm
+
+# Specify provider and model
+misata generate --story "..." --use-llm --provider ollama --model llama3
+
+# Custom output directory
+misata generate --story "..." --use-llm --output-dir ./my_data
+
+# Set row count
+misata generate --story "..." --use-llm --rows 100000
+
+# Reproducible with seed
+misata generate --story "..." --use-llm --seed 42
+```
+
+## 🎯 Business Rule Constraints
+
+Define rules like "employees can't log >8 hours/day":
+
+```python
+from misata import Constraint, Table
+
+timesheets = Table(
+    name="timesheets",
+    row_count=10000,
+    constraints=[
+        Constraint(
+            name="max_daily_hours",
+            type="sum_limit",
+            group_by=["employee_id", "date"],
+            column="hours",
+            value=8.0,
+            action="redistribute"
+        )
+    ]
 )
 ```
 
-## 🏭 Templates
+## 🔑 LLM Providers
 
-Pre-built schemas for common use cases:
+| Provider | Env Variable | Free Tier | Notes |
+|----------|--------------|-----------|-------|
+| **Groq** | `GROQ_API_KEY` | ✅ 30 req/min | Fastest, recommended |
+| **OpenAI** | `OPENAI_API_KEY` | ❌ | Best quality |
+| **Ollama** | None | ✅ Local | Private, no internet |
 
-| Template | Tables | Description |
-|----------|--------|-------------|
-| `saas` | users, subscriptions, events | SaaS company with churn |
-| `ecommerce` | customers, products, orders | Online retail |
-| `fitness` | users, exercises, workouts | Fitness app |
-| `healthcare` | patients, doctors, appointments | Hospital system |
+## 📈 Extending Data Pools
 
-```bash
-misata template ecommerce --scale 2.0 --output-dir ./data
+```python
+from misata import TextGenerator
+
+# Add custom names
+TextGenerator.extend_pool("first_names", ["Arjun", "Priya", "Rahul"])
+
+# Load from file
+TextGenerator.load_pools_from_file("custom_pools.json")
+
+# Save for reuse
+TextGenerator.save_pools_to_file("expanded_pools.json")
+```
+
+## 🤖 ML Training Data
+
+Make your synthetic data **indistinguishable from real-world data** with noise injection:
+
+```python
+from misata import add_noise, NoiseInjector
+
+# Quick noise injection
+noisy_df = add_noise(df,
+    null_rate=0.05,      # 5% missing values
+    outlier_rate=0.02,   # 2% statistical outliers
+    typo_rate=0.01,      # 1% typos in text
+    duplicate_rate=0.03, # 3% duplicate rows
+    seed=42
+)
+
+# Advanced: Temporal distribution drift
+injector = NoiseInjector(seed=42)
+df = injector.apply_temporal_drift(df, 
+    date_column="created_at",
+    value_column="revenue", 
+    drift_rate=0.15,      # 15% increase over time
+    drift_direction="up"
+)
+```
+
+### Attribute Customization
+
+```python
+from misata import Customizer, ColumnOverride
+import numpy as np
+
+customizer = Customizer(seed=42)
+
+# Custom age distribution (realistic, not uniform)
+customizer.add_override("users", ColumnOverride(
+    name="age",
+    generator=lambda n: np.random.normal(35, 12, n).clip(18, 80).astype(int)
+))
+
+# Conditional values based on other columns
+customizer.add_conditional("orders", "shipping_cost", {
+    "country": {"US": 5.99, "UK": 9.99, "DE": 7.99}
+})
+
+# Apply to generated data
+df = customizer.apply(df, "users")
 ```
 
 ## ⚡ Performance
 
-| Dataset Size | Time | Speed |
-|--------------|------|-------|
-| 10,000 rows | 0.04s | 250K rows/sec |
-| 100,000 rows | 0.4s | 250K rows/sec |
-| 1,000,000 rows | 4s | 250K rows/sec |
+| Rows | Time | Speed |
+|------|------|-------|
+| 10K | 0.03s | 333K rows/sec |
+| 100K | 0.26s | 385K rows/sec |
+| 1M | 2.6s | 390K rows/sec |
+| 10M | 26s | 390K rows/sec (streaming) |
 
-Vectorized NumPy operations ensure consistent performance regardless of scale.
+## � Try It Now
 
-## 🤝 Contributing
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/examples/getting_started.ipynb)
 
-We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+Try Misata in your browser without installing anything!
 
-```bash
-# Clone the repo
-git clone https://github.com/rasinmuhammed/misata.git
-cd misata
+## 💼 Enterprise & Consulting
 
-# Install in development mode
-pip install -e ".[dev]"
+**Need help with complex scenarios?**
 
-# Run tests
-pytest tests/
-```
+- 🏢 Custom enterprise data schemas (10M+ rows)
+- 🔧 Integration with your existing pipelines
+- 📊 Industry-specific realistic data generation
+- 🎓 Training and onboarding for your team
 
-## 📄 License
+📧 **Contact: rasinbinabdulla@gmail.com**
 
-MIT License - see [LICENSE](./LICENSE) for details.
+## �📄 License
+
+MIT License
+
+## 👤 Author
+
+Built by **Muhammed Rasin**
 
 ---
 
-<p align="center">
-  Made with ❤️ by <a href="https://github.com/rasinmuhammed">Muhammed Rasin</a>
-</p>
+**Misata** - From story to synthetic database in one command.
+
+
