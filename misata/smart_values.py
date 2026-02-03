@@ -86,6 +86,22 @@ class SmartValueGenerator:
         "feature_name": ["feature", "capability", "functionality"],
         "bug_type": ["bug", "issue", "defect", "error"],
         "api_endpoint": ["endpoint", "api", "route", "path"],
+        
+        # NEW v0.5.0: Additional domain patterns
+        "payment_method": ["payment_method", "pay_type", "payment_option"],
+        "order_status": ["order_status", "status", "state"],
+        "customer_segment": ["segment", "customer_type", "tier", "classification"],
+        "license_type": ["license", "licence"],
+        "file_type": ["file_type", "document_type", "mime_type"],
+        "priority_level": ["priority", "urgency", "importance"],
+        "subscription_plan": ["plan", "subscription", "tier", "package"],
+        
+        # Generic patterns - lowest priority but always match on exact column names
+        "name": ["name"],
+        "description": ["description", "desc", "about", "summary", "details"],
+        "title": ["title", "heading"],
+        "status": ["status", "state"],
+        "type": ["type", "kind", "category"],
     }
     
     # Curated fallback pools (no LLM needed)
@@ -346,6 +362,108 @@ class SmartValueGenerator:
             "/api/v1/notifications", "/api/v1/settings", "/api/v1/search",
             "/api/v1/reports", "/api/v1/webhooks", "/api/v1/integrations",
         ],
+        # NEW v0.5.0: Additional high-quality domain pools
+        "medical_specialty": [
+            "Cardiology", "Dermatology", "Emergency Medicine", "Endocrinology",
+            "Family Medicine", "Gastroenterology", "General Surgery", "Geriatrics",
+            "Hematology", "Infectious Disease", "Internal Medicine", "Nephrology",
+            "Neurology", "Obstetrics & Gynecology", "Oncology", "Ophthalmology",
+            "Orthopedic Surgery", "Otolaryngology", "Pediatrics", "Psychiatry",
+            "Pulmonology", "Radiology", "Rheumatology", "Urology", "Anesthesiology",
+        ],
+        "transaction_type": [
+            "Purchase", "Refund", "Transfer", "Deposit", "Withdrawal",
+            "Payment", "Credit", "Debit", "Fee", "Interest",
+            "Dividend", "Commission", "Bonus", "Adjustment", "Reversal",
+            "Wire Transfer", "ACH Transfer", "Direct Deposit", "Check Payment",
+            "Cash Advance", "Balance Transfer", "Loan Disbursement", "Bill Payment",
+        ],
+        "account_type": [
+            "Checking Account", "Savings Account", "Money Market Account",
+            "Certificate of Deposit", "Individual Retirement Account (IRA)",
+            "401(k) Account", "Brokerage Account", "Business Checking",
+            "Business Savings", "Health Savings Account (HSA)", "Joint Account",
+            "Trust Account", "Custodial Account", "Student Account", "Premium Account",
+        ],
+        "brand": [
+            "Apple", "Samsung", "Sony", "LG", "Nike", "Adidas", "Puma", "Under Armour",
+            "Toyota", "Honda", "Ford", "Tesla", "Microsoft", "Google", "Amazon",
+            "Dell", "HP", "Lenovo", "ASUS", "Acer", "Canon", "Nikon", "Bose",
+            "JBL", "Philips", "Panasonic", "Whirlpool", "GE", "Bosch", "Dyson",
+            "IKEA", "Williams-Sonoma", "Crate & Barrel", "West Elm", "Pottery Barn",
+        ],
+        "payment_method": [
+            "Credit Card (Visa)", "Credit Card (Mastercard)", "Credit Card (Amex)",
+            "Debit Card", "PayPal", "Apple Pay", "Google Pay", "Bank Transfer",
+            "Wire Transfer", "Check", "Cash", "Cryptocurrency", "Venmo",
+            "Klarna", "Afterpay", "Shop Pay", "Amazon Pay", "ACH Direct Debit",
+        ],
+        "order_status": [
+            "Pending", "Confirmed", "Processing", "Shipped", "In Transit",
+            "Out for Delivery", "Delivered", "Completed", "Cancelled", "Refunded",
+            "On Hold", "Backordered", "Returned", "Partially Shipped", "Failed",
+        ],
+        "customer_segment": [
+            "Enterprise", "Mid-Market", "Small Business", "Startup", "Individual",
+            "Premium", "Standard", "Basic", "Trial", "Churned", "At-Risk",
+            "Champion", "Loyal", "New Customer", "VIP", "Wholesale", "Retail",
+        ],
+        "license_type": [
+            "MIT License", "Apache License 2.0", "GNU GPL v3", "BSD 3-Clause",
+            "Creative Commons BY 4.0", "Proprietary", "Commercial", "Educational",
+            "Open Source", "Freeware", "Shareware", "Enterprise License",
+            "Single User", "Multi-User", "Site License", "Perpetual License",
+        ],
+        "file_type": [
+            "PDF Document", "Word Document", "Excel Spreadsheet", "PowerPoint Presentation",
+            "JPEG Image", "PNG Image", "MP4 Video", "MP3 Audio", "ZIP Archive",
+            "CSV File", "JSON File", "XML File", "HTML Page", "Python Script",
+            "JavaScript File", "SQL Database", "Markdown Document", "Text File",
+        ],
+        "priority_level": [
+            "Critical", "High", "Medium", "Low", "Trivial",
+            "Urgent", "Normal", "Deferred", "Blocked", "In Review",
+        ],
+        "subscription_plan": [
+            "Free Tier", "Basic Plan", "Professional Plan", "Business Plan",
+            "Enterprise Plan", "Starter Plan", "Growth Plan", "Scale Plan",
+            "Team Plan", "Individual Plan", "Student Plan", "Nonprofit Plan",
+            "Annual Pro", "Monthly Basic", "Lifetime Access", "Pay-As-You-Go",
+        ],
+        # Generic fallbacks for common column patterns
+        "name": [
+            "Alpha Project", "Beta Initiative", "Gamma Solution", "Delta System",
+            "Epsilon Framework", "Zeta Platform", "Eta Service", "Theta Module",
+            "Iota Component", "Kappa Engine", "Lambda Protocol", "Mu Architecture",
+            "Strategic Modernization", "Digital Transformation", "Innovation Hub",
+            "Next Generation Platform", "Cloud Migration", "Data Integration Suite",
+        ],
+        "description": [
+            "High-performance solution designed for enterprise-scale deployments with robust security features.",
+            "User-friendly platform offering seamless integration with existing workflows and systems.",
+            "Cutting-edge technology stack built for reliability, scalability, and maintainability.",
+            "Comprehensive toolkit featuring advanced analytics and real-time monitoring capabilities.",
+            "Industry-leading service with proven track record of customer satisfaction and uptime.",
+            "Streamlined workflow automation reducing manual effort and improving efficiency.",
+            "Innovative approach combining best practices with modern architectural patterns.",
+            "Full-featured solution supporting multiple deployment options and configuration flexibility.",
+        ],
+        "title": [
+            "Senior Software Engineer", "Product Manager", "Data Analyst",
+            "Marketing Director", "Sales Representative", "Customer Success Manager",
+            "Technical Lead", "UX Designer", "DevOps Engineer", "Quality Analyst",
+            "Project Coordinator", "Business Analyst", "Account Executive",
+        ],
+        "status": [
+            "Active", "Inactive", "Pending", "Approved", "Rejected",
+            "Under Review", "Completed", "In Progress", "On Hold", "Archived",
+            "Draft", "Published", "Expired", "Suspended", "Verified",
+        ],
+        "type": [
+            "Standard", "Premium", "Custom", "Default", "Advanced",
+            "Basic", "Professional", "Enterprise", "Starter", "Legacy",
+            "Internal", "External", "Public", "Private", "Hybrid",
+        ],
         "skill": [
             "Python", "JavaScript", "SQL", "Machine Learning", "Data Analysis",
             "Project Management", "Communication", "Leadership", "Problem Solving",
@@ -541,14 +659,28 @@ Return ONLY a JSON array of strings, no explanation. Example:
             use_llm: Whether to use LLM for generation
             
         Returns:
-            List of domain-appropriate values
+            List of domain-appropriate values (NEVER empty - falls back to generic pools)
         """
         # Determine domain
         domain = domain_hint or self.detect_domain(column_name, table_name)
         
+        # If no domain detected, infer from column name patterns
         if domain is None:
-            # No domain detected, return empty
-            return []
+            col_lower = column_name.lower()
+            # Try to match generic patterns
+            if "name" in col_lower:
+                domain = "name"
+            elif "desc" in col_lower or "about" in col_lower:
+                domain = "description"
+            elif "title" in col_lower:
+                domain = "title"
+            elif "status" in col_lower or "state" in col_lower:
+                domain = "status"
+            elif "type" in col_lower or "kind" in col_lower:
+                domain = "type"
+            else:
+                # Ultimate fallback - use "name" pool for any unknown TEXT column
+                domain = "name"
         
         # Build context string
         full_context = context or f"{table_name} {column_name}".strip()
@@ -570,10 +702,16 @@ Return ONLY a JSON array of strings, no explanation. Example:
         else:
             pool = self.FALLBACK_POOLS.get(domain, [])[:size]
         
+        # Ensure we never return empty - cascade through fallbacks
+        if not pool:
+            pool = self.FALLBACK_POOLS.get(domain, [])[:size]
+        if not pool:
+            # Absolute fallback - use generic name pool
+            pool = self.FALLBACK_POOLS.get("name", ["Item A", "Item B", "Item C"])[:size]
+        
         # Cache the pool
-        if pool:
-            self._pool_cache[cache_key] = pool
-            self._save_pool_to_cache(cache_key, pool)
+        self._pool_cache[cache_key] = pool
+        self._save_pool_to_cache(cache_key, pool)
         
         return pool
     

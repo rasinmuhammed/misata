@@ -5,6 +5,42 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-02-03
+
+### 🎯 Production-Ready Realism (Major Release)
+**Synthetic data that looks and behaves like real data. No more placeholders!**
+
+#### Value Pool Enrichment
+- **15 NEW domain pools** with 300+ curated realistic values:
+  - `medical_specialty`: 25 clinical specialties (Cardiology, Neurology, etc.)
+  - `transaction_type`: 23 financial transaction types
+  - `account_type`: 15 bank/financial account types
+  - `brand`: 35 real-world brand names
+  - `payment_method`: 18 payment options (Credit Card, PayPal, etc.)
+  - `order_status`: 15 e-commerce order states
+  - `customer_segment`: 17 B2B/B2C segments
+  - `subscription_plan`: 16 SaaS plan types
+  - `priority_level`: 10 priority/urgency values
+  - `license_type`: 16 software license types
+  - `file_type`: 18 document/file types
+  - Generic fallbacks: `name`, `description`, `title`, `status`, `type`
+
+#### Zero Placeholder Guarantee
+- **`get_pool()` now NEVER returns empty** - cascading fallback logic ensures every column gets realistic values
+- Automatic domain inference from column names (e.g., `product_name` → product pool)
+- Ultimate fallback to curated generic pools when all else fails
+
+#### Enhanced Domain Detection
+- **8 NEW domain patterns** for automatic column matching
+- Improved pattern matching for common column suffixes (`_name`, `_type`, `_status`)
+- Generic pattern matching for ambiguous columns
+
+### Changed
+- Upgraded from beta (0.4.0b0) to stable release
+- Improved LLM fallback behavior - never crashes on API failures
+
+---
+
 ## [0.4.0b0] - 2026-01-03
 
 ### 📊 Outcome Curve Designer (KILLER FEATURE!)

@@ -4,7 +4,7 @@
 
 No schema writing. No training data. Just describe what you need.
 
-[![Version](https://img.shields.io/badge/version-0.2.0--beta-purple.svg)]()
+[![Version](https://img.shields.io/badge/version-0.5.0-purple.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10+-green.svg)]()
 
