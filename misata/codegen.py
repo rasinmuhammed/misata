@@ -28,17 +28,14 @@ class ScriptGenerator:
         """
         self.config = config
 
-    def _generate_imports(self) -> str:
+    def _generate_imports(self, include_db: bool = False) -> str:
         """Generate import statements."""
-        return """import pandas as pd
-import numpy as np
-import warnings
-from collections import defaultdict, deque
-import os
-
-# Pure Python text generator (no external dependencies)
-from misata.generators import TextGenerator
+        base = """import os
+from misata import DataSimulator, SchemaConfig
 """
+        if include_db:
+            base += "from misata.db import seed_database\n"
+        return base
 
     def _generate_config_dict(self) -> str:
         """Generate the configuration as a Python dictionary."""
@@ -56,7 +53,16 @@ from misata.generators import TextGenerator
         # For now, include the entire simulator module
         return content.replace("from misata.schema import", "# from misata.schema import")
 
-    def generate(self, output_path: str, include_export: bool = True) -> None:
+    def generate(
+        self,
+        output_path: str,
+        include_export: bool = True,
+        db_url: str | None = None,
+        db_create: bool = False,
+        db_truncate: bool = False,
+        smart_mode: bool = False,
+        use_llm: bool = True,
+    ) -> None:
         """
         Generate a standalone Python script.
 
@@ -76,7 +82,7 @@ from misata.generators import TextGenerator
         script_parts.append("")
 
         # Imports
-        script_parts.append(self._generate_imports())
+        script_parts.append(self._generate_imports(include_db=db_url is not None))
         script_parts.append("")
 
         # Configuration
@@ -92,36 +98,47 @@ from misata.generators import TextGenerator
         script_parts.append("# " + "=" * 70)
         script_parts.append("")
         script_parts.append("def main():")
-        script_parts.append("    \"\"\"Generate synthetic data and export to CSV.\"\"\"")
+        script_parts.append("    \"\"\"Generate synthetic data and export or seed a database.\"\"\"")
         script_parts.append("    ")
-        script_parts.append("    # Note: This is a simplified version.")
-        script_parts.append("    # For full functionality, use the Misata library directly.")
+        script_parts.append("    config = SchemaConfig(**CONFIG)")
+        script_parts.append("    ")
+        script_parts.append("    if DB_URL:")
+        script_parts.append("        report = seed_database(")
+        script_parts.append("            config,")
+        script_parts.append("            DB_URL,")
+        script_parts.append("            create=DB_CREATE,")
+        script_parts.append("            truncate=DB_TRUNCATE,")
+        script_parts.append("            smart_mode=SMART_MODE,")
+        script_parts.append("            use_llm=USE_LLM,")
+        script_parts.append("        )")
+        script_parts.append("        print(f'Seeded {report.total_rows} rows into {report.dialect}')")
+        script_parts.append("        return")
+        script_parts.append("    ")
+        script_parts.append("    simulator = DataSimulator(")
+        script_parts.append("        config,")
+        script_parts.append("        smart_mode=SMART_MODE,")
+        script_parts.append("        use_llm=USE_LLM,")
+        script_parts.append("    )")
         script_parts.append("    ")
         script_parts.append("    print('Generating synthetic data...')")
-        script_parts.append("    print(f'Dataset: {CONFIG[\"name\"]}')")
-        script_parts.append("    print(f'Tables: {len(CONFIG[\"tables\"])}')")
-        script_parts.append("    ")
-        script_parts.append("    # Initialize random seed")
-        script_parts.append("    seed = CONFIG.get('seed', 42)")
-        script_parts.append("    np.random.seed(seed)")
-        script_parts.append("    rng = np.random.default_rng(seed)")
-        script_parts.append("    text_gen = TextGenerator(seed=seed)")
-        script_parts.append("    ")
-        script_parts.append("    # TODO: Import and use DataSimulator from Misata")
-        script_parts.append("    # For now, this is a placeholder")
-        script_parts.append("    print('Please install misata library:')")
-        script_parts.append("    print('  pip install misata')")
-        script_parts.append("    print('Then use:')")
-        script_parts.append("    print('  from misata import DataSimulator, SchemaConfig')")
-        script_parts.append("    ")
 
         if include_export:
             script_parts.append("    # Export placeholder")
             script_parts.append("    output_dir = 'generated_data'")
             script_parts.append("    os.makedirs(output_dir, exist_ok=True)")
+            script_parts.append("    for table_name, batch_df in simulator.generate_all():")
+            script_parts.append("        output_path = os.path.join(output_dir, f\"{table_name}.csv\")")
+            script_parts.append("        mode = 'a' if os.path.exists(output_path) else 'w'")
+            script_parts.append("        header = not os.path.exists(output_path)")
+            script_parts.append("        batch_df.to_csv(output_path, mode=mode, header=header, index=False)")
             script_parts.append("    print(f'Output directory: {output_dir}')")
 
         script_parts.append("")
+        script_parts.append(f"DB_URL = {json.dumps(db_url)}")
+        script_parts.append(f"DB_CREATE = {json.dumps(db_create)}")
+        script_parts.append(f"DB_TRUNCATE = {json.dumps(db_truncate)}")
+        script_parts.append(f"SMART_MODE = {json.dumps(smart_mode)}")
+        script_parts.append(f"USE_LLM = {json.dumps(use_llm)}")
         script_parts.append("")
         script_parts.append("if __name__ == '__main__':")
         script_parts.append("    main()")

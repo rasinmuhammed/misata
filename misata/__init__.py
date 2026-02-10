@@ -61,6 +61,9 @@ from misata.noise import NoiseInjector, add_noise
 from misata.customization import Customizer, ColumnOverride
 from misata.quality import DataQualityChecker, check_quality
 from misata.templates.library import load_template, list_templates
+from misata.db import seed_database, seed_database_sqlalchemy, seed_from_sqlalchemy_models, SeedReport
+from misata.db import load_tables_from_db
+from misata.introspect import schema_from_db, schema_from_sqlalchemy
 from misata.profiles import (
     DistributionProfile,
     get_profile,
@@ -130,5 +133,12 @@ __all__ = [
     # Templates
     "load_template",
     "list_templates",
+    # DB seeding
+    "seed_database",
+    "seed_database_sqlalchemy",
+    "seed_from_sqlalchemy_models",
+    "SeedReport",
+    "load_tables_from_db",
+    "schema_from_db",
+    "schema_from_sqlalchemy",
 ]
-

@@ -20,8 +20,33 @@ from rich.table import Table as RichTable
 from misata import DataSimulator, SchemaConfig
 from misata.codegen import ScriptGenerator
 from misata.story_parser import StoryParser
+from misata.schema import ScenarioEvent
 
 console = Console()
+
+
+def _apply_scenario_file(schema_config: SchemaConfig, scenario_path: str) -> None:
+    import json
+    import yaml
+
+    with open(scenario_path, "r") as f:
+        content = f.read()
+
+    try:
+        data = yaml.safe_load(content)
+    except Exception:
+        data = json.loads(content)
+
+    if isinstance(data, dict) and "events" in data:
+        events = data["events"]
+    else:
+        events = data
+
+    if not isinstance(events, list):
+        raise ValueError("Scenario file must be a list of events or contain 'events' list.")
+
+    for event in events:
+        schema_config.events.append(ScenarioEvent(**event))
 
 
 def print_banner():
@@ -55,6 +80,12 @@ def main() -> None:
     "-c",
     type=click.Path(exists=True),
     help="Path to YAML configuration file",
+)
+@click.option(
+    "--sqlalchemy",
+    type=str,
+    default=None,
+    help="SQLAlchemy target for schema (module:Base or module:metadata)",
 )
 @click.option(
     "--output-dir",
@@ -102,9 +133,49 @@ def main() -> None:
     default=None,
     help="Export a standalone Python script instead of generating data",
 )
+@click.option(
+    "--scenario",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to scenario YAML/JSON file to apply",
+)
+@click.option(
+    "--db-url",
+    type=str,
+    default=None,
+    help="Database URL to seed directly (e.g., sqlite:///tmp.db, postgresql://...)",
+)
+@click.option(
+    "--db-create/--no-db-create",
+    default=False,
+    help="Create tables in the database if missing",
+)
+@click.option(
+    "--db-truncate/--no-db-truncate",
+    default=False,
+    help="Truncate tables before inserting new data",
+)
+@click.option(
+    "--db-batch-size",
+    type=int,
+    default=None,
+    help="Batch size for DB seeding (defaults to generator batch size)",
+)
+@click.option(
+    "--smart/--no-smart",
+    default=False,
+    help="Enable smart, domain-aware value generation",
+)
+@click.option(
+    "--smart-no-llm",
+    is_flag=True,
+    default=False,
+    help="Disable LLM for smart value generation (use curated pools only)",
+)
 def generate(
     story: Optional[str],
     config: Optional[str],
+    sqlalchemy: Optional[str],
     output_dir: str,
     rows: int,
     seed: Optional[int],
@@ -112,6 +183,13 @@ def generate(
     provider: Optional[str],
     model: Optional[str],
     export_script: Optional[str],
+    scenario: Optional[str],
+    db_url: Optional[str],
+    db_create: bool,
+    db_truncate: bool,
+    db_batch_size: Optional[int],
+    smart: bool,
+    smart_no_llm: bool,
 ) -> None:
     """
     Generate synthetic data from a story or configuration file.
@@ -130,12 +208,12 @@ def generate(
     print_banner()
 
     # Validate inputs
-    if not story and not config:
-        console.print("[red]Error: Must provide either --story or --config[/red]")
+    if not story and not config and not sqlalchemy:
+        console.print("[red]Error: Must provide --story, --config, or --sqlalchemy[/red]")
         sys.exit(1)
 
-    if story and config:
-        console.print("[yellow]Warning: Both story and config provided. Using config.[/yellow]")
+    if sum(1 for x in [story, config, sqlalchemy] if x) > 1:
+        console.print("[yellow]Warning: Multiple schema sources provided. Using priority: config > sqlalchemy > story.[/yellow]")
 
     if config:
         console.print(f"📄 Loading configuration from: [cyan]{config}[/cyan]")
@@ -143,6 +221,12 @@ def generate(
         with open(config, "r") as f:
             config_dict = yaml.safe_load(f)
         schema_config = SchemaConfig(**config_dict)
+    elif sqlalchemy:
+        from misata.introspect import load_sqlalchemy_target, schema_from_sqlalchemy
+
+        console.print(f"🔍 Loading SQLAlchemy schema from: [cyan]{sqlalchemy}[/cyan]")
+        target = load_sqlalchemy_target(sqlalchemy)
+        schema_config = schema_from_sqlalchemy(target, default_rows=rows)
     else:
         console.print(f"📖 Parsing story: [italic]{story}[/italic]\n")
 
@@ -183,6 +267,10 @@ def generate(
             if parser.temporal_events:
                 console.print(f"✓ Detected events: [green]{len(parser.temporal_events)}[/green]")
 
+    # Apply scenario file if provided
+    if scenario:
+        _apply_scenario_file(schema_config, scenario)
+
     # Set seed if provided
     if seed is not None:
         schema_config.seed = seed
@@ -197,14 +285,46 @@ def generate(
     if export_script:
         console.print("\n📝 Generating standalone script...")
         generator = ScriptGenerator(schema_config)
-        generator.generate(export_script)
+        generator.generate(
+            export_script,
+            include_export=db_url is None,
+            db_url=db_url,
+            db_create=db_create,
+            db_truncate=db_truncate,
+            smart_mode=smart,
+            use_llm=not smart_no_llm,
+        )
         console.print(f"[green]✓ Script saved to: {export_script}[/green]")
+        return
+
+    if db_url:
+        from misata.db import seed_database
+
+        batch_size = db_batch_size if db_batch_size is not None else 10_000
+        console.print("\n🗄️  Seeding database...")
+        report = seed_database(
+            schema_config,
+            db_url,
+            create=db_create,
+            truncate=db_truncate,
+            batch_size=batch_size,
+            smart_mode=smart,
+            use_llm=not smart_no_llm,
+        )
+        console.print(f"[green]✓ Seeded {report.total_rows:,} rows into {report.dialect}[/green]")
+        console.print(f"⏱️  Time: [cyan]{report.duration_seconds:.2f} seconds[/cyan]")
         return
 
     # Generate data
     console.print("\n⚙️  Initializing simulator...")
     # Default batch size is 10k, good for CLI
-    simulator = DataSimulator(schema_config)
+    batch_size = db_batch_size if db_batch_size is not None else 10_000
+    simulator = DataSimulator(
+        schema_config,
+        batch_size=batch_size,
+        smart_mode=smart,
+        use_llm=not smart_no_llm,
+    )
 
     console.print(f"\n🔧 Generating {len(schema_config.tables)} table(s)...\n")
 
@@ -616,38 +736,171 @@ def template(template_name: str, output_dir: str, scale: float, validate: bool) 
     "--data-dir",
     "-d",
     type=click.Path(exists=True),
-    required=True,
+    required=False,
     help="Directory containing CSV files to validate",
 )
-def validate_cmd(data_dir: str) -> None:
+@click.option(
+    "--db-url",
+    type=str,
+    default=None,
+    help="Database URL to validate directly",
+)
+@click.option(
+    "--config",
+    "-c",
+    type=click.Path(exists=True),
+    required=False,
+    help="Optional schema config for relationship validation",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    help="Optional per-table row limit when validating a database",
+)
+def validate_cmd(data_dir: Optional[str], db_url: Optional[str], config: Optional[str], limit: Optional[int]) -> None:
     """
     Validate existing CSV data files.
 
     Example:
 
         misata validate --data-dir ./generated_data
+        misata validate --db-url sqlite:///./misata.db --config schema.yaml
     """
     print_banner()
 
     import pandas as pd
     from misata.validation import validate_data
 
-    console.print(f"🔍 Validating data in: [cyan]{data_dir}[/cyan]\\n")
+    if not data_dir and not db_url:
+        console.print("[red]Error: Provide --data-dir or --db-url[/red]")
+        return
+
+    schema_config = None
+    if config:
+        import yaml
+        with open(config, "r") as f:
+            config_dict = yaml.safe_load(f)
+        schema_config = SchemaConfig(**config_dict)
 
     # Load all CSVs
     tables = {}
-    data_path = Path(data_dir)
-    for csv_file in data_path.glob("*.csv"):
-        table_name = csv_file.stem
-        tables[table_name] = pd.read_csv(csv_file)
-        console.print(f"  Loaded {table_name}: {len(tables[table_name]):,} rows")
+    if data_dir:
+        console.print(f"🔍 Validating data in: [cyan]{data_dir}[/cyan]\\n")
+        data_path = Path(data_dir)
+        for csv_file in data_path.glob("*.csv"):
+            table_name = csv_file.stem
+            tables[table_name] = pd.read_csv(csv_file)
+            console.print(f"  Loaded {table_name}: {len(tables[table_name]):,} rows")
+    else:
+        from misata.db import load_tables_from_db
+        console.print(f"🔍 Validating data in: [cyan]{db_url}[/cyan]\\n")
+        tables = load_tables_from_db(db_url, limit=limit)
+        for name, df in tables.items():
+            console.print(f"  Loaded {name}: {len(df):,} rows")
 
     if not tables:
         console.print("[yellow]No CSV files found in directory.[/yellow]")
         return
 
     console.print()
-    report = validate_data(tables)
+    report = validate_data(tables, schema_config)
+    console.print(report.summary())
+
+
+@main.command("schema")
+@click.option("--db-url", type=str, default=None, help="Database URL to introspect")
+@click.option("--sqlalchemy", type=str, default=None, help="SQLAlchemy target module:object")
+@click.option("--output", "-o", type=click.Path(), required=True, help="Output YAML file")
+@click.option("--rows", "-n", type=int, default=1000, help="Default row count per table")
+def schema_cmd(db_url: Optional[str], sqlalchemy: Optional[str], output: str, rows: int) -> None:
+    """
+    Generate a Misata schema from a database or SQLAlchemy models.
+    """
+    print_banner()
+
+    if not db_url and not sqlalchemy:
+        console.print("[red]Error: Provide --db-url or --sqlalchemy[/red]")
+        return
+
+    if db_url and sqlalchemy:
+        console.print("[yellow]Warning: Both provided. Using --db-url.[/yellow]")
+
+    if db_url:
+        from misata.introspect import schema_from_db
+        schema_config = schema_from_db(db_url, default_rows=rows)
+    else:
+        from misata.introspect import load_sqlalchemy_target, schema_from_sqlalchemy
+        target = load_sqlalchemy_target(sqlalchemy)
+        schema_config = schema_from_sqlalchemy(target, default_rows=rows)
+
+    generator = ScriptGenerator(schema_config)
+    generator.generate_yaml_config(output)
+    console.print(f"[green]✓ Schema saved to: {output}[/green]")
+
+
+@main.command("quality")
+@click.option(
+    "--data-dir",
+    "-d",
+    type=click.Path(exists=True),
+    required=False,
+    help="Directory containing CSV files to analyze",
+)
+@click.option(
+    "--db-url",
+    type=str,
+    default=None,
+    help="Database URL to analyze directly",
+)
+@click.option(
+    "--config",
+    "-c",
+    type=click.Path(exists=True),
+    required=False,
+    help="Optional schema config for relationship checks",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    help="Optional per-table row limit when analyzing a database",
+)
+def quality_cmd(data_dir: Optional[str], db_url: Optional[str], config: Optional[str], limit: Optional[int]) -> None:
+    """
+    Run data quality checks on CSV files or a database.
+    """
+    print_banner()
+
+    if not data_dir and not db_url:
+        console.print("[red]Error: Provide --data-dir or --db-url[/red]")
+        return
+
+    schema_config = None
+    if config:
+        import yaml
+        with open(config, "r") as f:
+            config_dict = yaml.safe_load(f)
+        schema_config = SchemaConfig(**config_dict)
+
+    import pandas as pd
+    from misata.quality import DataQualityChecker
+
+    if data_dir:
+        tables = {}
+        data_path = Path(data_dir)
+        for csv_file in data_path.glob("*.csv"):
+            table_name = csv_file.stem
+            tables[table_name] = pd.read_csv(csv_file)
+            console.print(f"  Loaded {table_name}: {len(tables[table_name]):,} rows")
+    else:
+        from misata.db import load_tables_from_db
+        tables = load_tables_from_db(db_url, limit=limit)
+        for name, df in tables.items():
+            console.print(f"  Loaded {name}: {len(df):,} rows")
+
+    checker = DataQualityChecker()
+    report = checker.check_all(tables, schema_config.relationships if schema_config else [])
     console.print(report.summary())
 
 
@@ -708,4 +961,3 @@ def studio(port: int, host: str, no_browser: bool) -> None:
 
 if __name__ == "__main__":
     main()
-

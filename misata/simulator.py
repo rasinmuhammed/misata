@@ -1013,15 +1013,11 @@ class DataSimulator:
 
     def _fix_correlated_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Post-process to fix common semantically correlated columns."""
-        columns = list(df.columns)
-        if "plan" in columns and "price" in columns:
-            plan_prices = {
-                "free": 0.0, "basic": 9.99, "starter": 9.99, "premium": 19.99,
-                "pro": 19.99, "professional": 29.99, "enterprise": 49.99,
-                "business": 49.99, "unlimited": 99.99,
-            }
-            df["price"] = df["plan"].map(lambda p: plan_prices.get(str(p).lower(), df["price"].iloc[0]))
-        return df
+        try:
+            from misata.realism import apply_realism_rules
+        except Exception:
+            return df
+        return apply_realism_rules(df, table_name)
 
     def generate_all(self):
         """

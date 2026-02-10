@@ -7,6 +7,16 @@ cd /Users/muhammedrasin/Misata
 pip install -e .
 ```
 
+```bash
+# Optional: Postgres seeding support
+pip install "misata[db]"
+```
+
+```bash
+# Optional: SQLAlchemy schema introspection
+pip install "misata[orm]"
+```
+
 ## Setup Groq API Key
 
 1. Get your free key at: https://console.groq.com
@@ -57,6 +67,46 @@ cd web && npm run dev
 
 Open http://localhost:3000 🎉
 
+### 5. Seed a Database
+```bash
+# SQLite
+misata generate --story "SaaS company with users and subscriptions" \
+  --db-url sqlite:///./misata.db --db-create --db-truncate
+
+# Postgres (requires misata[db])
+misata generate --story "E-commerce with products and orders" \
+  --db-url postgresql://user:pass@localhost:5432/misata --db-create
+
+# Generate from SQLAlchemy models
+misata generate --sqlalchemy myapp.models:Base --db-url sqlite:///./app.db --db-create
+
+# Export a portable seed script
+misata generate --story "SaaS with users" \
+  --db-url sqlite:///./misata.db --db-create --export-script ./seed.py
+```
+
+### 6. Generate Schema from an Existing DB
+```bash
+misata schema --db-url sqlite:///./misata.db --output schema.yaml
+```
+
+### 7. Generate Schema from SQLAlchemy (requires misata[orm])
+```bash
+misata schema --sqlalchemy myapp.models:Base --output schema.yaml
+```
+
+### 8. Scenarios, Validation, and Quality
+```bash
+# Apply scenario overrides
+misata generate --story "SaaS with churn events" --scenario ./scenarios/churn.yaml
+
+# Validate a database directly
+misata validate --db-url sqlite:///./misata.db --config schema.yaml
+
+# Run quality checks
+misata quality --db-url sqlite:///./misata.db --config schema.yaml
+```
+
 ## Python API
 
 ```python
@@ -103,8 +153,11 @@ Misata/
 | `misata generate` | Generate data from story |
 | `misata graph` | Reverse engineer from chart description |
 | `misata parse` | Output config file for review |
+| `misata schema` | Introspect schema from DB/SQLAlchemy |
 | `misata serve` | Start API server |
 | `misata examples` | Show usage examples |
+| `misata validate` | Validate CSV or DB data |
+| `misata quality` | Run data quality checks |
 
 ## Troubleshooting
 

@@ -25,6 +25,16 @@ No schema writing. No training data. Just describe what you need.
 pip install misata
 ```
 
+```bash
+# Optional: Postgres seeding support
+pip install "misata[db]"
+```
+
+```bash
+# Optional: SQLAlchemy schema introspection
+pip install "misata[orm]"
+```
+
 ### With Groq (Free, Fast)
 
 ```bash
@@ -89,6 +99,18 @@ for table_name, batch in DataSimulator(config).generate_all():
     print(f"Generated {len(batch)} rows for {table_name}")
 ```
 
+### ORM Seeding (SQLAlchemy)
+
+```python
+from sqlalchemy import create_engine
+from myapp.models import Base
+from misata import seed_from_sqlalchemy_models
+
+engine = create_engine("sqlite:///app.db")
+report = seed_from_sqlalchemy_models(engine, Base, default_rows=1000, create=True, truncate=True)
+print(report.total_rows)
+```
+
 ## 🔧 CLI Reference
 
 ```bash
@@ -109,6 +131,36 @@ misata generate --story "..." --use-llm --rows 100000
 
 # Reproducible with seed
 misata generate --story "..." --use-llm --seed 42
+
+# Apply scenario overrides
+misata generate --story "SaaS with churn events" --scenario ./scenarios/churn.yaml
+
+# Seed a SQLite database
+misata generate --story "SaaS company with users and subscriptions" \
+  --db-url sqlite:///./misata.db --db-create --db-truncate
+
+# Seed a Postgres database (requires misata[db])
+misata generate --story "E-commerce with products and orders" \
+  --db-url postgresql://user:pass@localhost:5432/misata --db-create
+
+# Export a portable seed script
+misata generate --story "SaaS with users" \
+  --db-url sqlite:///./misata.db --db-create --export-script ./seed.py
+
+# Generate from SQLAlchemy models and seed DB
+misata generate --sqlalchemy myapp.models:Base --db-url sqlite:///./app.db --db-create
+
+# Validate a database directly
+misata validate --db-url sqlite:///./misata.db --config schema.yaml
+
+# Run quality checks
+misata quality --db-url sqlite:///./misata.db --config schema.yaml
+
+# Generate schema from an existing database
+misata schema --db-url sqlite:///./misata.db --output schema.yaml
+
+# Generate schema from SQLAlchemy models (requires misata[orm])
+misata schema --sqlalchemy myapp.models:Base --output schema.yaml
 ```
 
 ## 🎯 Business Rule Constraints
@@ -132,6 +184,27 @@ timesheets = Table(
         )
     ]
 )
+```
+
+## 🧩 Scenario Packs
+
+Scenario files let you enforce real-world events (churn spikes, promos, seasonal shifts).
+
+```yaml
+# churn.yaml
+- name: Q3_Churn_Spike
+  table: users
+  column: churned
+  condition: "signup_date >= '2023-07-01' and signup_date < '2023-10-01'"
+  modifier_type: set
+  modifier_value: true
+
+- name: Holiday_Promo
+  table: orders
+  column: discount_pct
+  condition: "date >= '2023-12-01' and date <= '2023-12-31'"
+  modifier_type: add
+  modifier_value: 10
 ```
 
 ## 🔑 LLM Providers
@@ -243,5 +316,3 @@ Built by **Muhammed Rasin**
 ---
 
 **Misata** - From story to synthetic database in one command.
-
-
