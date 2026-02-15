@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.5.0"
+version = "0.5.1"
 description = "AI-Powered Synthetic Data Engine - Generate realistic multi-table datasets from natural language"
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
