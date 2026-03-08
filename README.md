@@ -66,24 +66,48 @@ Misata creates a relational schema, generates the data, and saves it to `./gener
 
 ---
 
-## 🔥 New in v0.5.0
+## 🔥 New in v0.5.2 — The Realism Engine
 
-### 🔄 Schema Introspection & Seeding
-Already have a database? Misata can reverse-engineer your schema and seed it with realistic data.
+Every column is now aware of every other column. Misata generates data that is **mathematically consistent**, not randomly independent.
 
-```bash
-# 1. Introspect your existing DB
-misata schema --db-url postgresql://user:pass@localhost:5432/mydb --output schema.yaml
+### What makes this different from Faker?
 
-# 2. Seed it with 100K rows of realistic data
-misata generate --config schema.yaml --db-url postgresql://... --db-truncate
+```text
+                 Faker/Random              Misata v0.5.2
+─────────────────────────────────────────────────────────
+order.total      $847.23 (random)          $847.23 = $798.50 + $29.99 + $18.74
+product.cost     $96.00 (> price!)         $41.20 (43% of price $95.81)
+line_total       $3,291.00 (random)        $3,291.00 = 5 × $662.00 − $19.00
+user.email       luke.ri@wanadoo.co.uk     emma.chen@gmail.com (from name)
+rating           137 (wat?)                4 ★ (J-curve weighted)
+categories       "Hypothyroidism"          "Electronics"
+delivered_at     2021-01-03 (before order) 2024-03-15 (+7 days after order)
+─────────────────────────────────────────────────────────
+Row counts       100 × every table         15 categories, 500 order_items
 ```
 
-### 📈 Reverse Engineering from Charts
-Describe a chart, and Misata generates the underlying data to match it.
+### Smart Row Proportions
+
+Misata analyzes your FK graph to size tables realistically:
 
 ```bash
-misata graph "Monthly revenue growing from $10k to $1M over 2 years, with a dip in August"
+misata generate --db-url sqlite:///shop.db --smart --rows 100
+
+# categories:    15   (reference — fewer, no duplicates)
+# users:        100   (entities — your base count)
+# products:     250   (entities with variety)
+# orders:       250   (transactions — more than users)
+# order_items:  500   (line items — most rows)
+# reviews:      150   (activity — subset of orders)
+```
+
+### Seed Any Existing Database
+
+```bash
+# PostgreSQL, MySQL, SQLite — just point and seed
+misata generate \
+  --db-url postgresql://user:pass@localhost:5432/mydb \
+  --smart --rows 10000 --db-truncate
 ```
 
 ---

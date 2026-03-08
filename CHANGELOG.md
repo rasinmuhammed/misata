@@ -5,6 +5,58 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-03-08
+
+### 🧠 The Realism Engine — Beyond Faker
+**Every column is now aware of every other column. Misata no longer generates random independent values — it generates data that is mathematically consistent, temporally ordered, and proportionally scaled.**
+
+#### Proportional Row Counts (NEW)
+Stop getting flat 100 rows per table. Misata now analyzes your FK graph to assign realistic proportions:
+- **Reference tables** (categories, tags): 15% of base count
+- **Entity tables** (users, products): 100% of base count
+- **Transaction tables** (orders, invoices): 250% of base count
+- **Line-item tables** (order_items): 500% of base count
+- **Activity tables** (reviews, logs): 150% of base count
+
+```bash
+misata generate --db-url sqlite:///mydb.db --rows 100
+# categories: 15, users: 100, orders: 250, order_items: 500, reviews: 150
+```
+
+#### Column Enrichment (NEW)
+Auto-detects column semantics from names and sets proper constraints:
+- `price` → uniform $5–$999, 2 decimal places
+- `rating` → categorical 1–5 (37% five-star, J-curve distribution)
+- `status` in orders → `delivered` (45%), `shipped` (15%), `pending` (15%)
+- `email` → composed from `first_name` + `last_name`
+- `phone` → formatted numbers like `+1 (312) 555-0167`
+- `quantity` → uniform 1–10 (not 50–150)
+- `tier` → `free` (60%), `premium` (30%), `enterprise` (10%)
+
+#### Cross-Column Consistency (NEW)
+11 post-generation rules that enforce mathematical and logical relationships:
+
+| Rule | What It Does |
+|------|-------------|
+| `total = subtotal + tax + shipping` | Exact arithmetic, always |
+| `cost < price` | cost = 30–70% of price (realistic margins) |
+| `line_total = qty × unit_price − discount` | Exact arithmetic |
+| `discount ≤ 30% of unit_price` | Hard cap |
+| `delivered_at > created_at` | +1–14 days |
+| `delivered_at = NULL when not delivered` | Status-dependent |
+| `email = first.last@domain` | Composed from name columns |
+| `slug = slugify(name)` | Auto-derived |
+| `updated_at ≥ created_at` | Temporal ordering |
+| `end_date ≥ start_date` | Temporal ordering |
+| `plan → price mapping` | free=\$0, premium=\$19.99 |
+
+### Bug Fixes
+- Fixed `sqlite3.ProgrammingError: type 'Timestamp' not supported` when seeding SQLite databases
+- Fixed `LLMSchemaGenerator.generate_from_story()` missing `default_rows` parameter
+- Fixed circular dependency detection for self-referencing tables
+
+---
+
 ## [0.5.0] - 2026-02-03
 
 ### 🎯 Production-Ready Realism (Major Release)

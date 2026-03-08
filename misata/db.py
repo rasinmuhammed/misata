@@ -218,6 +218,14 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame) -> int:
     sql = f'INSERT INTO "{table_name}" ({col_list}) VALUES ({placeholders})'
 
     clean_df = df.where(pd.notnull(df), None)
+
+    # Convert datetime/Timestamp columns to ISO strings for SQLite
+    for col in clean_df.columns:
+        if pd.api.types.is_datetime64_any_dtype(clean_df[col]):
+            clean_df[col] = clean_df[col].apply(
+                lambda x: x.isoformat() if pd.notnull(x) else None
+            )
+
     rows = list(clean_df.itertuples(index=False, name=None))
 
     if dialect == "postgres":

@@ -161,6 +161,87 @@ The user will describe a chart they want. Your job is to generate data that,
 when plotted, produces that exact chart."""
 
 
+ENRICH_SCHEMA_PROMPT = """You are Misata, an expert synthetic data architect. You receive a BARE database schema (table names, column names, types, relationships) and your job is to ENRICH it with realistic, mathematically intelligent data generation parameters.
+
+## YOUR GOAL
+Analyze the schema structure, infer the domain, and return enriched column definitions that will produce **realistic, correlated** synthetic data — not random noise.
+
+## WHAT YOU MUST RETURN
+
+For each column, return enriched `distribution_params` following these rules:
+
+### 1. STATISTICAL DISTRIBUTIONS (pick the RIGHT one)
+- Prices/amounts → `{"distribution": "exponential", "scale": 50, "min": 0.01, "decimals": 2}`
+- Ratings (1-5) → `{"distribution": "categorical", "choices": [1,2,3,4,5], "probabilities": [0.05, 0.08, 0.15, 0.32, 0.40]}`
+- Counts/quantities → `{"distribution": "poisson", "lambda": 3, "min": 1}`
+- Ages → `{"distribution": "normal", "mean": 35, "std": 12, "min": 18, "max": 80}`
+- Percentages → `{"distribution": "uniform", "min": 0, "max": 100, "decimals": 1}`
+- Durations → `{"distribution": "normal", "mean": 45, "std": 20, "min": 5}`
+
+### 2. CORRELATED COLUMNS (use `depends_on`)
+When columns are logically related within the same table, use conditional distributions:
+- Salary depends on job_title: `{"depends_on": "job_title", "mapping": {"Intern": {"mean": 40000, "std": 5000}, "CTO": {"mean": 200000, "std": 30000}}}`
+- State depends on country: `{"depends_on": "country", "mapping": {"USA": ["CA", "TX", "NY"], "UK": ["England", "Scotland"]}}`
+- Churn depends on plan: `{"depends_on": "plan_type", "mapping": {"free": 0.3, "pro": 0.1, "enterprise": 0.05}}`
+
+### 3. TEXT TYPE INFERENCE (from column name)
+- email, user_email → `{"text_type": "email"}`
+- name, full_name, first_name, last_name → `{"text_type": "name"}`
+- company, company_name, organization → `{"text_type": "company"}`
+- phone, phone_number → `{"text_type": "phone"}`
+- address, street → `{"text_type": "address"}`
+- url, website, link → `{"text_type": "url"}`
+- description, notes, comment → `{"text_type": "sentence"}`
+
+### 4. CATEGORICAL COLUMNS (infer from domain)
+- status columns → `{"choices": ["active", "inactive", "pending"], "probabilities": [0.7, 0.2, 0.1]}`
+- priority → `{"choices": ["low", "medium", "high", "critical"], "probabilities": [0.2, 0.4, 0.3, 0.1]}`
+- type/category → domain-specific choices with realistic probabilities
+
+### 5. REFERENCE TABLES (small lookup tables)
+If a table looks like a lookup (few expected rows, referenced by others via FK), convert it:
+- Set `is_reference: true`
+- Generate `inline_data` with realistic rows (5-20 rows)
+- Include an `id` column with sequential integers
+
+### 6. BUSINESS RULE CONSTRAINTS
+Infer constraints from column names:
+- hours/duration in timesheets → `{"name": "max_daily_hours", "type": "max_per_group", "group_by": ["employee_id", "date"], "column": "hours", "value": 8, "action": "cap"}`
+
+## CRITICAL RULES
+- Skip `foreign_key` columns entirely — return them unchanged
+- Skip `id` columns that are primary keys — return them unchanged  
+- Dates: provide appropriate `start` and `end` based on the inferred domain
+- Every `int` and `float` column MUST have a `distribution` key in distribution_params
+- Every `categorical` column MUST have `choices` and `probabilities`
+- Every `text` column MUST have `text_type`
+- Every `date` column MUST have `start` and `end`
+- Be SPECIFIC to the domain you infer from the schema
+
+## OUTPUT FORMAT
+
+Return valid JSON with this structure:
+{
+  "inferred_domain": "Brief description of the domain",
+  "columns": {
+    "table_name": [
+      {"name": "col_name", "type": "col_type", "distribution_params": {...}, "nullable": false, "unique": false}
+    ]
+  },
+  "reference_tables": [
+    {
+      "name": "table_name",
+      "inline_data": [{"id": 1, "name": "Value A"}, ...]
+    }
+  ],
+  "constraints": {
+    "table_name": [
+      {"name": "rule_name", "type": "max_per_group", "group_by": [...], "column": "col", "value": 8, "action": "cap"}
+    ]
+  }
+}"""
+
+
 class LLMSchemaGenerator:
     """
     Generate realistic schemas from natural language using LLMs.
@@ -497,14 +578,225 @@ Include reference tables with inline_data for lookup values and transactional ta
             seed=schema_dict.get("seed", 42)
         )
 
+    def enrich_schema(
+        self,
+        schema: SchemaConfig,
+        prompt: Optional[str] = None,
+        temperature: float = 0.3,
+    ) -> SchemaConfig:
+        """
+        Enrich a bare schema with LLM-inferred realistic distribution parameters.
 
-    def generate_from_story(self, story: str, use_research: bool = False) -> SchemaConfig:
+        Takes a schema from introspection (SQLAlchemy, DB URL) that has only
+        table/column structure and enriches it with:
+        - Proper statistical distributions per column
+        - Correlated column mappings (depends_on)
+        - Reference table inline_data
+        - Business rule constraints
+        - Text type inference
+
+        Args:
+            schema: Bare SchemaConfig from introspection
+            prompt: Optional user hint (e.g., "e-commerce with high churn")
+            temperature: LLM temperature (lower = more consistent)
+
+        Returns:
+            Enriched SchemaConfig ready for realistic data generation
+        """
+        # Serialize schema to compact representation for the LLM
+        schema_summary = self._serialize_schema_for_llm(schema)
+
+        user_prompt = f"""Analyze this database schema and return enriched column definitions with realistic distribution parameters.
+
+SCHEMA:
+{json.dumps(schema_summary, indent=2)}
+
+{f'DOMAIN HINT: {prompt}' if prompt else ''}
+
+Return valid JSON with enriched columns, reference_tables, and constraints. Be domain-specific based on the table/column names you see."""
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": ENRICH_SCHEMA_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=temperature,
+            max_tokens=8000,
+            response_format={"type": "json_object"}
+        )
+
+        enrichment = json.loads(response.choices[0].message.content)
+        return self._apply_enrichment(schema, enrichment)
+
+    def _serialize_schema_for_llm(self, schema: SchemaConfig) -> Dict:
+        """Serialize a SchemaConfig to a compact JSON for the LLM."""
+        tables = []
+        for t in schema.tables:
+            tables.append({
+                "name": t.name,
+                "row_count": t.row_count,
+                "is_reference": t.is_reference,
+            })
+
+        columns = {}
+        for table_name, cols in schema.columns.items():
+            columns[table_name] = []
+            for c in cols:
+                columns[table_name].append({
+                    "name": c.name,
+                    "type": c.type,
+                    "nullable": c.nullable,
+                    "unique": c.unique,
+                })
+
+        relationships = []
+        for r in schema.relationships:
+            relationships.append({
+                "parent_table": r.parent_table,
+                "child_table": r.child_table,
+                "parent_key": r.parent_key,
+                "child_key": r.child_key,
+            })
+
+        return {
+            "tables": tables,
+            "columns": columns,
+            "relationships": relationships,
+        }
+
+    def _apply_enrichment(self, schema: SchemaConfig, enrichment: Dict) -> SchemaConfig:
+        """
+        Merge LLM enrichment back into the original SchemaConfig.
+
+        Updates distribution_params, converts reference tables, adds constraints.
+        Preserves all existing structure (table names, relationships, FK columns).
+        """
+        import copy
+        enriched = copy.deepcopy(schema)
+
+        # Type mapping for LLM output normalization
+        type_mapping = {
+            "string": "text", "str": "text", "varchar": "text", "char": "text",
+            "integer": "int", "number": "float", "decimal": "float", "double": "float",
+            "timestamp": "datetime", "bool": "boolean",
+            "enum": "categorical", "category": "categorical", "fk": "foreign_key",
+        }
+
+        # 1. Update column distribution_params
+        enriched_columns = enrichment.get("columns", {})
+        for table_name, cols in enriched_columns.items():
+            if table_name not in enriched.columns:
+                continue
+
+            # Build lookup of existing columns
+            existing_cols = {c.name: c for c in enriched.columns[table_name]}
+
+            for enriched_col_data in cols:
+                col_name = enriched_col_data.get("name")
+                if not col_name or col_name not in existing_cols:
+                    continue
+
+                existing_col = existing_cols[col_name]
+
+                # Skip FK columns — they're handled by the simulator
+                if existing_col.type == "foreign_key":
+                    continue
+
+                # Skip primary key id columns
+                if col_name == "id" and existing_col.unique:
+                    continue
+
+                # Update distribution_params
+                new_params = enriched_col_data.get("distribution_params", {})
+                if new_params:
+                    normalized = self._normalize_distribution_params(
+                        existing_col.type, new_params
+                    )
+                    existing_col.distribution_params = normalized
+
+                # Update type if LLM suggests a better one (e.g., text → categorical)
+                new_type = enriched_col_data.get("type", existing_col.type)
+                new_type = type_mapping.get(new_type.lower(), new_type)
+                # Only allow safe type transitions
+                safe_transitions = {
+                    ("text", "categorical"),
+                    ("int", "categorical"),
+                    ("text", "boolean"),
+                    ("int", "boolean"),
+                }
+                if new_type != existing_col.type:
+                    if (existing_col.type, new_type) in safe_transitions:
+                        existing_col.type = new_type
+
+        # 2. Convert reference tables with inline_data
+        ref_tables = enrichment.get("reference_tables", [])
+        for ref in ref_tables:
+            ref_name = ref.get("name")
+            inline_data = ref.get("inline_data")
+            if not ref_name or not inline_data:
+                continue
+
+            # Find the matching table
+            for table in enriched.tables:
+                if table.name == ref_name:
+                    table.is_reference = True
+                    table.inline_data = inline_data
+                    table.row_count = len(inline_data)
+
+                    # Update columns from inline_data if needed
+                    if ref_name in enriched.columns:
+                        first_row = inline_data[0]
+                        new_cols = []
+                        for col_name_key, value in first_row.items():
+                            if isinstance(value, int):
+                                col_type = "int"
+                            elif isinstance(value, float):
+                                col_type = "float"
+                            elif isinstance(value, bool):
+                                col_type = "boolean"
+                            else:
+                                col_type = "text"
+                            new_cols.append(Column(
+                                name=col_name_key,
+                                type=col_type,
+                                distribution_params={}
+                            ))
+                        enriched.columns[ref_name] = new_cols
+                    break
+
+        # 3. Add business rule constraints
+        constraints_map = enrichment.get("constraints", {})
+        for table_name, constraints_list in constraints_map.items():
+            for table in enriched.tables:
+                if table.name == table_name:
+                    from misata.schema import Constraint
+                    for c in constraints_list:
+                        try:
+                            constraint = Constraint(
+                                name=c.get("name", "unnamed"),
+                                type=c.get("type", "max_per_group"),
+                                group_by=c.get("group_by", []),
+                                column=c.get("column"),
+                                value=c.get("value"),
+                                action=c.get("action", "cap"),
+                            )
+                            table.constraints.append(constraint)
+                        except Exception:
+                            pass  # Skip invalid constraints
+                    break
+
+        return enriched
+
+
+    def generate_from_story(self, story: str, use_research: bool = False, default_rows: int = 10000) -> SchemaConfig:
         """
         Generate schema from a user story.
         
         Args:
             story: The natural language description.
             use_research: If True, uses agent to find real companies for context.
+            default_rows: Default row count for transactional tables.
         """
         context = ""
         if use_research:
@@ -529,7 +821,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 print(f"Research Agent Warning: {e}")
 
         # Construct the final prompt
-        user_prompt = f"Story: {story}{context}\n\nGenerate the complete JSON schema."
+        user_prompt = f"Story: {story}{context}\n\nDefault row count for transactional tables: {default_rows}\n\nGenerate the complete JSON schema."
         
         completion = self.client.chat.completions.create(
             messages=[

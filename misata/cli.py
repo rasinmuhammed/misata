@@ -208,8 +208,8 @@ def generate(
     print_banner()
 
     # Validate inputs
-    if not story and not config and not sqlalchemy:
-        console.print("[red]Error: Must provide --story, --config, or --sqlalchemy[/red]")
+    if not story and not config and not sqlalchemy and not db_url:
+        console.print("[red]Error: Must provide --story, --config, --sqlalchemy, or --db-url[/red]")
         sys.exit(1)
 
     if sum(1 for x in [story, config, sqlalchemy] if x) > 1:
@@ -227,6 +227,13 @@ def generate(
         console.print(f"🔍 Loading SQLAlchemy schema from: [cyan]{sqlalchemy}[/cyan]")
         target = load_sqlalchemy_target(sqlalchemy)
         schema_config = schema_from_sqlalchemy(target, default_rows=rows)
+    elif db_url and not story:
+        # Auto-introspect schema from database
+        from misata.introspect import schema_from_db
+
+        console.print(f"🔍 Introspecting schema from: [cyan]{db_url}[/cyan]")
+        schema_config = schema_from_db(db_url, default_rows=rows)
+        console.print(f"✅ Found {len(schema_config.tables)} table(s)")
     else:
         console.print(f"📖 Parsing story: [italic]{story}[/italic]\n")
 
@@ -266,6 +273,40 @@ def generate(
                 console.print(f"✓ Detected scale: [green]{parser.scale_params}[/green]")
             if parser.temporal_events:
                 console.print(f"✓ Detected events: [green]{len(parser.temporal_events)}[/green]")
+
+    # LLM Schema Enrichment: enrich existing schemas with AI intelligence
+    if use_llm and (config or sqlalchemy or (db_url and not story)):
+        try:
+            from misata.llm_parser import LLMSchemaGenerator
+
+            display_provider = provider or os.environ.get("MISATA_PROVIDER", "groq")
+            display_model = model or LLMSchemaGenerator.PROVIDERS.get(display_provider, {}).get("default_model", "")
+
+            console.print(f"\n🧠 [purple]Enriching schema with {display_provider.title()} ({display_model})...[/purple]")
+            console.print("   Inferring domain, distributions, correlations, and business rules...")
+
+            with console.status("[purple]AI is analyzing your schema...[/purple]"):
+                llm = LLMSchemaGenerator(provider=provider, model=model)
+                schema_config = llm.enrich_schema(schema_config)
+
+            # Count enrichments
+            ref_count = sum(1 for t in schema_config.tables if t.is_reference and t.inline_data)
+            constraint_count = sum(len(t.constraints) for t in schema_config.tables)
+            console.print(f"✅ [green]Schema enriched![/green]")
+            if ref_count:
+                console.print(f"   📚 Reference tables with real data: {ref_count}")
+            if constraint_count:
+                console.print(f"   📏 Business rules inferred: {constraint_count}")
+        except ValueError as e:
+            error_msg = str(e)
+            if "API key required" in error_msg:
+                console.print(f"\n[red]❌ {error_msg}[/red]")
+                console.print("\n   Options:")
+                console.print("   • [yellow]export GROQ_API_KEY=xxx[/yellow] (free: https://console.groq.com)")
+                console.print("   • [yellow]export OPENAI_API_KEY=xxx[/yellow]")
+                console.print("   • [yellow]--provider ollama[/yellow] (local, no key needed)")
+                sys.exit(1)
+            raise
 
     # Apply scenario file if provided
     if scenario:

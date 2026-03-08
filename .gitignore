@@ -55,3 +55,6 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+.venv_build/
+demo_ecommerce.db
+demo_schema.py
