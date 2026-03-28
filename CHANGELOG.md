@@ -5,6 +5,25 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-03-22
+
+### Added
+
+#### Reusable Runs
+- Added `RecipeSpec` and `RunManifest` models for repeatable generation workflows
+- Added `misata recipe init` to create YAML recipe files
+- Added `misata recipe run --config recipe.yaml` to execute saved runs
+
+#### Run Artifacts
+- Every recipe run now writes a machine-readable `run_manifest.json`
+- Optional `validation_report.json` is generated from the existing validation engine
+- Optional `quality_report.json` is generated from the existing quality checker
+- Optional `audit_report.json` is generated when audit mode is enabled
+
+### Changed
+- Normalized exposed version metadata to `0.5.3` across package, CLI, API, and Studio
+- Primary-key style `id` columns now generate stable sequential values, which fixes SQLite/Postgres seeding collisions for generated tables
+
 ## [0.5.2] - 2026-03-08
 
 ### 🧠 The Realism Engine — Beyond Faker

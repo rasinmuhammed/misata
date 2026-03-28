@@ -5,7 +5,9 @@ Integration tests for CLI commands.
 import os
 import sqlite3
 import tempfile
+import json
 import pytest
+import yaml
 from click.testing import CliRunner
 
 from misata.cli import main, generate, template, templates_list, examples, schema_cmd
@@ -31,7 +33,7 @@ class TestCLICommands:
         result = runner.invoke(main, ['--version'])
         
         assert result.exit_code == 0
-        assert '2.0.0' in result.output
+        assert '0.5.3' in result.output
     
     def test_examples_command(self, runner):
         """Test examples command."""
@@ -142,3 +144,113 @@ class TestCLIGenerate:
 
             assert result.exit_code == 0
             assert os.path.exists(output_path)
+
+    def test_recipe_init_creates_yaml(self, runner):
+        """Test recipe init writes a starter recipe."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            recipe_path = os.path.join(tmpdir, "recipe.yaml")
+            result = runner.invoke(main, [
+                "recipe", "init",
+                "--name", "smoke_recipe",
+                "--story", "Simple company with 10 users",
+                "--output", recipe_path,
+            ])
+
+            assert result.exit_code == 0
+            assert os.path.exists(recipe_path)
+
+            with open(recipe_path, "r", encoding="utf-8") as f:
+                recipe_data = yaml.safe_load(f)
+
+            assert recipe_data["name"] == "smoke_recipe"
+            assert recipe_data["story"] == "Simple company with 10 users"
+
+    def test_recipe_run_with_story_writes_artifacts(self, runner):
+        """Test recipe run from story produces manifest and reports."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = os.path.join(tmpdir, "output")
+            recipe_path = os.path.join(tmpdir, "recipe.yaml")
+            with open(recipe_path, "w", encoding="utf-8") as f:
+                yaml.safe_dump(
+                    {
+                        "name": "story_recipe",
+                        "story": "Simple company with 10 users",
+                        "seed": 42,
+                        "output_dir": output_dir,
+                        "validation": True,
+                        "quality": True,
+                        "audit": True,
+                    },
+                    f,
+                    sort_keys=False,
+                )
+
+            result = runner.invoke(main, [
+                "recipe", "run",
+                "--config", recipe_path,
+                "--rows", "10",
+            ])
+
+            assert result.exit_code == 0
+            manifest_path = os.path.join(output_dir, "run_manifest.json")
+            assert os.path.exists(manifest_path)
+            assert os.path.exists(os.path.join(output_dir, "validation_report.json"))
+            assert os.path.exists(os.path.join(output_dir, "quality_report.json"))
+            assert os.path.exists(os.path.join(output_dir, "audit_report.json"))
+
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+
+            assert manifest["status"] == "success"
+            assert manifest["recipe_name"] == "story_recipe"
+            assert manifest["total_rows"] > 0
+
+    def test_recipe_run_with_schema_config(self, runner):
+        """Test recipe run from embedded schema config."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = os.path.join(tmpdir, "output")
+            recipe_path = os.path.join(tmpdir, "schema_recipe.yaml")
+            recipe_data = {
+                "name": "schema_recipe",
+                "output_dir": output_dir,
+                "validation": True,
+                "quality": True,
+                "audit": False,
+                "schema_config": {
+                    "name": "SimpleDataset",
+                    "seed": 7,
+                    "tables": [{"name": "users", "row_count": 5}],
+                    "columns": {
+                        "users": [
+                            {
+                                "name": "id",
+                                "type": "int",
+                                "distribution_params": {"distribution": "uniform", "min": 1, "max": 5},
+                            },
+                            {
+                                "name": "email",
+                                "type": "text",
+                                "distribution_params": {"text_type": "email"},
+                            },
+                        ]
+                    },
+                    "relationships": [],
+                    "events": [],
+                    "outcome_curves": [],
+                },
+            }
+            with open(recipe_path, "w", encoding="utf-8") as f:
+                yaml.safe_dump(recipe_data, f, sort_keys=False)
+
+            result = runner.invoke(main, [
+                "recipe", "run",
+                "--config", recipe_path,
+            ])
+
+            assert result.exit_code == 0
+            assert os.path.exists(os.path.join(output_dir, "users.csv"))
+
+            with open(os.path.join(output_dir, "run_manifest.json"), "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+
+            assert manifest["tables"]["users"] == 5

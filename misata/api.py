@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from misata import DataSimulator, SchemaConfig
+from misata import DataSimulator, SchemaConfig, __version__
 from misata.llm_parser import LLMSchemaGenerator
 
 
@@ -78,7 +78,7 @@ class DataPreviewResponse(BaseModel):
 app = FastAPI(
     title="Misata API",
     description="AI-Powered Synthetic Data Engine",
-    version="2.0.0",
+    version=__version__,
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -105,7 +105,7 @@ async def root():
     """Health check and API info."""
     return {
         "name": "Misata API",
-        "version": "2.0.0",
+        "version": __version__,
         "status": "healthy",
         "docs": "/docs"
     }

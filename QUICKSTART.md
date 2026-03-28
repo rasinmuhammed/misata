@@ -107,6 +107,22 @@ misata validate --db-url sqlite:///./misata.db --config schema.yaml
 misata quality --db-url sqlite:///./misata.db --config schema.yaml
 ```
 
+### 9. Create a Reusable Recipe
+```bash
+misata recipe init \
+  --name saas_smoke \
+  --story "SaaS company with 10K users and subscriptions" \
+  --output ./saas_recipe.yaml
+
+misata recipe run --config ./saas_recipe.yaml --rows 1000
+```
+
+Recipe runs write machine-readable artifacts into the configured output directory:
+- `run_manifest.json`
+- `validation_report.json`
+- `quality_report.json`
+- `audit_report.json` when audit is enabled
+
 ## Python API
 
 ```python
@@ -151,6 +167,8 @@ Misata/
 | Command | Description |
 |---------|-------------|
 | `misata generate` | Generate data from story |
+| `misata recipe init` | Create a reusable YAML recipe |
+| `misata recipe run` | Execute a saved recipe and write reports |
 | `misata graph` | Reverse engineer from chart description |
 | `misata parse` | Output config file for review |
 | `misata schema` | Introspect schema from DB/SQLAlchemy |

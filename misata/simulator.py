@@ -62,6 +62,7 @@ class DataSimulator:
         self._smart_gen = None  # Lazy init
         self._unique_pools: Dict[str, np.ndarray] = {}  # Store pre-generated unique values
         self._unique_counters: Dict[str, int] = {}      # Track usage of unique pools
+        self._sequence_counters: Dict[str, int] = {}    # Stable counters for primary keys
         self._smart_pools: Dict[str, np.ndarray] = {}   # Cache smart value pools
         self._text_pools: Dict[str, np.ndarray] = {}    # Cache text pools for vectorized sampling
 
@@ -333,6 +334,15 @@ class DataSimulator:
 
         # INTEGER
         elif column.type == "int":
+            # Treat primary-key style columns as stable unique sequences.
+            if column.name == "id":
+                pool_key = f"{table_name}.{column.name}"
+                start = params.get("min", 1)
+                current = self._sequence_counters.get(pool_key, start)
+                values = np.arange(current, current + size)
+                self._sequence_counters[pool_key] = current + size
+                return values.astype(int)
+
             # Handle unique integer generation
             if column.unique:
                 pool_key = f"{table_name}.{column.name}"

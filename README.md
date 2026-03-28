@@ -66,6 +66,31 @@ Misata creates a relational schema, generates the data, and saves it to `./gener
 
 ---
 
+## 🆕 New in v0.5.3 — Reusable Runs
+
+Misata can now save generation settings as a recipe and rerun them with machine-readable reports.
+
+```bash
+# Create a reusable recipe
+misata recipe init \
+  --name saas_smoke \
+  --story "A SaaS platform with 1K users and subscriptions" \
+  --output ./saas_recipe.yaml
+
+# Run it later
+misata recipe run --config ./saas_recipe.yaml --rows 1000
+```
+
+Each recipe run writes:
+- `run_manifest.json`
+- `validation_report.json` when validation is enabled
+- `quality_report.json` when quality checks are enabled
+- `audit_report.json` when audit mode is enabled
+
+This keeps Misata’s current generation flow intact, but makes it easier to repeat, review, and share working runs.
+
+---
+
 ## 🔥 New in v0.5.2 — The Realism Engine
 
 Every column is now aware of every other column. Misata generates data that is **mathematically consistent**, not randomly independent.
@@ -73,7 +98,7 @@ Every column is now aware of every other column. Misata generates data that is *
 ### What makes this different from Faker?
 
 ```text
-                 Faker/Random              Misata v0.5.2
+                 Faker/Random              Misata v0.5.3
 ─────────────────────────────────────────────────────────
 order.total      $847.23 (random)          $847.23 = $798.50 + $29.99 + $18.74
 product.cost     $96.00 (> price!)         $41.20 (43% of price $95.81)
@@ -151,6 +176,17 @@ report = seed_from_sqlalchemy_models(
 )
 
 print(f"Seeded {report.total_rows} rows in {report.duration_seconds}s")
+```
+
+### Reusable Recipes
+Save a run once, then keep it in source control.
+
+```python
+from misata import RecipeSpec, load_recipe
+
+recipe = load_recipe("./saas_recipe.yaml")
+print(recipe.name)
+print(recipe.output_dir)
 ```
 
 ---

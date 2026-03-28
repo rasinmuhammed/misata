@@ -302,6 +302,36 @@ class AuditLogger:
         conn.close()
         return entries
 
+    def get_session_summary(self, session_id: str) -> Dict[str, Any]:
+        """Get session metadata and logs for a single session."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT session_id, start_time, end_time, user_id, story,
+                   tables_generated, rows_generated, corrections_count, status
+            FROM sessions
+            WHERE session_id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row is None:
+            raise ValueError(f"Unknown audit session: {session_id}")
+
+        return {
+            "session_id": row[0],
+            "start_time": row[1],
+            "end_time": row[2],
+            "user_id": row[3],
+            "story": row[4],
+            "tables_generated": row[5],
+            "rows_generated": row[6],
+            "corrections_count": row[7],
+            "status": row[8],
+            "logs": [entry.to_dict() for entry in self.get_session_logs(session_id)],
+        }
+
     def export_compliance_report(
         self,
         start_date: Optional[str] = None,

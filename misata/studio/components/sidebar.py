@@ -1,4 +1,5 @@
 import streamlit as st
+from misata import __version__
 from misata.studio.state.store import StudioStore
 
 def render_sidebar():
@@ -30,6 +31,6 @@ def render_sidebar():
         <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
             <div style="font-size: 0.75rem; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.05em;">Status</div>
             <div style="color: #FFFFFF !important; font-weight: 500; margin-top: 4px;">API Connected</div>
-            <div style="font-size: 0.7rem; color: rgba(255,255,255,0.8) !important; margin-top: 4px;">v2.0.0 (World Class)</div>
+            <div style="font-size: 0.7rem; color: rgba(255,255,255,0.8) !important; margin-top: 4px;">v{__version__} (Reusable Runs)</div>
         </div>
         """, unsafe_allow_html=True)

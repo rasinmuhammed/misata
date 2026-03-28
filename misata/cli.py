@@ -5,30 +5,36 @@ Provides easy-to-use commands for generating synthetic data from stories
 or configuration files, now with LLM-powered schema generation.
 """
 
+import json
 import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
+import numpy as np
+import pandas as pd
+import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table as RichTable
 
-from misata import DataSimulator, SchemaConfig
+from misata import DataSimulator, SchemaConfig, __version__
+from misata.audit import AuditLogger
 from misata.codegen import ScriptGenerator
-from misata.story_parser import StoryParser
+from misata.db import load_tables_from_db, seed_database
+from misata.quality import check_quality
+from misata.recipes import RecipeSpec, RunManifest, load_recipe, save_recipe, utc_now
 from misata.schema import ScenarioEvent
+from misata.story_parser import StoryParser
+from misata.validation import validate_data
 
 console = Console()
 
 
 def _apply_scenario_file(schema_config: SchemaConfig, scenario_path: str) -> None:
-    import json
-    import yaml
-
     with open(scenario_path, "r") as f:
         content = f.read()
 
@@ -49,6 +55,133 @@ def _apply_scenario_file(schema_config: SchemaConfig, scenario_path: str) -> Non
         schema_config.events.append(ScenarioEvent(**event))
 
 
+def _load_yaml_or_json(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    try:
+        data = yaml.safe_load(content)
+    except Exception:
+        data = json.loads(content)
+
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a mapping in {path}")
+    return data
+
+
+def _write_json(path: Path, payload: Dict[str, Any]) -> None:
+    def _default(value: Any) -> Any:
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, Path):
+            return str(value)
+        raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+    path.write_text(json.dumps(payload, indent=2, default=_default), encoding="utf-8")
+
+
+def _serialize_quality_report(report: Any) -> Dict[str, Any]:
+    return {
+        "score": report.score,
+        "passed": report.passed,
+        "summary": report.summary(),
+        "stats": report.stats,
+        "issues": [
+            {
+                "severity": issue.severity,
+                "category": issue.category,
+                "table": issue.table,
+                "column": issue.column,
+                "message": issue.message,
+                "details": issue.details,
+            }
+            for issue in report.issues
+        ],
+    }
+
+
+def _serialize_validation_report(report: Any) -> Dict[str, Any]:
+    return {
+        "is_clean": report.is_clean,
+        "has_errors": report.has_errors,
+        "has_warnings": report.has_warnings,
+        "tables_checked": report.tables_checked,
+        "columns_checked": report.columns_checked,
+        "total_rows": report.total_rows,
+        "summary": report.summary(),
+        "issues": [
+            {
+                "severity": issue.severity.value,
+                "table": issue.table,
+                "column": issue.column,
+                "message": issue.message,
+                "affected_rows": issue.affected_rows,
+                "sample_values": issue.sample_values,
+            }
+            for issue in report.issues
+        ],
+    }
+
+
+def _generate_tables_to_csv(
+    schema_config: SchemaConfig,
+    output_dir: str,
+    *,
+    smart: bool,
+    smart_no_llm: bool,
+    batch_size: int,
+) -> Dict[str, int]:
+    console.print("\n⚙️  Initializing simulator...")
+    simulator = DataSimulator(
+        schema_config,
+        batch_size=batch_size,
+        smart_mode=smart,
+        use_llm=not smart_no_llm,
+    )
+
+    console.print(f"\n🔧 Generating {len(schema_config.tables)} table(s)...\n")
+
+    os.makedirs(output_dir, exist_ok=True)
+    files_created = set()
+    table_rows: Dict[str, int] = {}
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TextColumn("{task.completed:,} rows"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Generating data...", total=None)
+
+        for table_name, batch_df in simulator.generate_all():
+            output_path = os.path.join(output_dir, f"{table_name}.csv")
+            mode = "a" if table_name in files_created else "w"
+            header = table_name not in files_created
+
+            batch_df.to_csv(output_path, mode=mode, header=header, index=False)
+            files_created.add(table_name)
+
+            generated_rows = len(batch_df)
+            table_rows[table_name] = table_rows.get(table_name, 0) + generated_rows
+            progress.update(task, advance=generated_rows, description=f"Generating {table_name}...")
+
+    console.print("\n" + "=" * 70)
+    console.print(simulator.get_summary())
+    console.print("=" * 70)
+    return table_rows
+
+
+def _resolve_recipe_schema(recipe: RecipeSpec, rows: int) -> SchemaConfig:
+    if recipe.schema_config is not None:
+        schema_config = recipe.to_schema_config()
+        if schema_config is None:
+            raise ValueError("Recipe schema_config could not be parsed.")
+        return schema_config
+
+    parser = StoryParser()
+    return parser.parse(recipe.story, default_rows=rows)
+
+
 def print_banner():
     """Print the Misata banner."""
     console.print(Panel.fit(
@@ -58,7 +191,7 @@ def print_banner():
 
 
 @click.group()
-@click.version_option(version="2.0.0")
+@click.version_option(version=__version__)
 def main() -> None:
     """
     Misata - AI-Powered Synthetic Data Engine
@@ -217,9 +350,7 @@ def generate(
 
     if config:
         console.print(f"📄 Loading configuration from: [cyan]{config}[/cyan]")
-        import yaml
-        with open(config, "r") as f:
-            config_dict = yaml.safe_load(f)
+        config_dict = _load_yaml_or_json(config)
         schema_config = SchemaConfig(**config_dict)
     elif sqlalchemy:
         from misata.introspect import load_sqlalchemy_target, schema_from_sqlalchemy
@@ -339,8 +470,6 @@ def generate(
         return
 
     if db_url:
-        from misata.db import seed_database
-
         batch_size = db_batch_size if db_batch_size is not None else 10_000
         console.print("\n🗄️  Seeding database...")
         report = seed_database(
@@ -357,61 +486,273 @@ def generate(
         return
 
     # Generate data
-    console.print("\n⚙️  Initializing simulator...")
-    # Default batch size is 10k, good for CLI
     batch_size = db_batch_size if db_batch_size is not None else 10_000
-    simulator = DataSimulator(
-        schema_config,
-        batch_size=batch_size,
-        smart_mode=smart,
-        use_llm=not smart_no_llm,
-    )
-
-    console.print(f"\n🔧 Generating {len(schema_config.tables)} table(s)...\n")
-
     start_time = time.time()
-    total_rows = 0
-
-    # Prepare export
-    import os
-    os.makedirs(output_dir, exist_ok=True)
-    files_created = set()
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        TextColumn("{task.completed:,} rows"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Generating data...", total=None)
-
-        for table_name, batch_df in simulator.generate_all():
-            # Write to disk immediately
-            output_path = os.path.join(output_dir, f"{table_name}.csv")
-            mode = 'a' if table_name in files_created else 'w'
-            header = table_name not in files_created
-
-            batch_df.to_csv(output_path, mode=mode, header=header, index=False)
-            files_created.add(table_name)
-
-            batch_size = len(batch_df)
-            total_rows += batch_size
-            progress.update(task, advance=batch_size, description=f"Generating {table_name}...")
+    table_rows = _generate_tables_to_csv(
+        schema_config,
+        output_dir,
+        smart=smart,
+        smart_no_llm=smart_no_llm,
+        batch_size=batch_size,
+    )
 
     elapsed = time.time() - start_time
 
     # Display summary
-    console.print("\n" + "="*70)
-    console.print(simulator.get_summary())
-    console.print("="*70)
     console.print(f"\n⏱️  Generation time: [cyan]{elapsed:.2f} seconds[/cyan]")
 
     # Calculate performance metrics
+    total_rows = sum(table_rows.values())
     rows_per_sec = total_rows / elapsed if elapsed > 0 else 0
     console.print(f"🚀 Performance: [green]{rows_per_sec:,.0f} rows/second[/green]")
 
     console.print(f"\n💾 Data saved to: [cyan]{output_dir}[/cyan]")
     console.print("\n[bold green]✓ Done![/bold green]")
+
+
+@main.group()
+def recipe() -> None:
+    """Create and run reusable Misata recipes."""
+    pass
+
+
+@recipe.command("init")
+@click.option("--name", type=str, default="my_recipe", help="Recipe name")
+@click.option("--story", type=str, default=None, help="Natural language description for the dataset")
+@click.option(
+    "--schema-config",
+    type=click.Path(exists=True),
+    default=None,
+    help="Existing schema configuration file to embed",
+)
+@click.option("--seed", type=int, default=None, help="Random seed for reproducibility")
+@click.option(
+    "--output-dir",
+    type=click.Path(),
+    default="./generated_data",
+    help="Output directory for generated data and reports",
+)
+@click.option("--db-url", type=str, default=None, help="Optional database URL to seed on recipe runs")
+@click.option("--validation/--no-validation", default=True, help="Run validation checks after generation")
+@click.option("--quality/--no-quality", default=True, help="Run quality checks after generation")
+@click.option("--audit/--no-audit", default=False, help="Capture audit trail for recipe runs")
+@click.option(
+    "--output",
+    type=click.Path(),
+    default="recipe.yaml",
+    help="Recipe file to create",
+)
+def recipe_init(
+    name: str,
+    story: Optional[str],
+    schema_config: Optional[str],
+    seed: Optional[int],
+    output_dir: str,
+    db_url: Optional[str],
+    validation: bool,
+    quality: bool,
+    audit: bool,
+    output: str,
+) -> None:
+    """Create a starter YAML recipe."""
+    print_banner()
+
+    schema_payload = _load_yaml_or_json(schema_config) if schema_config else None
+    recipe_story = story if story or schema_payload is None else None
+    if recipe_story is None and schema_payload is None:
+        recipe_story = "Describe your dataset here"
+
+    recipe_spec = RecipeSpec(
+        name=name,
+        story=recipe_story,
+        schema_config=schema_payload,
+        seed=seed,
+        output_dir=output_dir,
+        db_url=db_url,
+        validation=validation,
+        quality=quality,
+        audit=audit,
+    )
+    recipe_path = save_recipe(recipe_spec, output)
+
+    console.print(f"[green]✓ Recipe saved to: {recipe_path}[/green]")
+    console.print(f"   Run it with: [cyan]misata recipe run --config {recipe_path}[/cyan]")
+
+
+@recipe.command("run")
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to the YAML recipe file",
+)
+@click.option(
+    "--rows",
+    type=int,
+    default=10000,
+    help="Default rows when the recipe uses story-based parsing",
+)
+@click.option(
+    "--db-create/--no-db-create",
+    default=False,
+    help="Create tables in the database if missing",
+)
+@click.option(
+    "--db-truncate/--no-db-truncate",
+    default=False,
+    help="Truncate tables before inserting new data",
+)
+@click.option(
+    "--db-batch-size",
+    type=int,
+    default=10_000,
+    help="Batch size for generation and DB seeding",
+)
+@click.option(
+    "--smart/--no-smart",
+    default=False,
+    help="Enable smart, domain-aware value generation",
+)
+@click.option(
+    "--smart-no-llm",
+    is_flag=True,
+    default=False,
+    help="Disable LLM for smart value generation (use curated pools only)",
+)
+def recipe_run(
+    config_path: str,
+    rows: int,
+    db_create: bool,
+    db_truncate: bool,
+    db_batch_size: int,
+    smart: bool,
+    smart_no_llm: bool,
+) -> None:
+    """Run a recipe and write report artifacts."""
+    print_banner()
+
+    recipe_spec = load_recipe(config_path)
+    output_dir = Path(recipe_spec.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest = RunManifest(
+        recipe_name=recipe_spec.name,
+        misata_version=__version__,
+        status="running",
+        started_at=utc_now(),
+        seed=recipe_spec.seed,
+        output_dir=str(output_dir),
+        db_url=recipe_spec.db_url,
+    )
+    manifest_path = output_dir / "run_manifest.json"
+
+    audit_logger: Optional[AuditLogger] = None
+    audit_session_id: Optional[str] = None
+    started = time.time()
+    audit_closed = False
+
+    try:
+        schema_config = _resolve_recipe_schema(recipe_spec, rows)
+        if recipe_spec.seed is not None:
+            schema_config.seed = recipe_spec.seed
+
+        console.print(f"📦 Recipe: [bold]{recipe_spec.name}[/bold]")
+        console.print(f"📁 Output: [cyan]{output_dir}[/cyan]")
+
+        if recipe_spec.audit:
+            audit_logger = AuditLogger(db_path=str(output_dir / "audit.db"))
+            audit_session_id = audit_logger.start_session()
+            audit_logger.log(
+                "recipe_loaded",
+                {
+                    "recipe_name": recipe_spec.name,
+                    "config_path": str(Path(config_path).resolve()),
+                },
+            )
+
+        if recipe_spec.db_url:
+            console.print("\n🗄️  Seeding database from recipe...")
+            report = seed_database(
+                schema_config,
+                recipe_spec.db_url,
+                create=db_create,
+                truncate=db_truncate,
+                batch_size=db_batch_size,
+                smart_mode=smart,
+                use_llm=not smart_no_llm,
+            )
+            table_rows = report.table_rows
+            tables = load_tables_from_db(recipe_spec.db_url, tables=list(table_rows.keys()))
+            if audit_logger is not None:
+                audit_logger.log_data_generation(table_rows, report.total_rows, int(report.duration_seconds * 1000))
+        else:
+            table_rows = _generate_tables_to_csv(
+                schema_config,
+                str(output_dir),
+                smart=smart,
+                smart_no_llm=smart_no_llm,
+                batch_size=db_batch_size,
+            )
+            tables = {
+                table_name: pd.read_csv(output_dir / f"{table_name}.csv")
+                for table_name in table_rows
+            }
+            if audit_logger is not None:
+                audit_logger.log_data_generation(table_rows, sum(table_rows.values()), int((time.time() - started) * 1000))
+
+        manifest.tables = table_rows
+        manifest.total_rows = sum(table_rows.values())
+
+        if recipe_spec.validation:
+            validation_report = validate_data(tables, schema_config)
+            validation_path = output_dir / "validation_report.json"
+            _write_json(validation_path, _serialize_validation_report(validation_report))
+            manifest.artifacts["validation_report"] = str(validation_path)
+            if audit_logger is not None:
+                audit_logger.log_validation(
+                    passed=not validation_report.has_errors,
+                    score=100.0 if validation_report.is_clean else 75.0,
+                    issues_count=len(validation_report.issues),
+                )
+
+        if recipe_spec.quality:
+            quality_report = check_quality(tables, relationships=schema_config.relationships, schema=schema_config)
+            quality_path = output_dir / "quality_report.json"
+            _write_json(quality_path, _serialize_quality_report(quality_report))
+            manifest.artifacts["quality_report"] = str(quality_path)
+
+        if audit_logger is not None and audit_session_id is not None:
+            audit_logger.end_session(audit_session_id)
+            audit_closed = True
+            audit_summary = audit_logger.get_session_summary(audit_session_id)
+            audit_path = output_dir / "audit_report.json"
+            _write_json(audit_path, audit_summary)
+            manifest.artifacts["audit_report"] = str(audit_path)
+            manifest.artifacts["audit_db"] = str(output_dir / "audit.db")
+
+        manifest.status = "success"
+        manifest.completed_at = utc_now()
+        manifest.artifacts["run_manifest"] = str(manifest_path)
+        _write_json(manifest_path, manifest.model_dump())
+
+        console.print(f"[green]✓ Recipe run completed in {time.time() - started:.2f}s[/green]")
+        console.print(f"   Manifest: [cyan]{manifest_path}[/cyan]")
+        for artifact_name, artifact_path in manifest.artifacts.items():
+            if artifact_name == "run_manifest":
+                continue
+            console.print(f"   {artifact_name}: [cyan]{artifact_path}[/cyan]")
+
+    except Exception as exc:
+        manifest.status = "failed"
+        manifest.completed_at = utc_now()
+        manifest.error = str(exc)
+        manifest.artifacts["run_manifest"] = str(manifest_path)
+        _write_json(manifest_path, manifest.model_dump())
+        raise
+    finally:
+        if audit_logger is not None and audit_session_id is not None and not audit_closed:
+            audit_logger.end_session(audit_session_id)
 
 
 @main.command()

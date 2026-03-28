@@ -15,7 +15,7 @@ Usage:
     config = load_template("ecommerce")
 """
 
-__version__ = "0.4.0b0"
+__version__ = "0.5.3"
 __author__ = "Muhammed Rasin"
 
 from misata.schema import (
@@ -70,6 +70,7 @@ from misata.profiles import (
     list_profiles,
     generate_with_profile,
 )
+from misata.recipes import RecipeSpec, RunManifest, load_recipe
 from misata.generators.base import (
     ConditionalCategoricalGenerator,
     CONDITIONAL_LOOKUPS,
@@ -122,6 +123,10 @@ __all__ = [
     "get_profile",
     "list_profiles",
     "generate_with_profile",
+    # Recipes
+    "RecipeSpec",
+    "RunManifest",
+    "load_recipe",
     # ML-ready features
     "NoiseInjector",
     "add_noise",
