@@ -46,7 +46,7 @@ class NoiseInjector:
     def apply(
         self,
         df: pd.DataFrame,
-        config: Optional[Dict[str, Any]] = None,
+        config: Optional[Any] = None,
     ) -> pd.DataFrame:
         """
         Apply all configured noise types to a DataFrame.
@@ -60,6 +60,8 @@ class NoiseInjector:
         """
         if config is None:
             config = {}
+        elif hasattr(config, "model_dump"):
+            config = config.model_dump()
 
         result = df.copy()
 
@@ -77,7 +79,11 @@ class NoiseInjector:
                                        columns=config.get("typo_columns"))
 
         if config.get("duplicate_rate", 0) > 0:
-            result = self.inject_duplicates(result, rate=config["duplicate_rate"])
+            result = self.inject_duplicates(
+                result,
+                rate=config["duplicate_rate"],
+                exact=config.get("exact_duplicates", True),
+            )
 
         return result
 

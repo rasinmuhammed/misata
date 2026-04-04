@@ -16,9 +16,11 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from misata.engines import FactEngine
 from misata.generators.base import TextGenerator as _FactoryTextGenerator  # Generator factory version
 # Use the original generators.py TextGenerator which supports seed
 from misata.generators_legacy import TextGenerator
+from misata.noise import NoiseInjector
 from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig
 
 
@@ -75,6 +77,8 @@ class DataSimulator:
         seed = config.seed if config.seed is not None else np.random.randint(0, 2**32 - 1)
         self.rng = np.random.default_rng(seed)
         np.random.seed(seed)  # For legacy numpy.random calls
+        self.fact_engine = FactEngine(self.rng)
+        self.noise_injector = NoiseInjector(seed)
     
     def _get_smart_gen(self):
         """Lazy initialize SmartValueGenerator."""
@@ -527,7 +531,14 @@ class DataSimulator:
                 values = self.rng.integers(1, max(size // 10, 100), size=size)
                 return values
 
-            values = self.rng.choice(parent_ids, size=size)
+            sampling = params.get("sampling", "uniform")
+            if sampling == "pareto":
+                alpha = max(float(params.get("alpha", 1.5)), 0.1)
+                weights = self.rng.pareto(alpha, len(parent_ids)) + 1.0
+                probabilities = weights / weights.sum()
+                values = self.rng.choice(parent_ids, size=size, p=probabilities)
+            else:
+                values = self.rng.choice(parent_ids, size=size)
             return values
 
         # TEXT
@@ -670,6 +681,204 @@ class DataSimulator:
 
         return df
 
+    def _get_exact_outcome_curves(self, table_name: str) -> List[Any]:
+        """Return exact target curves that should be generated top-down."""
+        if not getattr(self.config, "outcome_curves", None):
+            return []
+
+        exact_curves = []
+        for curve in self.config.outcome_curves:
+            if getattr(curve, "table", None) != table_name:
+                continue
+            if self.fact_engine.curve_has_exact_targets(curve):
+                exact_curves.append(curve)
+        return exact_curves
+
+    def _generate_fact_table(
+        self,
+        table_name: str,
+        table: Any,
+        columns: List[Column],
+        curves: List[Any],
+    ) -> Optional[pd.DataFrame]:
+        """Generate a constrained fact table from exact period targets."""
+        plan = self.fact_engine.build_plan(table, columns, curves)
+        if plan is None:
+            warnings.warn(
+                f"Exact outcome curves for table '{table_name}' are incompatible. "
+                "Falling back to legacy row-wise generation."
+            )
+            return None
+
+        column_map = {column.name: column for column in columns}
+        df_batch = self.fact_engine.generate(plan, column_map)
+
+        for column in columns:
+            if column.name in df_batch.columns:
+                continue
+            values = self.generate_column(table_name, column, len(df_batch), df_batch)
+            df_batch[column.name] = values
+
+        df_batch = self._apply_formula_columns(df_batch, table_name)
+        df_batch = self._fix_correlated_columns(df_batch, table_name)
+
+        constrained_columns = plan.constrained_columns
+        table_events = [event for event in self.config.events if event.table == table_name]
+        for event in table_events:
+            if event.column in constrained_columns:
+                warnings.warn(
+                    f"Skipping event '{event.name}' on constrained column "
+                    f"'{table_name}.{event.column}' to preserve exact targets."
+                )
+                continue
+            df_batch = self.apply_event(df_batch, event)
+
+        df_batch = self.apply_constraints(df_batch, table)
+        df_batch = self.fact_engine.rebalance(df_batch, plan, column_map)
+        df_batch = self.fact_engine.drop_internal_columns(df_batch)
+
+        ordered_columns = [column.name for column in columns if column.name in df_batch.columns]
+        remaining_columns = [col for col in df_batch.columns if col not in ordered_columns]
+        return df_batch[ordered_columns + remaining_columns]
+
+    def _get_formula_columns(self, table_name: str) -> set[str]:
+        """Return derived formula columns that should stay protected."""
+        return {
+            column.name
+            for column in self.config.get_columns(table_name)
+            if column.distribution_params.get("formula")
+        }
+
+    def _get_protected_noise_columns(self, table_name: str, table: Any) -> set[str]:
+        """Columns that should not be mutated in analytics-safe noise mode."""
+        protected: set[str] = set()
+
+        for column in self.config.get_columns(table_name):
+            if column.name == "id" or column.type == "foreign_key" or column.unique:
+                protected.add(column.name)
+
+        for relationship in self.config.relationships:
+            if relationship.parent_table == table_name:
+                protected.add(relationship.parent_key)
+            if relationship.child_table == table_name:
+                protected.add(relationship.child_key)
+
+        for constraint in getattr(table, "constraints", []):
+            protected.update(constraint.group_by)
+            if constraint.column:
+                protected.add(constraint.column)
+
+        for curve in getattr(self.config, "outcome_curves", []):
+            if getattr(curve, "table", None) != table_name:
+                continue
+            protected.add(curve.column)
+            protected.add(curve.time_column)
+
+        protected.update(self._get_formula_columns(table_name))
+        return protected
+
+    def _resolve_noise_column_list(
+        self,
+        df: pd.DataFrame,
+        configured_columns: Optional[List[str]],
+        *,
+        protected_columns: set[str],
+        kind: str,
+        force_resolution: bool = False,
+    ) -> Optional[List[str]]:
+        """Resolve explicit or default noise columns while honoring protections."""
+        if configured_columns is not None:
+            return [col for col in configured_columns if col in df.columns and col not in protected_columns]
+        if not protected_columns and not force_resolution:
+            return None
+
+        if kind == "outlier":
+            candidate_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        elif kind == "typo":
+            candidate_columns = df.select_dtypes(include=["object", "string"]).columns.tolist()
+            candidate_columns = [
+                col for col in candidate_columns
+                if "id" not in col.lower() and "email" not in col.lower()
+            ]
+        else:
+            candidate_columns = list(df.columns)
+
+        return [col for col in candidate_columns if col not in protected_columns]
+
+    def _resolve_noise_config(
+        self,
+        table_name: str,
+        table: Any,
+        df: pd.DataFrame,
+    ) -> Optional[Dict[str, Any]]:
+        """Build a safe runtime noise config for a specific table batch."""
+        if not self.config.noise_config:
+            return None
+
+        raw_config = (
+            self.config.noise_config.model_dump()
+            if hasattr(self.config.noise_config, "model_dump")
+            else dict(self.config.noise_config)
+        )
+        mode = raw_config.get("mode", "custom")
+        if mode == "off":
+            return None
+
+        protected_columns = set(raw_config.get("protected_columns", []))
+        if mode == "analytics_safe":
+            protected_columns.update(self._get_protected_noise_columns(table_name, table))
+            duplicate_rate = 0.0
+        else:
+            duplicate_rate = raw_config.get("duplicate_rate", 0.0)
+
+        resolved = {
+            "null_rate": raw_config.get("null_rate", 0.0),
+            "outlier_rate": raw_config.get("outlier_rate", 0.0),
+            "typo_rate": raw_config.get("typo_rate", 0.0),
+            "duplicate_rate": duplicate_rate,
+            "exact_duplicates": raw_config.get("exact_duplicates", True),
+            "null_columns": self._resolve_noise_column_list(
+                df,
+                raw_config.get("null_columns"),
+                protected_columns=protected_columns,
+                kind="null",
+                force_resolution=(mode == "analytics_safe"),
+            ),
+            "outlier_columns": self._resolve_noise_column_list(
+                df,
+                raw_config.get("outlier_columns"),
+                protected_columns=protected_columns,
+                kind="outlier",
+                force_resolution=(mode == "analytics_safe"),
+            ),
+            "typo_columns": self._resolve_noise_column_list(
+                df,
+                raw_config.get("typo_columns"),
+                protected_columns=protected_columns,
+                kind="typo",
+                force_resolution=(mode == "analytics_safe"),
+            ),
+        }
+
+        if not any(
+            resolved.get(key, 0) > 0
+            for key in ["null_rate", "outlier_rate", "typo_rate", "duplicate_rate"]
+        ):
+            return None
+        return resolved
+
+    def _apply_configured_noise(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+        table: Any,
+    ) -> pd.DataFrame:
+        """Apply optional post-generation noise without contaminating context."""
+        noise_config = self._resolve_noise_config(table_name, table, df)
+        if not noise_config:
+            return df
+        return self.noise_injector.apply(df, noise_config)
+
     def _update_context(self, table_name: str, df: pd.DataFrame) -> None:
         """
         Update the context with key columns from the generated batch.
@@ -742,6 +951,14 @@ class DataSimulator:
         columns = self.config.get_columns(table_name)
         total_rows = table.row_count
 
+        exact_curves = self._get_exact_outcome_curves(table_name)
+        if exact_curves:
+            fact_df = self._generate_fact_table(table_name, table, columns, exact_curves)
+            if fact_df is not None:
+                self._update_context(table_name, fact_df)
+                yield self._apply_configured_noise(fact_df.copy(), table_name, table)
+                return
+
         rows_generated = 0
 
         while rows_generated < total_rows:
@@ -778,7 +995,7 @@ class DataSimulator:
             # Update context for future batches/tables
             self._update_context(table_name, df_batch)
 
-            yield df_batch
+            yield self._apply_configured_noise(df_batch.copy(), table_name, table)
 
             rows_generated += batch_size
 
@@ -849,19 +1066,35 @@ class DataSimulator:
                 # Convert Pydantic CurvePoint objects to dicts if needed
                 point_dicts = []
                 for p in points:
+                    p_dict = {}
                     if hasattr(p, 'month'):
-                        point_dicts.append({'month': p.month, 'relative_value': p.relative_value})
-                    else:
-                        point_dicts.append(p)
+                        p_dict = {'month': p.month, 'relative_value': p.relative_value}
+                    elif isinstance(p, dict):
+                        p_dict = p.copy()
+                    
+                    # Normalize X axis to 'month'
+                    x_val = p_dict.get('month', p_dict.get('day', p_dict.get('x', 1)))
+                    if isinstance(x_val, str) and '-' in x_val:
+                        try:
+                            x_val = pd.to_datetime(x_val).month
+                        except Exception:
+                            x_val = 1
+                    p_dict['month'] = pd.to_numeric(x_val, errors='coerce')
+                    
+                    # Normalize Y axis to 'relative_value'
+                    y_val = p_dict.get('relative_value', p_dict.get('target_value', p_dict.get('value', 1.0)))
+                    p_dict['relative_value'] = pd.to_numeric(y_val, errors='coerce')
+                    
+                    if not pd.isna(p_dict['month']) and not pd.isna(p_dict['relative_value']):
+                        point_dicts.append(p_dict)
+                        
                 points = point_dicts
                 
                 print(f"[CURVE DEBUG] Points: {points}")
 
                 # Sort points by order (month or progress)
-                points.sort(key=lambda x: x.get('month', x.get('x', 0)))
+                points.sort(key=lambda x: x.get('month', 1))
 
-                pattern_type = curve.get('pattern_type', 'seasonal')
-                
                 # Extract time components
                 if not pd.api.types.is_datetime64_any_dtype(df[time_col]):
                     timestamps = pd.to_datetime(df[time_col], errors='coerce')

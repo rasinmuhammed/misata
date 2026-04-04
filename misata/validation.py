@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from misata.engines import FactEngine
+
 
 class Severity(Enum):
     """Validation issue severity levels."""
@@ -125,6 +127,7 @@ class DataValidator:
 
         # Validate referential integrity
         self._validate_referential_integrity()
+        self._validate_outcome_curves()
 
         return ValidationReport(
             issues=self.issues,
@@ -293,6 +296,94 @@ class DataValidator:
                     message=f"Contains {orphan_count} orphan references (FK not found in {rel.parent_table})",
                     affected_rows=orphan_count,
                 ))
+
+    def _validate_outcome_curves(self) -> None:
+        """Validate exact outcome curves against generated aggregates."""
+        if not self.schema_config or not getattr(self.schema_config, "outcome_curves", None):
+            return
+
+        engine = FactEngine()
+
+        for table in self.schema_config.tables:
+            table_name = table.name
+            if table_name not in self.tables:
+                continue
+
+            curves = [
+                curve
+                for curve in self.schema_config.outcome_curves
+                if getattr(curve, "table", None) == table_name
+                and engine.curve_has_exact_targets(curve)
+            ]
+            if not curves:
+                continue
+
+            plan = engine.build_plan(table, self.schema_config.get_columns(table_name), curves)
+            if plan is None:
+                continue
+
+            df = self.tables[table_name]
+            if plan.time_column not in df.columns:
+                self.issues.append(ValidationIssue(
+                    severity=Severity.ERROR,
+                    table=table_name,
+                    column=plan.time_column,
+                    message="Missing time column required for outcome curve validation",
+                    affected_rows=len(df),
+                ))
+                continue
+
+            timestamps = pd.to_datetime(df[plan.time_column], errors="coerce")
+            for curve in plan.curves:
+                if curve.column not in df.columns:
+                    self.issues.append(ValidationIssue(
+                        severity=Severity.ERROR,
+                        table=table_name,
+                        column=curve.column,
+                        message="Missing constrained column required for outcome curve validation",
+                        affected_rows=len(df),
+                    ))
+                    continue
+
+                actual_values: List[float] = []
+                numeric_series = pd.to_numeric(df[curve.column], errors="coerce").fillna(0)
+
+                for bucket in plan.buckets:
+                    mask = (timestamps >= bucket.start) & (timestamps < bucket.end)
+                    actual_values.append(float(numeric_series.loc[mask].sum()))
+
+                tolerance = 0.01 if self._column_decimals(table_name, curve.column) else 0.0
+                mismatches = [
+                    (expected, actual)
+                    for expected, actual in zip(curve.targets, actual_values)
+                    if abs(expected - actual) > tolerance
+                ]
+                if mismatches:
+                    sample_expected, sample_actual = mismatches[0]
+                    self.issues.append(ValidationIssue(
+                        severity=Severity.ERROR,
+                        table=table_name,
+                        column=curve.column,
+                        message=(
+                            "Outcome curve aggregate mismatch. "
+                            f"Expected {sample_expected:.2f}, got {sample_actual:.2f} in at least one bucket"
+                        ),
+                        affected_rows=len(mismatches),
+                    ))
+
+    def _column_decimals(self, table_name: str, column_name: str) -> int:
+        """Get numeric precision for a schema column."""
+        if not self.schema_config:
+            return 2
+
+        for column in self.schema_config.get_columns(table_name):
+            if column.name != column_name:
+                continue
+            if column.type == "int":
+                return 0
+            return int(column.distribution_params.get("decimals", 2))
+
+        return 2
 
 
 def validate_data(

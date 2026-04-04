@@ -205,14 +205,48 @@ class OutcomeCurve(BaseModel):
         time_column: Date/time column for grouping
         pattern_type: Type of pattern (seasonal, growth, decline, etc.)
         description: Human-readable description of the pattern
-        curve_points: Monthly relative values (0.0-1.0)
+        time_unit: Bucket size for the constraint
+        value_mode: Whether points are relative multipliers or exact targets
+        avg_transaction_value: Optional average amount used to derive row counts
+        curve_points: Relative or exact per-period values
     """
     table: str
     column: str
     time_column: str = "date"
+    time_unit: Literal["day", "week", "month"] = "month"
     pattern_type: str = "seasonal"
+    intra_period_pattern: Literal["uniform", "weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy"] = "uniform"
+    value_mode: Literal["auto", "relative", "absolute"] = "auto"
     description: Optional[str] = None
-    curve_points: List[Dict[str, float]] = Field(default_factory=list)
+    avg_transaction_value: Optional[float] = None
+    min_transactions_per_period: int = 1
+    max_transactions_per_period: int = 10000
+    concentration: float = 2.0
+    start_date: Optional[str] = None
+    curve_points: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class NoiseConfig(BaseModel):
+    """
+    Configuration for optional realism noise injection.
+
+    Modes:
+    - off: disable all noise
+    - ml_training: allow broad imperfections for ML robustness
+    - analytics_safe: only mutate non-protected columns and never duplicate rows
+    - custom: user-directed noise with optional protected columns
+    """
+
+    mode: Literal["off", "ml_training", "analytics_safe", "custom"] = "custom"
+    null_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    outlier_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    typo_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    duplicate_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    null_columns: Optional[List[str]] = None
+    outlier_columns: Optional[List[str]] = None
+    typo_columns: Optional[List[str]] = None
+    protected_columns: List[str] = Field(default_factory=list)
+    exact_duplicates: bool = True
 
 
 class SchemaConfig(BaseModel):
@@ -230,6 +264,7 @@ class SchemaConfig(BaseModel):
         relationships: List of inter-table relationships
         events: List of scenario events to apply
         outcome_curves: List of temporal patterns for constrained generation
+        noise_config: Optional noise injection rules
         seed: Random seed for reproducibility
     """
 
@@ -240,6 +275,7 @@ class SchemaConfig(BaseModel):
     relationships: List[Relationship] = Field(default_factory=list)
     events: List[ScenarioEvent] = Field(default_factory=list)
     outcome_curves: List[OutcomeCurve] = Field(default_factory=list)
+    noise_config: Optional[NoiseConfig] = None
     seed: Optional[int] = None
 
     @field_validator("columns")
