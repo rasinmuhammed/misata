@@ -21,12 +21,14 @@ __author__ = "Muhammed Rasin"
 from misata.schema import (
     Column,
     Constraint,
+    NoiseConfig,
     Relationship,
     ScenarioEvent,
     SchemaConfig,
     Table,
 )
 from misata.simulator import DataSimulator
+from misata.engines import FactEngine
 from misata.generators import TextGenerator
 from misata.generators.base import (
     BaseGenerator,
@@ -81,11 +83,13 @@ __all__ = [
     # Core
     "Column",
     "Constraint",
+    "NoiseConfig",
     "Relationship",
     "ScenarioEvent",
     "SchemaConfig",
     "Table",
     "DataSimulator",
+    "FactEngine",
     # Generators
     "TextGenerator",
     "BaseGenerator",

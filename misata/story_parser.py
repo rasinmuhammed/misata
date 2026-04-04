@@ -9,9 +9,12 @@ This module provides rule-based pattern matching to extract:
 """
 
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig, Table
+import numpy as np
+
+from misata.schema import Column, OutcomeCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 
 
 class StoryParser:
@@ -46,6 +49,32 @@ class StoryParser:
         "fintech": ["fintech", "transactions", "payments", "wallet"],
     }
 
+    MONTHS = {
+        "jan": 1, "january": 1,
+        "feb": 2, "february": 2,
+        "mar": 3, "march": 3,
+        "apr": 4, "april": 4,
+        "may": 5,
+        "jun": 6, "june": 6,
+        "jul": 7, "july": 7,
+        "aug": 8, "august": 8,
+        "sep": 9, "sept": 9, "september": 9,
+        "oct": 10, "october": 10,
+        "nov": 11, "november": 11,
+        "dec": 12, "december": 12,
+    }
+
+    QUALITATIVE_MONTH_FACTORS = {
+        "dip": 0.7,
+        "drop": 0.7,
+        "decline": 0.75,
+        "low": 0.8,
+        "peak": 1.25,
+        "spike": 1.3,
+        "surge": 1.3,
+        "high": 1.2,
+    }
+
     def __init__(self):
         """Initialize the story parser."""
         self.detected_domain: Optional[str] = None
@@ -62,6 +91,24 @@ class StoryParser:
             return int(float(num_str[:-1]) * 1_000_000)
         else:
             return int(num_str)
+
+    def _parse_numeric_value(self, raw_value: str) -> float:
+        """Parse currency-like values such as $50k, 150,000, or 1.5M."""
+        cleaned = raw_value.strip().lower().replace(",", "")
+        cleaned = cleaned.replace("$", "").replace("usd", "").strip()
+
+        multiplier = 1.0
+        if cleaned.endswith("k"):
+            multiplier = 1_000.0
+            cleaned = cleaned[:-1]
+        elif cleaned.endswith("m"):
+            multiplier = 1_000_000.0
+            cleaned = cleaned[:-1]
+        elif cleaned.endswith("b"):
+            multiplier = 1_000_000_000.0
+            cleaned = cleaned[:-1]
+
+        return float(cleaned) * multiplier
 
     def _detect_domain(self, story: str) -> Optional[str]:
         """Detect business domain from story text."""
@@ -103,6 +150,146 @@ class StoryParser:
                     events.append((event_type, None))
 
         return events
+
+    def _extract_period_count(self, story: str) -> int:
+        """Infer how many monthly buckets the user is asking for."""
+        match = re.search(r"over\s+(\d+)\s+months?", story, re.IGNORECASE)
+        if match:
+            return max(2, int(match.group(1)))
+
+        if re.search(r"\b(jan|january)\b", story, re.IGNORECASE) and re.search(r"\b(dec|december)\b", story, re.IGNORECASE):
+            return 12
+
+        return 12
+
+    def _extract_target_month_points(self, story: str, period_count: int) -> Dict[int, float]:
+        """Extract explicit numeric control points such as 50k in Jan."""
+        anchors: Dict[int, float] = {}
+
+        value_then_month = re.finditer(
+            r"(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)\s+(?:in|for|by|at)\s+(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)",
+            story,
+            re.IGNORECASE,
+        )
+        month_then_value = re.finditer(
+            r"(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(?:at|=|:)?\s*(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)",
+            story,
+            re.IGNORECASE,
+        )
+
+        for match in list(value_then_month) + list(month_then_value):
+            month_token = match.group("month").lower()
+            month_number = self.MONTHS.get(month_token[:3], self.MONTHS.get(month_token))
+            if month_number is None:
+                continue
+            anchors[month_number] = self._parse_numeric_value(match.group("value"))
+
+        range_match = re.search(
+            r"from\s+(?P<start>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)\s+to\s+(?P<end>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)(?:\s+over\s+(?P<months>\d+)\s+months?)?",
+            story,
+            re.IGNORECASE,
+        )
+        if range_match and len(anchors) < 2:
+            anchors.setdefault(1, self._parse_numeric_value(range_match.group("start")))
+            final_period = int(range_match.group("months") or period_count)
+            anchors.setdefault(final_period, self._parse_numeric_value(range_match.group("end")))
+
+        return anchors
+
+    def _extract_qualitative_month_modifiers(self, story: str) -> Dict[int, float]:
+        """Extract qualitative modifiers like dip in September or peak in December."""
+        modifiers: Dict[int, float] = {}
+
+        for keyword, factor in self.QUALITATIVE_MONTH_FACTORS.items():
+            for match in re.finditer(
+                rf"{keyword}\s+in\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)",
+                story,
+                re.IGNORECASE,
+            ):
+                month_token = match.group(1).lower()
+                month_number = self.MONTHS.get(month_token[:3], self.MONTHS.get(month_token))
+                if month_number is not None:
+                    modifiers[month_number] = factor
+
+        return modifiers
+
+    def _extract_reference_year(self, story: str) -> int:
+        """Choose a year for generated monthly targets."""
+        match = re.search(r"\b(20\d{2})\b", story)
+        if match:
+            return int(match.group(1))
+        return datetime.now().year
+
+    def _extract_intra_period_pattern(self, story: str) -> str:
+        """Detect sub-bucket patterns like weekday_heavy or end_heavy."""
+        story_lower = story.lower()
+        if re.search(r"\bslow\s+(on\s+)?weekends?\b", story_lower):
+            return "weekday_heavy"
+        if re.search(r"\bslow\s+(on\s+)?weekdays?\b", story_lower):
+            return "weekend_heavy"
+        if re.search(r"\bweekdays?\b", story_lower):
+            return "weekday_heavy"
+        if re.search(r"\bweekends?\b", story_lower):
+            return "weekend_heavy"
+        if re.search(r"\b(end\s+of|late\b)", story_lower):
+            return "end_heavy"
+        if re.search(r"\b(start\s+of|beginning\s+of|early\b)", story_lower):
+            return "start_heavy"
+        return "uniform"
+
+    def _build_absolute_monthly_curve(
+        self,
+        story: str,
+        *,
+        table: str,
+        column: str,
+        time_column: str,
+        avg_transaction_value: Optional[float],
+    ) -> Optional[OutcomeCurve]:
+        """Create an exact monthly outcome curve from story anchors."""
+        story_lower = story.lower()
+        if not any(token in story_lower for token in ["revenue", "sales", "mrr", "arr", "gmv", "amount"]):
+            return None
+
+        period_count = self._extract_period_count(story)
+        anchors = self._extract_target_month_points(story, period_count)
+        if len(anchors) < 2:
+            return None
+
+        months = np.arange(1, period_count + 1)
+        x_known = np.array(sorted(anchors.keys()), dtype=float)
+        y_known = np.array([anchors[int(month)] for month in x_known], dtype=float)
+        interpolated = np.interp(months, x_known, y_known)
+
+        modifiers = self._extract_qualitative_month_modifiers(story)
+        for month_number, factor in modifiers.items():
+            if 1 <= month_number <= period_count:
+                interpolated[month_number - 1] *= factor
+
+        for month_number, exact_value in anchors.items():
+            if 1 <= month_number <= period_count:
+                interpolated[month_number - 1] = exact_value
+
+        curve_points = [
+            {"month": int(month_number), "target_value": round(max(float(value), 0.0), 2)}
+            for month_number, value in zip(months, interpolated)
+        ]
+
+        year = self._extract_reference_year(story)
+        intra_pattern = self._extract_intra_period_pattern(story)
+        return OutcomeCurve(
+            table=table,
+            column=column,
+            time_column=time_column,
+            time_unit="month",
+            pattern_type="growth",
+            value_mode="absolute",
+            intra_period_pattern=intra_pattern,
+            description=story,
+            avg_transaction_value=avg_transaction_value,
+            start_date=f"{year}-01-01",
+            curve_points=curve_points,
+        )
 
     def parse(self, story: str, default_rows: int = 10000) -> SchemaConfig:
         """
@@ -247,6 +434,14 @@ class StoryParser:
                     )
                 )
 
+        outcome_curve = self._build_absolute_monthly_curve(
+            story,
+            table="subscriptions",
+            column="mrr",
+            time_column="start_date",
+            avg_transaction_value=150.0,
+        )
+
         return SchemaConfig(
             name="SaaS Dataset",
             description=f"Generated from story: {story}",
@@ -254,6 +449,7 @@ class StoryParser:
             columns=columns,
             relationships=relationships,
             events=events,
+            outcome_curves=[outcome_curve] if outcome_curve else [],
         )
 
     def _build_ecommerce_schema(self, story: str, default_rows: int) -> SchemaConfig:
@@ -308,6 +504,14 @@ class StoryParser:
             ),
         ]
 
+        outcome_curve = self._build_absolute_monthly_curve(
+            story,
+            table="orders",
+            column="amount",
+            time_column="order_date",
+            avg_transaction_value=75.0,
+        )
+
         return SchemaConfig(
             name="E-commerce Dataset",
             description=f"Generated from story: {story}",
@@ -315,6 +519,7 @@ class StoryParser:
             columns=columns,
             relationships=relationships,
             events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
         )
 
     def _build_pharma_schema(self, story: str, default_rows: int) -> SchemaConfig:
@@ -378,6 +583,14 @@ class StoryParser:
             ),
         ]
 
+        outcome_curve = self._build_absolute_monthly_curve(
+            story,
+            table="timesheets",
+            column="hours",
+            time_column="date",
+            avg_transaction_value=7.5,
+        )
+
         return SchemaConfig(
             name="Pharma Services Dataset",
             description=f"Generated from story: {story}",
@@ -385,6 +598,7 @@ class StoryParser:
             columns=columns,
             relationships=relationships,
             events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
         )
 
     def _build_generic_schema(self, story: str, default_rows: int) -> SchemaConfig:
@@ -415,6 +629,14 @@ class StoryParser:
             ],
         }
 
+        outcome_curve = self._build_absolute_monthly_curve(
+            story,
+            table="main_table",
+            column="value",
+            time_column="date",
+            avg_transaction_value=100.0,
+        )
+
         return SchemaConfig(
             name="Generic Dataset",
             description=f"Generated from story: {story}",
@@ -422,4 +644,5 @@ class StoryParser:
             columns=columns,
             relationships=[],
             events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
         )
