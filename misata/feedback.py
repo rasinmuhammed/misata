@@ -14,8 +14,8 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -289,15 +289,65 @@ class FeedbackDatabase:
             tables_affected=unique_tables
         )
 
-    def generate_prompt_enhancement(self) -> str:
+    def _query_prompt_rules(
+        self,
+        *,
+        min_occurrences: int,
+        industry: Optional[str] = None,
+        table_names: Optional[List[str]] = None,
+    ) -> List[Tuple[str, str, str, int]]:
+        """Query scoped correction rules for prompt enhancement."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        where_clauses = ["corrected_type IS NOT NULL", "corrected_type != ''"]
+        params: List[Any] = []
+
+        if industry:
+            where_clauses.append("industry = ?")
+            params.append(industry)
+
+        if table_names:
+            placeholders = ", ".join(["?"] * len(table_names))
+            where_clauses.append(f"table_name IN ({placeholders})")
+            params.extend(table_names)
+
+        params.append(min_occurrences)
+        query = f"""
+            SELECT column_name, corrected_type, corrected_params, COUNT(*) as cnt
+            FROM corrections
+            WHERE {' AND '.join(where_clauses)}
+            GROUP BY column_name, corrected_type, corrected_params
+            HAVING COUNT(*) >= ?
+            ORDER BY cnt DESC, column_name ASC
+            LIMIT 10
+        """
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
+    def generate_prompt_enhancement(
+        self,
+        min_occurrences: int = 3,
+        industry: Optional[str] = None,
+        table_names: Optional[List[str]] = None,
+    ) -> str:
         """
         Generate prompt enhancement based on learned corrections.
 
         This is injected into the LLM prompt to improve future generations.
         """
-        patterns = self.get_learned_patterns(min_occurrences=1)
+        scoped_rules = self._query_prompt_rules(
+            min_occurrences=min_occurrences,
+            industry=industry,
+            table_names=table_names,
+        )
+        if not scoped_rules and (industry or table_names):
+            scoped_rules = self._query_prompt_rules(min_occurrences=min_occurrences)
 
-        if not patterns:
+        if not scoped_rules:
             return ""
 
         lines = [
@@ -305,11 +355,15 @@ class FeedbackDatabase:
             ""
         ]
 
-        for col_name, data in list(patterns.items())[:10]:
-            suggestion = data["suggestion"]
-            data["confidence"]
-
-            lines.append(f"- Column '{col_name}': use type '{suggestion.get('type')}' with params {suggestion.get('params')}")
+        for col_name, corrected_type, corrected_params, count in scoped_rules:
+            try:
+                params = json.loads(corrected_params or "{}")
+            except json.JSONDecodeError:
+                params = {}
+            lines.append(
+                f"- Column '{col_name}': prefer type '{corrected_type}' with params {params} "
+                f"(confirmed {count} times)"
+            )
 
         return "\n".join(lines)
 

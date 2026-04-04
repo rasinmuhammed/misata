@@ -11,11 +11,12 @@ including:
 import json
 import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from groq import Groq
 
 from misata.curve_fitting import CurveFitter
+from misata.feedback import FeedbackDatabase
 from misata.schema import Column, OutcomeCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 from misata.research import DeepResearchAgent
 
@@ -118,6 +119,12 @@ Date: date, start/end based on user's time context
 
 If the user mentions ANY time-based patterns, EXTRACT them as outcome_curves:
 
+If the user provides EXPLICIT numeric targets by period, you MUST output exact target curves:
+- "50k in Jan, 80k in Feb, 120k in Mar" -> use `value_mode: "absolute"` and `target_value`
+- "revenue rises from 50k in Jan to 200k in Dec" -> emit concrete monthly target_value points, not just relative values
+- qualitative words like "dip in September" should become a lower target_value for September in the emitted monthly series
+- If the user specifies sub-period patterns ("busy on weekdays", "spikes at month end"), set `intra_period_pattern` to one of: "weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy". Default is "uniform".
+
 Keywords to detect:
 - "peak", "spike", "surge" -> High relative_value (0.8-1.0)
 - "dip", "drop", "decline" -> Low relative_value (0.2-0.4)
@@ -130,14 +137,26 @@ Output format:
     "table": "sales",
     "column": "amount",
     "time_column": "sale_date",
+    "time_unit": "month",
     "pattern_type": "seasonal",
+    "value_mode": "absolute",
+    "intra_period_pattern": "weekday_heavy",
     "description": "High in December, low in February",
     "curve_points": [
-      {"month": 2, "relative_value": 0.3},
-      {"month": 12, "relative_value": 1.0}
+      {"month": 1, "target_value": 50000},
+      {"month": 9, "target_value": 90000},
+      {"month": 12, "target_value": 200000}
     ]
   }
 ]
+
+## NOISE CONFIGURATION
+If the user mentions wanting messy, dirty, or imperfect data, include a `noise_config` object exactly like this:
+"noise_config": {
+  "mode": "analytics_safe",
+  "null_rate": 0.05,
+  "typo_rate": 0.02
+}
 
 ## DATE RANGE RULES
 - "Last 2 years" -> start: 2024-01-01, end: 2025-12-31
@@ -279,6 +298,9 @@ class LLMSchemaGenerator:
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
+        enable_feedback: bool = False,
+        feedback_db_path: Optional[str] = None,
+        feedback_min_occurrences: int = 3,
     ):
         """
         Initialize the LLM generator.
@@ -292,6 +314,10 @@ class LLMSchemaGenerator:
         """
         # Determine provider
         self.provider = provider or os.environ.get("MISATA_PROVIDER", "groq").lower()
+        self.enable_feedback = enable_feedback
+        self.feedback_db_path = feedback_db_path
+        self.feedback_min_occurrences = feedback_min_occurrences
+        self._feedback_db: Optional[FeedbackDatabase] = None
 
         if self.provider not in self.PROVIDERS:
             raise ValueError(f"Unknown provider: {self.provider}. Use: {list(self.PROVIDERS.keys())}")
@@ -341,6 +367,63 @@ class LLMSchemaGenerator:
 
             self.client = OpenAI(**client_kwargs)
 
+    def _get_feedback_db(self) -> Optional[FeedbackDatabase]:
+        """Lazily initialize the feedback database when feedback is enabled."""
+        if not self.enable_feedback:
+            return None
+        if self._feedback_db is None:
+            self._feedback_db = FeedbackDatabase(self.feedback_db_path)
+        return self._feedback_db
+
+    def _infer_feedback_industry(
+        self,
+        text: str = "",
+        table_names: Optional[List[str]] = None,
+    ) -> Optional[str]:
+        """Infer a broad industry scope for feedback rules."""
+        corpus = text.lower()
+        if table_names:
+            corpus = f"{corpus} {' '.join(table_names).lower()}"
+
+        domain_keywords = {
+            "saas": ["saas", "subscription", "billing", "mrr", "arr", "tenant"],
+            "ecommerce": ["ecommerce", "order", "cart", "product", "shipping", "inventory"],
+            "finance": ["finance", "payment", "account", "transaction", "bank"],
+            "healthcare": ["health", "clinical", "patient", "diagnosis", "pharma", "procedure"],
+            "education": ["student", "course", "lesson", "enrollment", "grade"],
+        }
+
+        for industry, keywords in domain_keywords.items():
+            if any(keyword in corpus for keyword in keywords):
+                return industry
+        return None
+
+    def _build_feedback_prompt(
+        self,
+        *,
+        story: Optional[str] = None,
+        schema: Optional[SchemaConfig] = None,
+        prompt: Optional[str] = None,
+    ) -> str:
+        """Build an optional scoped feedback suffix for LLM prompts."""
+        feedback_db = self._get_feedback_db()
+        if feedback_db is None:
+            return ""
+
+        table_names = [table.name for table in schema.tables] if schema else None
+        industry = self._infer_feedback_industry(
+            text=" ".join(part for part in [story or "", prompt or ""] if part),
+            table_names=table_names,
+        )
+        enhancement = feedback_db.generate_prompt_enhancement(
+            min_occurrences=self.feedback_min_occurrences,
+            industry=industry,
+            table_names=table_names,
+        )
+        if not enhancement:
+            return ""
+        return f"\n\nLEARNED FEEDBACK RULES:\n{enhancement}"
+
     def generate_from_story(
         self,
         story: str,
@@ -369,9 +452,12 @@ CRITICAL INSTRUCTIONS:
 4. Use foreign_key to link transactional tables to reference tables.
 5. Default row count for transactional tables: {default_rows}
 6. If the user mentions time patterns (peaks, dips, trends, growth), extract them as outcome_curves.
-7. If the user mentions a time range (e.g., "last 2 years"), set date column start/end accordingly.
+7. If the story contains explicit numeric targets by month/period, prefer exact `target_value` outcome_curves with `value_mode: "absolute"` over relative curves.
+8. If the user mentions sub-period trends ("slow weekends"), set `intra_period_pattern` ("weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy"). 
+9. If the user mentions a time range (e.g., "last 2 years"), set date column start/end accordingly.
 
 Output valid JSON. Be creative and domain-specific - DO NOT copy the system prompt examples."""
+        user_prompt += self._build_feedback_prompt(story=story)
 
 
         response = self.client.chat.completions.create(
@@ -562,8 +648,16 @@ Include reference tables with inline_data for lookup values and transactional ta
                 table=c["table"],
                 column=c["column"],
                 time_column=c.get("time_column", "date"),
+                time_unit=c.get("time_unit", "month"),
                 pattern_type=c.get("pattern_type", "seasonal"),
+                value_mode=c.get("value_mode", "auto"),
+                intra_period_pattern=c.get("intra_period_pattern", "uniform"),
                 description=c.get("description"),
+                avg_transaction_value=c.get("avg_transaction_value"),
+                min_transactions_per_period=c.get("min_transactions_per_period", 1),
+                max_transactions_per_period=c.get("max_transactions_per_period", 10000),
+                concentration=c.get("concentration", 2.0),
+                start_date=c.get("start_date"),
                 curve_points=c.get("curve_points", [])
             ))
 
@@ -575,6 +669,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             relationships=relationships,
             events=events,
             outcome_curves=outcome_curves,
+            noise_config=schema_dict.get("noise_config"),
             seed=schema_dict.get("seed", 42)
         )
 
@@ -614,6 +709,7 @@ SCHEMA:
 {f'DOMAIN HINT: {prompt}' if prompt else ''}
 
 Return valid JSON with enriched columns, reference_tables, and constraints. Be domain-specific based on the table/column names you see."""
+        user_prompt += self._build_feedback_prompt(schema=schema, prompt=prompt)
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -822,6 +918,7 @@ Return valid JSON with enriched columns, reference_tables, and constraints. Be d
 
         # Construct the final prompt
         user_prompt = f"Story: {story}{context}\n\nDefault row count for transactional tables: {default_rows}\n\nGenerate the complete JSON schema."
+        user_prompt += self._build_feedback_prompt(story=story)
         
         completion = self.client.chat.completions.create(
             messages=[
