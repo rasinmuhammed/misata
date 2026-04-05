@@ -254,8 +254,19 @@ class DataSimulator:
                             needed_cols.add(pcol)
                     except:
                         pass
+                if "depends_on" in col.distribution_params:
+                    try:
+                        dep_parts = col.distribution_params["depends_on"].split(".", 1)
+                        if len(dep_parts) == 2:
+                            fk_col, target_col = dep_parts
+                            for rel in self.config.relationships:
+                                if rel.child_table == child_table.name and rel.child_key == fk_col and rel.parent_table == table_name:
+                                    needed_cols.add(target_col)
+                    except:
+                        pass
 
         cols_to_store = [c for c in needed_cols if c in df.columns]
+        print(f"DEBUG _update_context({table_name}): needed={needed_cols}, stored={cols_to_store}")
         if not cols_to_store:
             return
 
@@ -308,17 +319,77 @@ class DataSimulator:
             parent_col = params["depends_on"]
             mapping = params.get("mapping", {})
             
-            if parent_col in table_data.columns and mapping:
+            print(f"DEBUG depends_on: col={column.name}, mapping={mapping}")
+            
+            parent_values = None
+            if parent_col in table_data.columns:
                 parent_values = table_data[parent_col].values
+            elif "." in parent_col:
+                # Handle foreign-key path lookup (e.g., "tenant_id.plan_type_id")
+                try:
+                    fk_col, target_col = parent_col.split(".", 1)
+                    if fk_col in table_data.columns:
+                        fk_values = table_data[fk_col].values
+                        rel = next((r for r in self.config.relationships if r.child_table == table_name and r.child_key == fk_col), None)
+                        if rel and rel.parent_table in self.context:
+                            parent_df = self.context[rel.parent_table]
+                            if target_col in parent_df.columns:
+                                parent_map = parent_df.set_index(rel.parent_key)[target_col]
+                                parent_values = parent_map.reindex(fk_values).values
+                            else:
+                                print(f"DEBUG FAIL: target_col {target_col} NOT in parent {rel.parent_table} columns: {parent_df.columns}")
+                        else:
+                            print(f"DEBUG FAIL: rel NOT matched or parent not in context")
+                    else:
+                        print(f"DEBUG FAIL: fk_col {fk_col} NOT in table_data")
+                except Exception as e:
+                    warnings.warn(f"Failed to resolve cross-table dependency {parent_col}: {e}")
+            
+            if parent_values is not None and mapping:
                 
                 # Check if it's numeric or categorical mapping
+                first_key = next(iter(mapping.keys()))
                 first_val = next(iter(mapping.values()))
+                
+                # Magic Reference Table Resolver: If mapping keys are strings but our values are ints (FKs)
+                if isinstance(first_key, str):
+                    for r_name, r_df in self.context.items():
+                        r_table_config = self.config.get_table(r_name)
+                        if r_table_config and r_table_config.is_reference and 'id' in r_df.columns:
+                            str_cols = [c for c in r_df.columns if c != 'id']
+                            if str_cols:
+                                # Get the values
+                                ref_vals = r_df[str_cols[0]].values
+                                print(f"DEBUG MATCHING: ref_vals={ref_vals}, mapping.keys={list(mapping.keys())}")
+                                # If any key in mapping exists in the reference table values
+                                if any(k in ref_vals for k in mapping.keys()):
+                                    id_to_name = {str(k): v for k, v in r_df.set_index('id')[str_cols[0]].to_dict().items()}
+                                    print(f"DEBUG MAGIC RESOLVER: id_to_name={id_to_name}, first_parent_val={parent_values[0]}, type={type(parent_values[0])}")
+                                    
+                                    # Convert parent_values to strings if possible to match against id_to_name keys (which are also strings now)
+                                    # Handle case where parent_values contains floats like 1.0 instead of 1
+                                    def safe_str(v):
+                                        return str(int(v)) if isinstance(v, (float, np.floating)) and not np.isnan(v) else str(v)
+                                        
+                                    parent_values = np.array([id_to_name.get(safe_str(val), val) for val in parent_values])
+                                    break
+
                 if isinstance(first_val, dict) and "mean" in first_val:
+                    print(f"DEBUG CONDITIONAL MATH: mapping keys = {list(mapping.keys())}, parent_values sample = {parent_values[:5]}")
                     # Numeric conditional distribution (e.g., salary based on job_title)
                     # mapping = {"Intern": {"mean": 40000, "std": 5000}, "CTO": {"mean": 200000, "std": 30000}}
                     values = np.zeros(size)
                     for key, dist in mapping.items():
-                        mask = parent_values == key
+                        # Ensure types match for numpy comparison (e.g. key="1", parent_values=[1, 2])
+                        compare_key = key
+                        if len(parent_values) > 0:
+                            target_type = type(parent_values[0])
+                            try:
+                                compare_key = target_type(key)
+                            except:
+                                pass
+                        
+                        mask = parent_values == compare_key
                         count = mask.sum()
                         if count > 0:
                             mean = dist.get("mean", 50000)
@@ -327,7 +398,18 @@ class DataSimulator:
                     
                     # Handle values that didn't match any key (use default)
                     default = params.get("default", {"mean": 50000, "std": 10000})
-                    unmatched = ~np.isin(parent_values, list(mapping.keys()))
+                    
+                    if len(parent_values) > 0:
+                        target_type = type(parent_values[0])
+                        safe_keys = [target_type(k) if isinstance(k, str) and k.isdigit() else k for k in mapping.keys()]
+                        try:
+                            safe_keys = [target_type(k) for k in mapping.keys()]
+                        except:
+                            pass
+                    else:
+                        safe_keys = list(mapping.keys())
+                        
+                    unmatched = ~np.isin(parent_values, safe_keys)
                     if unmatched.sum() > 0:
                         values[unmatched] = self.rng.normal(
                             default.get("mean", 50000), 
@@ -960,33 +1042,48 @@ class DataSimulator:
         3. Store columns used in Relationship filters (Logic Gap fix)
         4. Store columns used in 'relative_to' date constraints (Time Travel fix)
         """
-        needed_cols = {'id'}
+        table = self.config.get_table(table_name)
+        if table and table.is_reference:
+            cols_to_store = list(df.columns)
+        else:
+            needed_cols = {'id'}
 
-        # 2. FK and Filter dependencies
-        for rel in self.config.relationships:
-            if rel.parent_table == table_name:
-                needed_cols.add(rel.parent_key)
-                if rel.filters:
-                    for col in rel.filters.keys():
-                        needed_cols.add(col)
+            # 2. FK and Filter dependencies
+            for rel in self.config.relationships:
+                if rel.parent_table == table_name:
+                    needed_cols.add(rel.parent_key)
+                    if rel.filters:
+                        for col in rel.filters.keys():
+                            needed_cols.add(col)
 
-        # 4. Filter 'relative_to' dependencies
-        # This requires scanning ALL columns of ALL child tables to see if they reference this table
-        # Optimization: Build this dependency map once in __init__?
-        # For now, we scan here. It's fast enough for schema sizes < 100 tables.
-        for child_table in self.config.tables:
-            child_cols = self.config.get_columns(child_table.name)
-            for col in child_cols:
-                if col.type == 'date' and 'relative_to' in col.distribution_params:
-                    # Format: "parent_table.column"
-                    try:
-                        ptable, pcol = col.distribution_params['relative_to'].split('.')
-                        if ptable == table_name:
-                            needed_cols.add(pcol)
-                    except Exception:
-                        pass
+            # 4. Filter 'relative_to' dependencies
+            # This requires scanning ALL columns of ALL child tables to see if they reference this table
+            # Optimization: Build this dependency map once in __init__?
+            # For now, we scan here. It's fast enough for schema sizes < 100 tables.
+            for child_table in self.config.tables:
+                child_cols = self.config.get_columns(child_table.name)
+                for col in child_cols:
+                    if col.type == 'date' and 'relative_to' in col.distribution_params:
+                        # Format: "parent_table.column"
+                        try:
+                            ptable, pcol = col.distribution_params['relative_to'].split('.')
+                            if ptable == table_name:
+                                needed_cols.add(pcol)
+                        except Exception:
+                            pass
+                    if "depends_on" in col.distribution_params:
+                        try:
+                            dep_parts = col.distribution_params["depends_on"].split(".", 1)
+                            if len(dep_parts) == 2:
+                                fk_col, target_col = dep_parts
+                                for rel in self.config.relationships:
+                                    if rel.child_table == child_table.name and rel.child_key == fk_col and rel.parent_table == table_name:
+                                        needed_cols.add(target_col)
+                        except:
+                            pass
 
-        cols_to_store = [c for c in needed_cols if c in df.columns]
+            cols_to_store = [c for c in needed_cols if c in df.columns]
+        
         if not cols_to_store:
             return
 

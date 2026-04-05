@@ -115,6 +115,11 @@ Duration (min): int, normal, mean: 45, std: 20, min: 5
 Boolean: boolean, probability: 0.5-0.9 depending on context
 Date: date, start/end based on user's time context
 
+## CORRELATED COLUMNS (use `depends_on`)
+When the prompt states that a column depends on ANOTHER column (such as plan type affecting MRR amount), you MUST emit `depends_on`.
+If it crosses a foreign key, use dot notation:
+`"distribution_params": {"depends_on": "tenant_id.plan_type_id", "mapping": {"Enterprise": {"mean": 5000, "std": 500}, "Startup": {"mean": 100, "std": 20}}}`
+
 ## TEMPORAL PATTERNS & OUTCOME CURVES
 
 If the user mentions ANY time-based patterns, EXTRACT them as outcome_curves:
@@ -198,10 +203,12 @@ For each column, return enriched `distribution_params` following these rules:
 - Durations → `{"distribution": "normal", "mean": 45, "std": 20, "min": 5}`
 
 ### 2. CORRELATED COLUMNS (use `depends_on`)
-When columns are logically related within the same table, use conditional distributions:
+When columns are logically related to other columns (even via foreign keys!), use conditional distributions:
 - Salary depends on job_title: `{"depends_on": "job_title", "mapping": {"Intern": {"mean": 40000, "std": 5000}, "CTO": {"mean": 200000, "std": 30000}}}`
 - State depends on country: `{"depends_on": "country", "mapping": {"USA": ["CA", "TX", "NY"], "UK": ["England", "Scotland"]}}`
-- Churn depends on plan: `{"depends_on": "plan_type", "mapping": {"free": 0.3, "pro": 0.1, "enterprise": 0.05}}`
+- Churn depends on plan: `{"depends_on": "plan_type_id", "mapping": {"Free": 0.3, "Pro": 0.1, "Enterprise": 0.05}}`
+- Cross-Table FK Dependency (CRITICAL): If 'amount' depends on the tenant's plan type, use dot notation:
+  `{"depends_on": "tenant_id.plan_type_id", "mapping": {"Enterprise": {"mean": 5000, "std": 500}, "Startup": {"mean": 100, "std": 20}}}`
 
 ### 3. TEXT TYPE INFERENCE (from column name)
 - email, user_email → `{"text_type": "email"}`

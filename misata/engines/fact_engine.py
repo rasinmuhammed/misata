@@ -319,10 +319,11 @@ class FactEngine:
 
         alpha_array = np.full(row_count, concentration, dtype=float)
         if intra_period_pattern != "uniform" and len(timestamps) == row_count:
+            ts = pd.to_datetime(timestamps)
             if intra_period_pattern == "weekday_heavy":
-                alpha_array *= np.where(timestamps.dt.dayofweek < 5, 2.0, 0.5)
+                alpha_array *= np.where(ts.dt.dayofweek < 5, 2.0, 0.5)
             elif intra_period_pattern == "weekend_heavy":
-                alpha_array *= np.where(timestamps.dt.dayofweek >= 5, 2.0, 0.5)
+                alpha_array *= np.where(ts.dt.dayofweek >= 5, 2.0, 0.5)
             elif intra_period_pattern in ("start_heavy", "end_heavy"):
                 min_t, max_t = timestamps.min(), timestamps.max()
                 if max_t > min_t:
