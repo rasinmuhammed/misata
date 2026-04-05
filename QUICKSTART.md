@@ -1,214 +1,217 @@
-# Misata - Quick Start Guide
+# Misata Quick Start
 
-## Installation
+This guide is for someone who wants to get useful output fast, without having to decode product jargon.
+
+If you see a playful Misata term in the docs, it will always be followed by the plain-English meaning. Example:
+
+- `Time Machine` = temporal generation
+- `Spellbook` = saved recipe
+- `Oracle` = validation and reporting
+
+## Install
 
 ```bash
-cd /Users/muhammedrasin/Misata
-pip install -e .
+pip install misata
 ```
 
+Optional extras:
+
 ```bash
-# Optional: Postgres seeding support
+# Database seeding support
 pip install "misata[db]"
-```
 
-```bash
-# Optional: SQLAlchemy schema introspection
+# SQLAlchemy schema introspection
 pip install "misata[orm]"
 ```
 
-## Setup Groq API Key
+## Your First Dataset
 
-1. Get your free key at: https://console.groq.com
-2. Create a `.env` file:
+### Rule-based generation
 
-```bash
-cp .env.example .env
-# Edit .env and add your GROQ_API_KEY
-```
-
-Or set the environment variable directly:
-```bash
-export GROQ_API_KEY=your_key_here
-```
-
-## Instant Examples
-
-### 1. Generate SaaS Data (Rule-based)
 ```bash
 misata generate \
-  --story "SaaS company with 10K users, 20% churn in Q3 2023" \
+  --story "A SaaS company with 10K users, subscriptions, invoices, and a churn spike in Q3" \
   --output-dir ./saas_data \
   --seed 42
 ```
 
-### 2. Generate with LLM (Intelligent)
+### LLM-assisted generation
+
 ```bash
+export GROQ_API_KEY=your_key_here
+
 misata generate \
-  --story "Mobile fitness app with workout tracking, seasonal patterns" \
+  --story "A mobile fitness app with workouts, meal plans, and seasonal usage peaks" \
   --use-llm \
   --output-dir ./fitness_data
 ```
 
-### 3. Graph Reverse Engineering
+## What Misata Writes
+
+Depending on your run, Misata can produce:
+- CSV files for each table
+- validation reports
+- quality reports
+- audit artifacts
+- reusable recipe files
+
+## Common Workflows
+
+### 1. Generate data from a story
+
 ```bash
-misata graph "Revenue from $100K to $1M over 2 years with Q2 dips" \
-  --output-dir ./revenue_data
+misata generate --story "An ecommerce shop with products, carts, orders, and refunds"
 ```
 
-### 4. Start Web UI
-```bash
-# Terminal 1: API server
-misata serve --port 8000
+### 2. Save a repeatable run as a Spellbook
 
-# Terminal 2: Web frontend
-cd web && npm run dev
-```
+In Misata language, a `Spellbook` is just a reusable recipe.
 
-Open http://localhost:3000 🎉
-
-### 5. Seed a Database
-```bash
-# SQLite
-misata generate --story "SaaS company with users and subscriptions" \
-  --db-url sqlite:///./misata.db --db-create --db-truncate
-
-# Postgres (requires misata[db])
-misata generate --story "E-commerce with products and orders" \
-  --db-url postgresql://user:pass@localhost:5432/misata --db-create
-
-# Generate from SQLAlchemy models
-misata generate --sqlalchemy myapp.models:Base --db-url sqlite:///./app.db --db-create
-
-# Export a portable seed script
-misata generate --story "SaaS with users" \
-  --db-url sqlite:///./misata.db --db-create --export-script ./seed.py
-```
-
-### 6. Generate Schema from an Existing DB
-```bash
-misata schema --db-url sqlite:///./misata.db --output schema.yaml
-```
-
-### 7. Generate Schema from SQLAlchemy (requires misata[orm])
-```bash
-misata schema --sqlalchemy myapp.models:Base --output schema.yaml
-```
-
-### 8. Scenarios, Validation, and Quality
-```bash
-# Apply scenario overrides
-misata generate --story "SaaS with churn events" --scenario ./scenarios/churn.yaml
-
-# Validate a database directly
-misata validate --db-url sqlite:///./misata.db --config schema.yaml
-
-# Run quality checks
-misata quality --db-url sqlite:///./misata.db --config schema.yaml
-```
-
-### 9. Create a Reusable Recipe
 ```bash
 misata recipe init \
   --name saas_smoke \
-  --story "SaaS company with 10K users and subscriptions" \
+  --story "A SaaS company with users and subscriptions" \
   --output ./saas_recipe.yaml
 
 misata recipe run --config ./saas_recipe.yaml --rows 1000
 ```
 
-Recipe runs write machine-readable artifacts into the configured output directory:
-- `run_manifest.json`
-- `validation_report.json`
-- `quality_report.json`
-- `audit_report.json` when audit is enabled
+### 3. Seed a database
+
+```bash
+# SQLite
+misata generate \
+  --story "A SaaS company with users and subscriptions" \
+  --db-url sqlite:///./misata.db \
+  --db-create \
+  --db-truncate
+
+# PostgreSQL
+misata generate \
+  --story "An ecommerce company with products and orders" \
+  --db-url postgresql://user:pass@localhost:5432/misata \
+  --db-create
+```
+
+### 4. Generate from SQLAlchemy models
+
+```bash
+misata generate \
+  --sqlalchemy myapp.models:Base \
+  --db-url sqlite:///./app.db \
+  --db-create
+```
+
+### 5. Introspect an existing schema
+
+```bash
+misata schema --db-url sqlite:///./misata.db --output schema.yaml
+```
+
+### 6. Run the Oracle
+
+In Misata language, the `Oracle` is validation and reporting.
+
+```bash
+misata validate --db-url sqlite:///./misata.db --config schema.yaml
+misata quality --db-url sqlite:///./misata.db --config schema.yaml
+```
 
 ## Python API
 
+### Story parser
+
 ```python
-from misata import DataSimulator, SchemaConfig
+from misata import DataSimulator
 from misata.story_parser import StoryParser
 
-# Rule-based parsing
 parser = StoryParser()
-config = parser.parse("SaaS with 50K users")
+config = parser.parse("A SaaS app with 50K users and monthly subscriptions")
 
-# Or with LLM
+simulator = DataSimulator(config)
+for table_name, df in simulator.generate_all():
+    print(table_name, len(df))
+```
+
+### LLM schema generator
+
+```python
+from misata import DataSimulator
 from misata.llm_parser import LLMSchemaGenerator
-llm = LLMSchemaGenerator()  # Reads GROQ_API_KEY from .env
-config = llm.generate_from_story("Fitness app with seasonal patterns")
 
-# Generate data
-simulator = DataSimulator(config, seed=42)
-data = simulator.generate_all()
+llm = LLMSchemaGenerator(provider="groq")
+config = llm.generate_from_story(
+    "A healthcare system with patients, appointments, claims, and seasonal booking spikes"
+)
 
-# Export
-simulator.export_to_csv("./output")
+result = DataSimulator(config).generate_with_reports()
+print(result.validation_report.summary())
 ```
 
-## Project Structure
+## Important Concepts
 
-```
-Misata/
-├── misata/               # Python package
-│   ├── schema.py         # Pydantic models
-│   ├── simulator.py      # Core engine
-│   ├── llm_parser.py     # Groq LLM integration
-│   ├── api.py            # FastAPI backend
-│   └── cli.py            # CLI interface
-├── web/                  # Next.js web UI
-├── examples/             # Demo scripts
-├── .env.example          # Environment template
-└── pyproject.toml        # Dependencies
-```
+### Time Machine
+
+`Time Machine` means temporal shaping. This includes:
+- date distributions
+- outcome curves
+- seasonal density
+- growth and decline stories
+
+### Multiverse
+
+`Multiverse` means multiple scenario variants built from the same schema.  
+Misata is moving in this direction through scenario planning, exact curves, and reusable configurations.
+
+### Domain Capsule
+
+A `Domain Capsule` is the resolved context pack that helps Misata stay domain-aware:
+- locale
+- domain vocabulary
+- product or role labels
+- provenance for imported assets
+
+You do not need to construct one manually for normal usage. The engine builds it internally.
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `misata generate` | Generate data from story |
-| `misata recipe init` | Create a reusable YAML recipe |
-| `misata recipe run` | Execute a saved recipe and write reports |
-| `misata graph` | Reverse engineer from chart description |
-| `misata parse` | Output config file for review |
-| `misata schema` | Introspect schema from DB/SQLAlchemy |
-| `misata serve` | Start API server |
-| `misata examples` | Show usage examples |
-| `misata validate` | Validate CSV or DB data |
-| `misata quality` | Run data quality checks |
+| Command | Plain-English meaning |
+|---|---|
+| `misata generate` | Generate synthetic data from a story or schema |
+| `misata recipe init` | Save a reusable run |
+| `misata recipe run` | Execute a saved run |
+| `misata graph` | Reverse-engineer from a chart description |
+| `misata parse` | Output a config for review |
+| `misata schema` | Introspect schema from DB or SQLAlchemy |
+| `misata serve` | Start the API server |
+| `misata validate` | Validate generated data |
+| `misata quality` | Run quality checks |
 
 ## Troubleshooting
 
-### "Command not found: misata"
+### `misata: command not found`
+
 ```bash
-cd /Users/muhammedrasin/Misata
 pip install -e .
 ```
 
-### "Groq API key required"
-```bash
-# Option 1: Environment variable
-export GROQ_API_KEY=your_key
+### LLM key missing
 
-# Option 2: .env file
-cp .env.example .env
-# Edit .env with your key
+```bash
+export GROQ_API_KEY=your_key_here
 ```
 
-### Using without LLM
-Just omit the `--use-llm` flag for rule-based parsing:
+### I want to stay rule-based
+
+Just omit `--use-llm`.
+
 ```bash
-misata generate --story "SaaS 10K users"
+misata generate --story "A SaaS app with users and invoices"
 ```
 
-## Performance
+## Where To Go Next
 
-| Rows | Time | Speed |
-|------|------|-------|
-| 10K | 0.04s | 250K rows/sec |
-| 100K | 0.4s | 250K rows/sec |
-| 1M | 4s | 250K rows/sec |
-
----
-
-**Misata** - AI-Powered Synthetic Data Engine 🧠
+- [README.md](/Users/muhammedrasin/misata-project/Misata/README.md)
+- [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md)
+- [MISATA_VOICE.md](/Users/muhammedrasin/misata-project/Misata/MISATA_VOICE.md)
+- [MISATA_GLOSSARY.md](/Users/muhammedrasin/misata-project/Misata/MISATA_GLOSSARY.md)

@@ -1,264 +1,148 @@
 # Contributing to Misata
 
-Thank you for your interest in contributing to Misata! This document provides guidelines and instructions for contributing.
+Thank you for wanting to improve Misata.
 
-## 📋 Table of Contents
+Misata should feel technically serious and human to read. We want contributions that make the library stronger, clearer, and easier to trust.
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
-- [Making Changes](#making-changes)
-- [Pull Request Process](#pull-request-process)
-- [Coding Standards](#coding-standards)
-- [Testing](#testing)
-- [Documentation](#documentation)
+## Core Principles
 
-## 📜 Code of Conduct
+- Keep the public surface easy to understand.
+- Keep the internal architecture honest and inspectable.
+- Use playful naming only when the plain-English meaning stays obvious.
+- Prefer clarity over cleverness.
+- Write docs like a strong engineer explaining a difficult system to another strong engineer.
 
-Please be respectful and constructive in all interactions. We're all here to make Misata better together.
+## Before You Start
 
-## 🚀 Getting Started
-
-### Prerequisites
-
+Make sure you have:
 - Python 3.10+
 - Git
-- A Groq API key (free at [console.groq.com](https://console.groq.com))
+- an LLM provider key if you want to test the LLM-assisted paths
 
-### Development Setup
+## Development Setup
 
 ```bash
-# Fork and clone the repository
 git clone https://github.com/YOUR_USERNAME/misata.git
 cd misata
 
-# Create a virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 
-# Install in development mode with dev dependencies
-cd packages/core
 pip install -e ".[dev]"
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your GROQ_API_KEY
-
-# Run tests to verify setup
-pytest tests/
 ```
 
-## 🔧 Making Changes
-
-### Branch Naming
-
-- `feature/description` - New features
-- `fix/description` - Bug fixes
-- `docs/description` - Documentation updates
-- `refactor/description` - Code refactoring
-- `test/description` - Test additions
-
-### Commit Messages
-
-Follow conventional commits:
-
-```
-type(scope): description
-
-[optional body]
-```
-
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
-Examples:
-```
-feat(generators): add beta distribution generator
-fix(simulator): handle empty foreign key lookup
-docs(readme): add installation instructions
-```
-
-## 📤 Pull Request Process
-
-1. **Create a feature branch**
-   ```bash
-   git checkout -b feature/my-feature
-   ```
-
-2. **Make your changes**
-   - Write code
-   - Add tests
-   - Update documentation
-
-3. **Run quality checks**
-   ```bash
-   # Format code
-   black .
-   
-   # Lint
-   ruff check .
-   
-   # Type check
-   mypy misata/
-   
-   # Run tests
-   pytest tests/ -v
-   ```
-
-4. **Push and create PR**
-   ```bash
-   git push origin feature/my-feature
-   ```
-   
-   Then open a PR on GitHub.
-
-5. **PR Description**
-   - Describe what changes you made
-   - Reference any related issues
-   - Include screenshots for UI changes
-
-## 📏 Coding Standards
-
-### Python
-
-- **Formatter**: Black (line length 100)
-- **Linter**: Ruff
-- **Type hints**: Required for all functions
-- **Docstrings**: Google style
-
-```python
-def generate_column(
-    self,
-    table_name: str,
-    column: Column,
-    size: int,
-) -> np.ndarray:
-    """Generate values for a single column.
-    
-    Args:
-        table_name: Name of the table being generated
-        column: Column definition
-        size: Number of values to generate
-        
-    Returns:
-        Array of generated values
-        
-    Raises:
-        ColumnGenerationError: If generation fails
-    """
-    pass
-```
-
-### File Organization
-
-```
-misata/
-├── __init__.py          # Public exports
-├── schema.py            # Pydantic models
-├── simulator.py         # Core engine
-├── generators/          # Generator implementations
-│   ├── __init__.py
-│   └── base.py
-├── exceptions.py        # Custom exceptions
-└── ...
-```
-
-## 🧪 Testing
-
-### Running Tests
+Optional:
 
 ```bash
-# All tests
-pytest tests/
+cp .env.example .env
+# add your provider keys if needed
+```
 
-# Specific test file
-pytest tests/test_simulator.py
+## Making Changes
 
-# With coverage
-pytest tests/ --cov=misata --cov-report=html
+### What good changes look like
 
-# Verbose output
+A good Misata change usually does at least one of these:
+- improves realism without making behavior mysterious
+- adds control without adding confusion
+- makes generated data easier to validate
+- makes docs easier for a normal person to follow
+
+### Branch names
+
+Use short, readable branch names:
+- `feature/domain-capsule`
+- `fix/time-density`
+- `docs/readme-refresh`
+
+### Commit messages
+
+Keep commits short and human.
+
+Good examples:
+- `Teach Misata to shape time density safely`
+- `Add asset-backed vocabularies to the realism engine`
+- `Rewrite the quickstart for clarity`
+
+## Testing
+
+Run the relevant tests for the area you touched.
+
+```bash
 pytest tests/ -v
 ```
 
-### Writing Tests
+Examples:
 
-```python
-import pytest
-from misata import DataSimulator, SchemaConfig
-
-class TestDataSimulator:
-    def test_generate_basic_table(self):
-        """Test basic table generation."""
-        config = SchemaConfig(...)
-        simulator = DataSimulator(config)
-        
-        for table_name, df in simulator.generate_all():
-            assert len(df) > 0
-    
-    @pytest.mark.parametrize("distribution", ["uniform", "normal", "poisson"])
-    def test_integer_distributions(self, distribution):
-        """Test various integer distributions."""
-        pass
+```bash
+pytest tests/test_simulator.py -v
+pytest tests/test_validation.py -v
+pytest tests/test_assets.py -v
 ```
 
-### Test Categories
+If your change affects generation behavior, add or update tests.
 
-- **Unit tests**: `tests/unit/` - Fast, isolated tests
-- **Integration tests**: `tests/integration/` - API + Core interaction
-- **Performance tests**: `tests/performance/` - Benchmarks
+## Documentation Rules
 
-## 📚 Documentation
+Misata uses a distinct voice, but the docs must remain easy to scan.
 
-### Docstrings
+### Always do this
 
-All public functions and classes need docstrings:
+- explain the feature in plain English first
+- pair magical terminology with a plain-English label
+- show a concrete example
+- make it obvious why the feature exists
 
-```python
-class DataSimulator:
-    """High-performance synthetic data simulator.
-    
-    Generates synthetic datasets based on SchemaConfig definitions,
-    using vectorized operations for maximum performance.
-    
-    Attributes:
-        config: Schema configuration
-        seed: Random seed for reproducibility
-        
-    Example:
-        >>> sim = DataSimulator(config, seed=42)
-        >>> for table_name, df in sim.generate_all():
-        ...     df.to_csv(f"{table_name}.csv")
-    """
-```
+### Never do this
 
-### README Updates
+- rename technical concepts so aggressively that users cannot guess what they do
+- use fantasy language without a plain-English explanation nearby
+- write marketing copy where setup instructions should be
 
-When adding features, update:
-- Feature list in README.md
-- CLI commands if applicable
-- API examples
+### Example
 
-## 🎯 Areas for Contribution
+Good:
 
-### Good First Issues
+`Time Machine` is Misata's label for temporal shaping. It controls date density, seasonality, and time-based scenarios.
 
-- Add more statistical distributions
-- Improve error messages
-- Add more templates
-- Documentation improvements
+Bad:
 
-### Larger Projects
+`The Time Machine bends chronology through arcane currents of probabilistic destiny.`
 
-- New generator types
-- Performance optimizations
-- New output formats
-- Enhanced LLM prompts
+## Writing Style
 
-## ❓ Questions?
+Please read [MISATA_VOICE.md](/Users/muhammedrasin/misata-project/Misata/MISATA_VOICE.md) before large doc changes.
+Please read [MISATA_GLOSSARY.md](/Users/muhammedrasin/misata-project/Misata/MISATA_GLOSSARY.md) before introducing a new magical term.
 
-- Open a [GitHub Issue](https://github.com/rasinmuhammed/misata/issues)
-- Start a [Discussion](https://github.com/rasinmuhammed/misata/discussions)
+The short version:
+- write like a talented human, not like a corporate template
+- be warm, but not vague
+- be memorable, but not theatrical
+- be precise, especially in technical docs
 
----
+## Areas That Need Help
 
-Thank you for contributing! 🙏
+Good contribution areas:
+- realism and coherence rules
+- asset-backed vocabularies
+- time-density generation
+- workflow simulation
+- validation and reporting
+- docs and examples
+
+## Pull Requests
+
+A strong PR should include:
+- a clear summary
+- tests when behavior changes
+- docs updates when the public surface changes
+- notes on tradeoffs if the change affects performance, realism, or determinism
+
+## Questions
+
+If something is unclear:
+- open an issue
+- open a discussion
+- propose a doc change first if the confusion is in naming or explanation
+
+Misata should become more magical only when it also becomes easier to understand.
