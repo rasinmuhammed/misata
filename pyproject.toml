@@ -1,7 +1,7 @@
 [project]
 name = "misata"
 version = "0.5.3"
-description = "AI-Powered Synthetic Data Engine - Generate realistic multi-table datasets from natural language"
+description = "Python synthetic data generator for realistic multi-table test data, database seeding, and scenario simulation"
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
 ]
@@ -10,8 +10,16 @@ license = {text = "MIT"}
 requires-python = ">=3.10"
 keywords = [
     "synthetic-data",
+    "synthetic-data-python",
+    "python-synthetic-data",
     "data-generation", 
     "fake-data",
+    "test-data-generator",
+    "database-seeding",
+    "mock-data",
+    "tabular-data",
+    "multi-table",
+    "scenario-simulation",
     "machine-learning",
     "testing",
     "llm",
@@ -28,8 +36,10 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Testing",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Database",
 ]
 dependencies = [
@@ -53,6 +63,7 @@ Homepage = "https://github.com/rasinmuhammed/misata"
 Documentation = "https://github.com/rasinmuhammed/misata#readme"
 Repository = "https://github.com/rasinmuhammed/misata"
 Issues = "https://github.com/rasinmuhammed/misata/issues"
+Changelog = "https://github.com/rasinmuhammed/misata/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
