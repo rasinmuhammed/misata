@@ -76,6 +76,8 @@ class Table(BaseModel):
     is_reference: bool = False
     inline_data: Optional[List[Dict[str, Any]]] = None
     constraints: List["Constraint"] = Field(default_factory=list)
+    workflow_preset: Optional[str] = None
+    workflow_config: Optional[Dict[str, Any]] = None
 
 
 
@@ -249,6 +251,45 @@ class NoiseConfig(BaseModel):
     exact_duplicates: bool = True
 
 
+class RealismConfig(BaseModel):
+    """
+    Configuration for advanced realism features.
+
+    All options are explicit and opt-in to preserve deterministic defaults.
+    """
+
+    row_planning: Literal["off", "heuristic", "custom"] = "off"
+    row_planning_base_rows: Optional[int] = Field(default=None, gt=0)
+    row_count_overrides: Dict[str, int] = Field(default_factory=dict)
+    relationship_multipliers: Dict[str, float] = Field(default_factory=dict)
+    coherence: Literal["off", "standard", "strict"] = "off"
+    workflow_mode: Literal["off", "preset", "custom"] = "off"
+    reports: List[Literal["privacy", "fidelity", "data_card"]] = Field(default_factory=list)
+    text_mode: Literal["default", "realistic_catalog"] = "default"
+    domain_hint: Optional[str] = None
+    locale: Optional[str] = None
+    era: Optional[str] = None
+    asset_store_dir: Optional[str] = None
+
+    @field_validator("row_count_overrides")
+    @classmethod
+    def validate_row_count_overrides(cls, v: Dict[str, int]) -> Dict[str, int]:
+        """Row count overrides must stay positive."""
+        for table_name, row_count in v.items():
+            if row_count <= 0:
+                raise ValueError(f"Row count override for '{table_name}' must be > 0")
+        return v
+
+    @field_validator("relationship_multipliers")
+    @classmethod
+    def validate_relationship_multipliers(cls, v: Dict[str, float]) -> Dict[str, float]:
+        """Relationship multipliers must stay positive."""
+        for relationship, multiplier in v.items():
+            if multiplier <= 0:
+                raise ValueError(f"Relationship multiplier for '{relationship}' must be > 0")
+        return v
+
+
 class SchemaConfig(BaseModel):
     """
     Complete configuration for synthetic data generation.
@@ -265,6 +306,7 @@ class SchemaConfig(BaseModel):
         events: List of scenario events to apply
         outcome_curves: List of temporal patterns for constrained generation
         noise_config: Optional noise injection rules
+        realism: Optional advanced realism planning and reporting rules
         seed: Random seed for reproducibility
     """
 
@@ -276,6 +318,7 @@ class SchemaConfig(BaseModel):
     events: List[ScenarioEvent] = Field(default_factory=list)
     outcome_curves: List[OutcomeCurve] = Field(default_factory=list)
     noise_config: Optional[NoiseConfig] = None
+    realism: Optional[RealismConfig] = None
     seed: Optional[int] = None
 
     @field_validator("columns")

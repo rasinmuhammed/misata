@@ -11,17 +11,36 @@ This module implements vectorized data generation with support for:
 
 import warnings
 from collections import defaultdict, deque
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
+from misata.assets import AssetStore
 from misata.engines import FactEngine
 from misata.generators.base import TextGenerator as _FactoryTextGenerator  # Generator factory version
 # Use the original generators.py TextGenerator which supports seed
 from misata.generators_legacy import TextGenerator
 from misata.noise import NoiseInjector
+from misata.planning import GenerationPlanner
+from misata.realism import EntityCoherenceEngine, RealisticTextGenerator, apply_realism_rules
+from misata.reporting import ReservoirTableSampler, build_generation_report_bundle
 from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig
+from misata.validation import StreamingDataValidator
+from misata.vocabulary import SemanticVocabularyGenerator
+from misata.workflows import WorkflowEngine
+
+
+@dataclass
+class GenerationResult:
+    """Collected generation output with validation and advisory reports."""
+
+    tables: Dict[str, pd.DataFrame]
+    validation_report: Any
+    reports: Dict[str, Any]
+    tables_are_samples: bool = False
+    table_row_counts: Dict[str, int] = field(default_factory=dict)
 
 
 class DataSimulator:
@@ -79,6 +98,13 @@ class DataSimulator:
         np.random.seed(seed)  # For legacy numpy.random calls
         self.fact_engine = FactEngine(self.rng)
         self.noise_injector = NoiseInjector(seed)
+        self.generation_plan = GenerationPlanner(self.config, self.rng).build()
+        realism = getattr(self.config, "realism", None)
+        asset_store = AssetStore(getattr(realism, "asset_store_dir", None))
+        self.domain_capsule = SemanticVocabularyGenerator(asset_store=asset_store).build_capsule(self.config)
+        self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule)
+        self.coherence_engine = EntityCoherenceEngine(self.rng, capsule=self.domain_capsule)
+        self.workflow_engine = WorkflowEngine(self.rng)
     
     def _get_smart_gen(self):
         """Lazy initialize SmartValueGenerator."""
@@ -89,6 +115,31 @@ class DataSimulator:
             except Exception:
                 self._smart_gen = None
         return self._smart_gen
+
+    def _get_realism_config(self) -> Any:
+        """Return the optional realism configuration."""
+        return getattr(self.config, "realism", None)
+
+    def _planned_row_count(self, table_name: str, fallback: int) -> int:
+        """Resolve row count from the planning stage."""
+        return self.generation_plan.row_count_for(table_name, fallback)
+
+    def _text_strategy_for(self, table_name: str, column_name: str) -> Optional[str]:
+        """Resolve planner-selected text strategy for a column."""
+        realism = self._get_realism_config()
+        if realism is None or realism.text_mode != "realistic_catalog":
+            return None
+        return self.generation_plan.text_strategy_for(table_name, column_name)
+
+    def _workflow_for_table(self, table: Any) -> Optional[str]:
+        """Return configured workflow preset for a table."""
+        realism = self._get_realism_config()
+        if realism is None or realism.workflow_mode == "off":
+            return None
+        workflow_preset = getattr(table, "workflow_preset", None)
+        if not workflow_preset:
+            return None
+        return workflow_preset
 
     def topological_sort(self) -> List[str]:
         """
@@ -325,13 +376,16 @@ class DataSimulator:
                 choices = list(choices)
 
             if probabilities is not None:
-                # Convert to float array and normalize
-                probabilities = np.array(probabilities, dtype=float)
-                prob_sum = probabilities.sum()
-                if prob_sum > 0:
-                    probabilities = probabilities / prob_sum
-                else:
+                if len(probabilities) != len(choices):
                     probabilities = None
+                else:
+                    # Convert to float array and normalize
+                    probabilities = np.array(probabilities, dtype=float)
+                    prob_sum = probabilities.sum()
+                    if prob_sum > 0:
+                        probabilities = probabilities / prob_sum
+                    else:
+                        probabilities = None
 
             values = self.rng.choice(choices, size=size, p=probabilities)
             return values
@@ -544,6 +598,7 @@ class DataSimulator:
         # TEXT
         elif column.type == "text":
             text_type = params.get("text_type", "sentence")
+            text_strategy = self._text_strategy_for(table_name, column.name)
             
             # Smart value generation - check for domain-specific content
             smart_generate = params.get("smart_generate", False) or self.smart_mode
@@ -573,6 +628,15 @@ class DataSimulator:
                         pool = self._smart_pools[pool_key]
                         values = self.rng.choice(pool, size=size)
                         return values
+
+            if text_strategy:
+                return self.realistic_text.generate(
+                    column_name=column.name,
+                    table_name=table_name,
+                    size=size,
+                    semantic_type=text_strategy,
+                    table_data=table_data,
+                )
 
             if text_type == "name":
                 pool_key = "text_name"
@@ -702,7 +766,9 @@ class DataSimulator:
         curves: List[Any],
     ) -> Optional[pd.DataFrame]:
         """Generate a constrained fact table from exact period targets."""
-        plan = self.fact_engine.build_plan(table, columns, curves)
+        planned_row_count = self._planned_row_count(table_name, table.row_count)
+        plan_table = table.model_copy(update={"row_count": planned_row_count}) if hasattr(table, "model_copy") else table
+        plan = self.fact_engine.build_plan(plan_table, columns, curves)
         if plan is None:
             warnings.warn(
                 f"Exact outcome curves for table '{table_name}' are incompatible. "
@@ -749,24 +815,14 @@ class DataSimulator:
             if column.distribution_params.get("formula")
         }
 
-    def _get_protected_noise_columns(self, table_name: str, table: Any) -> set[str]:
-        """Columns that should not be mutated in analytics-safe noise mode."""
-        protected: set[str] = set()
-
-        for column in self.config.get_columns(table_name):
-            if column.name == "id" or column.type == "foreign_key" or column.unique:
-                protected.add(column.name)
-
+    def _get_protected_generation_columns(self, table_name: str, table: Any) -> set[str]:
+        """Columns that coherence/workflows should avoid mutating."""
+        protected = set()
         for relationship in self.config.relationships:
             if relationship.parent_table == table_name:
                 protected.add(relationship.parent_key)
             if relationship.child_table == table_name:
                 protected.add(relationship.child_key)
-
-        for constraint in getattr(table, "constraints", []):
-            protected.update(constraint.group_by)
-            if constraint.column:
-                protected.add(constraint.column)
 
         for curve in getattr(self.config, "outcome_curves", []):
             if getattr(curve, "table", None) != table_name:
@@ -774,7 +830,22 @@ class DataSimulator:
             protected.add(curve.column)
             protected.add(curve.time_column)
 
+        for constraint in getattr(table, "constraints", []):
+            protected.update(constraint.group_by)
+            if constraint.column:
+                protected.add(constraint.column)
+
         protected.update(self._get_formula_columns(table_name))
+        return protected
+
+    def _get_protected_noise_columns(self, table_name: str, table: Any) -> set[str]:
+        """Columns that should not be mutated in analytics-safe noise mode."""
+        protected = self._get_protected_generation_columns(table_name, table)
+
+        for column in self.config.get_columns(table_name):
+            if column.name == "id" or column.type == "foreign_key" or column.unique:
+                protected.add(column.name)
+
         return protected
 
     def _resolve_noise_column_list(
@@ -949,14 +1020,15 @@ class DataSimulator:
             return
 
         columns = self.config.get_columns(table_name)
-        total_rows = table.row_count
+        total_rows = self._planned_row_count(table_name, table.row_count)
 
         exact_curves = self._get_exact_outcome_curves(table_name)
         if exact_curves:
             fact_df = self._generate_fact_table(table_name, table, columns, exact_curves)
             if fact_df is not None:
                 self._update_context(table_name, fact_df)
-                yield self._apply_configured_noise(fact_df.copy(), table_name, table)
+                output_df = self._apply_configured_noise(fact_df.copy(), table_name, table)
+                yield output_df
                 return
 
         rows_generated = 0
@@ -994,8 +1066,8 @@ class DataSimulator:
 
             # Update context for future batches/tables
             self._update_context(table_name, df_batch)
-
-            yield self._apply_configured_noise(df_batch.copy(), table_name, table)
+            output_df = self._apply_configured_noise(df_batch.copy(), table_name, table)
+            yield output_df
 
             rows_generated += batch_size
 
@@ -1026,10 +1098,7 @@ class DataSimulator:
         defined in the prompt (e.g. "seasonal peaks", "upward trend").
         """
         if not hasattr(self.config, 'outcome_curves') or not self.config.outcome_curves:
-            print(f"[CURVE DEBUG] No outcome_curves found in config for {table_name}")
             return df
-
-        print(f"[CURVE DEBUG] Found {len(self.config.outcome_curves)} curves in config")
         
         # Filter curves for this table - handle both dict and Pydantic object
         curves = []
@@ -1038,9 +1107,7 @@ class DataSimulator:
             c_table = c.table if hasattr(c, 'table') else c.get('table')
             if c_table == table_name:
                 curves.append(c)
-        
-        print(f"[CURVE DEBUG] {len(curves)} curves match table '{table_name}'")
-        
+
         for curve in curves:
             try:
                 # Access attributes (Pydantic) or dict keys
@@ -1049,18 +1116,12 @@ class DataSimulator:
                 points = curve.curve_points if hasattr(curve, 'curve_points') else curve.get('curve_points', [])
                 pattern_type = curve.pattern_type if hasattr(curve, 'pattern_type') else curve.get('pattern_type', 'seasonal')
                 
-                print(f"[CURVE DEBUG] Applying curve: table={table_name}, col={target_col}, time_col={time_col}, pattern={pattern_type}")
-                print(f"[CURVE DEBUG] DF columns: {list(df.columns)}")
-                
                 if target_col not in df.columns:
-                    print(f"[CURVE DEBUG] Target column '{target_col}' not in DataFrame!")
                     continue
                 if time_col not in df.columns:
-                    print(f"[CURVE DEBUG] Time column '{time_col}' not in DataFrame!")
                     continue
                     
                 if not points:
-                    print(f"[CURVE DEBUG] No curve points!")
                     continue
                 
                 # Convert Pydantic CurvePoint objects to dicts if needed
@@ -1090,8 +1151,6 @@ class DataSimulator:
                         
                 points = point_dicts
                 
-                print(f"[CURVE DEBUG] Points: {points}")
-
                 # Sort points by order (month or progress)
                 points.sort(key=lambda x: x.get('month', 1))
 
@@ -1100,6 +1159,16 @@ class DataSimulator:
                     timestamps = pd.to_datetime(df[time_col], errors='coerce')
                 else:
                     timestamps = df[time_col]
+
+                if target_col == time_col or pd.api.types.is_datetime64_any_dtype(df[target_col]):
+                    df[target_col] = self._apply_time_density_curve(
+                        timestamps=timestamps,
+                        points=points,
+                        pattern_type=pattern_type,
+                        time_unit=getattr(curve, "time_unit", "month"),
+                        params=self._get_column_params(table_name, time_col),
+                    )
+                    continue
 
                 # Initialize factors
                 row_factors = np.ones(len(df))
@@ -1161,6 +1230,113 @@ class DataSimulator:
                 continue
                 
         return df
+
+    def _get_column_params(self, table_name: str, column_name: str) -> Dict[str, Any]:
+        """Return distribution params for a column if present."""
+        for column in self.config.get_columns(table_name):
+            if column.name == column_name:
+                return dict(column.distribution_params)
+        return {}
+
+    def _apply_time_density_curve(
+        self,
+        *,
+        timestamps: pd.Series,
+        points: List[Dict[str, Any]],
+        pattern_type: str,
+        time_unit: str,
+        params: Dict[str, Any],
+    ) -> pd.Series:
+        """Resample timestamps by weighted time density instead of multiplying datetimes."""
+        clean_timestamps = pd.to_datetime(timestamps, errors="coerce")
+        if clean_timestamps.isna().all() or not points:
+            return clean_timestamps
+
+        start = pd.to_datetime(params.get("start"), errors="coerce")
+        end = pd.to_datetime(params.get("end"), errors="coerce")
+        if pd.isna(start):
+            start = clean_timestamps.min()
+        if pd.isna(end):
+            end = clean_timestamps.max()
+        if pd.isna(start) or pd.isna(end) or start >= end:
+            return clean_timestamps
+
+        if time_unit != "month":
+            return clean_timestamps
+
+        windows = list(pd.date_range(start.normalize().replace(day=1), end.normalize().replace(day=1), freq="MS"))
+        if not windows:
+            return clean_timestamps
+
+        weights = self._resolve_time_density_weights(windows, points, pattern_type)
+        if weights.sum() <= 0:
+            return clean_timestamps
+        probabilities = weights / weights.sum()
+
+        counts = self.rng.multinomial(len(clean_timestamps), probabilities)
+        sampled: List[pd.Timestamp] = []
+        for window_start, count in zip(windows, counts):
+            if count <= 0:
+                continue
+            next_window = window_start + pd.offsets.MonthBegin(1)
+            bucket_start = max(window_start, start)
+            bucket_end = min(next_window, end + pd.Timedelta(days=1))
+            if bucket_start >= bucket_end:
+                continue
+            start_ns = bucket_start.value
+            end_ns = bucket_end.value
+            random_ints = self.rng.integers(start_ns, end_ns, size=count)
+            sampled.extend(pd.to_datetime(random_ints).tolist())
+
+        if not sampled:
+            return clean_timestamps
+
+        sampled_series = pd.Series(pd.to_datetime(sampled))
+        if len(sampled_series) < len(clean_timestamps):
+            extra = clean_timestamps.sample(
+                n=len(clean_timestamps) - len(sampled_series),
+                replace=True,
+                random_state=self.config.seed,
+            ).reset_index(drop=True)
+            sampled_series = pd.concat([sampled_series, extra], ignore_index=True)
+        elif len(sampled_series) > len(clean_timestamps):
+            sampled_series = sampled_series.iloc[:len(clean_timestamps)].reset_index(drop=True)
+
+        return sampled_series.sample(frac=1.0, random_state=self.config.seed).reset_index(drop=True)
+
+    def _resolve_time_density_weights(
+        self,
+        windows: List[pd.Timestamp],
+        points: List[Dict[str, Any]],
+        pattern_type: str,
+    ) -> np.ndarray:
+        """Convert relative curve points into per-window density weights."""
+        if not windows:
+            return np.array([], dtype=float)
+
+        x_known = np.array([point["month"] for point in points], dtype=float)
+        y_known = np.array([point["relative_value"] for point in points], dtype=float)
+        y_known = np.maximum(y_known, 0.0)
+        weights = np.ones(len(windows), dtype=float)
+
+        if pattern_type in ["seasonal", "cyclic"]:
+            for index, window in enumerate(windows):
+                month_value = float(window.month)
+                if month_value <= x_known.min():
+                    weights[index] = y_known[0]
+                elif month_value >= x_known.max():
+                    weights[index] = y_known[-1]
+                else:
+                    weights[index] = np.interp(month_value, x_known, y_known)
+        else:
+            if len(windows) == 1:
+                weights[0] = y_known[-1] if len(y_known) else 1.0
+            else:
+                x_norm = np.linspace(0.0, 1.0, len(windows))
+                x_known_norm = (x_known - x_known.min()) / max(x_known.max() - x_known.min(), 1.0)
+                weights = np.interp(x_norm, x_known_norm, y_known)
+
+        return np.maximum(weights, 0.0)
 
     def _apply_single_constraint(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
         """Apply a single constraint to the DataFrame."""
@@ -1256,11 +1432,29 @@ class DataSimulator:
 
     def _fix_correlated_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Post-process to fix common semantically correlated columns."""
-        try:
-            from misata.realism import apply_realism_rules
-        except Exception:
-            return df
-        return apply_realism_rules(df, table_name)
+        table = self.config.get_table(table_name)
+        protected_columns = self._get_protected_generation_columns(table_name, table) if table else set()
+
+        df = apply_realism_rules(df, table_name)
+
+        realism = self._get_realism_config()
+        if realism and realism.coherence != "off":
+            df = self.coherence_engine.apply(
+                df,
+                table_name,
+                mode=realism.coherence,
+                protected_columns=protected_columns,
+            )
+
+        workflow_name = self._workflow_for_table(table) if table else None
+        if workflow_name:
+            df = self.workflow_engine.apply_workflow(
+                df,
+                workflow_name,
+                protected_columns=protected_columns,
+            )
+
+        return df
 
     def generate_all(self):
         """
@@ -1274,6 +1468,52 @@ class DataSimulator:
         for table_name in sorted_tables:
             for batch in self.generate_batches(table_name):
                 yield table_name, batch
+
+    def generate_with_reports(
+        self,
+        *,
+        include_tables: bool = False,
+        sample_size: int = 5000,
+    ) -> GenerationResult:
+        """
+        Generate all tables and return validation plus optional advisory reports.
+
+        By default, reports are built from bounded reservoir samples so this
+        method stays safe for large runs. Pass `include_tables=True` only when
+        you explicitly want full in-memory tables returned.
+        """
+        full_tables: Dict[str, pd.DataFrame] = {}
+        sampler = ReservoirTableSampler(sample_size=sample_size, rng=self.rng)
+        validator = StreamingDataValidator(self.config)
+
+        for table_name, batch_df in self.generate_all():
+            validator.consume(table_name, batch_df)
+            sampler.consume(table_name, batch_df)
+
+            if include_tables:
+                existing = full_tables.get(table_name)
+                full_tables[table_name] = batch_df if existing is None else pd.concat([existing, batch_df], ignore_index=True)
+
+        realism = self._get_realism_config()
+        requested_reports = list(realism.reports) if realism else []
+        validation_report = validator.finalize()
+        sampled_tables = sampler.get_tables()
+        report_tables = full_tables if include_tables else sampled_tables
+        bundle = build_generation_report_bundle(
+            report_tables,
+            self.config,
+            reports=requested_reports,
+            validation_report=validation_report,
+            row_counts=dict(sampler.row_counts),
+            sampled=not include_tables,
+        )
+        return GenerationResult(
+            tables=report_tables,
+            validation_report=bundle.validation,
+            reports=bundle.reports,
+            tables_are_samples=not include_tables,
+            table_row_counts=dict(sampler.row_counts),
+        )
 
     def export_to_csv(self, output_dir: str = ".") -> None:
         """

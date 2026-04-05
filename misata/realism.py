@@ -11,15 +11,463 @@ Rules are applied conservatively — only when relevant columns exist.
 from __future__ import annotations
 
 import re
-from typing import Iterable, Set
+from typing import Iterable, Optional, Set
 
 import numpy as np
 import pandas as pd
+
+from misata.domain_capsule import DomainCapsule
 
 
 INACTIVE_STATUSES = {"inactive", "cancelled", "canceled", "ended", "expired", "churned"}
 ACTIVE_STATUSES = {"active", "trialing", "trial", "enabled"}
 DELIVERED_STATUSES = {"delivered", "completed", "fulfilled"}
+
+COUNTRY_STATES = {
+    "United States": ["California", "Texas", "New York", "Florida", "Illinois", "Washington", "Colorado"],
+    "United Kingdom": ["England", "Scotland", "Wales", "Northern Ireland"],
+    "Canada": ["Ontario", "Quebec", "British Columbia", "Alberta"],
+    "Germany": ["Bavaria", "Berlin", "Hamburg", "Hesse"],
+    "India": ["Maharashtra", "Karnataka", "Tamil Nadu", "Delhi"],
+}
+
+COUNTRY_CITIES = {
+    "United States": ["New York", "Los Angeles", "Chicago", "Austin", "Seattle", "Boston"],
+    "United Kingdom": ["London", "Manchester", "Glasgow", "Leeds"],
+    "Canada": ["Toronto", "Montreal", "Vancouver", "Ottawa"],
+    "Germany": ["Berlin", "Munich", "Hamburg", "Frankfurt"],
+    "India": ["Mumbai", "Delhi", "Bangalore", "Chennai"],
+}
+
+FIRST_NAMES = [
+    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
+    "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
+    "Thomas", "Sarah", "Christopher", "Karen", "Daniel", "Aisha", "Priya", "Arjun",
+    "Liam", "Noah", "Emma", "Olivia", "Sophia", "Mia", "Ethan", "Ava",
+]
+
+LAST_NAMES = [
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+    "Rodriguez", "Martinez", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+    "Patel", "Singh", "Khan", "Nguyen", "Kim", "Wilson", "Clark", "Lewis",
+]
+
+COMPANY_PREFIXES = [
+    "North", "Blue", "Peak", "Cedar", "Summit", "Atlas", "Bright", "Modern",
+    "Vertex", "True", "Prime", "Nova", "Apex", "Ever", "Silver", "Quantum",
+]
+COMPANY_ROOTS = [
+    "Labs", "Systems", "Works", "Health", "Retail", "Logic", "Cloud", "Supply",
+    "Dynamics", "Analytics", "Commerce", "Bio", "Capital", "Foods", "Networks", "Studio",
+]
+COMPANY_SUFFIXES = ["Inc", "Group", "Co", "Partners", "Holdings", "Solutions", "Collective"]
+
+JOB_TITLES = [
+    "Software Engineer", "Senior Software Engineer", "Staff Engineer", "Product Manager",
+    "Customer Success Manager", "Data Analyst", "Engineering Manager", "Director of Sales",
+    "Marketing Manager", "Financial Analyst", "Operations Manager", "Chief Technology Officer",
+]
+
+COUNTRIES = list(COUNTRY_STATES.keys())
+
+PRODUCT_NAME_POOLS = {
+    "electronics": [
+        "Wireless Bluetooth Headphones Pro", "4K Smart TV 55 inch", "Mechanical Gaming Keyboard RGB",
+        "USB-C Docking Station", "Portable Bluetooth Speaker", "Noise Cancelling Earbuds",
+    ],
+    "clothing": [
+        "Classic Oxford Shirt", "Slim Fit Chino Pants", "Premium Cotton T-Shirt",
+        "Waterproof Rain Jacket", "Merino Wool Sweater",
+    ],
+    "home": [
+        "Bamboo Cutting Board Set", "Memory Foam Pillow", "Cast Iron Skillet",
+        "Countertop Air Fryer", "Indoor Herb Garden Kit",
+    ],
+    "sports": [
+        "Resistance Bands Set", "Adjustable Dumbbell Set", "Yoga Mat Non-Slip",
+        "Hydration Running Vest", "Foam Roller Deep Tissue",
+    ],
+    "books": [
+        "Designing Data-Intensive Applications", "Atomic Habits", "The Pragmatic Programmer",
+        "Deep Work", "The Psychology of Money",
+    ],
+}
+
+PRODUCT_DESCRIPTION_TEMPLATES = [
+    "Designed for everyday use with reliable performance and clean design.",
+    "Built for teams that want quality, durability, and fast setup.",
+    "A customer favorite for comfort, performance, and long-term value.",
+    "Combines premium materials with practical features for daily use.",
+]
+
+
+class RealisticTextGenerator:
+    """Catalog-backed text generation for semantic text columns."""
+
+    def __init__(
+        self,
+        rng: Optional[np.random.Generator] = None,
+        capsule: Optional[DomainCapsule] = None,
+    ):
+        self.rng = rng or np.random.default_rng(42)
+        self.capsule = capsule
+
+    def generate(
+        self,
+        column_name: str,
+        table_name: str,
+        size: int,
+        semantic_type: Optional[str] = None,
+        table_data: Optional[pd.DataFrame] = None,
+    ) -> np.ndarray:
+        semantic = semantic_type or self._infer_semantic(column_name, table_name)
+
+        if semantic == "first_name":
+            return self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+        if semantic == "last_name":
+            return self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+        if semantic == "person_name":
+            first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+            last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+            return np.array([f"{f} {l}" for f, l in zip(first, last)])
+        if semantic == "email":
+            first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+            last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+            separators = self.rng.choice([".", "_", ""], size=size, p=[0.5, 0.2, 0.3])
+            domains = self.rng.choice(
+                ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com"],
+                size=size,
+            )
+            return np.array(
+                [
+                    f"{re.sub(r'[^a-z]', '', f.lower())}{sep}{re.sub(r'[^a-z]', '', l.lower())}@{domain}"
+                    for f, sep, l, domain in zip(first, separators, last, domains)
+                ]
+            )
+        if semantic == "company_name":
+            company_names = self._vocabulary("company_name", [])
+            if company_names:
+                return self.rng.choice(company_names, size=size)
+            return np.array(
+                [
+                    f"{self.rng.choice(COMPANY_PREFIXES)} {self.rng.choice(COMPANY_ROOTS)} {self.rng.choice(COMPANY_SUFFIXES)}"
+                    for _ in range(size)
+                ]
+            )
+        if semantic == "job_title":
+            return self.rng.choice(self._vocabulary("job_title", JOB_TITLES), size=size)
+        if semantic == "country":
+            return self.rng.choice(self._vocabulary("country", COUNTRIES), size=size)
+        if semantic == "state":
+            countries = self._series_from_table(table_data, "country", size)
+            states = self._vocabulary("state", [])
+            if states:
+                return self.rng.choice(states, size=size)
+            return np.array([
+                self.rng.choice(COUNTRY_STATES.get(country, COUNTRY_STATES["United States"]))
+                for country in countries
+            ])
+        if semantic == "city":
+            countries = self._series_from_table(table_data, "country", size)
+            cities = self._vocabulary("city", [])
+            if cities:
+                return self.rng.choice(cities, size=size)
+            return np.array([
+                self.rng.choice(COUNTRY_CITIES.get(country, COUNTRY_CITIES["United States"]))
+                for country in countries
+            ])
+        if semantic == "username":
+            first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+            last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+            return np.array([
+                f"{re.sub(r'[^a-z]', '', f.lower())}{re.sub(r'[^a-z]', '', l.lower())}{int(self.rng.integers(1, 999)):03d}"
+                for f, l in zip(first, last)
+            ])
+        if semantic == "address":
+            numbers = self.rng.integers(10, 9999, size=size)
+            streets = self.rng.choice(["Main", "Oak", "Maple", "Cedar", "Sunset", "Lake"], size=size)
+            suffixes = self.rng.choice(["St", "Ave", "Blvd", "Ln", "Rd"], size=size)
+            return np.array([f"{n} {street} {suffix}" for n, street, suffix in zip(numbers, streets, suffixes)])
+        if semantic == "phone_number":
+            areas = self.rng.integers(200, 999, size=size)
+            prefixes = self.rng.integers(200, 999, size=size)
+            lines = self.rng.integers(1000, 9999, size=size)
+            return np.array([f"({a}) {p}-{l}" for a, p, l in zip(areas, prefixes, lines)])
+        if semantic == "url":
+            slugs = self._slugify(self.generate(column_name, table_name, size, "company_name"))
+            return np.array([f"https://www.{slug}.com" for slug in slugs])
+        if semantic == "slug_source":
+            words = self.rng.choice(["modern", "prime", "atlas", "core", "blue", "summit"], size=(size, 2))
+            return np.array([f"{left}-{right}" for left, right in words])
+        if semantic in {"product_name", "product_description"}:
+            return self._generate_product_text(size=size, semantic=semantic, table_data=table_data)
+
+        return np.array([
+            self.rng.choice(self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES))
+            for _ in range(size)
+        ])
+
+    def _infer_semantic(self, column_name: str, table_name: str) -> str:
+        name = column_name.lower()
+        table = table_name.lower()
+        if name == "first_name":
+            return "first_name"
+        if name == "last_name":
+            return "last_name"
+        if "email" in name:
+            return "email"
+        if "company" in name or "organization" in name:
+            return "company_name"
+        if "username" in name:
+            return "username"
+        if "job" in name or "role" in name or "title" in name:
+            return "job_title"
+        if "country" in name:
+            return "country"
+        if "state" in name or "province" in name or "region" in name:
+            return "state"
+        if "city" in name:
+            return "city"
+        if "product" in table or "item" in table:
+            return "product_name"
+        if name == "name":
+            return "person_name"
+        return "description"
+
+    def _generate_product_text(
+        self,
+        *,
+        size: int,
+        semantic: str,
+        table_data: Optional[pd.DataFrame],
+    ) -> np.ndarray:
+        categories = self._series_from_table(table_data, "category", size)
+        values = []
+        for category in categories:
+            normalized = str(category).lower()
+            key = next((pool for pool in PRODUCT_NAME_POOLS if pool in normalized), None)
+            key = key or "electronics"
+            if semantic == "product_name":
+                product_names = self._vocabulary("product_name", PRODUCT_NAME_POOLS[key])
+                values.append(self.rng.choice(product_names))
+            else:
+                product_descriptions = self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES)
+                values.append(self.rng.choice(product_descriptions))
+        return np.array(values)
+
+    def _series_from_table(self, table_data: Optional[pd.DataFrame], column: str, size: int) -> np.ndarray:
+        if table_data is not None and column in table_data.columns and len(table_data[column]) >= size:
+            return table_data[column].astype(str).values[:size]
+        return np.array(["United States"] * size)
+
+    def _slugify(self, values: Iterable[str]) -> np.ndarray:
+        slugs = []
+        for value in values:
+            slug = re.sub(r"[^a-z0-9\s-]", "", str(value).lower())
+            slug = re.sub(r"\s+", "-", slug).strip("-")
+            slugs.append(slug or "site")
+        return np.array(slugs)
+
+    def _vocabulary(self, name: str, fallback: Iterable[str]) -> List[str]:
+        if self.capsule is not None:
+            values = self.capsule.get_values(name, list(fallback))
+            if values:
+                return values
+        return list(fallback)
+
+
+class EntityCoherenceEngine:
+    """High-confidence cross-column coherence rules."""
+
+    def __init__(
+        self,
+        rng: Optional[np.random.Generator] = None,
+        capsule: Optional[DomainCapsule] = None,
+    ):
+        self.rng = rng or np.random.default_rng(42)
+        self.text_generator = RealisticTextGenerator(self.rng, capsule=capsule)
+
+    def apply(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+        *,
+        mode: str = "standard",
+        protected_columns: Optional[set[str]] = None,
+    ) -> pd.DataFrame:
+        if df.empty or mode == "off":
+            return df
+
+        protected_columns = protected_columns or set()
+        output = df.copy()
+        columns = set(output.columns)
+
+        self._fix_email_from_name(output, columns, protected_columns, mode)
+        self._fix_username_from_name(output, columns, protected_columns, mode)
+        self._fix_geography(output, columns, protected_columns, mode)
+        self._fix_age_role(output, columns, protected_columns)
+        self._fix_product_category(output, columns, protected_columns, mode, table_name.lower())
+
+        return output
+
+    def _fix_email_from_name(self, df: pd.DataFrame, columns: set[str], protected: set[str], mode: str) -> None:
+        if "email" in protected or "email" not in columns:
+            return
+
+        if {"first_name", "last_name"}.issubset(columns):
+            firsts = df["first_name"].astype(str)
+            lasts = df["last_name"].astype(str)
+        elif "name" in columns:
+            parts = df["name"].astype(str).str.split()
+            firsts = parts.apply(lambda values: values[0] if values else "user")
+            lasts = parts.apply(lambda values: values[-1] if len(values) > 1 else "")
+        else:
+            return
+
+        desired = np.array([
+            f"{re.sub(r'[^a-z]', '', str(first).lower())}.{re.sub(r'[^a-z]', '', str(last).lower())}@gmail.com".replace("..", ".").replace(".@", "@")
+            for first, last in zip(firsts, lasts)
+        ])
+        current = df["email"].astype(str)
+        mismatch = []
+        for email, first in zip(current, firsts.astype(str)):
+            normalized_first = re.sub(r"[^a-z]", "", first.lower())[:3]
+            normalized_email = str(email).lower()
+            mismatch.append("@" not in normalized_email or (normalized_first and normalized_first not in normalized_email))
+        mismatch_mask = np.array(mismatch, dtype=bool)
+        if mode == "strict":
+            mismatch_mask[:] = True
+        df.loc[mismatch_mask, "email"] = desired[mismatch_mask]
+
+    def _fix_username_from_name(self, df: pd.DataFrame, columns: set[str], protected: set[str], mode: str) -> None:
+        if "username" in protected or "username" not in columns:
+            return
+        if {"first_name", "last_name"}.issubset(columns):
+            firsts = df["first_name"].astype(str)
+            lasts = df["last_name"].astype(str)
+        elif "name" in columns:
+            parts = df["name"].astype(str).str.split()
+            firsts = parts.apply(lambda values: values[0] if values else "user")
+            lasts = parts.apply(lambda values: values[-1] if len(values) > 1 else "")
+        else:
+            return
+
+        desired = np.array([
+            f"{re.sub(r'[^a-z]', '', str(first).lower())}{re.sub(r'[^a-z]', '', str(last).lower())}"
+            for first, last in zip(firsts, lasts)
+        ])
+        current = df["username"].astype(str)
+        mismatch = []
+        for username, first, last in zip(current, firsts.astype(str), lasts.astype(str)):
+            normalized_username = re.sub(r"[^a-z]", "", str(username).lower())
+            normalized_first = re.sub(r"[^a-z]", "", str(first).lower())[:3]
+            normalized_last = re.sub(r"[^a-z]", "", str(last).lower())[:3]
+            mismatch.append(
+                len(normalized_username) < 4
+                or (normalized_first and normalized_first not in normalized_username)
+                or (normalized_last and normalized_last not in normalized_username)
+            )
+        mismatch_mask = np.array(mismatch, dtype=bool)
+        if mode == "strict":
+            mismatch_mask[:] = True
+        df.loc[mismatch_mask, "username"] = desired[mismatch_mask]
+
+    def _fix_geography(self, df: pd.DataFrame, columns: set[str], protected: set[str], mode: str) -> None:
+        if "country" not in columns:
+            return
+        countries = df["country"].astype(str)
+        capsule_states = self.text_generator._vocabulary("state", [])
+        capsule_cities = self.text_generator._vocabulary("city", [])
+
+        if "state" in columns and "state" not in protected:
+            if capsule_states:
+                desired_states = np.array([self.rng.choice(capsule_states) for _ in countries])
+            else:
+                desired_states = np.array([
+                    self.rng.choice(COUNTRY_STATES.get(country, COUNTRY_STATES["United States"]))
+                    for country in countries
+                ])
+            current = df["state"].astype(str)
+            if capsule_states:
+                mismatch = ~current.isin(capsule_states).to_numpy()
+            else:
+                mismatch = np.array([
+                    current.iloc[i] not in COUNTRY_STATES.get(country, COUNTRY_STATES["United States"])
+                    for i, country in enumerate(countries)
+                ])
+            if mode == "strict":
+                mismatch[:] = True
+            df.loc[mismatch, "state"] = desired_states[mismatch]
+
+        if "city" in columns and "city" not in protected:
+            if capsule_cities:
+                desired_cities = np.array([self.rng.choice(capsule_cities) for _ in countries])
+            else:
+                desired_cities = np.array([
+                    self.rng.choice(COUNTRY_CITIES.get(country, COUNTRY_CITIES["United States"]))
+                    for country in countries
+                ])
+            current = df["city"].astype(str)
+            if capsule_cities:
+                mismatch = ~current.isin(capsule_cities).to_numpy()
+            else:
+                mismatch = np.array([
+                    current.iloc[i] not in COUNTRY_CITIES.get(country, COUNTRY_CITIES["United States"])
+                    for i, country in enumerate(countries)
+                ])
+            if mode == "strict":
+                mismatch[:] = True
+            df.loc[mismatch, "city"] = desired_cities[mismatch]
+
+    def _fix_age_role(self, df: pd.DataFrame, columns: set[str], protected: set[str]) -> None:
+        if "age" in protected or "age" not in columns:
+            return
+        role_column = next((name for name in ["job_title", "title", "role", "position"] if name in columns), None)
+        if role_column is None:
+            return
+
+        minimum_age = {
+            "manager": 30, "director": 35, "vp": 38, "vice president": 38,
+            "cto": 38, "ceo": 40, "chief": 40, "intern": 18, "senior": 28,
+        }
+        ages = pd.to_numeric(df["age"], errors="coerce").fillna(18).astype(int).values
+        roles = df[role_column].astype(str).str.lower()
+        for index, role in enumerate(roles):
+            floor = 18
+            for keyword, age_floor in minimum_age.items():
+                if keyword in role:
+                    floor = max(floor, age_floor)
+            if ages[index] < floor:
+                ages[index] = int(self.rng.integers(floor, min(65, floor + 10)))
+        df["age"] = ages
+
+    def _fix_product_category(
+        self,
+        df: pd.DataFrame,
+        columns: set[str],
+        protected: set[str],
+        mode: str,
+        table_name: str,
+    ) -> None:
+        if "name" in protected or "category" not in columns or "name" not in columns:
+            return
+        if "product" not in table_name and "item" not in table_name:
+            return
+
+        categories = df["category"].astype(str).str.lower()
+        current_names = df["name"].astype(str)
+        desired_names = []
+        mismatches = []
+        for category, current_name in zip(categories, current_names):
+            key = next((pool for pool in PRODUCT_NAME_POOLS if pool in category), None)
+            key = key or "electronics"
+            desired_name = self.rng.choice(PRODUCT_NAME_POOLS[key])
+            desired_names.append(desired_name)
+            generic = any(token in current_name.lower() for token in ["lorem", "ipsum", "dolor", "product"])
+            mismatches.append(generic or mode == "strict")
+        desired_series = np.array(desired_names)
+        mismatch_array = np.array(mismatches, dtype=bool)
+        df.loc[mismatch_array, "name"] = desired_series[mismatch_array]
 
 
 def apply_realism_rules(df: pd.DataFrame, table_name: str = "") -> pd.DataFrame:
@@ -50,6 +498,9 @@ def apply_realism_rules(df: pd.DataFrame, table_name: str = "") -> pd.DataFrame:
     # ── Identity consistency ──
     _fix_email_from_name(df, columns)
     _fix_slug_from_name(df, columns)
+
+    # ── Status consistency ──
+    _apply_status_end_date(df, columns)
 
     return df
 
@@ -141,6 +592,11 @@ def _fix_order_total(df: pd.DataFrame, columns: Set[str]) -> None:
         tax = pd.to_numeric(df.get("tax", 0), errors="coerce").fillna(0) if "tax" in columns else 0
         shipping = pd.to_numeric(df.get("shipping_cost", 0), errors="coerce").fillna(0) if "shipping_cost" in columns else 0
         df["total"] = np.round(subtotal + tax + shipping, 2)
+    elif {"quantity", "unit_price", "total"}.issubset(columns):
+        qty = pd.to_numeric(df["quantity"], errors="coerce").fillna(1)
+        unit_price = pd.to_numeric(df["unit_price"], errors="coerce").fillna(0)
+        discount = pd.to_numeric(df.get("discount", 0), errors="coerce").fillna(0) if "discount" in columns else 0
+        df["total"] = np.round(qty * unit_price - discount, 2).clip(lower=0)
 
 
 def _apply_plan_price_mapping(df: pd.DataFrame, columns: Set[str]) -> None:
@@ -214,4 +670,3 @@ def _apply_status_end_date(df: pd.DataFrame, columns: Set[str]) -> None:
             end.loc[inactive_mask] = start.loc[inactive_mask] + deltas
 
         df["end_date"] = end
-

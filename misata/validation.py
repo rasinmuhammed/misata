@@ -9,10 +9,12 @@ This module validates generated data to ensure:
 - Statistical distribution accuracy
 """
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 
 from misata.engines import FactEngine
@@ -402,3 +404,306 @@ def validate_data(
     """
     validator = DataValidator(tables, schema_config)
     return validator.validate_all()
+
+
+class StreamingDataValidator:
+    """
+    Streaming validator for batch generation paths.
+
+    Keeps exact validation for scalar checks, FK integrity, and exact outcome
+    curves without materializing all tables in memory.
+    """
+
+    POSITIVE_PATTERNS = ['price', 'cost', 'amount', 'age', 'quantity', 'count',
+                         'duration', 'weight', 'height', 'salary', 'revenue']
+
+    def __init__(self, schema_config: Optional[Any] = None):
+        self.schema_config = schema_config
+        self._issue_counts: Dict[tuple[Any, str, Optional[str], str], int] = defaultdict(int)
+        self._issue_samples: Dict[tuple[Any, str, Optional[str], str], List[Any]] = defaultdict(list)
+        self._tables_seen: set[str] = set()
+        self._columns_seen: set[tuple[str, str]] = set()
+        self._total_rows = 0
+        self._parent_ids: Dict[tuple[str, str], set[Any]] = defaultdict(set)
+        self._outcome_plans: Dict[str, Any] = {}
+        self._outcome_actuals: Dict[tuple[str, str], np.ndarray] = {}
+        self._missing_outcome_columns: set[tuple[str, str]] = set()
+
+        if self.schema_config:
+            self._initialize_outcome_plans()
+
+    def consume(self, table_name: str, df: pd.DataFrame) -> None:
+        """Consume one generated batch."""
+        self._tables_seen.add(table_name)
+        self._total_rows += len(df)
+        for column in df.columns:
+            self._columns_seen.add((table_name, column))
+            self._validate_column(table_name, column, df[column])
+
+        self._accumulate_parent_ids(table_name, df)
+        self._validate_child_relationships(table_name, df)
+        self._accumulate_outcome_curves(table_name, df)
+
+    def finalize(self) -> ValidationReport:
+        """Build a ValidationReport from all consumed batches."""
+        self._finalize_outcome_curves()
+
+        issues = []
+        for (severity, table_name, column_name, template), count in self._issue_counts.items():
+            message = template.format(count=count)
+            issues.append(
+                ValidationIssue(
+                    severity=severity,
+                    table=table_name,
+                    column=column_name,
+                    message=message,
+                    affected_rows=count,
+                    sample_values=self._issue_samples.get((severity, table_name, column_name, template), [])[:5],
+                )
+            )
+
+        return ValidationReport(
+            issues=issues,
+            tables_checked=len(self._tables_seen),
+            columns_checked=len(self._columns_seen),
+            total_rows=self._total_rows,
+        )
+
+    def _add_issue(
+        self,
+        severity: Severity,
+        table_name: str,
+        column_name: Optional[str],
+        template: str,
+        count: int,
+        sample_values: Optional[List[Any]] = None,
+    ) -> None:
+        if count <= 0:
+            return
+        key = (severity, table_name, column_name, template)
+        self._issue_counts[key] += int(count)
+        if sample_values:
+            existing = self._issue_samples[key]
+            remaining = max(0, 5 - len(existing))
+            if remaining:
+                existing.extend(sample_values[:remaining])
+
+    def _validate_column(self, table_name: str, column_name: str, values: pd.Series) -> None:
+        null_count = int(values.isna().sum())
+        self._add_issue(
+            Severity.INFO,
+            table_name,
+            column_name,
+            "Contains {count} null values",
+            null_count,
+        )
+
+        if pd.api.types.is_numeric_dtype(values):
+            self._validate_numeric_column(table_name, column_name, values)
+
+        if pd.api.types.is_datetime64_any_dtype(values):
+            self._validate_date_column(table_name, column_name, values)
+
+        if pd.api.types.is_string_dtype(values) or pd.api.types.is_object_dtype(values):
+            self._validate_string_column(table_name, column_name, values)
+
+    def _validate_numeric_column(self, table_name: str, column_name: str, values: pd.Series) -> None:
+        column_lower = column_name.lower()
+        if any(pattern in column_lower for pattern in self.POSITIVE_PATTERNS):
+            invalid = values < 0
+            self._add_issue(
+                Severity.ERROR,
+                table_name,
+                column_name,
+                "Contains {count} negative values (should be positive)",
+                int(invalid.sum()),
+                values[invalid].head(5).tolist(),
+            )
+
+        if 'age' in column_lower:
+            invalid_ages = (values < 0) | (values > 150)
+            self._add_issue(
+                Severity.WARNING,
+                table_name,
+                column_name,
+                "Contains {count} unrealistic age values (< 0 or > 150)",
+                int(invalid_ages.sum()),
+            )
+
+        if 'price' in column_lower or 'cost' in column_lower:
+            high_values = values > 1000000
+            self._add_issue(
+                Severity.INFO,
+                table_name,
+                column_name,
+                "Contains {count} values over $1M",
+                int(high_values.sum()),
+            )
+
+    def _validate_date_column(self, table_name: str, column_name: str, values: pd.Series) -> None:
+        future_cutoff = pd.Timestamp.now() + pd.Timedelta(days=365 * 5)
+        past_cutoff = pd.Timestamp('1900-01-01')
+        self._add_issue(
+            Severity.WARNING,
+            table_name,
+            column_name,
+            "Contains {count} dates more than 5 years in the future",
+            int((values > future_cutoff).sum()),
+        )
+        self._add_issue(
+            Severity.ERROR,
+            table_name,
+            column_name,
+            "Contains {count} dates before 1900",
+            int((values < past_cutoff).sum()),
+        )
+
+    def _validate_string_column(self, table_name: str, column_name: str, values: pd.Series) -> None:
+        column_lower = column_name.lower()
+        as_text = values.astype(str)
+
+        if 'email' in column_lower:
+            invalid = ~as_text.str.contains('@', na=False)
+            self._add_issue(
+                Severity.ERROR,
+                table_name,
+                column_name,
+                "Contains {count} invalid email addresses",
+                int(invalid.sum()),
+            )
+
+        empty = as_text.str.strip() == ''
+        self._add_issue(
+            Severity.WARNING,
+            table_name,
+            column_name,
+            "Contains {count} empty strings",
+            int(empty.sum()),
+        )
+
+    def _accumulate_parent_ids(self, table_name: str, df: pd.DataFrame) -> None:
+        if not self.schema_config:
+            return
+
+        for relationship in self.schema_config.relationships:
+            if relationship.parent_table != table_name or relationship.parent_key not in df.columns:
+                continue
+            self._parent_ids[(relationship.parent_table, relationship.parent_key)].update(df[relationship.parent_key].dropna().tolist())
+
+    def _validate_child_relationships(self, table_name: str, df: pd.DataFrame) -> None:
+        if not self.schema_config:
+            return
+
+        for relationship in self.schema_config.relationships:
+            if relationship.child_table != table_name:
+                continue
+            if relationship.child_key not in df.columns:
+                continue
+
+            parent_ids = self._parent_ids.get((relationship.parent_table, relationship.parent_key), set())
+            child_values = df[relationship.child_key].dropna()
+            orphan_count = int((~child_values.isin(parent_ids)).sum())
+            self._add_issue(
+                Severity.ERROR,
+                relationship.child_table,
+                relationship.child_key,
+                f"Contains {{count}} orphan references (FK not found in {relationship.parent_table})",
+                orphan_count,
+            )
+
+    def _initialize_outcome_plans(self) -> None:
+        if not self.schema_config or not getattr(self.schema_config, "outcome_curves", None):
+            return
+
+        engine = FactEngine()
+        for table in self.schema_config.tables:
+            table_name = table.name
+            curves = [
+                curve
+                for curve in self.schema_config.outcome_curves
+                if getattr(curve, "table", None) == table_name
+                and engine.curve_has_exact_targets(curve)
+            ]
+            if not curves:
+                continue
+            plan = engine.build_plan(table, self.schema_config.get_columns(table_name), curves)
+            if plan is None:
+                continue
+            self._outcome_plans[table_name] = plan
+            for curve in plan.curves:
+                self._outcome_actuals[(table_name, curve.column)] = np.zeros(len(plan.buckets), dtype=float)
+
+    def _accumulate_outcome_curves(self, table_name: str, df: pd.DataFrame) -> None:
+        if table_name not in self._outcome_plans:
+            return
+
+        plan = self._outcome_plans[table_name]
+        if plan.time_column not in df.columns:
+            key = (table_name, plan.time_column)
+            if key not in self._missing_outcome_columns:
+                self._missing_outcome_columns.add(key)
+                self._add_issue(
+                    Severity.ERROR,
+                    table_name,
+                    plan.time_column,
+                    "Missing time column required for outcome curve validation",
+                    len(df),
+                )
+            return
+
+        timestamps = pd.to_datetime(df[plan.time_column], errors="coerce")
+        for curve in plan.curves:
+            if curve.column not in df.columns:
+                key = (table_name, curve.column)
+                if key not in self._missing_outcome_columns:
+                    self._missing_outcome_columns.add(key)
+                    self._add_issue(
+                        Severity.ERROR,
+                        table_name,
+                        curve.column,
+                        "Missing constrained column required for outcome curve validation",
+                        len(df),
+                    )
+                continue
+
+            numeric_values = pd.to_numeric(df[curve.column], errors="coerce").fillna(0)
+            aggregates = self._outcome_actuals[(table_name, curve.column)]
+            for bucket_index, bucket in enumerate(plan.buckets):
+                mask = (timestamps >= bucket.start) & (timestamps < bucket.end)
+                aggregates[bucket_index] += float(numeric_values.loc[mask].sum())
+
+    def _finalize_outcome_curves(self) -> None:
+        for table_name, plan in self._outcome_plans.items():
+            for curve in plan.curves:
+                actual_values = self._outcome_actuals[(table_name, curve.column)]
+                tolerance = 0.01 if self._column_decimals(table_name, curve.column) else 0.0
+                mismatches = [
+                    (expected, actual)
+                    for expected, actual in zip(curve.targets, actual_values)
+                    if abs(expected - actual) > tolerance
+                ]
+                if not mismatches:
+                    continue
+                expected, actual = mismatches[0]
+                self._add_issue(
+                    Severity.ERROR,
+                    table_name,
+                    curve.column,
+                    (
+                        "Outcome curve aggregate mismatch. "
+                        f"Expected {expected:.2f}, got {actual:.2f} in at least one bucket"
+                    ),
+                    len(mismatches),
+                )
+
+    def _column_decimals(self, table_name: str, column_name: str) -> int:
+        if not self.schema_config:
+            return 2
+
+        for column in self.schema_config.get_columns(table_name):
+            if column.name != column_name:
+                continue
+            if column.type == "int":
+                return 0
+            return int(column.distribution_params.get("decimals", 2))
+        return 2

@@ -22,12 +22,13 @@ from misata.schema import (
     Column,
     Constraint,
     NoiseConfig,
+    RealismConfig,
     Relationship,
     ScenarioEvent,
     SchemaConfig,
     Table,
 )
-from misata.simulator import DataSimulator
+from misata.simulator import DataSimulator, GenerationResult
 from misata.engines import FactEngine
 from misata.generators import TextGenerator
 from misata.generators.base import (
@@ -73,6 +74,24 @@ from misata.profiles import (
     generate_with_profile,
 )
 from misata.recipes import RecipeSpec, RunManifest, load_recipe
+from misata.reporting import (
+    DataCard,
+    FidelityChecker,
+    FidelityReport,
+    GenerationReportBundle,
+    PrivacyAnalyzer,
+    PrivacyReport,
+    analyze_generation,
+)
+from misata.assets import (
+    AssetStore,
+    KaggleAssetIngestor,
+    KaggleDatasetDescriptor,
+    LicensePolicy,
+)
+from misata.domain_capsule import AssetProvenance, DomainCapsule, VocabularyAsset
+from misata.vocabulary import SemanticVocabularyGenerator
+from misata.workflows import WORKFLOW_PRESETS, WorkflowEngine
 from misata.generators.base import (
     ConditionalCategoricalGenerator,
     CONDITIONAL_LOOKUPS,
@@ -84,11 +103,13 @@ __all__ = [
     "Column",
     "Constraint",
     "NoiseConfig",
+    "RealismConfig",
     "Relationship",
     "ScenarioEvent",
     "SchemaConfig",
     "Table",
     "DataSimulator",
+    "GenerationResult",
     "FactEngine",
     # Generators
     "TextGenerator",
@@ -131,6 +152,23 @@ __all__ = [
     "RecipeSpec",
     "RunManifest",
     "load_recipe",
+    "PrivacyAnalyzer",
+    "PrivacyReport",
+    "FidelityChecker",
+    "FidelityReport",
+    "DataCard",
+    "GenerationReportBundle",
+    "analyze_generation",
+    "WorkflowEngine",
+    "WORKFLOW_PRESETS",
+    "AssetStore",
+    "KaggleAssetIngestor",
+    "KaggleDatasetDescriptor",
+    "LicensePolicy",
+    "AssetProvenance",
+    "VocabularyAsset",
+    "DomainCapsule",
+    "SemanticVocabularyGenerator",
     # ML-ready features
     "NoiseInjector",
     "add_noise",
