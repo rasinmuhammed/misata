@@ -263,6 +263,23 @@ That means:
 - [MISATA_VOICE.md](/Users/muhammedrasin/misata-project/Misata/MISATA_VOICE.md): writing style, naming rules, and tone guide
 - [MISATA_GLOSSARY.md](/Users/muhammedrasin/misata-project/Misata/MISATA_GLOSSARY.md): magical terms mapped to actual features
 
+## Search Guides
+
+These pages are written around the questions people actually search for:
+
+- [docs/python-synthetic-data-generator.md](/Users/muhammedrasin/misata-project/Misata/docs/python-synthetic-data-generator.md)
+- [docs/database-seeding-python.md](/Users/muhammedrasin/misata-project/Misata/docs/database-seeding-python.md)
+- [docs/multi-table-synthetic-data.md](/Users/muhammedrasin/misata-project/Misata/docs/multi-table-synthetic-data.md)
+- [docs/synthetic-data-for-bi-demos.md](/Users/muhammedrasin/misata-project/Misata/docs/synthetic-data-for-bi-demos.md)
+- [docs/faker-vs-sdv-vs-misata.md](/Users/muhammedrasin/misata-project/Misata/docs/faker-vs-sdv-vs-misata.md)
+
+## Examples
+
+- [examples/python_synthetic_data_generator.py](/Users/muhammedrasin/misata-project/Misata/examples/python_synthetic_data_generator.py)
+- [examples/database_seeding_postgres.py](/Users/muhammedrasin/misata-project/Misata/examples/database_seeding_postgres.py)
+- [examples/multi_table_synthetic_data.py](/Users/muhammedrasin/misata-project/Misata/examples/multi_table_synthetic_data.py)
+- [examples/bi_demo_dataset.py](/Users/muhammedrasin/misata-project/Misata/examples/bi_demo_dataset.py)
+
 ## Enterprise Direction
 
 Misata is strongest when the user wants control.

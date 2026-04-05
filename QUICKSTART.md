@@ -213,5 +213,9 @@ misata generate --story "A SaaS app with users and invoices"
 
 - [README.md](/Users/muhammedrasin/misata-project/Misata/README.md)
 - [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md)
+- [docs/python-synthetic-data-generator.md](/Users/muhammedrasin/misata-project/Misata/docs/python-synthetic-data-generator.md)
+- [docs/database-seeding-python.md](/Users/muhammedrasin/misata-project/Misata/docs/database-seeding-python.md)
+- [docs/multi-table-synthetic-data.md](/Users/muhammedrasin/misata-project/Misata/docs/multi-table-synthetic-data.md)
+- [docs/synthetic-data-for-bi-demos.md](/Users/muhammedrasin/misata-project/Misata/docs/synthetic-data-for-bi-demos.md)
 - [MISATA_VOICE.md](/Users/muhammedrasin/misata-project/Misata/MISATA_VOICE.md)
 - [MISATA_GLOSSARY.md](/Users/muhammedrasin/misata-project/Misata/MISATA_GLOSSARY.md)
