@@ -1,11 +1,8 @@
 import os
-import json
-import logging
-from pprint import pprint
 import pandas as pd
+import numpy as np
 
-logger = logging.getLogger("misata.test")
-logging.basicConfig(level=logging.ERROR)
+logger = __import__("logging").getLogger("misata.test")
 
 from misata.llm_parser import LLMSchemaGenerator
 from misata.simulator import DataSimulator
@@ -22,8 +19,9 @@ def test_complex_realism():
     story = """
     We need an e-commerce dataset for Q4 2023.
     Create:
-    - users: profiles with signup dates.
-    - orders: transactions tied to users.
+    - users: profiles with name, email, and signup_dates.
+    - products: inventory items with product_name, brand, and category.
+    - orders: transactions tied to users and products.
     
     Business constraints:
     - Orders peak around Black Friday in November.
@@ -32,69 +30,37 @@ def test_complex_realism():
     """
 
     print("1. Generating Schema via LLM...")
-    schema = parser.generate_from_story(story, default_rows=500)
+    schema = parser.generate_from_story(story, default_rows=100)
     
-    print("\n[Generated Tables]")
-    for table in schema.tables:
-        print(f" - {table.name} ({table.row_count} rows)")
-        
-    print("\n[Noise Configuration Applied]")
-    if schema.noise_config:
-        print(schema.noise_config.model_dump_json(indent=2))
-    else:
-        print("None detected from prompt. Falling back.")
-
-    print("\n[Outcome Curves Detected]")
-    if schema.outcome_curves:
-        for curve in schema.outcome_curves:
-            print(f" - {curve.table}.{getattr(curve, 'column', getattr(curve, 'time_column', ''))} ({curve.pattern_type}) points: {len(curve.curve_points)} intra-period: {getattr(curve, 'intra_period_pattern', 'N/A')}")
-    else:
-        print("No outcome curves generated.")
-
-    print("\n2. Executing Data Simulator...")
+    print("\n2. Executing Data Simulator with SMART MODE...")
     os.makedirs("./test_outputs", exist_ok=True)
-    simulator = DataSimulator(schema, batch_size=1000)
+    
+    # TURNING ON SMART MODE FOR CONTEXT-AWARE TEXT GENERATION
+    simulator = DataSimulator(schema, batch_size=1000, smart_mode=True)
     simulator.export_to_csv("./test_outputs")
     
     print("\n3. Analyzing Final CSVs...")
     
-    # Analyze users table
+    # Check products table for smart values
+    if os.path.exists("./test_outputs/products.csv"):
+        products_df = pd.read_csv("./test_outputs/products.csv")
+        print(f"\n[Products Table Text Realism]")
+        print("  Sample Data:")
+        # Find string columns
+        str_cols = products_df.select_dtypes(include=['object']).columns.tolist()
+        if str_cols:
+            print(products_df[str_cols].head(5).to_string())
+        else:
+            print(products_df.head(2).to_string())
+            
+    # Check users table
     if os.path.exists("./test_outputs/users.csv"):
         users_df = pd.read_csv("./test_outputs/users.csv")
-        null_count = users_df.isnull().sum().sum()
-        total_cells = users_df.size
-        print(f"\n[Users Table Profile]")
-        print(f"  Rows: {len(users_df)}")
-        print(f"  Null Values: {null_count} / {total_cells} ({(null_count/total_cells * 100) if total_cells > 0 else 0:.2f}%)")
-        print("\n  Sample Data:")
-        print(users_df.head(2).to_string())
-        
-    # Check orders table
-    if os.path.exists("./test_outputs/orders.csv"):
-        orders_df = pd.read_csv("./test_outputs/orders.csv")
-        print(f"\n[Orders Table Profile]")
-        print(f"  Rows: {len(orders_df)}")
-        null_count = orders_df.isnull().sum().sum()
-        total_cells = orders_df.size
-        print(f"  Null Values: {null_count} / {total_cells} ({(null_count/total_cells * 100) if total_cells > 0 else 0:.2f}%)")
-        
-        # Look for dates
-        date_cols = [c for c in orders_df.columns if "date" in c.lower() or "created" in c.lower() or "time" in c.lower()]
-        if date_cols:
-            date_col = date_cols[0]
-            orders_df[date_col] = pd.to_datetime(orders_df[date_col], errors='coerce')
-            
-            non_null_dates = orders_df[orders_df[date_col].notnull()]
-            if not non_null_dates.empty:
-                monthly = non_null_dates.groupby(non_null_dates[date_col].dt.month).size()
-                print("\n  [Seasonality] Sales by Month:")
-                for m, count in monthly.items():
-                    print(f"    Month {m}: {count} orders")
-                    
-                weekly = non_null_dates.groupby(non_null_dates[date_col].dt.dayofweek).size()
-                print("\n  [Seasonality] Sales by Day of Week (0=Mon, 6=Sun):")
-                for d, count in weekly.items():
-                    print(f"    Day {d}: {count} orders")
+        print(f"\n[Users Table Text Realism]")
+        print("  Sample Data:")
+        str_cols = users_df.select_dtypes(include=['object']).columns.tolist()
+        if str_cols:
+            print(users_df[str_cols].head(4).to_string())
 
 if __name__ == "__main__":
     test_complex_realism()
