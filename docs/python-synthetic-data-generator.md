@@ -48,12 +48,12 @@ Misata is for the next step up:
 
 ## Related Examples
 
-- [examples/python_synthetic_data_generator.py](/Users/muhammedrasin/misata-project/Misata/examples/python_synthetic_data_generator.py)
-- [examples/multi_table_synthetic_data.py](/Users/muhammedrasin/misata-project/Misata/examples/multi_table_synthetic_data.py)
-- [examples/bi_demo_dataset.py](/Users/muhammedrasin/misata-project/Misata/examples/bi_demo_dataset.py)
+- [examples/python_synthetic_data_generator.py](../examples/python_synthetic_data_generator.py)
+- [examples/multi_table_synthetic_data.py](../examples/multi_table_synthetic_data.py)
+- [examples/bi_demo_dataset.py](../examples/bi_demo_dataset.py)
 
 ## Related Docs
 
-- [README.md](/Users/muhammedrasin/misata-project/Misata/README.md)
-- [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md)
-- [QUICKSTART.md](/Users/muhammedrasin/misata-project/Misata/QUICKSTART.md)
+- [README.md](../README.md)
+- [FEATURES.md](../FEATURES.md)
+- [QUICKSTART.md](../QUICKSTART.md)

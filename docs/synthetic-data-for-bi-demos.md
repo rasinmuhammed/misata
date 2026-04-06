@@ -65,9 +65,9 @@ print(result.validation_report.summary())
 
 ## Related Examples
 
-- [examples/bi_demo_dataset.py](/Users/muhammedrasin/misata-project/Misata/examples/bi_demo_dataset.py)
+- [examples/bi_demo_dataset.py](../examples/bi_demo_dataset.py)
 
 ## Related Docs
 
-- [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md)
-- [README.md](/Users/muhammedrasin/misata-project/Misata/README.md)
+- [FEATURES.md](../FEATURES.md)
+- [README.md](../README.md)

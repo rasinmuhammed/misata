@@ -58,6 +58,14 @@ If your search starts with one of these questions, you should be able to find Mi
 pip install misata
 ```
 
+Optional extras:
+
+```bash
+pip install "misata[llm]"       # LLM-assisted schema generation
+pip install "misata[formulas]"  # Formula columns
+pip install "misata[api]"       # FastAPI server
+```
+
 ### Generate a dataset from a story
 
 ```bash
@@ -73,6 +81,7 @@ That single command can:
 ### Use an LLM for richer schema planning
 
 ```bash
+pip install "misata[llm]"
 export GROQ_API_KEY=gsk_...
 misata generate --story "An ecommerce company with seasonal demand and repeat customers" --use-llm
 ```
@@ -178,6 +187,7 @@ for table_name, df in simulator.generate_all():
 from misata import DataSimulator
 from misata.llm_parser import LLMSchemaGenerator
 
+# pip install "misata[llm]"
 llm = LLMSchemaGenerator(provider="groq")
 config = llm.generate_from_story(
     "A healthcare platform with patients, doctors, claims, and seasonal appointment peaks"
@@ -257,28 +267,28 @@ That means:
 
 ## Documentation Map
 
-- [QUICKSTART.md](/Users/muhammedrasin/misata-project/Misata/QUICKSTART.md): hands-on setup and common commands
-- [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md): the plain-English guide to every major feature
-- [CONTRIBUTING.md](/Users/muhammedrasin/misata-project/Misata/CONTRIBUTING.md): development workflow and contribution guide
-- [MISATA_VOICE.md](/Users/muhammedrasin/misata-project/Misata/MISATA_VOICE.md): writing style, naming rules, and tone guide
-- [MISATA_GLOSSARY.md](/Users/muhammedrasin/misata-project/Misata/MISATA_GLOSSARY.md): magical terms mapped to actual features
+- [QUICKSTART.md](QUICKSTART.md): hands-on setup and common commands
+- [FEATURES.md](FEATURES.md): the plain-English guide to every major feature
+- [CONTRIBUTING.md](CONTRIBUTING.md): development workflow and contribution guide
+- [MISATA_VOICE.md](MISATA_VOICE.md): writing style, naming rules, and tone guide
+- [MISATA_GLOSSARY.md](MISATA_GLOSSARY.md): magical terms mapped to actual features
 
 ## Search Guides
 
 These pages are written around the questions people actually search for:
 
-- [docs/python-synthetic-data-generator.md](/Users/muhammedrasin/misata-project/Misata/docs/python-synthetic-data-generator.md)
-- [docs/database-seeding-python.md](/Users/muhammedrasin/misata-project/Misata/docs/database-seeding-python.md)
-- [docs/multi-table-synthetic-data.md](/Users/muhammedrasin/misata-project/Misata/docs/multi-table-synthetic-data.md)
-- [docs/synthetic-data-for-bi-demos.md](/Users/muhammedrasin/misata-project/Misata/docs/synthetic-data-for-bi-demos.md)
-- [docs/faker-vs-sdv-vs-misata.md](/Users/muhammedrasin/misata-project/Misata/docs/faker-vs-sdv-vs-misata.md)
+- [docs/python-synthetic-data-generator.md](docs/python-synthetic-data-generator.md)
+- [docs/database-seeding-python.md](docs/database-seeding-python.md)
+- [docs/multi-table-synthetic-data.md](docs/multi-table-synthetic-data.md)
+- [docs/synthetic-data-for-bi-demos.md](docs/synthetic-data-for-bi-demos.md)
+- [docs/faker-vs-sdv-vs-misata.md](docs/faker-vs-sdv-vs-misata.md)
 
 ## Examples
 
-- [examples/python_synthetic_data_generator.py](/Users/muhammedrasin/misata-project/Misata/examples/python_synthetic_data_generator.py)
-- [examples/database_seeding_postgres.py](/Users/muhammedrasin/misata-project/Misata/examples/database_seeding_postgres.py)
-- [examples/multi_table_synthetic_data.py](/Users/muhammedrasin/misata-project/Misata/examples/multi_table_synthetic_data.py)
-- [examples/bi_demo_dataset.py](/Users/muhammedrasin/misata-project/Misata/examples/bi_demo_dataset.py)
+- [examples/python_synthetic_data_generator.py](examples/python_synthetic_data_generator.py)
+- [examples/database_seeding_postgres.py](examples/database_seeding_postgres.py)
+- [examples/multi_table_synthetic_data.py](examples/multi_table_synthetic_data.py)
+- [examples/bi_demo_dataset.py](examples/bi_demo_dataset.py)
 
 ## Enterprise Direction
 
@@ -297,7 +307,7 @@ The long-term goal is not to be a black-box generator. The goal is to become a s
 
 If you want to contribute, start here:
 
-- read [CONTRIBUTING.md](/Users/muhammedrasin/misata-project/Misata/CONTRIBUTING.md)
+- read [CONTRIBUTING.md](CONTRIBUTING.md)
 - keep public docs simple and human
 - use magical terminology only when the plain-English meaning is also obvious
 

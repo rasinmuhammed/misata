@@ -6,6 +6,7 @@ This is a key upgrade from our basic generator to beat Gretel on data quality.
 """
 
 from typing import Dict, List, Optional, Any
+import warnings
 import pandas as pd
 import numpy as np
 
@@ -15,7 +16,7 @@ try:
     SDV_AVAILABLE = True
 except ImportError:
     SDV_AVAILABLE = False
-    print("[WARNING] SDV not installed. Run: pip install sdv")
+    warnings.warn("SDV not installed. Install with: pip install 'misata[advanced]'")
 
 
 class CopulaGenerator:
@@ -42,7 +43,7 @@ class CopulaGenerator:
             metadata: Optional SDV metadata dict, auto-detected if not provided
         """
         if not SDV_AVAILABLE:
-            raise ImportError("SDV not installed. Run: pip install sdv")
+            raise ImportError("SDV not installed. Install with: pip install 'misata[advanced]'")
         
         # Auto-detect metadata if not provided
         self.metadata = SingleTableMetadata()

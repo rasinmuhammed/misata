@@ -15,7 +15,14 @@ import numpy as np
 import pandas as pd
 import ast
 import operator
-from simpleeval import simple_eval, NameNotDefined
+
+try:
+    from simpleeval import simple_eval, NameNotDefined
+except ImportError:
+    simple_eval = None
+
+    class NameNotDefined(NameError):
+        """Fallback used when simpleeval is not installed."""
 
 # Whitelist of safe functions
 SAFE_FUNCTIONS = {
@@ -67,6 +74,15 @@ class SafeNumpy:
             return SAFE_FUNCTIONS[name]
         raise NameNotDefined(name, f"Function 'np.{name}' is not allowed in formulas.")
 
+
+def _require_simpleeval() -> None:
+    """Raise a clear error when formula support is requested without the extra dependency."""
+    if simple_eval is None:
+        raise ImportError(
+            "Formula support requires simpleeval. "
+            "Install with: pip install 'misata[formulas]'"
+        )
+
 class FormulaEngine:
     """
     Evaluate column formulas using safe expressions.
@@ -104,6 +120,8 @@ class FormulaEngine:
         Returns:
             Array of computed values
         """
+        _require_simpleeval()
+
         # Replace cross-table references with actual values
         processed_formula = self._resolve_cross_table_refs(df, formula, fk_column)
 
@@ -219,6 +237,7 @@ class FormulaEngine:
         Returns:
             Array of computed values
         """
+        _require_simpleeval()
         fk_mappings = fk_mappings or {}
 
         # Pattern to match @table.column

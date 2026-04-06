@@ -57,10 +57,10 @@ for table_name, batch in DataSimulator(config).generate_all():
 
 ## Related Examples
 
-- [examples/multi_table_synthetic_data.py](/Users/muhammedrasin/misata-project/Misata/examples/multi_table_synthetic_data.py)
-- [examples/python_synthetic_data_generator.py](/Users/muhammedrasin/misata-project/Misata/examples/python_synthetic_data_generator.py)
+- [examples/multi_table_synthetic_data.py](../examples/multi_table_synthetic_data.py)
+- [examples/python_synthetic_data_generator.py](../examples/python_synthetic_data_generator.py)
 
 ## Related Docs
 
-- [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md)
-- [README.md](/Users/muhammedrasin/misata-project/Misata/README.md)
+- [FEATURES.md](../FEATURES.md)
+- [README.md](../README.md)

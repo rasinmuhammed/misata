@@ -6,6 +6,7 @@ using industrial-strength SMT solving.
 """
 
 from typing import Dict, List, Optional, Callable, Any
+import warnings
 import pandas as pd
 import numpy as np
 from dataclasses import dataclass
@@ -16,7 +17,7 @@ try:
     Z3_AVAILABLE = True
 except ImportError:
     Z3_AVAILABLE = False
-    print("[WARNING] Z3 not installed. Run: pip install z3-solver")
+    warnings.warn("Z3 not installed. Install with: pip install 'misata[advanced]'")
 
 
 @dataclass

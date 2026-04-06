@@ -10,10 +10,14 @@ including:
 
 import json
 import os
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from groq import Groq
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 
 from misata.curve_fitting import CurveFitter
 from misata.feedback import FeedbackDatabase
@@ -351,6 +355,11 @@ class LLMSchemaGenerator:
 
         # Initialize client (all providers use OpenAI-compatible API)
         if self.provider == "groq":
+            if Groq is None:
+                raise ImportError(
+                    "groq package required for the Groq provider. "
+                    "Install with: pip install groq"
+                )
             self.client = Groq(api_key=self.api_key)
         else:
             # OpenAI and Ollama use openai package
@@ -434,6 +443,7 @@ class LLMSchemaGenerator:
     def generate_from_story(
         self,
         story: str,
+        use_research: bool = False,
         default_rows: int = 10000,
         temperature: float = 0.3,
     ) -> SchemaConfig:
@@ -448,9 +458,34 @@ class LLMSchemaGenerator:
         Returns:
             SchemaConfig ready for data generation
         """
+        research_context = ""
+        if use_research:
+            domain = "SaaS"
+            story_lower = story.lower()
+            if "fitness" in story_lower:
+                domain = "Fitness App"
+            elif "ecommerce" in story_lower or "shop" in story_lower:
+                domain = "Ecommerce"
+            elif "finance" in story_lower:
+                domain = "Fintech"
+
+            try:
+                agent = DeepResearchAgent(use_mock=True)
+                entities = agent.search_entities(domain, "Competitors", limit=5)
+                names = [entity["name"] for entity in entities if entity.get("name")]
+                if names:
+                    research_context = (
+                        "\n\nREAL WORLD CONTEXT (INJECTED):\n"
+                        f"Research found these top players in {domain}: {', '.join(names)}.\n"
+                        "Use these names as examples in the 'inline_data' for reference tables if relevant."
+                    )
+            except Exception as exc:
+                warnings.warn(f"Research agent unavailable: {exc}")
+
         user_prompt = f"""Generate a complete synthetic data schema in JSON format for:
 
 {story}
+{research_context}
 
 CRITICAL INSTRUCTIONS:
 1. Generate tables SPECIFIC to the domain described above. DO NOT use generic fitness/exercise examples.
@@ -541,9 +576,8 @@ Include reference tables with inline_data for lookup values and transactional ta
                 fitted_params = fitter.fit_distribution(points, dist_type)
                 # Merge fitted params, keeping any manual overrides if they exist (or overwriting? let's overwrite for safety)
                 normalized.update(fitted_params)
-            except Exception:
-                # If fitting fails, fallback to defaults or keep what we have
-                pass
+            except Exception as exc:
+                warnings.warn(f"Curve fitting failed for control_points: {exc}")
 
         return normalized
 
@@ -885,78 +919,12 @@ Return valid JSON with enriched columns, reference_tables, and constraints. Be d
                                 action=c.get("action", "cap"),
                             )
                             table.constraints.append(constraint)
-                        except Exception:
-                            pass  # Skip invalid constraints
+                        except Exception as exc:
+                            warnings.warn(f"Skipping invalid constraint for table '{table_name}': {exc}")
                     break
 
         return enriched
 
-
-    def generate_from_story(self, story: str, use_research: bool = False, default_rows: int = 10000) -> SchemaConfig:
-        """
-        Generate schema from a user story.
-        
-        Args:
-            story: The natural language description.
-            use_research: If True, uses agent to find real companies for context.
-            default_rows: Default row count for transactional tables.
-        """
-        context = ""
-        if use_research:
-            print("🕵️‍♂️ Deep Research Mode: ACTIVATED")
-            # Simple heuristic to find likely domain
-            domain = "SaaS"
-            if "fitness" in story.lower(): domain = "Fitness App"
-            elif "ecommerce" in story.lower() or "shop" in story.lower(): domain = "Ecommerce"
-            elif "finance" in story.lower(): domain = "Fintech"
-            
-            try:
-                # Use Mock Agent (fast)
-                agent = DeepResearchAgent(use_mock=True) 
-                entities = agent.search_entities(domain, "Competitors", limit=5)
-                names = [e['name'] for e in entities]
-                context = (
-                    f"\n\nREAL WORLD CONTEXT (INJECTED):\n"
-                    f"Research found these top players in {domain}: {', '.join(names)}.\n"
-                    f"Use these names as examples in the 'inline_data' for reference tables if relevant."
-                )
-            except Exception as e:
-                print(f"Research Agent Warning: {e}")
-
-        # Construct the final prompt
-        user_prompt = f"Story: {story}{context}\n\nDefault row count for transactional tables: {default_rows}\n\nGenerate the complete JSON schema."
-        user_prompt += self._build_feedback_prompt(story=story)
-        
-        completion = self.client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt,
-                }
-            ],
-            model=self.model,
-            temperature=0.1,  # Low temp for JSON consistency
-            response_format={"type": "json_object"},
-        )
-
-        response_content = completion.choices[0].message.content
-        try:
-            schema_dict = json.loads(response_content)
-            return self._parse_schema(schema_dict)
-        except json.JSONDecodeError:
-            # Fallback text parsing if JSON mode fails (unlikely with Llama 3)
-            # For now, just raise
-            raise ValueError(f"Failed to generate valid JSON. Raw response: {response_content[:100]}...")
-
-    def generate_from_graph(self, description: str) -> SchemaConfig:
-        """Reverse engineer schema from graph description."""
-        # Similar to above but uses GRAPH_REVERSE_PROMPT
-        # For brevity, implementing basic pass-through
-        return self.generate_from_story(description)
 
 # Convenience functions
 def generate_schema(story: str, api_key: Optional[str] = None, use_research: bool = False) -> SchemaConfig:

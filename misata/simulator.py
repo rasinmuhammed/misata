@@ -112,7 +112,8 @@ class DataSimulator:
             try:
                 from misata.smart_values import SmartValueGenerator
                 self._smart_gen = SmartValueGenerator()
-            except Exception:
+            except Exception as exc:
+                warnings.warn(f"Smart value generation unavailable: {exc}")
                 self._smart_gen = None
         return self._smart_gen
 
@@ -219,78 +220,49 @@ class DataSimulator:
 
         return valid_ids
 
-    def _update_context(self, table_name: str, df: pd.DataFrame) -> None:
-        """
-        Update the context with key columns from the generated batch.
+    def _collect_context_columns(self, table_name: str, df: pd.DataFrame) -> List[str]:
+        """Return the columns that must be retained for future FK/date/depends_on lookups."""
+        table = self.config.get_table(table_name)
+        if table and table.is_reference:
+            return list(df.columns)
 
-        Smart Context Logic:
-        1. Store Primary Key ('id')
-        2. Store columns used as foreign keys by children (parent_key)
-        3. Store columns used in Relationship filters (Logic Gap fix)
-        4. Store columns used in 'relative_to' date constraints (Time Travel fix)
-        """
-        needed_cols = {'id'}
+        needed_cols = {"id"}
 
-        # 2. FK and Filter dependencies
         for rel in self.config.relationships:
             if rel.parent_table == table_name:
                 needed_cols.add(rel.parent_key)
                 if rel.filters:
-                    for col in rel.filters.keys():
-                        needed_cols.add(col)
+                    needed_cols.update(rel.filters.keys())
 
-        # 4. Filter 'relative_to' dependencies
-        # This requires scanning ALL columns of ALL child tables to see if they reference this table
-        # Optimization: Build this dependency map once in __init__?
-        # For now, we scan here. It's fast enough for schema sizes < 100 tables.
         for child_table in self.config.tables:
             child_cols = self.config.get_columns(child_table.name)
             for col in child_cols:
-                if col.type == 'date' and 'relative_to' in col.distribution_params:
-                    # Format: "parent_table.column"
+                if col.type == "date" and "relative_to" in col.distribution_params:
                     try:
-                        ptable, pcol = col.distribution_params['relative_to'].split('.')
-                        if ptable == table_name:
-                            needed_cols.add(pcol)
-                    except:
-                        pass
-                if "depends_on" in col.distribution_params:
-                    try:
-                        dep_parts = col.distribution_params["depends_on"].split(".", 1)
-                        if len(dep_parts) == 2:
-                            fk_col, target_col = dep_parts
-                            for rel in self.config.relationships:
-                                if rel.child_table == child_table.name and rel.child_key == fk_col and rel.parent_table == table_name:
-                                    needed_cols.add(target_col)
-                    except:
-                        pass
+                        parent_table, parent_col = col.distribution_params["relative_to"].split(".")
+                    except ValueError:
+                        continue
+                    if parent_table == table_name:
+                        needed_cols.add(parent_col)
 
-        cols_to_store = [c for c in needed_cols if c in df.columns]
-        print(f"DEBUG _update_context({table_name}): needed={needed_cols}, stored={cols_to_store}")
-        if not cols_to_store:
-            return
+                depends_on = col.distribution_params.get("depends_on")
+                if not depends_on:
+                    continue
 
-        ctx_df = df[cols_to_store].copy()
+                try:
+                    fk_col, target_col = depends_on.split(".", 1)
+                except ValueError:
+                    continue
 
-        if table_name not in self.context:
-            # First batch: store up to MAX_CONTEXT_ROWS
-            if len(ctx_df) > self.MAX_CONTEXT_ROWS:
-                ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=self.config.seed)
-            self.context[table_name] = ctx_df
-        else:
-            # Append to existing context, but cap at MAX_CONTEXT_ROWS
-            current_len = len(self.context[table_name])
-            if current_len >= self.MAX_CONTEXT_ROWS:
-                # Already at capacity, use reservoir sampling for randomness
-                # Replace some existing rows with new ones (probability-based)
-                return  # Skip appending, we have enough IDs
-            
-            remaining_space = self.MAX_CONTEXT_ROWS - current_len
-            rows_to_add = ctx_df.iloc[:remaining_space]
-            self.context[table_name] = pd.concat(
-                [self.context[table_name], rows_to_add], 
-                ignore_index=True
-            )
+                for rel in self.config.relationships:
+                    if (
+                        rel.child_table == child_table.name
+                        and rel.child_key == fk_col
+                        and rel.parent_table == table_name
+                    ):
+                        needed_cols.add(target_col)
+
+        return [column for column in needed_cols if column in df.columns]
 
     def generate_column(
         self,
@@ -318,9 +290,7 @@ class DataSimulator:
         if "depends_on" in params and table_data is not None:
             parent_col = params["depends_on"]
             mapping = params.get("mapping", {})
-            
-            print(f"DEBUG depends_on: col={column.name}, mapping={mapping}")
-            
+
             parent_values = None
             if parent_col in table_data.columns:
                 parent_values = table_data[parent_col].values
@@ -336,12 +306,8 @@ class DataSimulator:
                             if target_col in parent_df.columns:
                                 parent_map = parent_df.set_index(rel.parent_key)[target_col]
                                 parent_values = parent_map.reindex(fk_values).values
-                            else:
-                                print(f"DEBUG FAIL: target_col {target_col} NOT in parent {rel.parent_table} columns: {parent_df.columns}")
-                        else:
-                            print(f"DEBUG FAIL: rel NOT matched or parent not in context")
                     else:
-                        print(f"DEBUG FAIL: fk_col {fk_col} NOT in table_data")
+                        parent_values = None
                 except Exception as e:
                     warnings.warn(f"Failed to resolve cross-table dependency {parent_col}: {e}")
             
@@ -360,11 +326,9 @@ class DataSimulator:
                             if str_cols:
                                 # Get the values
                                 ref_vals = r_df[str_cols[0]].values
-                                print(f"DEBUG MATCHING: ref_vals={ref_vals}, mapping.keys={list(mapping.keys())}")
                                 # If any key in mapping exists in the reference table values
                                 if any(k in ref_vals for k in mapping.keys()):
                                     id_to_name = {str(k): v for k, v in r_df.set_index('id')[str_cols[0]].to_dict().items()}
-                                    print(f"DEBUG MAGIC RESOLVER: id_to_name={id_to_name}, first_parent_val={parent_values[0]}, type={type(parent_values[0])}")
                                     
                                     # Convert parent_values to strings if possible to match against id_to_name keys (which are also strings now)
                                     # Handle case where parent_values contains floats like 1.0 instead of 1
@@ -375,7 +339,6 @@ class DataSimulator:
                                     break
 
                 if isinstance(first_val, dict) and "mean" in first_val:
-                    print(f"DEBUG CONDITIONAL MATH: mapping keys = {list(mapping.keys())}, parent_values sample = {parent_values[:5]}")
                     # Numeric conditional distribution (e.g., salary based on job_title)
                     # mapping = {"Intern": {"mean": 40000, "std": 5000}, "CTO": {"mean": 200000, "std": 30000}}
                     values = np.zeros(size)
@@ -386,7 +349,7 @@ class DataSimulator:
                             target_type = type(parent_values[0])
                             try:
                                 compare_key = target_type(key)
-                            except:
+                            except (TypeError, ValueError):
                                 pass
                         
                         mask = parent_values == compare_key
@@ -404,7 +367,7 @@ class DataSimulator:
                         safe_keys = [target_type(k) if isinstance(k, str) and k.isdigit() else k for k in mapping.keys()]
                         try:
                             safe_keys = [target_type(k) for k in mapping.keys()]
-                        except:
+                        except (TypeError, ValueError):
                             pass
                     else:
                         safe_keys = list(mapping.keys())
@@ -1042,58 +1005,27 @@ class DataSimulator:
         3. Store columns used in Relationship filters (Logic Gap fix)
         4. Store columns used in 'relative_to' date constraints (Time Travel fix)
         """
-        table = self.config.get_table(table_name)
-        if table and table.is_reference:
-            cols_to_store = list(df.columns)
-        else:
-            needed_cols = {'id'}
-
-            # 2. FK and Filter dependencies
-            for rel in self.config.relationships:
-                if rel.parent_table == table_name:
-                    needed_cols.add(rel.parent_key)
-                    if rel.filters:
-                        for col in rel.filters.keys():
-                            needed_cols.add(col)
-
-            # 4. Filter 'relative_to' dependencies
-            # This requires scanning ALL columns of ALL child tables to see if they reference this table
-            # Optimization: Build this dependency map once in __init__?
-            # For now, we scan here. It's fast enough for schema sizes < 100 tables.
-            for child_table in self.config.tables:
-                child_cols = self.config.get_columns(child_table.name)
-                for col in child_cols:
-                    if col.type == 'date' and 'relative_to' in col.distribution_params:
-                        # Format: "parent_table.column"
-                        try:
-                            ptable, pcol = col.distribution_params['relative_to'].split('.')
-                            if ptable == table_name:
-                                needed_cols.add(pcol)
-                        except Exception:
-                            pass
-                    if "depends_on" in col.distribution_params:
-                        try:
-                            dep_parts = col.distribution_params["depends_on"].split(".", 1)
-                            if len(dep_parts) == 2:
-                                fk_col, target_col = dep_parts
-                                for rel in self.config.relationships:
-                                    if rel.child_table == child_table.name and rel.child_key == fk_col and rel.parent_table == table_name:
-                                        needed_cols.add(target_col)
-                        except:
-                            pass
-
-            cols_to_store = [c for c in needed_cols if c in df.columns]
-        
+        cols_to_store = self._collect_context_columns(table_name, df)
         if not cols_to_store:
             return
 
         ctx_df = df[cols_to_store].copy()
 
         if table_name not in self.context:
+            if len(ctx_df) > self.MAX_CONTEXT_ROWS:
+                ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=self.config.seed)
             self.context[table_name] = ctx_df
         else:
-            # Append to existing context
-            self.context[table_name] = pd.concat([self.context[table_name], ctx_df], ignore_index=True)
+            current_len = len(self.context[table_name])
+            if current_len >= self.MAX_CONTEXT_ROWS:
+                return
+
+            remaining_space = self.MAX_CONTEXT_ROWS - current_len
+            rows_to_add = ctx_df.iloc[:remaining_space]
+            self.context[table_name] = pd.concat(
+                [self.context[table_name], rows_to_add],
+                ignore_index=True,
+            )
 
     def generate_batches(self, table_name: str) -> Any:
         """

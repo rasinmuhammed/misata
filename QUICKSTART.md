@@ -17,6 +17,15 @@ pip install misata
 Optional extras:
 
 ```bash
+# LLM-assisted schema generation
+pip install "misata[llm]"
+
+# Formula columns
+pip install "misata[formulas]"
+
+# API server
+pip install "misata[api]"
+
 # Database seeding support
 pip install "misata[db]"
 
@@ -38,6 +47,7 @@ misata generate \
 ### LLM-assisted generation
 
 ```bash
+pip install "misata[llm]"
 export GROQ_API_KEY=your_key_here
 
 misata generate \
@@ -139,6 +149,7 @@ for table_name, df in simulator.generate_all():
 from misata import DataSimulator
 from misata.llm_parser import LLMSchemaGenerator
 
+# pip install "misata[llm]"
 llm = LLMSchemaGenerator(provider="groq")
 config = llm.generate_from_story(
     "A healthcare system with patients, appointments, claims, and seasonal booking spikes"
@@ -198,6 +209,7 @@ pip install -e .
 ### LLM key missing
 
 ```bash
+pip install "misata[llm]"
 export GROQ_API_KEY=your_key_here
 ```
 
@@ -211,11 +223,11 @@ misata generate --story "A SaaS app with users and invoices"
 
 ## Where To Go Next
 
-- [README.md](/Users/muhammedrasin/misata-project/Misata/README.md)
-- [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md)
-- [docs/python-synthetic-data-generator.md](/Users/muhammedrasin/misata-project/Misata/docs/python-synthetic-data-generator.md)
-- [docs/database-seeding-python.md](/Users/muhammedrasin/misata-project/Misata/docs/database-seeding-python.md)
-- [docs/multi-table-synthetic-data.md](/Users/muhammedrasin/misata-project/Misata/docs/multi-table-synthetic-data.md)
-- [docs/synthetic-data-for-bi-demos.md](/Users/muhammedrasin/misata-project/Misata/docs/synthetic-data-for-bi-demos.md)
-- [MISATA_VOICE.md](/Users/muhammedrasin/misata-project/Misata/MISATA_VOICE.md)
-- [MISATA_GLOSSARY.md](/Users/muhammedrasin/misata-project/Misata/MISATA_GLOSSARY.md)
+- [README.md](README.md)
+- [FEATURES.md](FEATURES.md)
+- [docs/python-synthetic-data-generator.md](docs/python-synthetic-data-generator.md)
+- [docs/database-seeding-python.md](docs/database-seeding-python.md)
+- [docs/multi-table-synthetic-data.md](docs/multi-table-synthetic-data.md)
+- [docs/synthetic-data-for-bi-demos.md](docs/synthetic-data-for-bi-demos.md)
+- [MISATA_VOICE.md](MISATA_VOICE.md)
+- [MISATA_GLOSSARY.md](MISATA_GLOSSARY.md)

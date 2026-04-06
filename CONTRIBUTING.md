@@ -111,8 +111,8 @@ Bad:
 
 ## Writing Style
 
-Please read [MISATA_VOICE.md](/Users/muhammedrasin/misata-project/Misata/MISATA_VOICE.md) before large doc changes.
-Please read [MISATA_GLOSSARY.md](/Users/muhammedrasin/misata-project/Misata/MISATA_GLOSSARY.md) before introducing a new magical term.
+Please read [MISATA_VOICE.md](MISATA_VOICE.md) before large doc changes.
+Please read [MISATA_GLOSSARY.md](MISATA_GLOSSARY.md) before introducing a new magical term.
 
 The short version:
 - write like a talented human, not like a corporate template

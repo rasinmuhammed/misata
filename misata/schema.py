@@ -324,15 +324,39 @@ class SchemaConfig(BaseModel):
     @field_validator("columns")
     @classmethod
     def validate_columns(cls, v: Dict[str, List[Column]], info: Any) -> Dict[str, List[Column]]:
-        """Ensure all tables have column definitions."""
+        """Ensure all tables have column definitions, inferring reference-table columns when needed."""
         tables = info.data.get("tables", [])
-        table_names = {t.name for t in tables}
+        normalized = dict(v)
 
-        for table_name in table_names:
-            if table_name not in v:
-                raise ValueError(f"Table '{table_name}' has no column definitions")
+        for table in tables:
+            if table.name in normalized and normalized[table.name]:
+                continue
 
-        return v
+            if table.is_reference and table.inline_data:
+                first_row = table.inline_data[0]
+                inferred_columns = []
+                for column_name, value in first_row.items():
+                    if isinstance(value, bool):
+                        column_type = "boolean"
+                    elif isinstance(value, int):
+                        column_type = "int"
+                    elif isinstance(value, float):
+                        column_type = "float"
+                    else:
+                        column_type = "text"
+                    inferred_columns.append(
+                        Column(
+                            name=column_name,
+                            type=column_type,
+                            distribution_params={},
+                        )
+                    )
+                normalized[table.name] = inferred_columns
+                continue
+
+            raise ValueError(f"Table '{table.name}' has no column definitions")
+
+        return normalized
 
     @field_validator("relationships")
     @classmethod

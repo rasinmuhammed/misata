@@ -7,6 +7,7 @@ for stateful, controllable AI pipelines.
 
 from typing import TypedDict, Optional, List, Dict, Any, Annotated
 from dataclasses import dataclass
+import warnings
 import pandas as pd
 import json
 
@@ -16,7 +17,7 @@ try:
     LANGGRAPH_AVAILABLE = True
 except ImportError:
     LANGGRAPH_AVAILABLE = False
-    print("[WARNING] LangGraph not installed. Run: pip install langgraph")
+    warnings.warn("LangGraph not installed. Install with: pip install 'misata[advanced]'")
 
 # Groq imports (already integrated in misata)
 try:

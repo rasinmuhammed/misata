@@ -51,10 +51,10 @@ Misata helps by:
 
 ## Related Examples
 
-- [examples/database_seeding_postgres.py](/Users/muhammedrasin/misata-project/Misata/examples/database_seeding_postgres.py)
-- [examples/multi_table_synthetic_data.py](/Users/muhammedrasin/misata-project/Misata/examples/multi_table_synthetic_data.py)
+- [examples/database_seeding_postgres.py](../examples/database_seeding_postgres.py)
+- [examples/multi_table_synthetic_data.py](../examples/multi_table_synthetic_data.py)
 
 ## Related Docs
 
-- [FEATURES.md](/Users/muhammedrasin/misata-project/Misata/FEATURES.md)
-- [QUICKSTART.md](/Users/muhammedrasin/misata-project/Misata/QUICKSTART.md)
+- [FEATURES.md](../FEATURES.md)
+- [QUICKSTART.md](../QUICKSTART.md)

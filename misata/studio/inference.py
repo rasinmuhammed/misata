@@ -81,7 +81,7 @@ def detect_column_type(series: pd.Series) -> Tuple[str, Dict[str, Any]]:
                     "start": str(parsed.min().date()),
                     "end": str(parsed.max().date())
                 }
-        except:
+        except (TypeError, ValueError):
             pass
     
     # Check for categorical (limited unique values)
@@ -136,7 +136,7 @@ def detect_column_type(series: pd.Series) -> Tuple[str, Dict[str, Any]]:
                 "mean": float(numeric.mean()),
                 "std": float(numeric.std())
             }
-    except:
+    except (TypeError, ValueError):
         pass
     
     # Default to text

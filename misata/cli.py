@@ -383,6 +383,10 @@ def generate(
                     schema_config = llm.generate_from_story(story, default_rows=rows)
 
                 console.print("✅ [green]LLM schema generated successfully![/green]")
+            except ImportError as e:
+                console.print(f"\n[red]❌ {e}[/red]")
+                console.print("   Install LLM support with: [cyan]pip install \"misata[llm]\"[/cyan]")
+                sys.exit(1)
             except ValueError as e:
                 error_msg = str(e)
                 if "API key required" in error_msg:
@@ -428,6 +432,10 @@ def generate(
                 console.print(f"   📚 Reference tables with real data: {ref_count}")
             if constraint_count:
                 console.print(f"   📏 Business rules inferred: {constraint_count}")
+        except ImportError as e:
+            console.print(f"\n[red]❌ {e}[/red]")
+            console.print("   Install LLM support with: [cyan]pip install \"misata[llm]\"[/cyan]")
+            sys.exit(1)
         except ValueError as e:
             error_msg = str(e)
             if "API key required" in error_msg:
@@ -874,6 +882,12 @@ def parse(story: str, rows: int, output: str, use_llm: bool) -> None:
             with console.status("[purple]Generating with AI...[/purple]"):
                 llm = LLMSchemaGenerator()
                 schema_config = llm.generate_from_story(story, default_rows=rows)
+        except ImportError as e:
+            console.print(f"\n[red]❌ {e}[/red]")
+            console.print("   Falling back to rule-based parsing.")
+            console.print("   Install LLM support with: [cyan]pip install \"misata[llm]\"[/cyan]")
+            parser = StoryParser()
+            schema_config = parser.parse(story, default_rows=rows)
         except ValueError as e:
             if "GROQ_API_KEY" in str(e):
                 console.print("\n[red]❌ Groq API key required.[/red]")
@@ -921,8 +935,13 @@ def serve(port: int, host: str) -> None:
     console.print("🎨 Web UI: [cyan]http://localhost:3000[/cyan] (run 'npm run dev' in /web)")
     console.print("\nPress [bold]Ctrl+C[/bold] to stop.\n")
 
-    import uvicorn
-    from misata.api import app
+    try:
+        import uvicorn
+        from misata.api import app
+    except ImportError as e:
+        console.print(f"[red]❌ {e}[/red]")
+        console.print("Install API support with: [cyan]pip install \"misata[api]\"[/cyan]")
+        sys.exit(1)
     uvicorn.run(app, host=host, port=port)
 
 

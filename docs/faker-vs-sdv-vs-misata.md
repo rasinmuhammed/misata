@@ -46,6 +46,6 @@ Use Misata when you want a controllable synthetic world that follows business lo
 
 ## Related Docs
 
-- [docs/python-synthetic-data-generator.md](/Users/muhammedrasin/misata-project/Misata/docs/python-synthetic-data-generator.md)
-- [docs/multi-table-synthetic-data.md](/Users/muhammedrasin/misata-project/Misata/docs/multi-table-synthetic-data.md)
-- [docs/synthetic-data-for-bi-demos.md](/Users/muhammedrasin/misata-project/Misata/docs/synthetic-data-for-bi-demos.md)
+- [docs/python-synthetic-data-generator.md](python-synthetic-data-generator.md)
+- [docs/multi-table-synthetic-data.md](multi-table-synthetic-data.md)
+- [docs/synthetic-data-for-bi-demos.md](synthetic-data-for-bi-demos.md)
