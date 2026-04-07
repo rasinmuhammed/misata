@@ -11,10 +11,11 @@ Provides REST endpoints for:
 import io
 import os
 import tempfile
+import threading
 import zipfile
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -216,7 +217,7 @@ async def get_industry_suggestions(request: IndustrySuggestionsRequest):
 # ============================================================================
 
 @app.post("/api/generate-data", response_model=DataPreviewResponse)
-async def generate_data(request: GenerateRequest, background_tasks: BackgroundTasks):
+async def generate_data(request: GenerateRequest):
     """
     Generate synthetic data from schema configuration.
 
@@ -277,8 +278,8 @@ async def generate_data(request: GenerateRequest, background_tasks: BackgroundTa
                         "max": float(batch_df[col].max())
                     }
 
-        # Clean up old data after 1 hour (in background)
-        background_tasks.add_task(cleanup_old_data, download_id, 3600)
+        # Clean up old data after 1 hour without blocking response completion.
+        schedule_cleanup(download_id, 3600)
 
         return DataPreviewResponse(
             tables=preview,
@@ -332,16 +333,21 @@ async def download_data(download_id: str, format: str = "csv"):
         raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
 
 
-async def cleanup_old_data(download_id: str, delay_seconds: int):
-    """Clean up generated data files after delay."""
-    import asyncio
+def cleanup_old_data(download_id: str) -> None:
+    """Clean up generated data files immediately if they still exist."""
     import shutil
 
-    await asyncio.sleep(delay_seconds)
     if download_id in _generated_files:
         temp_dir = _generated_files[download_id]
         shutil.rmtree(temp_dir, ignore_errors=True)
         del _generated_files[download_id]
+
+
+def schedule_cleanup(download_id: str, delay_seconds: int) -> None:
+    """Schedule best-effort cleanup detached from the request lifecycle."""
+    timer = threading.Timer(delay_seconds, cleanup_old_data, args=[download_id])
+    timer.daemon = True
+    timer.start()
 
 
 # ============================================================================

@@ -5,8 +5,6 @@ Provides streaming CSV/Parquet export to handle large datasets
 without loading everything into memory.
 """
 
-import csv
-import os
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Optional, Union
 
@@ -49,7 +47,7 @@ class StreamingExporter:
         self.progress_callback = progress_callback
         
         self._file_handles: Dict[str, Any] = {}
-        self._csv_writers: Dict[str, csv.writer] = {}
+        self._csv_writers: Dict[str, Any] = {}
         self._rows_written: Dict[str, int] = {}
         self._headers_written: Dict[str, bool] = {}
         
@@ -78,19 +76,20 @@ class StreamingExporter:
         file_path = self.output_dir / f"{table_name}.csv"
         
         try:
-            # First batch: write header
-            if table_name not in self._headers_written:
-                with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(df.columns.tolist())
+            header = table_name not in self._headers_written
+            mode = 'w' if header else 'a'
+            df.to_csv(
+                file_path,
+                mode=mode,
+                header=header,
+                index=False,
+                encoding='utf-8',
+                lineterminator='\n',
+            )
+
+            if header:
                 self._headers_written[table_name] = True
                 self._rows_written[table_name] = 0
-            
-            # Append data
-            with open(file_path, 'a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                for _, row in df.iterrows():
-                    writer.writerow(row.tolist())
             
             rows = len(df)
             self._rows_written[table_name] = self._rows_written.get(table_name, 0) + rows

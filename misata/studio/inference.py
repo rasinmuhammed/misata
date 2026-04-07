@@ -241,7 +241,6 @@ def infer_schema(
         
         column = Column(
             name=str(col_name),
-            table_name=table_name,
             type=col_type,
             distribution_params=params,
             nullable=data[col_name].isna().any(),
@@ -299,7 +298,7 @@ def schema_to_dict(schema: SchemaConfig) -> Dict[str, Any]:
             {
                 "name": t.name,
                 "row_count": t.row_count,
-                "columns": t.columns
+                "columns": t.columns or [c.name for c in schema.columns.get(t.name, [])]
             }
             for t in schema.tables
         ],
@@ -317,3 +316,12 @@ def schema_to_dict(schema: SchemaConfig) -> Dict[str, Any]:
             for table_name, cols in schema.columns.items()
         }
     }
+
+
+def infer_schema_from_sample(
+    data: pd.DataFrame,
+    table_name: str = "data",
+    row_count: Optional[int] = None,
+) -> SchemaConfig:
+    """Backward-compatible alias for sample-based schema inference."""
+    return infer_schema(data=data, table_name=table_name, row_count=row_count)

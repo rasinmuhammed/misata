@@ -2,6 +2,8 @@
 Unit tests for schema validation.
 """
 
+import warnings
+
 import pytest
 from pydantic import ValidationError
 
@@ -22,10 +24,15 @@ class TestColumn:
         assert col.type == "int"
         assert col.distribution_params["min"] == 18
     
-    def test_categorical_requires_choices(self):
-        """Categorical columns must have choices."""
-        with pytest.raises(ValidationError):
-            Column(name="status", type="categorical", distribution_params={})
+    def test_categorical_missing_choices_uses_safe_fallback(self):
+        """Categorical columns should parse leniently for imperfect LLM output."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            col = Column(name="status", type="categorical", distribution_params={})
+
+        assert col.distribution_params["choices"] == ["Unknown"]
+        assert col.distribution_params["probabilities"] == [1.0]
+        assert any("missing 'choices'" in str(item.message) for item in caught)
     
     def test_date_requires_start_end(self):
         """Date columns should get sensible defaults when omitted."""

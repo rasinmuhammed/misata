@@ -120,33 +120,61 @@ class FormulaEngine:
         Returns:
             Array of computed values
         """
-        _require_simpleeval()
+        fk_mappings: Optional[Dict[str, str]] = None
+        table_refs = re.findall(r'@(\w+)\.(\w+)', formula)
+        if fk_column and table_refs:
+            unique_tables = {table_name for table_name, _ in table_refs}
+            if len(unique_tables) == 1:
+                fk_mappings = {next(iter(unique_tables)): fk_column}
+        return self.evaluate_with_lookups(df, formula, fk_mappings=fk_mappings)
 
-        # Replace cross-table references with actual values
-        processed_formula = self._resolve_cross_table_refs(df, formula, fk_column)
+    def _prepare_formula_context(
+        self,
+        df: pd.DataFrame,
+        formula: str,
+        fk_mappings: Optional[Dict[str, str]] = None,
+    ) -> tuple[str, Dict[str, np.ndarray]]:
+        """Resolve cross-table refs and return names to inject into evaluation."""
+        fk_mappings = fk_mappings or {}
+        pattern = r'@(\w+)\.(\w+)'
+        matches = re.findall(pattern, formula)
 
-        # Create evaluation context
-        names = {
-            'np': SafeNumpy(),
-            'pd': pd, # Needed for some checks, but ideally we restrict this too
-            # simpleeval defaults allow basic math
-        }
+        result = formula
+        lookup_names: Dict[str, np.ndarray] = {}
 
-        # Add columns to context
-        for col in df.columns:
-            names[col] = df[col].values
+        for i, (table_name, col_name) in enumerate(matches):
+            if table_name not in self.tables:
+                raise ValueError(f"Table '{table_name}' not found")
 
-        # Evaluate the expression safely
-        try:
-            result = simple_eval(
-                processed_formula,
-                names=names,
-                functions=SAFE_FUNCTIONS, # Allow top-level functions too
-                operators=SAFE_OPERATORS
-            )
-            return np.array(result)
-        except Exception as e:
-            raise ValueError(f"Failed to evaluate formula '{formula}': {e}")
+            ref_table = self.tables[table_name]
+
+            if col_name not in ref_table.columns:
+                raise ValueError(f"Column '{col_name}' not found in table '{table_name}'")
+
+            fk_col = fk_mappings.get(table_name, f"{table_name}_id")
+            if fk_col.endswith("s_id"):
+                alt_fk = fk_col.replace("s_id", "_id")
+                if alt_fk in df.columns:
+                    fk_col = alt_fk
+
+            if fk_col not in df.columns:
+                for pattern_fk in [f"{table_name}_id", f"{table_name[:-1]}_id", "id"]:
+                    if pattern_fk in df.columns:
+                        fk_col = pattern_fk
+                        break
+
+            if fk_col not in df.columns:
+                raise ValueError(f"No FK column found for table '{table_name}'")
+
+            if 'id' not in ref_table.columns:
+                raise ValueError(f"Reference table '{table_name}' has no 'id' column")
+
+            lookup_map = ref_table.set_index('id')[col_name].to_dict()
+            var_name = f'_ref_{i}'
+            lookup_names[var_name] = df[fk_col].map(lookup_map).fillna(0).values
+            result = result.replace(f'@{table_name}.{col_name}', var_name)
+
+        return result, lookup_names
 
     def _resolve_cross_table_refs(
         self,
@@ -167,56 +195,14 @@ class FormulaEngine:
         Returns:
             Formula with refs replaced by _lookup_N variables
         """
-        # Pattern to match @table.column
-        pattern = r'@(\w+)\.(\w+)'
-        matches = re.findall(pattern, formula)
+        fk_mappings = None
+        matches = re.findall(r'@(\w+)\.(\w+)', formula)
+        if fk_column and matches:
+            unique_tables = {table_name for table_name, _ in matches}
+            if len(unique_tables) == 1:
+                fk_mappings = {next(iter(unique_tables)): fk_column}
 
-        if not matches:
-            return formula
-
-        result = formula
-
-        for i, (table_name, col_name) in enumerate(matches):
-            if table_name not in self.tables:
-                raise ValueError(f"Table '{table_name}' not found for formula lookup")
-
-            ref_table = self.tables[table_name]
-
-            if col_name not in ref_table.columns:
-                raise ValueError(f"Column '{col_name}' not found in table '{table_name}'")
-
-            # Determine the FK column to use for lookup
-            actual_fk = fk_column or f"{table_name}_id"
-
-            if actual_fk not in df.columns:
-                raise ValueError(
-                    f"Cannot lookup @{table_name}.{col_name}: "
-                    f"no foreign key column '{actual_fk}' in current table"
-                )
-
-            # Create lookup mapping and apply
-            # Handle duplicates in index by grouping or taking first (safety)
-            if not ref_table['id'].is_unique:
-                 # If IDs are not unique in ref table, we have a problem.
-                 # Assuming IDs are unique for lookups.
-                 pass
-
-            lookup_map = ref_table.set_index('id')[col_name].to_dict()
-            df[actual_fk].map(lookup_map).values
-
-            var_name = f'_lookup_{i}'
-            # Store in a temporary dict doesn't work well with clean state
-            # Instead we'll inject into the names dict in evaluate
-            # But specific method needs to handle this exchange.
-            # Refactoring to return both formula and context updates would be better
-            # For now, sticking to string replacement and hoping evaluate calls context filler
-
-            # CRITICAL: This method only returns string.
-            # The previous implementation put it in _temp_lookups but implementation was messy.
-            # We will use evaluate_with_lookups which is the main entry point
-
-            result = result.replace(f'@{table_name}.{col_name}', var_name)
-
+        result, _ = self._prepare_formula_context(df, formula, fk_mappings)
         return result
 
     def evaluate_with_lookups(
@@ -241,10 +227,7 @@ class FormulaEngine:
         fk_mappings = fk_mappings or {}
 
         # Pattern to match @table.column
-        pattern = r'@(\w+)\.(\w+)'
-        matches = re.findall(pattern, formula)
-
-        result = formula
+        result, lookup_names = self._prepare_formula_context(df, formula, fk_mappings)
         names = {
             'np': SafeNumpy(),
             'pd': pd,
@@ -253,42 +236,7 @@ class FormulaEngine:
         # Add columns to context
         for col in df.columns:
             names[col] = df[col].values
-
-        # Resolve each cross-table reference
-        for i, (table_name, col_name) in enumerate(matches):
-            if table_name not in self.tables:
-                raise ValueError(f"Table '{table_name}' not found")
-
-            ref_table = self.tables[table_name]
-
-            # Determine FK column
-            fk_col = fk_mappings.get(table_name, f"{table_name}_id")
-            if fk_col.endswith("s_id"):
-                # Try without trailing 's' (exercises -> exercise_id)
-                alt_fk = fk_col.replace("s_id", "_id")
-                if alt_fk in df.columns:
-                    fk_col = alt_fk
-
-            if fk_col not in df.columns:
-                # Try common patterns
-                for pattern_fk in [f"{table_name}_id", f"{table_name[:-1]}_id", "id"]:
-                    if pattern_fk in df.columns:
-                        fk_col = pattern_fk
-                        break
-
-            if fk_col not in df.columns:
-                raise ValueError(f"No FK column found for table '{table_name}'")
-
-            # Create lookup and add to context
-            if 'id' not in ref_table.columns:
-                raise ValueError(f"Reference table '{table_name}' has no 'id' column")
-
-            lookup_map = ref_table.set_index('id')[col_name].to_dict()
-            looked_up = df[fk_col].map(lookup_map).fillna(0).values
-
-            var_name = f'_ref_{i}'
-            names[var_name] = looked_up
-            result = result.replace(f'@{table_name}.{col_name}', var_name)
+        names.update(lookup_names)
 
         # Evaluate safely
         try:

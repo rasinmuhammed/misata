@@ -5,7 +5,7 @@ This is the 2026 production-grade agent architecture using LangGraph
 for stateful, controllable AI pipelines.
 """
 
-from typing import TypedDict, Optional, List, Dict, Any, Annotated
+from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 import warnings
 import pandas as pd
@@ -70,7 +70,9 @@ class SchemaArchitectAgent:
     def extract_schema(self, story: str) -> Dict:
         """Extract schema from story using Groq LLM."""
         if not self.client:
-            raise ValueError("Groq client not available. Set GROQ_API_KEY.")
+            from misata.story_parser import StoryParser
+
+            return StoryParser().parse(story).model_dump()
         
         system_prompt = """You are a database schema architect. Given a business description,
 extract a detailed schema with:
@@ -238,6 +240,29 @@ class SimplePipeline:
         self.schema_agent = SchemaArchitectAgent()
         self.domain_agent = DomainExpertAgent()
         self.validator = ValidationAgent()
+
+    def _build_schema_config(self, schema: Dict):
+        """Convert enriched schema payload to a typed SchemaConfig."""
+        from misata.schema import SchemaConfig
+
+        if hasattr(schema, "model_dump"):
+            return schema
+        return SchemaConfig(**schema)
+
+    def _generate_data(self, schema: Dict) -> Dict[str, pd.DataFrame]:
+        """Run Misata's real generator and collect all batches by table."""
+        from misata.simulator import DataSimulator
+
+        simulator = DataSimulator(self._build_schema_config(schema))
+        data: Dict[str, pd.DataFrame] = {}
+
+        for table_name, batch in simulator.generate_all():
+            if table_name in data:
+                data[table_name] = pd.concat([data[table_name], batch], ignore_index=True)
+            else:
+                data[table_name] = batch.reset_index(drop=True)
+
+        return data
     
     def run(self, story: str) -> GenerationState:
         """Run the full pipeline."""
@@ -256,10 +281,14 @@ class SimplePipeline:
             # Step 2: Enrich with domain knowledge
             state.current_step = "domain_enrichment"
             state.schema = self.domain_agent.enrich_schema(schema)
+            state.tables = state.schema.get("tables", [])
+            state.columns = state.schema.get("columns", {})
+            state.relationships = state.schema.get("relationships", [])
+            state.outcome_curves = state.schema.get("outcome_curves", [])
             
-            # Step 3: Generate data (using existing Misata generators)
+            # Step 3: Generate data using the real Misata generator.
             state.current_step = "generation"
-            # Note: Data generation happens in constraint_generator.py
+            state.data = self._generate_data(state.schema)
             
             # Step 4: Validate (after generation)
             state.current_step = "validation"

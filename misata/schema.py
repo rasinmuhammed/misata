@@ -5,6 +5,7 @@ These models define the blueprint for synthetic data generation,
 including tables, columns, relationships, and scenario events.
 """
 
+import warnings
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
@@ -28,30 +29,52 @@ class Column(BaseModel):
     nullable: bool = False
     unique: bool = False
 
+    @staticmethod
+    def _normalize_distribution_params(
+        col_type: Optional[str],
+        params: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Normalize common missing params so schema parsing stays forgiving."""
+        normalized = dict(params or {})
+
+        if col_type == "categorical":
+            choices = normalized.get("choices")
+            if not choices:
+                warnings.warn(
+                    "Categorical column missing 'choices'; using ['Unknown'] as a safe fallback.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+                normalized["choices"] = ["Unknown"]
+                normalized.setdefault("probabilities", [1.0])
+
+        if col_type == "date" and "relative_to" not in normalized:
+            # Provide sensible defaults if start/end not specified.
+            if "start" not in normalized:
+                from datetime import datetime, timedelta
+                normalized["start"] = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+            if "end" not in normalized:
+                from datetime import datetime
+                normalized["end"] = datetime.now().strftime("%Y-%m-%d")
+
+        if col_type in ["int", "float"] and "distribution" not in normalized:
+            normalized["distribution"] = "normal"
+
+        return normalized
+
     @field_validator("distribution_params")
     @classmethod
     def validate_params(cls, v: Dict[str, Any], info: Any) -> Dict[str, Any]:
         """Validate distribution parameters based on column type."""
         col_type = info.data.get("type")
+        return cls._normalize_distribution_params(col_type, v)
 
-        if col_type == "categorical" and "choices" not in v:
-            raise ValueError("Categorical columns must have 'choices' in distribution_params")
-
-        if col_type == "date":
-            if "relative_to" not in v:
-                # Provide sensible defaults if start/end not specified
-                if "start" not in v:
-                    from datetime import datetime, timedelta
-                    v["start"] = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
-                if "end" not in v:
-                    from datetime import datetime
-                    v["end"] = datetime.now().strftime("%Y-%m-%d")
-
-        if col_type in ["int", "float"]:
-            if "distribution" not in v:
-                v["distribution"] = "normal"  # Default to normal distribution
-
-        return v
+    def validate_generation_ready(self) -> None:
+        """Raise if the column still lacks required information for generation."""
+        if self.type == "categorical" and not self.distribution_params.get("choices"):
+            raise ValueError(
+                f"Column '{self.name}' is categorical but has no choices configured"
+            )
 
 
 class Table(BaseModel):
@@ -75,6 +98,7 @@ class Table(BaseModel):
     description: Optional[str] = None
     is_reference: bool = False
     inline_data: Optional[List[Dict[str, Any]]] = None
+    columns: List[str] = Field(default_factory=list)
     constraints: List["Constraint"] = Field(default_factory=list)
     workflow_preset: Optional[str] = None
     workflow_config: Optional[Dict[str, Any]] = None
