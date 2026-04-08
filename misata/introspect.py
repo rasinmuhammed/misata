@@ -486,6 +486,12 @@ def load_sqlalchemy_target(import_path: str):
 
 
 def _extract_metadata(obj):
+    try:
+        from sqlalchemy import MetaData  # type: ignore
+        if isinstance(obj, MetaData):
+            return obj
+    except ImportError:
+        pass
     if hasattr(obj, "metadata"):
         return obj.metadata
     return None
