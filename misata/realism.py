@@ -470,78 +470,84 @@ class EntityCoherenceEngine:
         df.loc[mismatch_array, "name"] = desired_series[mismatch_array]
 
 
-def apply_realism_rules(df: pd.DataFrame, table_name: str = "") -> pd.DataFrame:
+def apply_realism_rules(
+    df: pd.DataFrame,
+    table_name: str = "",
+    rng: Optional[np.random.Generator] = None,
+) -> pd.DataFrame:
     """
     Apply cross-column realism rules to a DataFrame.
 
     Order matters: simpler fixes first, computed columns last.
+    Pass a seeded ``rng`` to guarantee reproducible fixups.
     """
     if df.empty:
         return df
+
+    _rng = rng if rng is not None else np.random.default_rng(42)
 
     df = df.copy()
     columns = set(df.columns)
 
     # ── Temporal consistency ──
-    _fix_created_updated(df, columns)
-    _fix_start_end_dates(df, columns)
-    _fix_created_delivered(df, columns)
+    _fix_created_updated(df, columns, _rng)
+    _fix_start_end_dates(df, columns, _rng)
+    _fix_created_delivered(df, columns, _rng)
     _fix_delivered_requires_status(df, columns)
 
     # ── Monetary consistency ──
-    _fix_cost_less_than_price(df, columns)
+    _fix_cost_less_than_price(df, columns, _rng)
     _fix_discount_cap(df, columns)
     _fix_line_total(df, columns)
     _fix_order_total(df, columns)
     _apply_plan_price_mapping(df, columns)
 
     # ── Identity consistency ──
-    _fix_email_from_name(df, columns)
+    _fix_email_from_name(df, columns, _rng)
     _fix_slug_from_name(df, columns)
 
     # ── Status consistency ──
-    _apply_status_end_date(df, columns)
+    _apply_status_end_date(df, columns, _rng)
 
     return df
 
 
 # ─── TEMPORAL RULES ───────────────────────────────────────────────────────────
 
-def _fix_created_updated(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_created_updated(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
     """updated_at must be >= created_at."""
     if "created_at" in columns and "updated_at" in columns:
         created = pd.to_datetime(df["created_at"], errors="coerce")
         updated = pd.to_datetime(df["updated_at"], errors="coerce")
         mask = updated < created
         if mask.any():
-            deltas = pd.to_timedelta(np.random.randint(0, 7 * 24 * 60, size=mask.sum()), unit="m")
+            deltas = pd.to_timedelta(rng.integers(0, 7 * 24 * 60, size=mask.sum()), unit="m")
             updated.loc[mask] = created.loc[mask] + deltas
             df["updated_at"] = updated
 
 
-def _fix_start_end_dates(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_start_end_dates(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
     """end_date must be >= start_date."""
     if "start_date" in columns and "end_date" in columns:
         start = pd.to_datetime(df["start_date"], errors="coerce")
         end = pd.to_datetime(df["end_date"], errors="coerce")
         mask = end < start
         if mask.any():
-            deltas = pd.to_timedelta(np.random.randint(1, 365, size=mask.sum()), unit="D")
+            deltas = pd.to_timedelta(rng.integers(1, 365, size=mask.sum()), unit="D")
             end.loc[mask] = start.loc[mask] + deltas
         df["start_date"] = start
         df["end_date"] = end
 
 
-def _fix_created_delivered(df: pd.DataFrame, columns: Set[str]) -> None:
-    """delivered_at must be after created_at (1-14 days later)."""
+def _fix_created_delivered(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+    """delivered_at must be after created_at. Only fixes rows where the order is violated."""
     if "created_at" in columns and "delivered_at" in columns:
         created = pd.to_datetime(df["created_at"], errors="coerce")
         delivered = pd.to_datetime(df["delivered_at"], errors="coerce")
-        mask = delivered.notna() & created.notna()
+        mask = delivered.notna() & created.notna() & (delivered <= created)
         if mask.any():
-            # Force delivered = created + 1-14 days
             deltas = pd.to_timedelta(
-                np.random.randint(1 * 24 * 60, 14 * 24 * 60, size=mask.sum()), unit="m"
+                rng.integers(1 * 24 * 60, 14 * 24 * 60, size=mask.sum()), unit="m"
             )
             delivered.loc[mask] = created.loc[mask] + deltas
             df["delivered_at"] = delivered
@@ -558,12 +564,15 @@ def _fix_delivered_requires_status(df: pd.DataFrame, columns: Set[str]) -> None:
 
 # ─── MONETARY RULES ──────────────────────────────────────────────────────────
 
-def _fix_cost_less_than_price(df: pd.DataFrame, columns: Set[str]) -> None:
-    """cost must be < price (margin = 30%-70% of price)."""
+def _fix_cost_less_than_price(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+    """Ensure cost < price. Only corrects rows where the constraint is violated or cost is missing."""
     if "cost" in columns and "price" in columns:
         price = pd.to_numeric(df["price"], errors="coerce").fillna(0)
-        margin = np.random.uniform(0.30, 0.70, size=len(df))
-        df["cost"] = np.round(price * margin, 2)
+        cost = pd.to_numeric(df["cost"], errors="coerce")
+        violating = cost.isna() | (cost >= price)
+        if violating.any():
+            margin = rng.uniform(0.30, 0.70, size=violating.sum())
+            df.loc[violating, "cost"] = np.round(price[violating].values * margin, 2)
 
 
 def _fix_discount_cap(df: pd.DataFrame, columns: Set[str]) -> None:
@@ -614,15 +623,15 @@ def _apply_plan_price_mapping(df: pd.DataFrame, columns: Set[str]) -> None:
 
 # ─── IDENTITY RULES ──────────────────────────────────────────────────────────
 
-def _fix_email_from_name(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_email_from_name(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
     """Compose email from first_name + last_name for consistency."""
     if {"first_name", "last_name", "email"}.issubset(columns):
         domains = [
             "gmail.com", "yahoo.com", "outlook.com", "protonmail.com",
             "icloud.com", "hotmail.com", "aol.com", "mail.com",
         ]
-        domain_choices = np.random.choice(domains, size=len(df))
-        separators = np.random.choice([".", "_", ""], size=len(df), p=[0.6, 0.2, 0.2])
+        domain_choices = rng.choice(domains, size=len(df))
+        separators = rng.choice([".", "_", ""], size=len(df), p=[0.6, 0.2, 0.2])
 
         emails = []
         for i in range(len(df)):
@@ -653,7 +662,7 @@ def _fix_slug_from_name(df: pd.DataFrame, columns: Set[str]) -> None:
 
 # ─── STATUS-BASED RULES ──────────────────────────────────────────────────────
 
-def _apply_status_end_date(df: pd.DataFrame, columns: Set[str]) -> None:
+def _apply_status_end_date(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
     """Clear end_date for active statuses, set for inactive."""
     if "status" in columns and "end_date" in columns:
         status = df["status"].astype(str).str.strip().str.lower()
@@ -666,7 +675,7 @@ def _apply_status_end_date(df: pd.DataFrame, columns: Set[str]) -> None:
         inactive_mask = status.isin(INACTIVE_STATUSES) & end.isna()
         if inactive_mask.any() and "start_date" in columns:
             start = pd.to_datetime(df["start_date"], errors="coerce")
-            deltas = pd.to_timedelta(np.random.randint(1, 365, size=inactive_mask.sum()), unit="D")
+            deltas = pd.to_timedelta(rng.integers(1, 365, size=inactive_mask.sum()), unit="D")
             end.loc[inactive_mask] = start.loc[inactive_mask] + deltas
 
         df["end_date"] = end

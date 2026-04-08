@@ -25,7 +25,7 @@ class Column(BaseModel):
 
     name: str
     type: Literal["int", "float", "date", "time", "datetime", "categorical", "foreign_key", "text", "boolean"]
-    distribution_params: Dict[str, Any] = Field(default_factory=dict)
+    distribution_params: Dict[str, Any] = Field(default_factory=dict, validate_default=True)
     nullable: bool = False
     unique: bool = False
 
@@ -49,25 +49,21 @@ class Column(BaseModel):
                 normalized.setdefault("probabilities", [1.0])
 
         if col_type == "date" and "relative_to" not in normalized:
-            # Provide sensible defaults if start/end not specified.
-            if "start" not in normalized:
-                from datetime import datetime, timedelta
-                normalized["start"] = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
-            if "end" not in normalized:
-                from datetime import datetime
-                normalized["end"] = datetime.now().strftime("%Y-%m-%d")
+            # Fixed defaults guarantee reproducible generation regardless of run date.
+            normalized.setdefault("start", "2020-01-01")
+            normalized.setdefault("end", "2024-12-31")
 
         if col_type in ["int", "float"] and "distribution" not in normalized:
             normalized["distribution"] = "normal"
 
         return normalized
 
-    @field_validator("distribution_params")
+    @field_validator("distribution_params", mode="before")
     @classmethod
-    def validate_params(cls, v: Dict[str, Any], info: Any) -> Dict[str, Any]:
+    def validate_params(cls, v: Any, info: Any) -> Dict[str, Any]:
         """Validate distribution parameters based on column type."""
         col_type = info.data.get("type")
-        return cls._normalize_distribution_params(col_type, v)
+        return cls._normalize_distribution_params(col_type, v or {})
 
     def validate_generation_ready(self) -> None:
         """Raise if the column still lacks required information for generation."""
