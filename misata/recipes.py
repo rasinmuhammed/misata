@@ -5,7 +5,7 @@ Recipe models and helpers for repeatable Misata runs.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -85,4 +85,4 @@ def save_recipe(recipe: RecipeSpec, path: str | Path) -> Path:
 
 def utc_now() -> str:
     """Return a stable UTC timestamp string."""
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")

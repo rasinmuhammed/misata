@@ -585,8 +585,8 @@ class DataSimulator:
                 except Exception as e:
                     warnings.warn(f"Failed to generate relative date: {e}. Falling back to random range.")
 
-            start = pd.to_datetime(params["start"])
-            end = pd.to_datetime(params["end"])
+            start = pd.to_datetime(params.get("start", "2020-01-01"))
+            end = pd.to_datetime(params.get("end", "2024-12-31"))
 
             start_int = start.value
             end_int = end.value
@@ -1013,6 +1013,12 @@ class DataSimulator:
 
         if table_name not in self.context:
             if len(ctx_df) > self.MAX_CONTEXT_ROWS:
+                warnings.warn(
+                    f"Table '{table_name}' has {len(ctx_df):,} rows but context is capped at "
+                    f"{self.MAX_CONTEXT_ROWS:,}. Foreign keys referencing this table will only "
+                    f"sample from the first {self.MAX_CONTEXT_ROWS:,} rows.",
+                    UserWarning,
+                )
                 ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=self.config.seed)
             self.context[table_name] = ctx_df
         else:
@@ -1396,15 +1402,10 @@ class DataSimulator:
 
         elif constraint.type == "sum_limit":
             # Limit sum per group (e.g., max 8 total hours per employee per day across projects)
-            def cap_sum(group):
-                total = group[constraint.column].sum()
-                if total > constraint.value:
-                    # Scale down proportionally
-                    scale = constraint.value / total
-                    group[constraint.column] = group[constraint.column] * scale
-                return group
-
-            df = df.groupby(constraint.group_by, group_keys=False).apply(cap_sum)
+            group_totals = df.groupby(constraint.group_by)[constraint.column].transform("sum")
+            over_limit = group_totals > constraint.value
+            scale = constraint.value / group_totals
+            df.loc[over_limit, constraint.column] = df.loc[over_limit, constraint.column] * scale.loc[over_limit]
 
         elif constraint.type == "unique_combination":
             # Ensure unique combinations (e.g., one timesheet per employee-project-date)
@@ -1464,7 +1465,7 @@ class DataSimulator:
         table = self.config.get_table(table_name)
         protected_columns = self._get_protected_generation_columns(table_name, table) if table else set()
 
-        df = apply_realism_rules(df, table_name)
+        df = apply_realism_rules(df, table_name, rng=self.rng)
 
         realism = self._get_realism_config()
         if realism and realism.coherence != "off":

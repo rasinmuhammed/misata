@@ -75,7 +75,7 @@ def detect_column_type(series: pd.Series) -> Tuple[str, Dict[str, Any]]:
     # Try parsing as date
     if clean.dtype == object:
         try:
-            parsed = pd.to_datetime(clean, errors='coerce')
+            parsed = pd.to_datetime(clean, errors='coerce', format='mixed')
             if parsed.notna().mean() > 0.9:  # 90%+ parse as dates
                 return "date", {
                     "start": str(parsed.min().date()),
