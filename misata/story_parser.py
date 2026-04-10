@@ -237,6 +237,13 @@ class StoryParser:
             return "start_heavy"
         return "uniform"
 
+    # Trigger tokens that signal a monetary/metric curve is requested
+    CURVE_SIGNAL_TOKENS = [
+        "revenue", "sales", "mrr", "arr", "gmv", "amount",
+        "orders", "bookings", "transactions", "volume", "churn",
+        "growth", "peak", "dip", "spike", "surge", "drop", "decline",
+    ]
+
     def _build_absolute_monthly_curve(
         self,
         story: str,
@@ -246,33 +253,59 @@ class StoryParser:
         time_column: str,
         avg_transaction_value: Optional[float],
     ) -> Optional[OutcomeCurve]:
-        """Create an exact monthly outcome curve from story anchors."""
+        """Create an exact monthly outcome curve from story anchors.
+
+        Works with:
+        - Fully numeric:  "revenue from $50k in Jan to $200k in Dec"
+        - Mixed:          "$50k in Jan, peak in November"
+        - Qualitative:    "sales peak in November, dip in March"
+        """
         story_lower = story.lower()
-        if not any(token in story_lower for token in ["revenue", "sales", "mrr", "arr", "gmv", "amount"]):
+        if not any(token in story_lower for token in self.CURVE_SIGNAL_TOKENS):
             return None
 
         period_count = self._extract_period_count(story)
         anchors = self._extract_target_month_points(story, period_count)
-        if len(anchors) < 2:
+        modifiers = self._extract_qualitative_month_modifiers(story)
+
+        # If we have no numeric anchors but do have qualitative modifiers,
+        # synthesise a flat baseline from avg_transaction_value so the
+        # modifiers have something meaningful to shape.
+        if len(anchors) < 2 and not modifiers:
             return None
 
         months = np.arange(1, period_count + 1)
-        x_known = np.array(sorted(anchors.keys()), dtype=float)
-        y_known = np.array([anchors[int(month)] for month in x_known], dtype=float)
-        interpolated = np.interp(months, x_known, y_known)
 
-        modifiers = self._extract_qualitative_month_modifiers(story)
+        if len(anchors) >= 2:
+            x_known = np.array(sorted(anchors.keys()), dtype=float)
+            y_known = np.array([anchors[int(m)] for m in x_known], dtype=float)
+            interpolated = np.interp(months, x_known, y_known)
+        elif len(anchors) == 1:
+            # One anchor + qualitative modifiers: use the anchor as the baseline
+            baseline = next(iter(anchors.values()))
+            interpolated = np.full(period_count, baseline, dtype=float)
+        else:
+            # Pure qualitative: derive a flat baseline from avg_transaction_value.
+            # We pick a round number that feels representative for the domain.
+            baseline = (avg_transaction_value or 1.0) * max(
+                self.scale_params.get("orders", self.scale_params.get("users", 1000)) / period_count,
+                1.0,
+            )
+            interpolated = np.full(period_count, baseline, dtype=float)
+
+        # Apply qualitative modifiers (dip, peak, spike, …)
         for month_number, factor in modifiers.items():
             if 1 <= month_number <= period_count:
                 interpolated[month_number - 1] *= factor
 
+        # Re-pin explicit numeric anchors so they are exact
         for month_number, exact_value in anchors.items():
             if 1 <= month_number <= period_count:
                 interpolated[month_number - 1] = exact_value
 
         curve_points = [
-            {"month": int(month_number), "target_value": round(max(float(value), 0.0), 2)}
-            for month_number, value in zip(months, interpolated)
+            {"month": int(m), "target_value": round(max(float(v), 0.0), 2)}
+            for m, v in zip(months, interpolated)
         ]
 
         year = self._extract_reference_year(story)
@@ -375,10 +408,8 @@ class StoryParser:
                 Column(
                     name="mrr",
                     type="float",
+                    # No distribution specified — domain priors will apply lognormal
                     distribution_params={
-                        "distribution": "normal",
-                        "mean": 150.0,
-                        "std": 50.0,
                         "min": 0.0,
                         "decimals": 2,
                     },
@@ -408,8 +439,6 @@ class StoryParser:
         events = []
         for event_type, value in self.temporal_events:
             if event_type == "churn":
-                # Parse the churn date from story (e.g., "Q3 2023")
-                # For simplicity, use a fixed date
                 events.append(
                     ScenarioEvent(
                         name="High_Churn_Period",
@@ -419,6 +448,8 @@ class StoryParser:
                         modifier_type="set",
                         modifier_value=True,
                         description=f"Churn rate of {value*100:.0f}%",
+                        # Cascade: mark matching subscriptions as cancelled
+                        propagate_to={"subscriptions": {"status": "cancelled"}},
                     )
                 )
             elif event_type == "growth":
@@ -445,6 +476,7 @@ class StoryParser:
         return SchemaConfig(
             name="SaaS Dataset",
             description=f"Generated from story: {story}",
+            domain="saas",
             tables=tables,
             columns=columns,
             relationships=relationships,
@@ -484,13 +516,8 @@ class StoryParser:
                 Column(
                     name="amount",
                     type="float",
-                    distribution_params={
-                        "distribution": "normal",
-                        "mean": 75.0,
-                        "std": 30.0,
-                        "min": 10.0,
-                        "decimals": 2,
-                    },
+                    # Domain priors will apply lognormal for ecommerce amounts
+                    distribution_params={"min": 1.0, "decimals": 2},
                 ),
             ],
         }
@@ -515,6 +542,7 @@ class StoryParser:
         return SchemaConfig(
             name="E-commerce Dataset",
             description=f"Generated from story: {story}",
+            domain="ecommerce",
             tables=tables,
             columns=columns,
             relationships=relationships,
@@ -594,6 +622,7 @@ class StoryParser:
         return SchemaConfig(
             name="Pharma Services Dataset",
             description=f"Generated from story: {story}",
+            domain="pharma",
             tables=tables,
             columns=columns,
             relationships=relationships,
