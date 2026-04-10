@@ -22,14 +22,40 @@ from typing import Any, Dict, List, Optional
 class SchemaValidationError(Exception):
     """Raised when a SchemaConfig fails pre-generation checks.
 
-    The message lists every problem found so users can fix them all in one go
+    Reports every problem at once so users can fix them all in one go
     rather than discovering them one by one during generation.
+
+    Inherits from the misata exception hierarchy when available; falls back
+    to plain Exception so this module stays importable in isolation.
     """
 
     def __init__(self, issues: List[str]) -> None:
         self.issues = issues
         bullet_list = "\n".join(f"  • {issue}" for issue in issues)
         super().__init__(f"Schema has {len(issues)} issue(s):\n{bullet_list}")
+
+
+# Slot SchemaValidationError into the misata exception hierarchy at import time.
+# Done lazily so misata.validation stays importable even if misata.exceptions
+# hasn't been loaded yet (e.g. during isolated unit tests).
+try:
+    from misata.exceptions import SchemaError as _SchemaError
+
+    class SchemaValidationError(SchemaValidationError, _SchemaError):  # type: ignore[no-redef]
+        def __init__(self, issues: List[str]) -> None:
+            self.issues = issues
+            bullet_list = "\n".join(f"  • {issue}" for issue in issues)
+            msg = f"Schema has {len(issues)} issue(s):\n{bullet_list}"
+            # Set attributes MisataError.__str__ expects so str() works correctly.
+            self.message = msg
+            self.details: dict = {}
+            Exception.__init__(self, msg)
+
+        def __str__(self) -> str:
+            return self.args[0]
+
+except ImportError:
+    pass
 
 
 def validate_schema(schema: Any) -> None:

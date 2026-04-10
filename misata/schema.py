@@ -408,3 +408,45 @@ class SchemaConfig(BaseModel):
     def get_columns(self, table_name: str) -> List[Column]:
         """Get columns for a specific table."""
         return self.columns.get(table_name, [])
+
+    def summary(self) -> str:
+        """Return a concise human-readable overview of this schema.
+
+        Useful for quick inspection in notebooks and REPLs::
+
+            >>> schema = parser.parse("A SaaS with 5k users")
+            >>> print(schema.summary())
+        """
+        lines = [
+            f"Schema: {self.name}",
+            f"Domain: {self.domain or 'unspecified'}",
+            f"Tables: {len(self.tables)}",
+        ]
+        total_rows = sum(t.row_count or 0 for t in self.tables)
+        lines.append(f"Total rows: {total_rows:,}")
+        lines.append("")
+
+        col_w = max((len(t.name) for t in self.tables), default=5) + 2
+        lines.append(f"  {'Table':<{col_w}} {'Rows':>8}  Columns")
+        lines.append(f"  {'-' * col_w} {'-' * 8}  -------")
+        for table in self.tables:
+            cols = self.get_columns(table.name)
+            col_names = ", ".join(c.name for c in cols[:5])
+            if len(cols) > 5:
+                col_names += f" … (+{len(cols) - 5} more)"
+            rows_str = f"{table.row_count:,}" if table.row_count else "ref"
+            lines.append(f"  {table.name:<{col_w}} {rows_str:>8}  {col_names}")
+
+        if self.relationships:
+            lines.append("")
+            lines.append(f"  Relationships ({len(self.relationships)}):")
+            for r in self.relationships:
+                lines.append(f"    {r.parent_table}.{r.parent_key} → {r.child_table}.{r.child_key}")
+
+        if self.outcome_curves:
+            lines.append("")
+            lines.append(f"  Outcome curves ({len(self.outcome_curves)}):")
+            for c in self.outcome_curves:
+                lines.append(f"    {c.table}.{c.column} over {c.time_column}")
+
+        return "\n".join(lines)
