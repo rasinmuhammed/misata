@@ -180,6 +180,26 @@ Measured on Apple M-series (single core, no GPU):
 
 ---
 
+## Run the examples
+
+```bash
+pip install misata pandas numpy
+
+# SaaS: all 12 monthly MRR targets hit exactly
+python examples/saas_revenue_curve.py
+
+# Fintech: FICO distribution matches real-world, fraud rate = 2.00%
+python examples/fintech_fraud_detection.py
+
+# Healthcare: ABO/Rh blood types, 2 FK edges, 0 orphans
+python examples/healthcare_multi_table.py
+
+# Ecommerce: seasonal revenue curve, power-law order amounts
+python examples/ecommerce_seasonal.py
+```
+
+---
+
 ## Contributing
 
 ```bash
