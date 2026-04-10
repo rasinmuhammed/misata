@@ -1,315 +1,197 @@
 <div align="center">
 
 # Misata
-### Synthetic data with logic, realism, and a little wonder
+
+### Synthetic data from intent — not from config files
 
 [![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=for-the-badge)](https://pypi.org/project/misata/)
 [![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=for-the-badge)](https://pypi.org/project/misata/)
+[![CI](https://img.shields.io/github/actions/workflow/status/rasinmuhammed/misata/ci.yml?branch=main&style=for-the-badge&label=tests)](https://github.com/rasinmuhammed/misata/actions)
 [![License](https://img.shields.io/github/license/rasinmuhammed/misata.svg?style=for-the-badge)](https://github.com/rasinmuhammed/misata/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/pypi/dm/misata?style=for-the-badge)](https://pypi.org/project/misata/)
-
-**Stop writing one-off fake data scripts.**  
-**Describe a world, and let Misata build it.**
-
-[Quick Start](#quick-start) • [Core Features](#core-features) • [Python API](#python-api) • [Misata Language](#misata-language) • [Enterprise Direction](#enterprise-direction)
 
 </div>
 
-## Why Misata
+```python
+import misata
 
-Misata is a Python synthetic data library for people who want control and not guesswork.
+tables = misata.generate("A SaaS company with 5k users, monthly subscriptions, and 20% churn")
 
-If someone is searching for a Python synthetic data generator, a realistic test data library, a database seeding tool, or a multi-table fake data engine, Misata is built for that job.
+print(tables["users"].head())
+print(tables["subscriptions"].head())
+```
 
-Most tools can generate rows. Misata is built to generate systems:
-- relational data with foreign keys that hold up
-- time-based stories that aggregate correctly
-- workflows that behave like real business lifecycles
-- realism rules that keep rows from contradicting themselves
-- repeatable runs that can be validated and reviewed
+That's it. Misata reads your intent, infers a relational schema, generates linked tables with referential integrity, and applies domain-realistic distributions — all without a config file.
 
-Misata is simple to start with and deep when you need it.
+---
 
-## What People Use Misata For
-
-Misata is built for practical synthetic data generation in Python.
-
-Common use cases:
-- test data generation for local development
-- database seeding for staging and QA
-- multi-table synthetic data with foreign keys
-- dashboard and BI demo datasets
-- scenario simulation for SaaS, ecommerce, healthcare, finance, and operations
-- privacy-safe stand-in data when real production data should not be copied around
-
-If your search starts with one of these questions, you should be able to find Misata:
-- `python synthetic data library`
-- `synthetic data generator python`
-- `test data generator python`
-- `database seeding python`
-- `multi-table synthetic data python`
-- `fake data generator with foreign keys`
-
-## Quick Start
-
-### Install
+## Install
 
 ```bash
 pip install misata
 ```
 
-Optional extras:
-
-```bash
-pip install "misata[llm]"       # LLM-assisted schema generation
-pip install "misata[formulas]"  # Formula columns
-pip install "misata[api]"       # FastAPI server
-```
-
-### Generate a dataset from a story
-
-```bash
-misata generate --story "A SaaS platform with 50K users, monthly subscriptions, and a churn spike in Q3"
-```
-
-That single command can:
-- infer a relational schema
-- generate linked tables
-- apply constraints and realism rules
-- write the output to disk
-
-### Use an LLM for richer schema planning
-
+For LLM-assisted generation (optional):
 ```bash
 pip install "misata[llm]"
-export GROQ_API_KEY=gsk_...
-misata generate --story "An ecommerce company with seasonal demand and repeat customers" --use-llm
+export GROQ_API_KEY=gsk_...   # or OPENAI_API_KEY
 ```
 
-## Core Features
+---
 
-### 1. Story to Schema
+## Three examples
 
-Misata can turn a plain-English prompt into a usable schema. It supports both rule-based parsing and LLM-assisted planning.
-
-Example:
-
-```bash
-misata generate --story "A healthcare app with patients, doctors, appointments, invoices, and seasonal booking spikes"
-```
-
-### 2. Exact Outcome Curves
-
-If you ask for a business story such as:
-
-`Revenue rises from 50k in January to 200k in December with a dip in September`
-
-Misata can generate rows that roll up to those exact targets.
-
-This is especially useful for:
-- BI demos
-- dashboard testing
-- finance scenarios
-- realistic sandbox data
-
-### 3. Realism Engine
-
-Misata fixes the contradictions that make synthetic data look fake.
-
-Examples:
-- `email` can derive from `first_name` and `last_name`
-- `delivered_at` can be cleared if the order is not delivered
-- `CEO` can imply an age floor
-- `product_name` can match `category`
-
-### 4. Planning and Proportions
-
-Misata sizes tables using relationship structure instead of giving every table the same row count.
-
-That means a schema like:
-- `customers`
-- `orders`
-- `order_items`
-
-can naturally become:
-- fewer customers
-- more orders
-- even more line items
-
-### 5. Workflows
-
-Misata supports explicit business lifecycles such as:
-- order states
-- support tickets
-- subscriptions
-
-This helps rows behave like process data rather than disconnected facts.
-
-### 6. Streaming Validation
-
-Misata validates large generations without keeping the whole world in memory.
-
-That matters when you want:
-- CI-safe generation
-- repeatable audits
-- large local runs
-- report generation without RAM blowups
-
-### 7. Asset-Backed Vocabulary
-
-Misata now has a domain vocabulary layer. Instead of relying only on hardcoded default names and product labels, it can compile a domain capsule from local assets and approved ingestion sources.
-
-This is the foundation for:
-- localization
-- domain-specific names
-- sector-specific vocabularies
-- safer reuse of public reference material
-
-## Python API
-
-### Basic generation
+### SaaS — revenue curve + churn
 
 ```python
-from misata import DataSimulator
-from misata.story_parser import StoryParser
+import misata
 
-parser = StoryParser()
-config = parser.parse("A SaaS company with users, subscriptions, and invoices")
-
-simulator = DataSimulator(config)
-for table_name, df in simulator.generate_all():
-    print(table_name, len(df))
-```
-
-### LLM-assisted schema generation
-
-```python
-from misata import DataSimulator
-from misata.llm_parser import LLMSchemaGenerator
-
-# pip install "misata[llm]"
-llm = LLMSchemaGenerator(provider="groq")
-config = llm.generate_from_story(
-    "A healthcare platform with patients, doctors, claims, and seasonal appointment peaks"
+tables = misata.generate(
+    "A SaaS company with 5k users. Revenue rises from 50k in Jan to 200k in Dec "
+    "with a dip in September. 20% churn in Q3.",
+    rows=5000,
+    seed=42,
 )
 
-simulator = DataSimulator(config)
-for table_name, df in simulator.generate_all():
-    df.to_csv(f"{table_name}.csv", index=False)
+# users, subscriptions — with exact monthly MRR targets baked in
+for name, df in tables.items():
+    print(f"{name}: {len(df):,} rows")
 ```
 
-### Reports and validation
+### Ecommerce — multi-table with FK integrity
 
 ```python
-from misata import DataSimulator
+tables = misata.generate("An ecommerce store with customers and orders", rows=10_000)
 
-result = DataSimulator(config).generate_with_reports()
-
-print(result.validation_report.summary())
-print(result.table_row_counts)
-print(result.tables_are_samples)
+# customers → orders (FK always holds)
+assert tables["orders"]["customer_id"].isin(tables["customers"]["customer_id"]).all()
 ```
 
-## Frequently Asked Questions
+### Inspect before generating
 
-### Is Misata a Python synthetic data generator?
+```python
+schema = misata.parse("A healthcare clinic with patients, doctors, and appointments")
+print(schema.summary())
+# Schema: Healthcare Dataset
+# Domain: healthcare
+# Tables: 3  /  Total rows: 15,300
+#
+#   Table            Rows  Columns
+#   ------------ --------  -------
+#   doctors           765  doctor_id, first_name, last_name, specialty, years_experience
+#   patients        5,000  patient_id, first_name, last_name, age, gender, blood_type ...
+#   appointments   10,000  appointment_id, patient_id, doctor_id, appointment_date ...
+#
+#   Relationships (2):
+#     patients.patient_id → appointments.patient_id
+#     doctors.doctor_id → appointments.doctor_id
 
-Yes. Misata is a Python library for synthetic data generation, with support for relational datasets, temporal scenarios, realism rules, and validation.
+tables = misata.generate_from_schema(schema)
+```
 
-### Can Misata generate test data for databases?
+---
 
-Yes. Misata can generate multi-table test data, preserve foreign-key relationships, and help with database seeding for SQLite, PostgreSQL, and SQLAlchemy-based projects.
+## Supported domains
 
-### Can Misata generate realistic synthetic data instead of flat fake rows?
+| Domain | Trigger keywords | Tables generated |
+|---|---|---|
+| SaaS | saas, subscription, mrr, churn | users, subscriptions |
+| Ecommerce | ecommerce, orders, store, retail | customers, orders |
+| Fintech | fintech, payments, banking, fraud | customers, accounts, transactions |
+| Healthcare | healthcare, patients, doctors, clinic | doctors, patients, appointments |
+| Marketplace | marketplace, sellers, buyers, listings | sellers, buyers, listings, orders |
+| Logistics | logistics, shipping, drivers, routes | drivers, vehicles, routes, shipments |
+| Pharma | pharma, clinical, trials | research_projects, timesheets |
 
-Yes. Misata focuses on realism through topology-aware row planning, exact aggregate targets, coherence rules, workflow presets, and domain-aware vocabularies.
+No keyword match → falls back to a generic single-table schema with a warning.
 
-### Is Misata only for LLM-based generation?
+---
 
-No. Misata supports both rule-based generation and LLM-assisted schema planning. You can stay fully rule-based if you want deterministic local generation.
+## What makes Misata different
 
-## Misata Language
-
-Misata should feel memorable, but never confusing. We use playful names in docs and product language, then immediately pair them with the plain-English meaning.
-
-| Misata term | Plain-English meaning |
-|---|---|
-| **Wand** | A fast way to generate a first dataset |
-| **Spellbook** | A saved recipe or reusable generation setup |
-| **Time Machine** | Temporal generation and time-density shaping |
-| **Multiverse** | Multiple scenario variants of the same schema |
-| **Constellation** | The relationship graph of a dataset |
-| **Runes** | Rules, constraints, and formulas |
-| **Potion** | A realism or noise profile |
-| **Oracle** | Validation and reporting |
-| **Portal** | Import or export bridge |
-| **Domain Capsule** | The resolved vocabulary and context pack used during generation |
-
-Important rule:
-
-The code stays clear. The naming in docs and UX adds charm, not ambiguity.
-
-That means:
-- docs can say `Time Machine`
-- APIs can still say `outcome_curves`, `time_unit`, or `generate_with_reports`
-
-## What Makes Misata Different
-
-| Capability | Faker | SDV | Misata |
+| | Faker | SDV | Misata |
 |---|:---:|:---:|:---:|
-| Story-driven schema generation | No | No | Yes |
-| Referential integrity | No | Yes | Yes |
-| Exact aggregate targets | No | Limited | Yes |
-| Explicit business constraints | No | Limited | Yes |
-| Workflow-aware rows | No | No | Yes |
-| Streaming-safe validation | No | No | Yes |
-| Asset-backed domain vocabularies | No | Limited | Yes |
+| One-liner API | No | No | **Yes** |
+| Story-driven schema inference | No | No | **Yes** |
+| Exact monthly aggregate targets | No | No | **Yes** |
+| Referential integrity | No | Yes | **Yes** |
+| Domain-realistic distributions | No | Limited | **Yes** |
+| Pre-generation schema validation | No | No | **Yes** |
+| Streaming-safe for large datasets | No | No | **Yes** |
 
-## Documentation Map
+The core difference: Faker generates individual fake values. SDV learns from real data. **Misata generates from intent** — you describe a business, and it builds a logically consistent world.
 
-- [QUICKSTART.md](QUICKSTART.md): hands-on setup and common commands
-- [FEATURES.md](FEATURES.md): the plain-English guide to every major feature
-- [CONTRIBUTING.md](CONTRIBUTING.md): development workflow and contribution guide
-- [MISATA_VOICE.md](MISATA_VOICE.md): writing style, naming rules, and tone guide
-- [MISATA_GLOSSARY.md](MISATA_GLOSSARY.md): magical terms mapped to actual features
+---
 
-## Search Guides
+## How it works
 
-These pages are written around the questions people actually search for:
+```
+story / intent
+      ↓
+ StoryParser  ←→  domain priors (lognormal for MRR, Zipf for categories…)
+      ↓
+ SchemaConfig    ← validate_schema() catches problems before generation
+      ↓
+ DataSimulator   ← topological sort, FK sampling, realism rules
+      ↓
+ {table: DataFrame}
+```
 
-- [docs/python-synthetic-data-generator.md](docs/python-synthetic-data-generator.md)
-- [docs/database-seeding-python.md](docs/database-seeding-python.md)
-- [docs/multi-table-synthetic-data.md](docs/multi-table-synthetic-data.md)
-- [docs/synthetic-data-for-bi-demos.md](docs/synthetic-data-for-bi-demos.md)
-- [docs/faker-vs-sdv-vs-misata.md](docs/faker-vs-sdv-vs-misata.md)
+**Domain priors** — monetary columns automatically get log-normal distributions. Categorical columns get Zipf sampling so one value dominates naturally. Blood types get real-world probabilities.
 
-## Examples
+**Outcome curves** — "revenue rises from 50k in Jan to 200k in Dec" becomes exact per-month targets that constrain generation row by row.
 
-- [examples/python_synthetic_data_generator.py](examples/python_synthetic_data_generator.py)
-- [examples/database_seeding_postgres.py](examples/database_seeding_postgres.py)
-- [examples/multi_table_synthetic_data.py](examples/multi_table_synthetic_data.py)
-- [examples/bi_demo_dataset.py](examples/bi_demo_dataset.py)
+**Realism rules** — `cost` is always less than `price`. `delivered_at` is always after `shipped_at`. Email addresses derive from first and last name.
 
-## Enterprise Direction
+---
 
-Misata is strongest when the user wants control.
+## Full API
 
-That means:
-- exact scenario shaping
-- explicit constraints
-- repeatable runs
-- inspectable logic
-- domain-aware realism
+```python
+import misata
 
-The long-term goal is not to be a black-box generator. The goal is to become a synthetic data framework that people can understand, trust, and shape.
+# One-liner
+tables = misata.generate(story, rows=10_000, seed=42)
+
+# Two-step
+schema = misata.parse(story, rows=10_000)
+print(schema.summary())
+tables = misata.generate_from_schema(schema)
+
+# Validate a schema before generation
+misata.validate_schema(schema)   # raises SchemaValidationError with all issues listed
+
+# LLM-powered (requires misata[llm] + API key)
+from misata import LLMSchemaGenerator
+gen = LLMSchemaGenerator(provider="groq")   # or "openai", "ollama"
+schema = gen.generate_from_story("A fraud detection dataset with 2% positive rate")
+tables = misata.generate_from_schema(schema)
+```
+
+---
+
+## Performance
+
+Measured on Apple M-series (single core, no GPU):
+
+| Workload | Rows | Time | Rows/s |
+|---|---:|---:|---:|
+| Single table, lognormal | 1,000,000 | 0.06s | ~16M |
+| Star schema (5 tables, 4 FKs) | 1,055,030 | 1.54s | ~687k |
+
+---
 
 ## Contributing
 
-If you want to contribute, start here:
+```bash
+git clone https://github.com/rasinmuhammed/misata
+cd misata
+pip install -e ".[dev]"
+pytest tests/
+```
 
-- read [CONTRIBUTING.md](CONTRIBUTING.md)
-- keep public docs simple and human
-- use magical terminology only when the plain-English meaning is also obvious
+Issues and PRs are welcome: [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
+
+---
 
 <div align="center">
 Built by <a href="https://github.com/rasinmuhammed">Muhammed Rasin</a>
