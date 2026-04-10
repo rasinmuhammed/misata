@@ -44,9 +44,12 @@ class StoryParser:
 
     DOMAIN_KEYWORDS = {
         "saas": ["saas", "subscription", "mrr", "arr", "churn"],
-        "ecommerce": ["ecommerce", "e-commerce", "orders", "cart", "products"],
+        "ecommerce": ["ecommerce", "e-commerce", "orders", "cart", "products", "shop", "store", "retail"],
         "pharma": ["pharma", "research", "timesheet", "clinical", "trials"],
-        "fintech": ["fintech", "transactions", "payments", "wallet"],
+        "fintech": ["fintech", "transactions", "payments", "wallet", "banking", "loans", "credit", "fraud"],
+        "healthcare": ["healthcare", "health", "patients", "doctors", "hospital", "clinic", "appointments", "medical"],
+        "marketplace": ["marketplace", "gig", "freelance", "platform", "sellers", "buyers", "listings"],
+        "logistics": ["logistics", "shipping", "delivery", "fleet", "warehouse", "supply chain", "routes", "drivers"],
     }
 
     MONTHS = {
@@ -353,8 +356,15 @@ class StoryParser:
             return self._build_ecommerce_schema(story, default_rows)
         elif self.detected_domain == "pharma":
             return self._build_pharma_schema(story, default_rows)
+        elif self.detected_domain == "fintech":
+            return self._build_fintech_schema(story, default_rows)
+        elif self.detected_domain == "healthcare":
+            return self._build_healthcare_schema(story, default_rows)
+        elif self.detected_domain == "marketplace":
+            return self._build_marketplace_schema(story, default_rows)
+        elif self.detected_domain == "logistics":
+            return self._build_logistics_schema(story, default_rows)
         else:
-            # Generic schema
             return self._build_generic_schema(story, default_rows)
 
     def _build_saas_schema(self, story: str, default_rows: int) -> SchemaConfig:
@@ -627,6 +637,280 @@ class StoryParser:
             columns=columns,
             relationships=relationships,
             events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
+        )
+
+    def _build_fintech_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_customers = self.scale_params.get("users", default_rows)
+        num_transactions = self.scale_params.get("transactions", int(num_customers * 10))
+        num_accounts = int(num_customers * 1.3)
+
+        tables = [
+            Table(name="customers", row_count=num_customers),
+            Table(name="accounts", row_count=num_accounts),
+            Table(name="transactions", row_count=num_transactions),
+        ]
+        columns = {
+            "customers": [
+                Column(name="customer_id", type="int", unique=True, distribution_params={"min": 1, "max": num_customers + 1}),
+                Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name", type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email", type="text", distribution_params={"text_type": "email"}),
+                Column(name="credit_score", type="int", distribution_params={"distribution": "normal", "mean": 680, "std": 80, "min": 300, "max": 850}),
+                Column(name="country", type="text", distribution_params={"text_type": "country"}),
+                Column(name="created_at", type="date", distribution_params={"start": "2020-01-01", "end": "2024-12-31"}),
+            ],
+            "accounts": [
+                Column(name="account_id", type="int", unique=True, distribution_params={"min": 1, "max": num_accounts + 1}),
+                Column(name="customer_id", type="foreign_key"),
+                Column(name="account_type", type="categorical", distribution_params={
+                    "choices": ["checking", "savings", "investment", "credit"],
+                    "sampling": "zipf",
+                }),
+                Column(name="balance", type="float", distribution_params={"min": 0.0, "decimals": 2}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["active", "frozen", "closed"],
+                    "probabilities": [0.85, 0.08, 0.07],
+                }),
+                Column(name="opened_at", type="date", distribution_params={"start": "2020-01-01", "end": "2024-12-31"}),
+            ],
+            "transactions": [
+                Column(name="transaction_id", type="int", unique=True, distribution_params={"min": 1, "max": num_transactions + 1}),
+                Column(name="account_id", type="foreign_key"),
+                Column(name="amount", type="float", distribution_params={"min": 0.01, "decimals": 2}),
+                Column(name="transaction_type", type="categorical", distribution_params={
+                    "choices": ["purchase", "transfer", "withdrawal", "deposit", "refund"],
+                    "sampling": "zipf",
+                }),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["completed", "pending", "failed", "reversed"],
+                    "probabilities": [0.88, 0.06, 0.04, 0.02],
+                }),
+                Column(name="transaction_date", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="is_fraud", type="boolean", distribution_params={"probability": 0.02}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="customers", child_table="accounts", parent_key="customer_id", child_key="customer_id"),
+            Relationship(parent_table="accounts", child_table="transactions", parent_key="account_id", child_key="account_id"),
+        ]
+        outcome_curve = self._build_absolute_monthly_curve(
+            story, table="transactions", column="amount", time_column="transaction_date", avg_transaction_value=250.0,
+        )
+        return SchemaConfig(
+            name="Fintech Dataset", description=f"Generated from story: {story}",
+            domain="fintech", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
+        )
+
+    def _build_healthcare_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_patients = self.scale_params.get("users", default_rows)
+        num_doctors = max(10, num_patients // 20)
+        num_appointments = int(num_patients * 3)
+
+        tables = [
+            Table(name="doctors", row_count=num_doctors),
+            Table(name="patients", row_count=num_patients),
+            Table(name="appointments", row_count=num_appointments),
+        ]
+        columns = {
+            "doctors": [
+                Column(name="doctor_id", type="int", unique=True, distribution_params={"min": 1, "max": num_doctors + 1}),
+                Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name", type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="specialty", type="categorical", distribution_params={
+                    "choices": ["General Practice", "Cardiology", "Neurology", "Pediatrics", "Oncology", "Orthopedics", "Dermatology", "Psychiatry"],
+                    "sampling": "zipf",
+                }),
+                Column(name="years_experience", type="int", distribution_params={"distribution": "normal", "mean": 12, "std": 7, "min": 1, "max": 40}),
+            ],
+            "patients": [
+                Column(name="patient_id", type="int", unique=True, distribution_params={"min": 1, "max": num_patients + 1}),
+                Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name", type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="age", type="int", distribution_params={"distribution": "normal", "mean": 45, "std": 18, "min": 0, "max": 100}),
+                Column(name="gender", type="categorical", distribution_params={"choices": ["Male", "Female", "Non-binary"], "probabilities": [0.49, 0.49, 0.02]}),
+                Column(name="blood_type", type="categorical", distribution_params={
+                    "choices": ["O+", "A+", "B+", "AB+", "O-", "A-", "B-", "AB-"],
+                    "probabilities": [0.38, 0.34, 0.09, 0.03, 0.07, 0.06, 0.02, 0.01],
+                }),
+                Column(name="registered_at", type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+            ],
+            "appointments": [
+                Column(name="appointment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_appointments + 1}),
+                Column(name="patient_id", type="foreign_key"),
+                Column(name="doctor_id", type="foreign_key"),
+                Column(name="appointment_date", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["completed", "scheduled", "cancelled", "no_show"],
+                    "probabilities": [0.70, 0.15, 0.10, 0.05],
+                }),
+                Column(name="duration_minutes", type="int", distribution_params={"distribution": "normal", "mean": 25, "std": 10, "min": 5, "max": 90}),
+                Column(name="type", type="categorical", distribution_params={
+                    "choices": ["in-person", "telehealth", "follow-up", "emergency"],
+                    "probabilities": [0.55, 0.25, 0.15, 0.05],
+                }),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="patients", child_table="appointments", parent_key="patient_id", child_key="patient_id"),
+            Relationship(parent_table="doctors", child_table="appointments", parent_key="doctor_id", child_key="doctor_id"),
+        ]
+        outcome_curve = self._build_absolute_monthly_curve(
+            story, table="appointments", column="duration_minutes", time_column="appointment_date", avg_transaction_value=25.0,
+        )
+        return SchemaConfig(
+            name="Healthcare Dataset", description=f"Generated from story: {story}",
+            domain="healthcare", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
+        )
+
+    def _build_marketplace_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_users = self.scale_params.get("users", default_rows)
+        num_sellers = max(10, num_users // 5)
+        num_listings = int(num_sellers * 8)
+        num_orders = int(num_users * 4)
+
+        tables = [
+            Table(name="sellers", row_count=num_sellers),
+            Table(name="buyers", row_count=num_users),
+            Table(name="listings", row_count=num_listings),
+            Table(name="orders", row_count=num_orders),
+        ]
+        columns = {
+            "sellers": [
+                Column(name="seller_id", type="int", unique=True, distribution_params={"min": 1, "max": num_sellers + 1}),
+                Column(name="name", type="text", distribution_params={"text_type": "name"}),
+                Column(name="rating", type="float", distribution_params={"distribution": "beta", "a": 8.0, "b": 2.0, "min": 1.0, "max": 5.0, "decimals": 1}),
+                Column(name="total_sales", type="int", distribution_params={"distribution": "lognormal", "mu": 3.5, "sigma": 1.2, "min": 0}),
+                Column(name="joined_at", type="date", distribution_params={"start": "2019-01-01", "end": "2024-12-31"}),
+                Column(name="verified", type="boolean", distribution_params={"probability": 0.65}),
+            ],
+            "buyers": [
+                Column(name="buyer_id", type="int", unique=True, distribution_params={"min": 1, "max": num_users + 1}),
+                Column(name="name", type="text", distribution_params={"text_type": "name"}),
+                Column(name="email", type="text", distribution_params={"text_type": "email"}),
+                Column(name="joined_at", type="date", distribution_params={"start": "2020-01-01", "end": "2024-12-31"}),
+                Column(name="country", type="text", distribution_params={"text_type": "country"}),
+            ],
+            "listings": [
+                Column(name="listing_id", type="int", unique=True, distribution_params={"min": 1, "max": num_listings + 1}),
+                Column(name="seller_id", type="foreign_key"),
+                Column(name="title", type="text", distribution_params={"text_type": "product_name"}),
+                Column(name="category", type="categorical", distribution_params={
+                    "choices": ["electronics", "clothing", "home", "sports", "books", "beauty"],
+                    "sampling": "zipf",
+                }),
+                Column(name="price", type="float", distribution_params={"min": 1.0, "decimals": 2}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["active", "sold", "paused", "removed"],
+                    "probabilities": [0.60, 0.25, 0.10, 0.05],
+                }),
+                Column(name="created_at", type="date", distribution_params={"start": "2021-01-01", "end": "2024-12-31"}),
+            ],
+            "orders": [
+                Column(name="order_id", type="int", unique=True, distribution_params={"min": 1, "max": num_orders + 1}),
+                Column(name="buyer_id", type="foreign_key"),
+                Column(name="listing_id", type="foreign_key"),
+                Column(name="amount", type="float", distribution_params={"min": 1.0, "decimals": 2}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["completed", "shipped", "pending", "refunded", "cancelled"],
+                    "probabilities": [0.65, 0.15, 0.10, 0.06, 0.04],
+                }),
+                Column(name="ordered_at", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="sellers", child_table="listings", parent_key="seller_id", child_key="seller_id"),
+            Relationship(parent_table="buyers", child_table="orders", parent_key="buyer_id", child_key="buyer_id"),
+            Relationship(parent_table="listings", child_table="orders", parent_key="listing_id", child_key="listing_id"),
+        ]
+        outcome_curve = self._build_absolute_monthly_curve(
+            story, table="orders", column="amount", time_column="ordered_at", avg_transaction_value=85.0,
+        )
+        return SchemaConfig(
+            name="Marketplace Dataset", description=f"Generated from story: {story}",
+            domain="marketplace", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
+        )
+
+    def _build_logistics_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_drivers = max(10, self.scale_params.get("users", default_rows // 50))
+        num_vehicles = int(num_drivers * 1.2)
+        num_shipments = self.scale_params.get("orders", default_rows)
+        num_routes = max(5, num_drivers * 3)
+
+        tables = [
+            Table(name="drivers", row_count=num_drivers),
+            Table(name="vehicles", row_count=num_vehicles),
+            Table(name="routes", row_count=num_routes),
+            Table(name="shipments", row_count=num_shipments),
+        ]
+        columns = {
+            "drivers": [
+                Column(name="driver_id", type="int", unique=True, distribution_params={"min": 1, "max": num_drivers + 1}),
+                Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name", type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="license_class", type="categorical", distribution_params={
+                    "choices": ["A", "B", "C", "CDL"],
+                    "probabilities": [0.15, 0.45, 0.30, 0.10],
+                }),
+                Column(name="years_experience", type="int", distribution_params={"distribution": "lognormal", "mu": 2.0, "sigma": 0.8, "min": 0, "max": 40}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["active", "on_leave", "inactive"],
+                    "probabilities": [0.80, 0.12, 0.08],
+                }),
+            ],
+            "vehicles": [
+                Column(name="vehicle_id", type="int", unique=True, distribution_params={"min": 1, "max": num_vehicles + 1}),
+                Column(name="driver_id", type="foreign_key"),
+                Column(name="vehicle_type", type="categorical", distribution_params={
+                    "choices": ["van", "truck", "semi", "motorcycle", "cargo_bike"],
+                    "sampling": "zipf",
+                }),
+                Column(name="capacity_kg", type="float", distribution_params={"distribution": "lognormal", "mu": 6.5, "sigma": 1.0, "min": 10, "decimals": 0}),
+                Column(name="year", type="int", distribution_params={"distribution": "normal", "mean": 2019, "std": 3, "min": 2010, "max": 2024}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["available", "in_use", "maintenance"],
+                    "probabilities": [0.50, 0.40, 0.10],
+                }),
+            ],
+            "routes": [
+                Column(name="route_id", type="int", unique=True, distribution_params={"min": 1, "max": num_routes + 1}),
+                Column(name="origin_city", type="text", distribution_params={"text_type": "city"}),
+                Column(name="destination_city", type="text", distribution_params={"text_type": "city"}),
+                Column(name="distance_km", type="float", distribution_params={"distribution": "lognormal", "mu": 5.0, "sigma": 1.0, "min": 5, "decimals": 1}),
+                Column(name="estimated_hours", type="float", distribution_params={"distribution": "lognormal", "mu": 2.5, "sigma": 0.7, "min": 0.5, "decimals": 1}),
+            ],
+            "shipments": [
+                Column(name="shipment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_shipments + 1}),
+                Column(name="driver_id", type="foreign_key"),
+                Column(name="route_id", type="foreign_key"),
+                Column(name="weight_kg", type="float", distribution_params={"distribution": "lognormal", "mu": 3.0, "sigma": 1.0, "min": 0.1, "decimals": 1}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["delivered", "in_transit", "pending", "failed", "returned"],
+                    "probabilities": [0.70, 0.15, 0.08, 0.04, 0.03],
+                }),
+                Column(name="shipped_at", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="delivered_at", type="date", distribution_params={"relative_to": "drivers.status", "min_delta_days": 1, "max_delta_days": 14}),
+                Column(name="cost", type="float", distribution_params={"distribution": "lognormal", "mu": 3.5, "sigma": 0.8, "min": 5.0, "decimals": 2}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="drivers", child_table="vehicles", parent_key="driver_id", child_key="driver_id"),
+            Relationship(parent_table="drivers", child_table="shipments", parent_key="driver_id", child_key="driver_id"),
+            Relationship(parent_table="routes", child_table="shipments", parent_key="route_id", child_key="route_id"),
+        ]
+        outcome_curve = self._build_absolute_monthly_curve(
+            story, table="shipments", column="cost", time_column="shipped_at", avg_transaction_value=45.0,
+        )
+        return SchemaConfig(
+            name="Logistics Dataset", description=f"Generated from story: {story}",
+            domain="logistics", tables=tables, columns=columns,
+            relationships=relationships, events=[],
             outcome_curves=[outcome_curve] if outcome_curve else [],
         )
 

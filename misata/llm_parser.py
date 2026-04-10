@@ -10,6 +10,8 @@ including:
 
 import json
 import os
+import re
+import time
 import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -502,18 +504,15 @@ Output valid JSON. Be creative and domain-specific - DO NOT copy the system prom
         user_prompt += self._build_feedback_prompt(story=story)
 
 
-        response = self.client.chat.completions.create(
-            model=self.model,
+        raw = self._call_api(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            temperature=temperature,
             max_tokens=6000,
-            response_format={"type": "json_object"}
+            temperature=temperature,
         )
-
-        schema_dict = json.loads(response.choices[0].message.content)
+        schema_dict = self._parse_json_response(raw)
         return self._parse_schema(schema_dict)
 
     def generate_from_graph(
@@ -531,19 +530,93 @@ Output valid JSON. Be creative and domain-specific - DO NOT copy the system prom
 Include reference tables with inline_data for lookup values and transactional tables for mass data. Output valid JSON."""
 
 
-        response = self.client.chat.completions.create(
-            model=self.model,
+        raw = self._call_api(
             messages=[
                 {"role": "system", "content": GRAPH_REVERSE_PROMPT},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            temperature=temperature,
             max_tokens=6000,
-            response_format={"type": "json_object"}
+            temperature=temperature,
+        )
+        schema_dict = self._parse_json_response(raw)
+        return self._parse_schema(schema_dict)
+
+    # ------------------------------------------------------------------
+    # Resilience helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_json(text: str) -> str:
+        """Strip markdown code fences and return the innermost JSON string."""
+        # Remove ```json ... ``` or ``` ... ``` wrappers
+        text = text.strip()
+        fenced = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
+        if fenced:
+            return fenced.group(1).strip()
+        # Some models wrap with a single backtick or add trailing prose
+        # Try to find the first '{' and last '}' as the JSON object
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return text[start : end + 1]
+        return text
+
+    def _call_api(self, messages: List[Dict], max_tokens: int = 6000, temperature: float = 0.3, max_retries: int = 3) -> str:
+        """
+        Call the LLM API with retry logic for transient failures.
+
+        Retries on rate-limit (429), server error (5xx), and timeout.
+        Returns the raw response text, never raises on parse errors — let
+        callers handle that.
+        """
+        last_exc: Optional[Exception] = None
+        for attempt in range(max_retries):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={"type": "json_object"},
+                )
+                content = response.choices[0].message.content
+                if not content:
+                    raise ValueError("LLM returned an empty response.")
+                return content
+            except Exception as exc:
+                last_exc = exc
+                exc_str = str(exc).lower()
+                # Retry on transient conditions only
+                if any(signal in exc_str for signal in ("rate_limit", "429", "timeout", "502", "503", "504", "connection")):
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    warnings.warn(f"LLM API transient error (attempt {attempt + 1}/{max_retries}): {exc}. Retrying in {wait}s.")
+                    time.sleep(wait)
+                    continue
+                # Non-transient — fail immediately
+                break
+        raise RuntimeError(
+            f"LLM API call failed after {max_retries} attempts. Last error: {last_exc}"
+        ) from last_exc
+
+    def _parse_json_response(self, raw: str) -> Dict:
+        """
+        Parse the raw LLM text into a dict.
+
+        Tries direct parse first, then strips markdown fences, then falls
+        back to extracting the first JSON object in the text.
+        Raises `ValueError` with a human-readable message on complete failure.
+        """
+        for attempt_text in (raw, self._extract_json(raw)):
+            try:
+                return json.loads(attempt_text)
+            except json.JSONDecodeError:
+                pass
+        raise ValueError(
+            "Could not parse LLM response as JSON. "
+            f"Raw response (first 500 chars): {raw[:500]!r}"
         )
 
-        schema_dict = json.loads(response.choices[0].message.content)
-        return self._parse_schema(schema_dict)
+    # ------------------------------------------------------------------
 
     def _normalize_distribution_params(self, col_type: str, params: Dict) -> Dict:
         """Normalize LLM output variations in distribution_params."""
@@ -587,12 +660,18 @@ Include reference tables with inline_data for lookup values and transactional ta
         # Parse tables
         tables = []
         for t in schema_dict.get("tables", []):
+            if not isinstance(t, dict):
+                continue
+            table_name_raw = t.get("name")
+            if not table_name_raw:
+                warnings.warn(f"Skipping table with missing 'name': {t!r}")
+                continue
             is_ref = t.get("is_reference", False)
             inline = t.get("inline_data", None)
             row_count = t.get("row_count", len(inline) if inline else 100)
 
             tables.append(Table(
-                name=t["name"],
+                name=table_name_raw,
                 row_count=row_count,
                 description=t.get("description"),
                 is_reference=is_ref,
@@ -602,8 +681,14 @@ Include reference tables with inline_data for lookup values and transactional ta
         # Parse columns (only for transactional tables, reference tables use inline_data)
         columns = {}
         for table_name, cols in schema_dict.get("columns", {}).items():
+            if not isinstance(cols, list):
+                continue
             columns[table_name] = []
             for c in cols:
+                if not isinstance(c, dict):
+                    continue
+                if not c.get("name"):
+                    continue
                 col_type = c.get("type", "text")
                 
                 # Normalize LLM type variations to valid schema types
@@ -657,6 +742,12 @@ Include reference tables with inline_data for lookup values and transactional ta
         # Parse relationships
         relationships = []
         for r in schema_dict.get("relationships", []):
+            if not isinstance(r, dict):
+                continue
+            required = ("parent_table", "child_table", "parent_key", "child_key")
+            if not all(r.get(k) for k in required):
+                warnings.warn(f"Skipping malformed relationship: {r!r}")
+                continue
             relationships.append(Relationship(
                 parent_table=r["parent_table"],
                 child_table=r["child_table"],
@@ -752,18 +843,15 @@ SCHEMA:
 Return valid JSON with enriched columns, reference_tables, and constraints. Be domain-specific based on the table/column names you see."""
         user_prompt += self._build_feedback_prompt(schema=schema, prompt=prompt)
 
-        response = self.client.chat.completions.create(
-            model=self.model,
+        raw = self._call_api(
             messages=[
                 {"role": "system", "content": ENRICH_SCHEMA_PROMPT},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            temperature=temperature,
             max_tokens=8000,
-            response_format={"type": "json_object"}
+            temperature=temperature,
         )
-
-        enrichment = json.loads(response.choices[0].message.content)
+        enrichment = self._parse_json_response(raw)
         return self._apply_enrichment(schema, enrichment)
 
     def _serialize_schema_for_llm(self, schema: SchemaConfig) -> Dict:
