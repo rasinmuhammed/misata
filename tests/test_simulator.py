@@ -594,3 +594,241 @@ class TestDistributions:
         assert 0.45 < counts.get("A", 0) < 0.55
         assert 0.25 < counts.get("B", 0) < 0.35
         assert 0.15 < counts.get("C", 0) < 0.25
+
+
+class TestEventCascade:
+    """Event propagation through the relational graph."""
+
+    def _churn_schema(self):
+        from misata.schema import ScenarioEvent
+        users = Table(name="users", row_count=100)
+        subscriptions = Table(name="subscriptions", row_count=100)
+        columns = {
+            "users": [
+                Column(name="user_id", type="int", unique=True, distribution_params={"min": 1, "max": 100}),
+                Column(name="signup_date", type="date", distribution_params={"start": "2022-01-01", "end": "2023-12-31"}),
+                Column(name="churned", type="boolean", distribution_params={"probability": 0.0}),
+            ],
+            "subscriptions": [
+                Column(name="sub_id", type="int", unique=True, distribution_params={"min": 1, "max": 100}),
+                Column(name="user_id", type="foreign_key"),
+                Column(name="status", type="categorical", distribution_params={"choices": ["active"], "probabilities": [1.0]}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="users", child_table="subscriptions", parent_key="user_id", child_key="user_id"),
+        ]
+        events = [
+            ScenarioEvent(
+                name="ChurnSpike",
+                table="users",
+                column="churned",
+                condition="signup_date < '2023-01-01'",
+                modifier_type="set",
+                modifier_value=True,
+                propagate_to={"subscriptions": {"status": "cancelled"}},
+            )
+        ]
+        return SchemaConfig(name="ChurnTest", seed=42, tables=[users, subscriptions], columns=columns, relationships=relationships, events=events)
+
+    def test_cascade_sets_child_column(self):
+        schema = self._churn_schema()
+        sim = DataSimulator(schema)
+        tables = {name: df for name, df in sim.generate_all()}
+
+        users = tables["users"]
+        subs = tables["subscriptions"]
+
+        churned_ids = set(users.loc[users["churned"] == True, "user_id"])
+        if not churned_ids:
+            return  # no churned users generated; skip
+
+        affected_subs = subs[subs["user_id"].isin(churned_ids)]
+        assert (affected_subs["status"] == "cancelled").all(), \
+            "All subscriptions for churned users must be cancelled"
+
+    def test_non_affected_children_unchanged(self):
+        schema = self._churn_schema()
+        sim = DataSimulator(schema)
+        tables = {name: df for name, df in sim.generate_all()}
+
+        users = tables["users"]
+        subs = tables["subscriptions"]
+
+        not_churned_ids = set(users.loc[users["churned"] == False, "user_id"])
+        if not not_churned_ids:
+            return
+
+        unaffected_subs = subs[subs["user_id"].isin(not_churned_ids)]
+        assert (unaffected_subs["status"] == "active").all(), \
+            "Subscriptions for non-churned users must stay active"
+
+    def test_lognormal_distribution_positive_skew(self):
+        """Lognormal must produce right-skewed positive values."""
+        schema = SchemaConfig(
+            name="Test", seed=42,
+            tables=[Table(name="data", row_count=5000)],
+            columns={"data": [
+                Column(name="mrr", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 5.0, "sigma": 0.8, "min": 0.0
+                })
+            ]}
+        )
+        df = list(DataSimulator(schema).generate_all())[0][1]
+        assert (df["mrr"] > 0).all()
+        # Right-skewed: mean > median
+        assert df["mrr"].mean() > df["mrr"].median()
+
+    def test_lognormal_from_mean_std(self):
+        """Lognormal derived from mean/std should hit the target mean approximately."""
+        schema = SchemaConfig(
+            name="Test", seed=42,
+            tables=[Table(name="data", row_count=10000)],
+            columns={"data": [
+                Column(name="revenue", type="float", distribution_params={
+                    "distribution": "lognormal", "mean": 200.0, "std": 100.0, "min": 0.0
+                })
+            ]}
+        )
+        df = list(DataSimulator(schema).generate_all())[0][1]
+        assert 150 < df["revenue"].mean() < 260
+
+    def test_power_law_heavy_tail(self):
+        """Power law must have a heavy right tail (max >> median)."""
+        schema = SchemaConfig(
+            name="Test", seed=42,
+            tables=[Table(name="data", row_count=5000)],
+            columns={"data": [
+                Column(name="views", type="float", distribution_params={
+                    "distribution": "power_law", "alpha": 1.5, "scale": 1.0
+                })
+            ]}
+        )
+        df = list(DataSimulator(schema).generate_all())[0][1]
+        assert df["views"].max() > df["views"].median() * 10
+
+    def test_beta_bounded(self):
+        """Beta distribution must stay within [min, max]."""
+        schema = SchemaConfig(
+            name="Test", seed=42,
+            tables=[Table(name="data", row_count=2000)],
+            columns={"data": [
+                Column(name="rate", type="float", distribution_params={
+                    "distribution": "beta", "a": 2.0, "b": 5.0,
+                    "min": 0.0, "max": 1.0
+                })
+            ]}
+        )
+        df = list(DataSimulator(schema).generate_all())[0][1]
+        assert df["rate"].min() >= 0.0
+        assert df["rate"].max() <= 1.0
+
+    def test_zipf_categorical_dominant_value(self):
+        """Zipf sampling must make the first choice dominate."""
+        schema = SchemaConfig(
+            name="Test", seed=42,
+            tables=[Table(name="data", row_count=5000)],
+            columns={"data": [
+                Column(name="country", type="categorical", distribution_params={
+                    "choices": ["US", "UK", "DE", "FR", "IN"],
+                    "sampling": "zipf", "zipf_exponent": 1.5,
+                })
+            ]}
+        )
+        df = list(DataSimulator(schema).generate_all())[0][1]
+        counts = df["country"].value_counts(normalize=True)
+        # First choice must be most frequent and significantly dominant
+        assert counts.index[0] == "US"
+        assert counts.iloc[0] > counts.iloc[1] * 1.5
+
+
+class TestDomainPriors:
+    """Domain priors applied automatically from story-parsed domain."""
+
+    def test_saas_mrr_is_lognormal_shaped(self):
+        """SaaS domain: mrr column should get lognormal prior → right-skewed."""
+        from misata.story_parser import StoryParser
+        schema = StoryParser().parse(
+            "A SaaS platform with 500 users and monthly subscriptions.",
+            default_rows=500,
+        )
+        assert schema.domain == "saas"
+        sim = DataSimulator(schema)
+        tables = {n: df for n, df in sim.generate_all()}
+        mrr = tables["subscriptions"]["mrr"]
+        assert (mrr > 0).all()
+        assert mrr.mean() > mrr.median()   # right-skewed
+
+    def test_get_column_prior_saas_mrr(self):
+        from misata.domain_priors import get_column_prior
+        p = get_column_prior("saas", "mrr")
+        assert p is not None
+        assert p["distribution"] == "lognormal"
+
+    def test_get_column_prior_ecommerce_order_amount(self):
+        from misata.domain_priors import get_column_prior
+        p = get_column_prior("ecommerce", "order_amount")
+        assert p is not None
+        assert p["distribution"] == "lognormal"
+
+    def test_user_params_override_prior(self):
+        """Explicit user params must win over domain priors."""
+        from misata.domain_priors import apply_domain_priors
+        user_params = {"distribution": "normal", "mean": 500.0, "std": 50.0}
+        merged = apply_domain_priors("saas", "mrr", user_params)
+        assert merged["distribution"] == "normal"
+        assert merged["mean"] == 500.0
+
+    def test_unknown_column_returns_none(self):
+        from misata.domain_priors import get_column_prior
+        assert get_column_prior("saas", "widget_florp_xyz") is None
+
+
+class TestVocabularySeeds:
+    """Rich vocabulary pools produce diverse, non-repeating text values."""
+
+    def test_first_names_pool_is_large(self):
+        from misata.vocab_seeds import FIRST_NAMES
+        assert len(FIRST_NAMES) >= 100
+
+    def test_last_names_pool_is_large(self):
+        from misata.vocab_seeds import LAST_NAMES
+        assert len(LAST_NAMES) >= 80
+
+    def test_product_by_category_all_populated(self):
+        from misata.vocab_seeds import PRODUCT_BY_CATEGORY
+        for cat, pool in PRODUCT_BY_CATEGORY.items():
+            assert len(pool) >= 10, f"Category '{cat}' has only {len(pool)} products"
+
+    def test_cities_by_country_populated(self):
+        from misata.vocab_seeds import CITIES_BY_COUNTRY
+        for country, cities in CITIES_BY_COUNTRY.items():
+            assert len(cities) >= 10, f"Country '{country}' has only {len(cities)} cities"
+
+    def test_generated_names_are_diverse(self):
+        """With 500 rows, name uniqueness must be high (pool > row count)."""
+        schema = SchemaConfig(
+            name="Test", seed=42,
+            tables=[Table(name="users", row_count=500)],
+            columns={"users": [
+                Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name", type="text", distribution_params={"text_type": "last_name"}),
+            ]}
+        )
+        df = list(DataSimulator(schema).generate_all())[0][1]
+        unique_ratio = df["first_name"].nunique() / len(df)
+        # With 130+ first names, 500 rows should have >20% unique first names
+        assert unique_ratio > 0.20
+
+    def test_conditional_product_sampling(self):
+        from misata.vocab_seeds import PRODUCT_BY_CATEGORY, sample_conditional
+        import numpy as np
+        rng = np.random.default_rng(0)
+        categories = ["electronics", "clothing", "electronics", "home"]
+        products = sample_conditional(rng, categories, PRODUCT_BY_CATEGORY)
+        assert len(products) == 4
+        # Electronics products must not appear in clothing pool
+        elec_pool = set(PRODUCT_BY_CATEGORY["electronics"])
+        cloth_pool = set(PRODUCT_BY_CATEGORY["clothing"])
+        assert products[0] in elec_pool
+        assert products[1] in cloth_pool
