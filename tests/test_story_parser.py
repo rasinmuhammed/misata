@@ -135,6 +135,93 @@ class TestLogisticsDomain:
         vehicle_cols = {c.name: c for c in schema.columns["vehicles"]}
         assert vehicle_cols["vehicle_type"].distribution_params.get("sampling") == "zipf"
 
+    def test_delivered_at_has_valid_date_params(self):
+        """delivered_at must not reference a non-date column — was 'drivers.status'."""
+        parser = StoryParser()
+        schema = parser.parse("A logistics company with drivers and shipments.", default_rows=100)
+        shipment_cols = {c.name: c for c in schema.columns["shipments"]}
+        params = shipment_cols["delivered_at"].distribution_params
+        assert "start" in params, "delivered_at must have 'start' date param, not 'relative_to'"
+        assert "end" in params, "delivered_at must have 'end' date param"
+        assert "relative_to" not in params, "delivered_at must not reference 'relative_to'"
+
+    def test_logistics_schema_generates_without_error(self):
+        """End-to-end: logistics schema must generate data without crashing."""
+        import pandas as pd
+        from misata.simulator import DataSimulator
+
+        parser = StoryParser()
+        schema = parser.parse("A logistics company with drivers and shipments.", default_rows=100)
+        sim = DataSimulator(schema)
+        tables = {}
+        for name, batch in sim.generate_all():
+            tables[name] = pd.concat([tables.get(name, pd.DataFrame()), batch], ignore_index=True)
+        assert "shipments" in tables
+        assert len(tables["shipments"]) == 100
+
+
+class TestGenericFallback:
+    def test_unknown_domain_emits_warning(self):
+        import warnings
+        parser = StoryParser()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            schema = parser.parse("Generate some completely random data with no domain hints.", default_rows=50)
+        assert any("could not detect a domain" in str(w.message).lower() for w in caught)
+
+    def test_unknown_domain_still_returns_schema(self):
+        import warnings
+        parser = StoryParser()
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            result = parser.parse("A totally ambiguous dataset.", default_rows=50)
+        assert result is not None
+        assert len(result.tables) >= 1
+
+
+class TestValidateSchemaOutcomeCurveTypes:
+    def test_non_date_time_column_raises(self):
+        from misata.schema import OutcomeCurve
+        from misata.validation import SchemaValidationError, validate_schema
+
+        # users.user_id is an int column — not a valid time_column
+        from misata.schema import Column, SchemaConfig, Table
+        schema = SchemaConfig(
+            name="test",
+            tables=[Table(name="users", row_count=10)],
+            columns={
+                "users": [
+                    Column(name="user_id", type="int", unique=True, distribution_params={"min": 1, "max": 10}),
+                    Column(name="amount", type="float", distribution_params={"min": 0.0}),
+                ]
+            },
+            outcome_curves=[
+                OutcomeCurve(table="users", column="amount", time_column="user_id")
+            ],
+        )
+        with pytest.raises(SchemaValidationError, match="must be 'date' or 'datetime'"):
+            validate_schema(schema)
+
+    def test_date_time_column_passes(self):
+        from misata.schema import Column, OutcomeCurve, SchemaConfig, Table
+        from misata.validation import validate_schema
+
+        schema = SchemaConfig(
+            name="test",
+            tables=[Table(name="sales", row_count=10)],
+            columns={
+                "sales": [
+                    Column(name="sale_id", type="int", unique=True, distribution_params={"min": 1, "max": 10}),
+                    Column(name="amount", type="float", distribution_params={"min": 0.0}),
+                    Column(name="sale_date", type="date", distribution_params={"start": "2023-01-01", "end": "2024-12-31"}),
+                ]
+            },
+            outcome_curves=[
+                OutcomeCurve(table="sales", column="amount", time_column="sale_date")
+            ],
+        )
+        validate_schema(schema)  # must not raise
+
 
 class TestStoryParserOutcomeCurves:
     """Tests for rule-based story parsing into exact target curves."""

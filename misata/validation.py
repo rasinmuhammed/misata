@@ -87,6 +87,7 @@ def validate_schema(schema: Any) -> None:
                     )
 
     # 5. Outcome curves must reference existing tables and columns
+    _date_types = {"date", "datetime"}
     for curve in getattr(schema, "outcome_curves", []):
         if curve.table not in table_names:
             issues.append(
@@ -94,14 +95,21 @@ def validate_schema(schema: Any) -> None:
             )
             continue
         cols = column_map[curve.table]
+        col_types = {c.name: c.type for c in schema.get_columns(curve.table)}
         if curve.column not in cols:
             issues.append(
                 f"OutcomeCurve references unknown column '{curve.table}.{curve.column}'"
             )
-        if curve.time_column and curve.time_column not in cols:
-            issues.append(
-                f"OutcomeCurve references unknown time_column '{curve.table}.{curve.time_column}'"
-            )
+        if curve.time_column:
+            if curve.time_column not in cols:
+                issues.append(
+                    f"OutcomeCurve references unknown time_column '{curve.table}.{curve.time_column}'"
+                )
+            elif col_types.get(curve.time_column) not in _date_types:
+                issues.append(
+                    f"OutcomeCurve time_column '{curve.table}.{curve.time_column}' has type "
+                    f"'{col_types.get(curve.time_column)}' — must be 'date' or 'datetime'"
+                )
 
     # 6. Events must reference existing tables and columns
     for event in getattr(schema, "events", []):

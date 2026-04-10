@@ -895,7 +895,7 @@ class StoryParser:
                     "probabilities": [0.70, 0.15, 0.08, 0.04, 0.03],
                 }),
                 Column(name="shipped_at", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
-                Column(name="delivered_at", type="date", distribution_params={"relative_to": "drivers.status", "min_delta_days": 1, "max_delta_days": 14}),
+                Column(name="delivered_at", type="date", distribution_params={"start": "2022-01-01", "end": "2025-06-30"}),
                 Column(name="cost", type="float", distribution_params={"distribution": "lognormal", "mu": 3.5, "sigma": 0.8, "min": 5.0, "decimals": 2}),
             ],
         }
@@ -915,7 +915,22 @@ class StoryParser:
         )
 
     def _build_generic_schema(self, story: str, default_rows: int) -> SchemaConfig:
-        """Build a generic schema when domain is not detected."""
+        """Build a generic schema when domain is not detected.
+
+        Emits a warning so users know the parser fell back to a single generic
+        table instead of a rich domain-specific schema.  They should either
+        use more explicit keywords (e.g. "SaaS", "ecommerce") or switch to the
+        LLM parser for open-ended stories.
+        """
+        import warnings
+        warnings.warn(
+            "StoryParser could not detect a domain from the story. "
+            "Falling back to a single generic table. "
+            "Add a domain keyword (saas, ecommerce, fintech, healthcare, marketplace, logistics) "
+            "for a richer schema, or use LLMSchemaGenerator for open-ended stories.",
+            UserWarning,
+            stacklevel=3,
+        )
         tables = [
             Table(name="main_table", row_count=default_rows),
         ]
