@@ -7,51 +7,68 @@ from typing import Any, Dict, List, Optional, Set
 from misata.assets import AssetStore
 from misata.domain_capsule import AssetProvenance, DomainCapsule, VocabularyAsset
 from misata.reference_data import detect_domain as detect_reference_domain
+from misata.vocab_seeds import (
+    CITIES_BY_COUNTRY,
+    COMPANY_NAMES,
+    FIRST_NAMES,
+    JOB_TITLES,
+    LAST_NAMES,
+    PRODUCT_BY_CATEGORY,
+    STATES_BY_COUNTRY,
+)
 
+# Flatten conditional pools to produce top-level defaults
+_ALL_CITIES = [c for cities in CITIES_BY_COUNTRY.values() for c in cities]
+_ALL_STATES = [s for states in STATES_BY_COUNTRY.values() for s in states]
+_ALL_PRODUCTS = [p for prods in PRODUCT_BY_CATEGORY.values() for p in prods]
+_ALL_COUNTRIES = list(CITIES_BY_COUNTRY.keys())
 
 DEFAULT_VOCABULARIES: Dict[str, List[str]] = {
-    "first_name": [
-        "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
-        "Aisha", "Priya", "Arjun", "Noah", "Emma", "Olivia", "Sophia", "Ethan",
-    ],
-    "last_name": [
-        "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-        "Patel", "Singh", "Khan", "Nguyen", "Kim", "Wilson", "Clark", "Lewis",
-    ],
-    "company_name": [
-        "Atlas Systems", "Blue Peak Labs", "North Summit Group", "Modern Vertex Solutions",
-        "Prime Analytics Co", "Nova Commerce Collective",
-    ],
-    "job_title": [
-        "Software Engineer", "Product Manager", "Customer Success Manager", "Data Analyst",
-        "Engineering Manager", "Director of Sales", "Operations Manager", "Chief Technology Officer",
-    ],
-    "country": ["United States", "United Kingdom", "Canada", "Germany", "India"],
-    "state": ["California", "Texas", "New York", "England", "Ontario", "Bavaria", "Maharashtra"],
-    "city": ["New York", "London", "Toronto", "Berlin", "Mumbai", "Austin", "Seattle"],
-    "product_name": [
-        "Wireless Bluetooth Headphones Pro", "Classic Oxford Shirt", "Cast Iron Skillet",
-        "Resistance Bands Set", "Designing Data-Intensive Applications",
-    ],
+    "first_name": FIRST_NAMES,
+    "last_name": LAST_NAMES,
+    "company_name": COMPANY_NAMES["generic"],
+    "job_title": JOB_TITLES["generic"],
+    "country": _ALL_COUNTRIES,
+    "state": _ALL_STATES,
+    "city": _ALL_CITIES,
+    "product_name": _ALL_PRODUCTS,
     "product_description": [
         "Designed for everyday use with reliable performance and clean design.",
-        "Built for teams that want quality, durability, and fast setup.",
+        "Built for teams that value quality, durability, and fast setup.",
         "Combines premium materials with practical features for daily use.",
+        "Lightweight and portable with a modern aesthetic.",
+        "Industry-leading build quality with a 2-year warranty.",
+        "Eco-friendly materials with a minimal environmental footprint.",
+        "Trusted by professionals and enthusiasts worldwide.",
+        "Easy to set up, intuitive to use, built to last.",
     ],
 }
 
 DOMAIN_SPECIFIC_DEFAULTS: Dict[str, Dict[str, List[str]]] = {
     "ecommerce": {
-        "product_name": ["Wireless Headphones", "Smart Watch", "Cotton T-Shirt", "Running Shoes", "Yoga Mat"],
-        "company_name": ["Acme Retail", "Bright Cart", "Northline Commerce", "Blue Harbor Goods"],
+        "product_name": _ALL_PRODUCTS,
+        "company_name": COMPANY_NAMES["ecommerce"],
+        "job_title": JOB_TITLES["ecommerce"],
     },
     "saas": {
-        "job_title": ["Software Engineer", "Product Manager", "Customer Success Manager", "VP Engineering"],
-        "company_name": ["Atlas Cloud", "Summit Logic", "Modern Metrics", "Prime Workflow"],
+        "job_title": JOB_TITLES["saas"],
+        "company_name": COMPANY_NAMES["saas"],
+    },
+    "fintech": {
+        "job_title": JOB_TITLES["fintech"],
+        "company_name": COMPANY_NAMES["fintech"],
     },
     "finance": {
-        "job_title": ["Financial Analyst", "Risk Manager", "Account Manager", "Chief Financial Officer"],
-        "company_name": ["North Capital", "Summit Finance", "Blue Ledger", "Apex Banking"],
+        "job_title": JOB_TITLES["fintech"],
+        "company_name": COMPANY_NAMES["fintech"],
+    },
+    "healthcare": {
+        "job_title": JOB_TITLES["healthcare"],
+        "company_name": COMPANY_NAMES["healthcare"],
+    },
+    "pharma": {
+        "job_title": JOB_TITLES["healthcare"],
+        "company_name": COMPANY_NAMES["generic"],
     },
 }
 

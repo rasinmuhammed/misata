@@ -17,40 +17,23 @@ import numpy as np
 import pandas as pd
 
 from misata.domain_capsule import DomainCapsule
+from misata.vocab_seeds import (
+    CITIES_BY_COUNTRY,
+    FIRST_NAMES,
+    JOB_TITLES as _JOB_TITLES_BY_DOMAIN,
+    LAST_NAMES,
+    PRODUCT_BY_CATEGORY,
+    STATES_BY_COUNTRY,
+)
 
 
 INACTIVE_STATUSES = {"inactive", "cancelled", "canceled", "ended", "expired", "churned"}
 ACTIVE_STATUSES = {"active", "trialing", "trial", "enabled"}
 DELIVERED_STATUSES = {"delivered", "completed", "fulfilled"}
 
-COUNTRY_STATES = {
-    "United States": ["California", "Texas", "New York", "Florida", "Illinois", "Washington", "Colorado"],
-    "United Kingdom": ["England", "Scotland", "Wales", "Northern Ireland"],
-    "Canada": ["Ontario", "Quebec", "British Columbia", "Alberta"],
-    "Germany": ["Bavaria", "Berlin", "Hamburg", "Hesse"],
-    "India": ["Maharashtra", "Karnataka", "Tamil Nadu", "Delhi"],
-}
-
-COUNTRY_CITIES = {
-    "United States": ["New York", "Los Angeles", "Chicago", "Austin", "Seattle", "Boston"],
-    "United Kingdom": ["London", "Manchester", "Glasgow", "Leeds"],
-    "Canada": ["Toronto", "Montreal", "Vancouver", "Ottawa"],
-    "Germany": ["Berlin", "Munich", "Hamburg", "Frankfurt"],
-    "India": ["Mumbai", "Delhi", "Bangalore", "Chennai"],
-}
-
-FIRST_NAMES = [
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
-    "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
-    "Thomas", "Sarah", "Christopher", "Karen", "Daniel", "Aisha", "Priya", "Arjun",
-    "Liam", "Noah", "Emma", "Olivia", "Sophia", "Mia", "Ethan", "Ava",
-]
-
-LAST_NAMES = [
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-    "Rodriguez", "Martinez", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-    "Patel", "Singh", "Khan", "Nguyen", "Kim", "Wilson", "Clark", "Lewis",
-]
+# Geography — now sourced from the rich seed pools
+COUNTRY_STATES = STATES_BY_COUNTRY
+COUNTRY_CITIES = CITIES_BY_COUNTRY
 
 COMPANY_PREFIXES = [
     "North", "Blue", "Peak", "Cedar", "Summit", "Atlas", "Bright", "Modern",
@@ -62,36 +45,12 @@ COMPANY_ROOTS = [
 ]
 COMPANY_SUFFIXES = ["Inc", "Group", "Co", "Partners", "Holdings", "Solutions", "Collective"]
 
-JOB_TITLES = [
-    "Software Engineer", "Senior Software Engineer", "Staff Engineer", "Product Manager",
-    "Customer Success Manager", "Data Analyst", "Engineering Manager", "Director of Sales",
-    "Marketing Manager", "Financial Analyst", "Operations Manager", "Chief Technology Officer",
-]
+JOB_TITLES = _JOB_TITLES_BY_DOMAIN["generic"]
 
-COUNTRIES = list(COUNTRY_STATES.keys())
+COUNTRIES = list(CITIES_BY_COUNTRY.keys())
 
-PRODUCT_NAME_POOLS = {
-    "electronics": [
-        "Wireless Bluetooth Headphones Pro", "4K Smart TV 55 inch", "Mechanical Gaming Keyboard RGB",
-        "USB-C Docking Station", "Portable Bluetooth Speaker", "Noise Cancelling Earbuds",
-    ],
-    "clothing": [
-        "Classic Oxford Shirt", "Slim Fit Chino Pants", "Premium Cotton T-Shirt",
-        "Waterproof Rain Jacket", "Merino Wool Sweater",
-    ],
-    "home": [
-        "Bamboo Cutting Board Set", "Memory Foam Pillow", "Cast Iron Skillet",
-        "Countertop Air Fryer", "Indoor Herb Garden Kit",
-    ],
-    "sports": [
-        "Resistance Bands Set", "Adjustable Dumbbell Set", "Yoga Mat Non-Slip",
-        "Hydration Running Vest", "Foam Roller Deep Tissue",
-    ],
-    "books": [
-        "Designing Data-Intensive Applications", "Atomic Habits", "The Pragmatic Programmer",
-        "Deep Work", "The Psychology of Money",
-    ],
-}
+# Product name pools — now sourced from the rich seed pools
+PRODUCT_NAME_POOLS = PRODUCT_BY_CATEGORY
 
 PRODUCT_DESCRIPTION_TEMPLATES = [
     "Designed for everyday use with reliable performance and clean design.",
