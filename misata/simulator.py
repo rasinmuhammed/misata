@@ -23,6 +23,7 @@ from misata.generators.base import TextGenerator as _FactoryTextGenerator  # Gen
 # Use the original generators.py TextGenerator which supports seed
 from misata.generators_legacy import TextGenerator
 from misata.noise import NoiseInjector
+from misata.domain_priors import apply_domain_priors
 from misata.planning import GenerationPlanner
 from misata.realism import EntityCoherenceEngine, RealisticTextGenerator, apply_realism_rules
 from misata.reporting import ReservoirTableSampler, build_generation_report_bundle
@@ -283,7 +284,14 @@ class DataSimulator:
         Returns:
             Numpy array of generated values
         """
-        params = column.distribution_params
+        # Apply domain priors as defaults — user-defined params always win.
+        _domain = getattr(self.config, "domain", None) or getattr(
+            getattr(self.config, "realism", None), "domain_hint", None
+        )
+        if _domain and column.type in ("int", "float"):
+            params = apply_domain_priors(_domain, column.name, column.distribution_params)
+        else:
+            params = column.distribution_params
 
         # ========== CORRELATED COLUMN GENERATION ==========
         # If this column depends on another column's value, use conditional distribution
@@ -420,17 +428,24 @@ class DataSimulator:
             if not isinstance(choices, list):
                 choices = list(choices)
 
+            # Zipf / power-law sampling: when no explicit probabilities are
+            # provided and sampling="zipf", derive weights from a Zipf law so
+            # the first choice dominates and the tail is long — just like real
+            # categorical data (statuses, countries, product categories, …).
+            sampling = params.get("sampling", "uniform")
+            if probabilities is None and sampling == "zipf":
+                exponent = float(params.get("zipf_exponent", 1.2))
+                ranks = np.arange(1, len(choices) + 1, dtype=float)
+                weights = 1.0 / np.power(ranks, exponent)
+                probabilities = weights / weights.sum()
+
             if probabilities is not None:
                 if len(probabilities) != len(choices):
                     probabilities = None
                 else:
-                    # Convert to float array and normalize
                     probabilities = np.array(probabilities, dtype=float)
                     prob_sum = probabilities.sum()
-                    if prob_sum > 0:
-                        probabilities = probabilities / prob_sum
-                    else:
-                        probabilities = None
+                    probabilities = probabilities / prob_sum if prob_sum > 0 else None
 
             values = self.rng.choice(choices, size=size, p=probabilities)
             return values
@@ -492,6 +507,23 @@ class DataSimulator:
                 mean = params.get("mean", 100)
                 std = params.get("std", 20)
                 values = self.rng.normal(mean, std, size=size).astype(int)
+            elif distribution in ("lognormal", "log_normal"):
+                # mu/sigma are in log-space; alternatively accept mean/std and convert
+                if "mu" in params or "sigma" in params:
+                    mu = params.get("mu", 4.5)
+                    sigma = params.get("sigma", 0.8)
+                else:
+                    mean = float(params.get("mean", 100))
+                    std = float(params.get("std", 50))
+                    sigma = np.sqrt(np.log(1 + (std / mean) ** 2))
+                    mu = np.log(mean) - 0.5 * sigma ** 2
+                values = self.rng.lognormal(mu, sigma, size=size).astype(int)
+            elif distribution in ("power_law", "pareto"):
+                alpha = float(params.get("alpha", 1.5))
+                scale = float(params.get("scale", params.get("min", 1)))
+                # Pareto: X = scale / U^(1/alpha), U ~ Uniform(0,1)
+                u = self.rng.uniform(0, 1, size=size)
+                values = (scale / np.power(u, 1.0 / alpha)).astype(int)
             elif distribution == "uniform":
                 low = params.get("min", 0)
                 high = params.get("max", 1000)
@@ -527,6 +559,21 @@ class DataSimulator:
                 mean = params.get("mean", 100.0)
                 std = params.get("std", 20.0)
                 values = self.rng.normal(mean, std, size=size)
+            elif distribution in ("lognormal", "log_normal"):
+                if "mu" in params or "sigma" in params:
+                    mu = float(params.get("mu", 4.5))
+                    sigma = float(params.get("sigma", 0.8))
+                else:
+                    mean = float(params.get("mean", 100.0))
+                    std = float(params.get("std", 50.0))
+                    sigma = np.sqrt(np.log(1 + (std / mean) ** 2))
+                    mu = np.log(mean) - 0.5 * sigma ** 2
+                values = self.rng.lognormal(mu, sigma, size=size)
+            elif distribution in ("power_law", "pareto"):
+                alpha = float(params.get("alpha", 1.5))
+                scale = float(params.get("scale", params.get("min", 1.0)))
+                u = self.rng.uniform(0, 1, size=size)
+                values = scale / np.power(u, 1.0 / alpha)
             elif distribution == "uniform":
                 low = params.get("min", 0.0)
                 high = params.get("max", 1000.0)
@@ -534,6 +581,12 @@ class DataSimulator:
             elif distribution == "exponential":
                 scale = params.get("scale", 1.0)
                 values = self.rng.exponential(scale, size=size)
+            elif distribution == "beta":
+                a = float(params.get("a", 2.0))
+                b = float(params.get("b", 5.0))
+                low = float(params.get("min", 0.0))
+                high = float(params.get("max", 1.0))
+                values = self.rng.beta(a, b, size=size) * (high - low) + low
             else:
                 low = params.get("min", 0.0)
                 high = params.get("max", 1000.0)
@@ -789,6 +842,83 @@ class DataSimulator:
             warnings.warn(f"Function modifiers not yet implemented for event '{event.name}'")
 
         return df
+
+    def propagate_event_cascade(
+        self,
+        all_tables: Dict[str, pd.DataFrame],
+        event: ScenarioEvent,
+    ) -> None:
+        """Cascade an event's affected parent rows into child tables via FK relationships.
+
+        After ``event`` is applied on ``event.table``, this method looks up the
+        FK edges from that table to its children and applies the per-child column
+        overrides declared in ``event.propagate_to``.
+
+        ``all_tables`` is mutated in-place.
+
+        Example
+        -------
+        A churn event sets ``users.churned = True`` for some rows.  With::
+
+            propagate_to={"subscriptions": {"status": "cancelled"}}
+
+        this method finds all ``subscriptions`` rows whose ``user_id`` is in the
+        set of churned user IDs and sets their ``status`` to ``"cancelled"``.
+        """
+        if not event.propagate_to:
+            return
+
+        parent_df = all_tables.get(event.table)
+        if parent_df is None:
+            return
+
+        # Identify affected parent rows
+        try:
+            affected_mask = parent_df.eval(event.condition)
+        except Exception as e:
+            warnings.warn(
+                f"Cascade failed: could not evaluate condition '{event.condition}' "
+                f"on parent table '{event.table}': {e}"
+            )
+            return
+
+        for child_table_name, column_overrides in event.propagate_to.items():
+            child_df = all_tables.get(child_table_name)
+            if child_df is None:
+                warnings.warn(
+                    f"Cascade skipped: child table '{child_table_name}' not found "
+                    f"(event '{event.name}'). Was it generated?"
+                )
+                continue
+
+            # Find the FK relationship linking parent → child
+            rel = next(
+                (
+                    r for r in self.config.relationships
+                    if r.parent_table == event.table and r.child_table == child_table_name
+                ),
+                None,
+            )
+            if rel is None:
+                warnings.warn(
+                    f"Cascade skipped: no relationship from '{event.table}' to "
+                    f"'{child_table_name}' found (event '{event.name}')."
+                )
+                continue
+
+            affected_parent_ids = set(parent_df.loc[affected_mask, rel.parent_key].dropna())
+            child_mask = child_df[rel.child_key].isin(affected_parent_ids)
+
+            if not child_mask.any():
+                continue
+
+            for col, value in column_overrides.items():
+                if col not in child_df.columns:
+                    warnings.warn(
+                        f"Cascade skipped column '{col}': not present in '{child_table_name}'."
+                    )
+                    continue
+                all_tables[child_table_name].loc[child_mask, col] = value
 
     def _get_exact_outcome_curves(self, table_name: str) -> List[Any]:
         """Return exact target curves that should be generated top-down."""
@@ -1488,16 +1618,33 @@ class DataSimulator:
 
     def generate_all(self):
         """
-        Generate all tables in dependency order.
+        Generate all tables in dependency order, then cascade story events
+        through the relational graph.
 
         Yields:
             Tuple[str, pd.DataFrame]: (table_name, batch_df)
         """
         sorted_tables = self.topological_sort()
 
+        # Phase 1: generate every table and accumulate in memory for cascade pass
+        accumulated: Dict[str, pd.DataFrame] = {}
         for table_name in sorted_tables:
+            batches = []
             for batch in self.generate_batches(table_name):
-                yield table_name, batch
+                batches.append(batch)
+            if batches:
+                accumulated[table_name] = pd.concat(batches, ignore_index=True)
+
+        # Phase 2: cascade events that propagate to child tables
+        cascade_events = [e for e in (self.config.events or []) if e.propagate_to]
+        if cascade_events:
+            for event in cascade_events:
+                self.propagate_event_cascade(accumulated, event)
+
+        # Phase 3: yield final tables
+        for table_name in sorted_tables:
+            if table_name in accumulated:
+                yield table_name, accumulated[table_name]
 
     def generate_with_reports(
         self,

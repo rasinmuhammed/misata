@@ -212,6 +212,10 @@ class ScenarioEvent(BaseModel):
     modifier_type: Literal["multiply", "add", "set", "function"]
     modifier_value: Union[int, float, str, bool]
     description: Optional[str] = None
+    # Cascade: propagate the affected parent-row IDs into child tables.
+    # Each entry maps child_table -> {column: value} to apply on matched children.
+    # Example: propagate_to={"subscriptions": {"status": "cancelled"}}
+    propagate_to: Optional[Dict[str, Dict[str, Any]]] = None
 
 
 class OutcomeCurve(BaseModel):
@@ -332,6 +336,7 @@ class SchemaConfig(BaseModel):
 
     name: str
     description: Optional[str] = None
+    domain: Optional[str] = None  # e.g. "saas", "ecommerce", "fintech" — drives domain priors
     tables: List[Table]
     columns: Dict[str, List[Column]]
     relationships: List[Relationship] = Field(default_factory=list)
