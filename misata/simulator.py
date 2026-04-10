@@ -75,6 +75,9 @@ class DataSimulator:
             smart_mode: Enable LLM-powered context-aware value generation
             use_llm: If smart_mode is True, whether to use LLM (vs curated fallbacks)
         """
+        from misata.validation import validate_schema
+        validate_schema(config)
+
         self.config = config
         self.context: Dict[str, pd.DataFrame] = {}  # Lightweight context (IDs only)
         self.text_gen = TextGenerator(seed=config.seed)
@@ -1621,30 +1624,51 @@ class DataSimulator:
         Generate all tables in dependency order, then cascade story events
         through the relational graph.
 
+        Memory strategy
+        ---------------
+        Only tables that participate in a cascade event (as source or target)
+        are buffered in memory.  All other tables stream directly to the caller
+        one batch at a time, keeping memory usage proportional to cascade
+        complexity rather than total dataset size.
+
         Yields:
             Tuple[str, pd.DataFrame]: (table_name, batch_df)
         """
         sorted_tables = self.topological_sort()
-
-        # Phase 1: generate every table and accumulate in memory for cascade pass
-        accumulated: Dict[str, pd.DataFrame] = {}
-        for table_name in sorted_tables:
-            batches = []
-            for batch in self.generate_batches(table_name):
-                batches.append(batch)
-            if batches:
-                accumulated[table_name] = pd.concat(batches, ignore_index=True)
-
-        # Phase 2: cascade events that propagate to child tables
         cascade_events = [e for e in (self.config.events or []) if e.propagate_to]
-        if cascade_events:
-            for event in cascade_events:
-                self.propagate_event_cascade(accumulated, event)
 
-        # Phase 3: yield final tables
+        # Identify which tables must be buffered for cascade resolution
+        cascade_tables: set = set()
+        for event in cascade_events:
+            cascade_tables.add(event.table)
+            cascade_tables.update(event.propagate_to.keys())
+
+        buffered: Dict[str, pd.DataFrame] = {}
+        streamed: list = []   # tables already yielded (order record for phase 3)
+
+        # Phase 1 — generate in dependency order
         for table_name in sorted_tables:
-            if table_name in accumulated:
-                yield table_name, accumulated[table_name]
+            if table_name in cascade_tables:
+                # Buffer: collect all batches for cascade pass
+                batches = []
+                for batch in self.generate_batches(table_name):
+                    batches.append(batch)
+                if batches:
+                    buffered[table_name] = pd.concat(batches, ignore_index=True)
+            else:
+                # Stream immediately — no cascade involvement
+                for batch in self.generate_batches(table_name):
+                    yield table_name, batch
+                streamed.append(table_name)
+
+        # Phase 2 — apply cascades to buffered tables
+        for event in cascade_events:
+            self.propagate_event_cascade(buffered, event)
+
+        # Phase 3 — yield buffered tables in original dependency order
+        for table_name in sorted_tables:
+            if table_name in buffered:
+                yield table_name, buffered[table_name]
 
     def generate_with_reports(
         self,

@@ -1,18 +1,153 @@
 """
-Data validation layer for post-generation quality checks.
+Data validation layer for pre-generation schema checks and post-generation quality checks.
 
-This module validates generated data to ensure:
-- No negative values where inappropriate
-- Valid date ranges
-- Referential integrity (FK -> PK exists)
-- Business logic rules
-- Statistical distribution accuracy
+Pre-generation: validate_schema() catches mis-configured SchemaConfig objects before any
+data is written, surfacing every problem in one human-readable error instead of a raw
+Pydantic stack trace or a mid-generation crash.
+
+Post-generation: DataValidator / StreamingDataValidator check referential integrity,
+distribution plausibility, and exact outcome-curve targets after data is produced.
 """
 
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+
+# ---------------------------------------------------------------------------
+# Pre-generation schema validation
+# ---------------------------------------------------------------------------
+
+class SchemaValidationError(Exception):
+    """Raised when a SchemaConfig fails pre-generation checks.
+
+    The message lists every problem found so users can fix them all in one go
+    rather than discovering them one by one during generation.
+    """
+
+    def __init__(self, issues: List[str]) -> None:
+        self.issues = issues
+        bullet_list = "\n".join(f"  • {issue}" for issue in issues)
+        super().__init__(f"Schema has {len(issues)} issue(s):\n{bullet_list}")
+
+
+def validate_schema(schema: Any) -> None:
+    """Validate a SchemaConfig before generation starts.
+
+    Checks structural correctness and semantic consistency that Pydantic's
+    field-level validators cannot catch (e.g. cross-field constraints, graph
+    cycles, probability sums).
+
+    Raises:
+        SchemaValidationError: if any issues are found (all issues reported at once).
+    """
+    issues: List[str] = []
+    table_names = {t.name for t in schema.tables}
+    column_map: Dict[str, set] = {
+        t.name: {c.name for c in schema.get_columns(t.name)}
+        for t in schema.tables
+    }
+
+    # 1. Duplicate table names
+    seen_table_names: set = set()
+    for t in schema.tables:
+        if t.name in seen_table_names:
+            issues.append(f"Duplicate table name: '{t.name}'")
+        seen_table_names.add(t.name)
+
+    # 2. FK columns must have a backing Relationship
+    rel_child_keys = {
+        (r.child_table, r.child_key) for r in schema.relationships
+    }
+    for t in schema.tables:
+        for col in schema.get_columns(t.name):
+            if col.type == "foreign_key" and (t.name, col.name) not in rel_child_keys:
+                issues.append(
+                    f"Column '{t.name}.{col.name}' is type 'foreign_key' but has no "
+                    f"matching Relationship with child_table='{t.name}', child_key='{col.name}'"
+                )
+
+    # 4. Categorical probabilities must sum to ~1.0
+    for t in schema.tables:
+        for col in schema.get_columns(t.name):
+            probs = col.distribution_params.get("probabilities")
+            choices = col.distribution_params.get("choices")
+            if probs is not None and choices is not None:
+                total = sum(probs)
+                if abs(total - 1.0) > 0.02:
+                    issues.append(
+                        f"Column '{t.name}.{col.name}' probabilities sum to {total:.4f} "
+                        f"(expected 1.0 ± 0.02)"
+                    )
+                if len(probs) != len(choices):
+                    issues.append(
+                        f"Column '{t.name}.{col.name}' has {len(choices)} choices but "
+                        f"{len(probs)} probabilities — lengths must match"
+                    )
+
+    # 5. Outcome curves must reference existing tables and columns
+    for curve in getattr(schema, "outcome_curves", []):
+        if curve.table not in table_names:
+            issues.append(
+                f"OutcomeCurve references unknown table '{curve.table}'"
+            )
+            continue
+        cols = column_map[curve.table]
+        if curve.column not in cols:
+            issues.append(
+                f"OutcomeCurve references unknown column '{curve.table}.{curve.column}'"
+            )
+        if curve.time_column and curve.time_column not in cols:
+            issues.append(
+                f"OutcomeCurve references unknown time_column '{curve.table}.{curve.time_column}'"
+            )
+
+    # 6. Events must reference existing tables and columns
+    for event in getattr(schema, "events", []):
+        if event.table not in table_names:
+            issues.append(
+                f"ScenarioEvent '{getattr(event, 'name', '?')}' references unknown table '{event.table}'"
+            )
+            continue
+        if event.column not in column_map[event.table]:
+            issues.append(
+                f"ScenarioEvent '{getattr(event, 'name', '?')}' references unknown column "
+                f"'{event.table}.{event.column}'"
+            )
+
+    # 7. Detect cycles in the relationship graph (topological sort check)
+    # Build adjacency: parent → children
+    adj: Dict[str, List[str]] = {t.name: [] for t in schema.tables}
+    for r in schema.relationships:
+        if r.parent_table in adj:
+            adj[r.parent_table].append(r.child_table)
+
+    visited: set = set()
+    in_stack: set = set()
+
+    def _has_cycle(node: str) -> bool:
+        visited.add(node)
+        in_stack.add(node)
+        for neighbour in adj.get(node, []):
+            if neighbour not in visited:
+                if _has_cycle(neighbour):
+                    return True
+            elif neighbour in in_stack:
+                return True
+        in_stack.discard(node)
+        return False
+
+    for table_name in list(adj.keys()):
+        if table_name not in visited:
+            if _has_cycle(table_name):
+                issues.append(
+                    "Circular relationship detected in schema — topological sort will fail during generation"
+                )
+                break  # one message is enough
+
+    if issues:
+        raise SchemaValidationError(issues)
 
 import numpy as np
 import pandas as pd
