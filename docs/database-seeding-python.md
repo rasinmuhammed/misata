@@ -1,60 +1,145 @@
 # Database Seeding in Python
 
-Misata can generate synthetic data and seed a database directly from Python.
+Misata generates synthetic relational data and loads it directly into a database.
+No migration scripts. No manual INSERT loops. No orphan rows.
 
-This is useful when you need:
-- development data
-- staging data
-- QA fixtures
-- demo environments with relational structure intact
-
-## What Misata Handles
-
-Misata can help with:
-- multi-table generation
-- referential integrity
-- SQLite seeding
-- PostgreSQL seeding
-- SQLAlchemy-driven schema introspection
-
-## Example
+## Quick start
 
 ```python
+import misata
 from misata import seed_database
-from misata.story_parser import StoryParser
 
-config = StoryParser().parse(
-    "A SaaS company with users, subscriptions, invoices, and support tickets"
-)
+# Generate + seed in two lines
+tables = misata.generate("A SaaS company with 1000 users.", seed=42)
+report = seed_database(tables, "sqlite:///./dev.db", create=True)
 
-report = seed_database(
-    config,
-    "sqlite:///./misata_demo.db",
-    create=True,
-    truncate=True,
-    batch_size=5000,
-)
-
-print(report.total_rows)
-print(report.table_rows)
+print(report.total_rows)   # 6,000+
+print(report.table_rows)   # {"users": 1000, "subscriptions": 3000, ...}
 ```
 
-## Why Misata Works Well For Seeding
+## Supported databases
 
-Database seeding gets painful when child rows point at missing parents or table sizes feel flat and unrealistic.
+Misata uses SQLAlchemy under the hood — any SQLAlchemy-compatible database works:
 
-Misata helps by:
-- generating tables in dependency order
-- filling foreign keys against valid parent values
-- planning realistic row counts when realism planning is enabled
-- keeping generation reproducible with a seed
+```python
+# SQLite (local dev)
+seed_database(tables, "sqlite:///./local.db", create=True)
 
-## Related Examples
+# PostgreSQL
+seed_database(tables, "postgresql://user:pass@localhost/mydb", create=True)
 
-- [examples/database_seeding_postgres.py](../examples/database_seeding_postgres.py)
-- [examples/multi_table_synthetic_data.py](../examples/multi_table_synthetic_data.py)
+# MySQL / MariaDB
+seed_database(tables, "mysql+pymysql://user:pass@localhost/mydb", create=True)
+```
 
-## Related Docs
+## Truncate before seeding (CI / staging)
 
-- [FEATURES.md](../FEATURES.md)
-- [QUICKSTART.md](../QUICKSTART.md)
+```python
+report = seed_database(
+    tables,
+    "postgresql://user:pass@staging-db/app",
+    create=True,    # CREATE TABLE IF NOT EXISTS
+    truncate=True,  # TRUNCATE before INSERT
+)
+```
+
+Use `truncate=True` in CI pipelines to reset the database to a known state before
+each test run.
+
+## Seed from a story (CLI)
+
+```bash
+misata generate \
+  --story "A SaaS company with 1000 users" \
+  --rows 1000 \
+  --db-url sqlite:///./dev.db \
+  --db-create \
+  --db-truncate
+```
+
+## Seed into existing SQLAlchemy models
+
+If your project already uses SQLAlchemy ORM models, Misata can introspect them and
+seed against the existing schema:
+
+```python
+from misata import seed_from_sqlalchemy_models
+from myapp.models import Base, engine
+
+report = seed_from_sqlalchemy_models(
+    Base,
+    engine,
+    story="A SaaS company with 500 users",
+    truncate=True,
+)
+print(report.total_rows)
+```
+
+## Introspect an existing database
+
+Misata can read a live database and generate a matching SchemaConfig, then generate
+data that fits your existing table structure:
+
+```python
+from misata import schema_from_db, generate_from_schema
+
+schema = schema_from_db("postgresql://user:pass@localhost/mydb")
+print(schema.summary())  # shows your real table structure
+
+# Generate data that matches your actual schema
+tables = generate_from_schema(schema)
+```
+
+## Why Misata works well for seeding
+
+Database seeding breaks in predictable ways:
+
+| Problem | What usually happens | Misata |
+|---|---|---|
+| FK violations | Child rows reference missing parents | Tables generated in dependency order; FK values sampled from valid parent pool |
+| Flat distributions | All rows look the same | Domain priors: log-normal amounts, Zipf categories, real demographic frequencies |
+| Scale mismatch | Child table has wrong number of rows | Row counts planned proportionally per relationship |
+| Repeatability | Tests produce different data each run | `seed=42` makes generation fully deterministic |
+
+## Batch size control
+
+For large databases, control memory usage with `batch_size`:
+
+```python
+report = seed_database(
+    tables,
+    "postgresql://user:pass@localhost/prod_clone",
+    batch_size=10_000,  # INSERTs in batches of 10k rows
+    create=True,
+    truncate=True,
+)
+```
+
+## Example: seed a test database in pytest
+
+```python
+# conftest.py
+import pytest
+import misata
+from misata import seed_database
+from sqlalchemy import create_engine
+
+@pytest.fixture(scope="session")
+def db_engine():
+    engine = create_engine("sqlite:///./test.db")
+    return engine
+
+@pytest.fixture(scope="session", autouse=True)
+def seed_test_db(db_engine):
+    tables = misata.generate("A SaaS company with 100 users.", seed=42)
+    seed_database(tables, db_engine, create=True, truncate=True)
+```
+
+Every test run starts from a fresh, realistic seed. `seed=42` means the data is
+identical across runs, so test assertions stay stable.
+
+## Related
+
+- [Multi-table synthetic data](multi-table-synthetic-data.md)
+- [Python synthetic data generator](python-synthetic-data-generator.md)
+- [Faker vs SDV vs Misata](faker-vs-sdv-vs-misata.md)

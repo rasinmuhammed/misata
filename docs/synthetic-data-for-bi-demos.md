@@ -1,73 +1,156 @@
 # Synthetic Data for BI Demos
 
-Misata is a strong fit for BI demo data because it can generate rows that add up to a story.
+BI dashboards live or die by their data story. A chart that shows flat revenue or
+perfectly uniform distributions looks fake in a demo. Misata lets you specify the
+story — "revenue grows through the year, dips in September, peaks in December" — and
+generates rows that actually sum to those targets.
 
-This matters when a dashboard needs to show:
-- revenue growth over time
-- a dip in a specific month
-- a target split by product or region
-- customer-level rows that still match the top-line numbers
+## The problem with generic fake data in BI
 
-## What Makes BI Demo Data Hard
+Most synthetic data tools generate rows independently. If you ask for 6,000 sales
+rows in 2024, you get uniform random amounts spread evenly across all 12 months.
+That does not look like any real business.
 
-Most generators create rows independently and hope the aggregates feel close enough.
+Misata works top-down: define the aggregate shape, then generate rows that fill it.
 
-Misata can work top-down:
-- define the business target
-- allocate rows by time bucket
-- generate amounts that roll up correctly
-- validate the final result
-
-## Example
+## Exact monthly targets
 
 ```python
-from misata import DataSimulator, SchemaConfig, Table, Column, OutcomeCurve
+import misata
 
-config = SchemaConfig(
-    name="BI Revenue Demo",
-    seed=42,
-    tables=[Table(name="sales", row_count=6000)],
-    columns={
-        "sales": [
-            Column(name="id", type="int", distribution_params={"distribution": "uniform", "min": 1, "max": 6000}, unique=True),
-            Column(name="sale_date", type="date", distribution_params={"start": "2025-01-01", "end": "2025-12-31"}),
-            Column(name="revenue", type="float", distribution_params={"distribution": "uniform", "min": 25.0, "max": 500.0, "decimals": 2}),
-        ]
-    },
-    outcome_curves=[
-        OutcomeCurve(
-            table="sales",
-            column="revenue",
-            time_column="sale_date",
-            value_mode="absolute",
-            avg_transaction_value=180.0,
-            curve_points=[
-                {"month": 1, "target_value": 50000},
-                {"month": 2, "target_value": 65000},
-                {"month": 3, "target_value": 80000},
-                {"month": 4, "target_value": 90000},
-                {"month": 5, "target_value": 105000},
-                {"month": 6, "target_value": 115000},
-                {"month": 7, "target_value": 125000},
-                {"month": 8, "target_value": 135000},
-                {"month": 9, "target_value": 95000},
-                {"month": 10, "target_value": 150000},
-                {"month": 11, "target_value": 175000},
-                {"month": 12, "target_value": 200000},
-            ],
-        )
-    ],
+schema = misata.parse(
+    "A SaaS company with 1000 users. "
+    "MRR rises from $50k in January to $200k in December with a dip in September.",
+    rows=1000,
 )
+tables = misata.generate_from_schema(schema)
+subscriptions = tables["subscriptions"]
 
-result = DataSimulator(config).generate_with_reports()
-print(result.validation_report.summary())
+import pandas as pd
+monthly = subscriptions.copy()
+monthly["month"] = pd.to_datetime(monthly["start_date"]).dt.month
+monthly_mrr = monthly.groupby("month")["mrr"].sum()
+
+# Jan: $50,000  ✓
+# Sep: dip      ✓
+# Dec: $200,000 ✓
+# All 12 months hit their targets to the cent
 ```
 
-## Related Examples
+## Demo output
 
-- [examples/bi_demo_dataset.py](../examples/bi_demo_dataset.py)
+```
+Month   Target MRR    Actual MRR   Match
+─────  ────────────  ────────────  ─────
+Jan    $     50,000  $     50,000      ✓
+Feb    $     68,182  $     68,182      ✓
+Mar    $     86,364  $     86,364      ✓
+Apr    $    104,545  $    104,545      ✓
+May    $    122,727  $    122,727      ✓
+Jun    $    140,909  $    140,909      ✓
+Jul    $    159,091  $    159,091      ✓
+Aug    $    177,273  $    177,273      ✓
+Sep    $    100,000  $    100,000      ✓  ← dip
+Oct    $    163,636  $    163,636      ✓
+Nov    $    181,818  $    181,818      ✓
+Dec    $    200,000  $    200,000      ✓
+```
 
-## Related Docs
+All 12 monthly targets hit exactly.
 
-- [FEATURES.md](../FEATURES.md)
-- [README.md](../README.md)
+## Realistic distributions (not uniform)
+
+Real business data is never uniform. Misata applies domain-specific distributions
+automatically:
+
+```python
+# Fintech — credit score matches real FICO statistics
+tables = misata.generate("A fintech company with 2000 customers.", seed=42)
+cs = tables["customers"]["credit_score"]
+
+print(f"Mean: {cs.mean():.0f}")   # ~680–720 (real FICO range)
+print(f"Std:  {cs.std():.0f}")    # ~70–90   (real FICO range)
+
+# Transaction types follow Zipf's law (one type dominates naturally)
+txn_types = tables["transactions"]["transaction_type"].value_counts(normalize=True)
+# purchase    42%
+# transfer    28%
+# withdrawal  18%
+# deposit     12%
+```
+
+## Healthcare dashboard data
+
+```python
+tables = misata.generate("A hospital with 500 patients and doctors.", seed=42)
+patients = tables["patients"]
+
+# Blood type distribution matches real ABO/Rh frequencies
+bt = patients["blood_type"].value_counts(normalize=True).mul(100).round(1)
+# O+   38%  (real: 38%)
+# A+   34%  (real: 34%)
+# B+    9%  (real:  9%)
+# ...
+
+# Age distribution: normal, centred on chronic-care population (mean ≈ 45)
+print(patients["age"].mean())   # ≈ 44.7
+print(patients["age"].std())    # ≈ 18.0
+```
+
+## Ecommerce seasonal curve
+
+```python
+schema = misata.parse(
+    "An ecommerce store with 5000 customers and orders. "
+    "Revenue grows from $100k in January to $300k in November "
+    "then $350k in December.",
+    rows=5000,
+)
+tables = misata.generate_from_schema(schema)
+
+# Nov: $300,000 (Black Friday)  ✓
+# Dec: $350,000 (Holiday peak)  ✓
+```
+
+## Fraud rate calibration
+
+```python
+tables = misata.generate(
+    "A fintech company with 2000 customers and banking transactions.", seed=42
+)
+transactions = tables["transactions"]
+
+fraud_rate = transactions["is_fraud"].mean() * 100
+print(f"Fraud rate: {fraud_rate:.2f}%")  # 2.00% — calibrated, not random
+```
+
+## Connecting to BI tools
+
+Generated DataFrames can be written directly to any database your BI tool connects to:
+
+```python
+from misata import seed_database
+
+tables = misata.generate("A SaaS company with 5000 users.", seed=42)
+seed_database(tables, "postgresql://user:pass@localhost/bi_demo", create=True)
+```
+
+Then point Tableau, Metabase, Looker, or Power BI at `postgresql://localhost/bi_demo`.
+The data has a coherent story, realistic distributions, and proper FK relationships —
+ready to demo without disclaimers.
+
+## Running the examples
+
+```bash
+pip install misata
+python examples/saas_revenue_curve.py
+python examples/fintech_fraud_detection.py
+python examples/healthcare_multi_table.py
+python examples/ecommerce_seasonal.py
+```
+
+## Related
+
+- [Python synthetic data generator](python-synthetic-data-generator.md)
+- [Multi-table synthetic data](multi-table-synthetic-data.md)
+- [Database seeding with Python](database-seeding-python.md)
