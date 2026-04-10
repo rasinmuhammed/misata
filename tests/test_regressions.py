@@ -1,6 +1,8 @@
 """Regression tests for recently fixed public breakages."""
 
 import pandas as pd
+import pytest
+from importlib.util import find_spec
 
 from misata.agents.pipeline import SimplePipeline, SchemaArchitectAgent
 from misata.formulas import FormulaEngine
@@ -65,6 +67,10 @@ def test_infer_schema_from_sample_builds_valid_schema():
     assert payload["tables"][0]["columns"] == ["customer_id", "segment", "is_active"]
 
 
+@pytest.mark.skipif(
+    find_spec("simpleeval") is None,
+    reason="requires misata[formulas]: pip install 'misata[formulas]'",
+)
 def test_formula_engine_evaluate_supports_cross_table_refs():
     """The generic evaluate() path should resolve lookup variables correctly."""
     tables = {
