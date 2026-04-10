@@ -132,6 +132,7 @@ from misata.schema import (
 )
 from misata.simulator import DataSimulator, GenerationResult
 from misata.story_parser import StoryParser
+from misata.llm_parser import LLMSchemaGenerator
 from misata.validation import SchemaValidationError, validate_schema, validate_data
 from misata.engines import FactEngine
 from misata.generators import TextGenerator
@@ -220,6 +221,7 @@ __all__ = [
     "FactEngine",
     # Parsers
     "StoryParser",
+    "LLMSchemaGenerator",
     # Validation
     "SchemaValidationError",
     "validate_schema",

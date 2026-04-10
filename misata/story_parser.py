@@ -562,7 +562,7 @@ class StoryParser:
 
     def _build_pharma_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a Pharma services-specific schema."""
-        num_projects = self.scale_params.get("projects", default_rows // 100)
+        num_projects = self.scale_params.get("projects", max(1, default_rows // 100))
         num_timesheets = default_rows
 
         tables = [
