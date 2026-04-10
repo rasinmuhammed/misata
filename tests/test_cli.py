@@ -33,7 +33,8 @@ class TestCLICommands:
         result = runner.invoke(main, ['--version'])
         
         assert result.exit_code == 0
-        assert '0.5.3' in result.output
+        import misata
+        assert misata.__version__ in result.output
     
     def test_examples_command(self, runner):
         """Test examples command."""
