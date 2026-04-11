@@ -5,6 +5,44 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-11
+
+### Added
+
+#### One-liner public API
+- `misata.generate(story, rows, seed)` — story → dict of DataFrames in one call, no imports needed beyond `import misata`
+- `misata.parse(story, rows)` — parse a story to a `SchemaConfig` for inspection before generation
+- `misata.generate_from_schema(schema)` — generate from an already-built schema
+- `SchemaConfig.summary()` — human-readable schema overview for REPL and notebooks
+
+#### Schema validation
+- `validate_schema(schema)` — pre-generation validation that collects all issues at once and raises `SchemaValidationError` with a full bullet-list of problems
+- Checks: duplicate table names, FK columns without a backing Relationship, categorical probability sums, outcome curve references, circular dependency detection
+
+#### LLM parser hardening
+- Exponential backoff retry (1s / 2s / 4s) on transient errors (rate limit, 429, timeout, 5xx)
+- `_extract_json()` strips markdown fences and extracts the first JSON object from prose responses
+- Graceful handling of malformed LLM output: skips tables without names, skips non-dict columns, normalizes type aliases — warns instead of crashing
+
+#### Story parser fixes
+- Fixed pharma domain crash when `rows < 100` (integer division produced zero projects)
+- Fixed logistics `delivered_at` column using a nonsensical relative-date reference
+- Added `UserWarning` when no domain keyword is detected (tells user which keywords to use)
+
+#### Examples (all verified)
+- `examples/saas_revenue_curve.py` — all 12 monthly MRR targets hit exactly, log-normal distribution proof
+- `examples/fintech_fraud_detection.py` — FICO credit score matches real-world statistics, fraud rate = 2.00%
+- `examples/healthcare_multi_table.py` — ABO/Rh blood type frequencies, 2 FK edges with 0 orphans
+- `examples/ecommerce_seasonal.py` — seasonal revenue curve with Black Friday and December peaks
+
+#### CI / CD
+- GitHub Actions CI matrix (Python 3.10 / 3.11 / 3.12) on every push and PR
+- Trusted publishing workflow (OIDC) — PyPI publish on GitHub release, no stored API tokens
+
+### Fixed
+- `test_version_command` was asserting a hardcoded version string; now reads `misata.__version__`
+- `test_formula_engine` skipped when optional `simpleeval` dependency is absent (was crashing CI)
+
 ## [0.5.3] - 2026-03-22
 
 ### Added
