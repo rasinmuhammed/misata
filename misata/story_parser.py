@@ -394,12 +394,9 @@ class StoryParser:
                     distribution_params={"start": "2022-01-01", "end": "2024-12-31"},
                 ),
                 Column(
-                    name="plan",
-                    type="categorical",
-                    distribution_params={
-                        "choices": ["free", "starter", "pro", "enterprise"],
-                        "probabilities": [0.4, 0.3, 0.25, 0.05],
-                    },
+                    name="country",
+                    type="text",
+                    distribution_params={"text_type": "country"},
                 ),
                 Column(name="churned", type="boolean", distribution_params={"probability": 0.15}),
             ],
@@ -411,6 +408,15 @@ class StoryParser:
                 ),
                 Column(name="user_id", type="foreign_key", distribution_params={}),
                 Column(
+                    name="plan",
+                    type="categorical",
+                    distribution_params={
+                        # Real SaaS freemium: large free tier, tapers up to enterprise
+                        "choices": ["free", "starter", "pro", "enterprise"],
+                        "probabilities": [0.40, 0.30, 0.25, 0.05],
+                    },
+                ),
+                Column(
                     name="start_date",
                     type="date",
                     distribution_params={"start": "2022-01-01", "end": "2024-12-31"},
@@ -418,7 +424,8 @@ class StoryParser:
                 Column(
                     name="mrr",
                     type="float",
-                    # No distribution specified — domain priors will apply lognormal
+                    # Domain prior applies lognormal (mu=4.6, sigma=0.9) → median ~$99
+                    # free-tier rows will naturally cluster near $0 via outcome curve allocation
                     distribution_params={
                         "min": 0.0,
                         "decimals": 2,
@@ -428,8 +435,18 @@ class StoryParser:
                     name="status",
                     type="categorical",
                     distribution_params={
-                        "choices": ["active", "cancelled", "paused"],
-                        "probabilities": [0.7, 0.2, 0.1],
+                        # ~15% churned users → ~15% cancelled; add paused for realism
+                        "choices": ["active", "cancelled", "paused", "trialing"],
+                        "probabilities": [0.68, 0.18, 0.08, 0.06],
+                    },
+                ),
+                Column(
+                    name="billing_cycle",
+                    type="categorical",
+                    distribution_params={
+                        # Annual contracts dominate in healthy SaaS (lower churn)
+                        "choices": ["monthly", "annual"],
+                        "probabilities": [0.35, 0.65],
                     },
                 ),
             ],
@@ -514,6 +531,11 @@ class StoryParser:
                     type="date",
                     distribution_params={"start": "2022-01-01", "end": "2024-12-31"},
                 ),
+                Column(
+                    name="country",
+                    type="text",
+                    distribution_params={"text_type": "country"},
+                ),
             ],
             "orders": [
                 Column(name="order_id", type="int", distribution_params={"min": 1, "max": num_orders}),
@@ -526,8 +548,34 @@ class StoryParser:
                 Column(
                     name="amount",
                     type="float",
-                    # Domain priors will apply lognormal for ecommerce amounts
+                    # Domain prior: lognormal (mu=4.4, sigma=0.9) → median ~$81, mean ~$120
                     distribution_params={"min": 1.0, "decimals": 2},
+                ),
+                Column(
+                    name="category",
+                    type="categorical",
+                    distribution_params={
+                        # Zipf — electronics dominates, beauty trails off
+                        "choices": ["electronics", "clothing", "home & garden", "sports", "books", "beauty"],
+                        "sampling": "zipf",
+                    },
+                ),
+                Column(
+                    name="status",
+                    type="categorical",
+                    distribution_params={
+                        # Real return/cancel rates: ~8% returned, ~4% cancelled
+                        "choices": ["completed", "shipped", "pending", "returned", "cancelled"],
+                        "probabilities": [0.72, 0.12, 0.08, 0.05, 0.03],
+                    },
+                ),
+                Column(
+                    name="payment_method",
+                    type="categorical",
+                    distribution_params={
+                        "choices": ["credit_card", "debit_card", "paypal", "apple_pay", "bank_transfer"],
+                        "probabilities": [0.45, 0.25, 0.15, 0.10, 0.05],
+                    },
                 ),
             ],
         }

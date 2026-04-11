@@ -368,13 +368,28 @@ def apply_domain_priors(
 ) -> Dict[str, Any]:
     """Merge domain priors into ``existing_params``.
 
-    Domain priors are applied as *defaults*: any param explicitly set by the
-    user in their schema config takes precedence and is not overwritten.
+    Domain priors are applied as *defaults*: any param **explicitly set** by the
+    user in their schema config takes precedence.  The ``Column`` validator
+    auto-injects ``"distribution": "normal"`` for all int/float columns that
+    have no explicit distribution — that injected default should NOT block a
+    domain prior from supplying a better-fit distribution.  We detect this case
+    by checking whether the prior's distribution differs from ``"normal"`` while
+    ``existing_params`` only contains ``"normal"`` as its distribution (i.e. it
+    was injected, not hand-written by the user).
     """
     prior = get_column_prior(domain, column_name)
     if prior is None:
         return existing_params
 
     merged = dict(prior)
-    merged.update(existing_params)   # user params win
+
+    # ``Column._normalize_distribution_params`` stamps ``_distribution_is_default=True``
+    # when it auto-injects ``"distribution": "normal"`` for columns that had none.
+    # That injected default must NOT suppress a domain prior's better-fit distribution.
+    # A user who explicitly writes ``"distribution": "normal"`` will NOT have the sentinel.
+    user_params = dict(existing_params)
+    if user_params.pop("_distribution_is_default", False):
+        user_params.pop("distribution", None)  # let prior's distribution win
+
+    merged.update(user_params)   # user explicit params win
     return merged

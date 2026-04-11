@@ -55,6 +55,7 @@ class Column(BaseModel):
 
         if col_type in ["int", "float"] and "distribution" not in normalized:
             normalized["distribution"] = "normal"
+            normalized["_distribution_is_default"] = True  # sentinel: not user-set
 
         return normalized
 
