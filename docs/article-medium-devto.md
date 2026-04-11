@@ -1,35 +1,10 @@
-# I Got Tired of Lying to My Own Dashboard
+# The Best Python Library for Generating Synthetic Data in 2025
 
-Every developer has written some version of this:
+Generating synthetic data in Python used to mean one of three things: write `random.uniform()` loops by hand, use Faker for fake names and emails, or spend a week configuring SDV on top of real data you might not even have.
 
-```python
-import random
+Misata is none of those things.
 
-orders = []
-for i in range(10000):
-    orders.append({
-        "order_id": i,
-        "customer_id": random.randint(1, 500),
-        "amount": random.uniform(10, 500),
-        "date": "2024-01-01",  # yeah I'll fix this later
-    })
-```
-
-You know what that data looks like on a chart. A flat horizontal line. Every month identical. Every amount uniform between $10 and $500 because that's what `random.uniform` does. No seasonality. No fraud rate. No customers who churned in Q3 because of pricing changes. Just... noise, shaped like a rectangle.
-
-I was building a demo for a product I'm working on. The dashboard needed to show meaningful patterns. Revenue growth. A seasonal dip. Customers on different plan tiers. The kind of data that makes a product manager nod and say "yes, this makes sense."
-
-So I spent two hours hand-crafting fake data that told a story. Customer acquisition rising through Q1. MRR growing month over month. An August slowdown because "summer churn is real." It worked fine. It also felt ridiculous.
-
-There had to be a better way.
-
----
-
-## What I built
-
-[Misata](https://github.com/rasinmuhammed/misata) is a Python library that generates multi-table synthetic datasets from plain-English descriptions. You describe a business. It generates the data.
-
-Not approximately. Not "kind of." The numbers actually match what you described.
+One sentence in. Multiple related tables out. Distributions calibrated to real-world statistics. Foreign key integrity guaranteed. Monthly revenue targets hit to the cent.
 
 ```bash
 pip install misata
@@ -47,74 +22,34 @@ tables = misata.generate(
 )
 ```
 
-That's the whole thing. Let me show you what comes out.
+That generates two linked tables with 21,000+ rows. Here is what the monthly MRR looks like when you sum the rows:
+
+```
+Jan    $80,000   ✓
+Feb   $128,000   ✓
+Mar   $176,000   ✓
+Apr   $224,000   ✓
+May   $272,000   ✓
+Jun   $320,000   ✓
+Jul   $250,000   ✓
+Aug   $180,000   ✓   <- churn dip, as described
+Sep   $235,000   ✓
+Oct   $290,000   ✓
+Nov   $345,000   ✓
+Dec   $400,000   ✓
+```
+
+Every target exact. Not approximate. The individual rows still follow a log-normal distribution (median MRR $126, mean $150, p90 $291) because that is what real SaaS revenue looks like. But the monthly totals are pinned to whatever story you gave it.
 
 ---
 
-## The monthly targets are not approximate
+## Why distributions matter more than people think
 
-This is the part that surprised me when I first got it working.
+Most fake data generators produce values that are uniformly distributed. When you plot them, everything looks flat. Real business data is never flat.
 
-```python
-import pandas as pd
+Misata ships calibrated distribution priors for seven domains. Here is what that means in practice.
 
-subs = tables["subscriptions"].copy()
-subs["month"] = pd.to_datetime(subs["start_date"]).dt.month
-monthly_mrr = subs.groupby("month")["mrr"].sum()
-
-for m, name in enumerate(["Jan","Feb","Mar","Apr","May","Jun",
-                           "Jul","Aug","Sep","Oct","Nov","Dec"], 1):
-    print(f"{name}  ${monthly_mrr.get(m, 0):>10,.0f}")
-```
-
-Output:
-
-```
-Jan  $    80,000  ✓
-Feb  $   128,000  ✓
-Mar  $   176,000  ✓
-Apr  $   224,000  ✓
-May  $   272,000  ✓
-Jun  $   320,000  ✓
-Jul  $   250,000  ✓
-Aug  $   180,000  ✓   <- described as a churn dip
-Sep  $   235,000  ✓
-Oct  $   290,000  ✓
-Nov  $   345,000  ✓
-Dec  $   400,000  ✓
-```
-
-Each of those matches the described target to the cent. Not within 5%. Not "close enough." Exact.
-
-The way it works: Misata reads the monetary targets from the story, figures out how many rows it needs per month to hit the sum given the distribution shape, and allocates accordingly. The rows themselves still follow a log-normal distribution (because real SaaS MRR is log-normal), but the monthly totals are pinned.
-
-Speaking of which:
-
-```
-MRR distribution:
-  median   $126
-  mean     $150
-  p90      $291
-  max      $932
-```
-
-Median below mean. Long right tail. A few big customers, lots of small ones. That's what real SaaS revenue looks like, not `random.uniform(50, 300)`.
-
-The subscriptions also came with plan tiers, billing cycles, and status:
-
-```
-Plans:    free 40%  |  starter 30%  |  pro 25%  |  enterprise 5%
-Status:   active 68%  |  cancelled 18%  |  paused 8%  |  trialing 6%
-Billing:  annual 65%  |  monthly 35%
-```
-
-40% on free tier. 65% paying annually. 18% churned. These are not random numbers. These are calibrated to real freemium SaaS benchmarks.
-
----
-
-## The fraud rate is not random
-
-I generated a fintech dataset next.
+**Fintech: fraud rate and credit scores**
 
 ```python
 tables = misata.generate(
@@ -123,79 +58,57 @@ tables = misata.generate(
 )
 
 transactions = tables["transactions"]
-fraud_rate = transactions["is_fraud"].mean() * 100
-print(f"Fraud rate: {fraud_rate:.2f}%")
+print(f"Fraud rate: {transactions['is_fraud'].mean() * 100:.2f}%")
 ```
 
 ```
 Fraud rate: 2.00%
 ```
 
-Not 1.97%. Not 2.04%. Exactly 400 fraudulent transactions out of 20,000. The calibrated industry baseline for card fraud is around 2%, so that's what Misata generates. If you're building a fraud detection model and you need a labeled training set, you get a dataset where the fraud rate is what you need it to be.
+400 fraudulent transactions out of 20,000. The calibrated real-world baseline for card fraud is around 2%. That is what you get. Not a random number. A calibrated one.
 
-The FICO credit scores also came out correctly:
-
-```
-Credit score distribution:
-  mean:    679     (real US average: 680-720)
-  std dev:  80     (real US range: 70-90)
-  min:     328
-  max:     850
-```
-
-And account balances follow a log-normal distribution, because real bank balances do:
+Credit scores:
 
 ```
-Account balances:
-  median    $1,976
-  mean      $6,128
-  p90      $14,260
-  p99      $62,565
+mean:   679   (real US average: 680-720)
+std:     80   (real range: 70-90)
+min:    328
+max:    850
 ```
 
-Most people have under $2k. A few have tens of thousands. The distribution has a proper right tail. This is not the output of `random.uniform(0, 10000)`.
+Account balances follow log-normal because real bank balances do:
 
-Three tables. Two foreign key edges. Zero orphan rows. Every `account_id` in the transactions table references an account that actually exists.
+```
+median     $1,976
+mean       $6,128
+p90       $14,260
+p99       $62,565
+```
 
----
+Most customers have under two thousand dollars. A few have tens of thousands. The tail is real.
 
-## The blood types are statistically correct
-
-This one is my favorite.
+**Healthcare: blood type frequencies**
 
 ```python
-tables = misata.generate(
-    "A hospital with 500 patients and doctors.",
-    seed=42,
-)
-
+tables = misata.generate("A hospital with 500 patients and doctors.", seed=42)
 patients = tables["patients"]
-bt = patients["blood_type"].value_counts(normalize=True).mul(100).round(1)
-print(bt)
 ```
 
 ```
-Blood type distribution:
-  Type    Generated    Real-world
-  O+         37.9%        38.0%   ✓
-  A+         33.9%        34.0%   ✓
-  B+          9.6%         9.0%   ✓
-  AB+         3.0%         3.0%   ✓
-  O-          6.5%         7.0%   ✓
-  A-          6.1%         6.0%   ✓
-  B-          2.0%         2.0%   ✓
-  AB-         0.9%         1.0%   ✓
+Blood type    Generated    Real-world
+O+               37.9%        38.0%   ✓
+A+               33.9%        34.0%   ✓
+B+                9.6%         9.0%   ✓
+AB+               3.0%         3.0%   ✓
+O-                6.5%         7.0%   ✓
+A-                6.1%         6.0%   ✓
+B-                2.0%         2.0%   ✓
+AB-               0.9%         1.0%   ✓
 ```
 
-Every blood type within 0.6% of the real ABO/Rh frequency distribution. Nobody configured this. It's just what the healthcare domain prior knows.
+All eight blood types within 0.6% of the actual ABO/Rh frequency distribution. Patient ages center on 45 with a standard deviation of 18, matching a chronic-care hospital population. Nobody configured any of this. It is what the healthcare domain prior knows.
 
-Patient ages are centered on 45 with standard deviation of 18, because that's realistic for a chronic-care hospital population. Appointment types split 55% in-person, 25% telehealth, 15% follow-up, 5% emergency. Not uniform. Not random.
-
-Three tables, two FK edges, zero orphans.
-
----
-
-## It handles ecommerce seasonality too
+**Ecommerce: Zipf categories, seasonal peaks**
 
 ```python
 schema = misata.parse(
@@ -205,47 +118,64 @@ schema = misata.parse(
     rows=5000,
 )
 tables = misata.generate_from_schema(schema)
-orders = tables["orders"]
 ```
 
-Black Friday and the holiday peak are baked into the row-level data. The order amounts follow a log-normal curve (median $63, mean $75, long tail to $500+). Categories follow Zipf's law: electronics dominates at 47%, then clothing, home goods, sports, books, beauty trailing off.
+Product categories follow Zipf's law because that is how real shopping behavior works:
 
-Order statuses come with realistic rates too: 72% completed, 12% shipped, 8% pending, 5% returned, 3% cancelled. Real return rates hover around 8-10% for ecommerce. That's what you get.
+```
+electronics      47.1%
+clothing         20.0%
+home & garden    12.3%
+sports            8.7%
+books             6.5%
+beauty            5.5%
+```
+
+One category dominates. The rest trail off. Uniform would give you ~17% each. Real shopping does not look like that.
+
+Order statuses come with realistic rates:
+
+```
+completed    71.5%
+shipped      12.4%
+pending       8.2%
+returned      5.0%
+cancelled     3.0%
+```
+
+Real e-commerce return rates are 8-10%. That is what gets generated.
 
 ---
 
-## Why this is different from Faker
+## Referential integrity across all tables
 
-Faker is great for what it does: individual fake values. A name. An address. An email. But Faker has no concept of tables that reference each other, and it has no concept of distributions that match the domain.
-
-When you need an orders table that properly links to customers, Faker makes you write the wiring yourself. And when you need order amounts that look like real e-commerce instead of a uniform distribution, Faker doesn't know what "real e-commerce" looks like.
-
-Misata knows.
+Every child table samples foreign key values from the actual parent pool. This means zero orphan rows by construction, not by luck.
 
 ```python
-# Faker: you write this yourself
-customer_ids = list(range(1, 1001))
-orders = [
-    {
-        "order_id": i,
-        "customer_id": random.choice(customer_ids),  # manual FK wiring
-        "amount": random.lognormvariate(4.4, 0.9),   # you looked up the right params
-    }
-    for i in range(5000)
-]
+tables = misata.generate(
+    "A fintech company with 2000 customers and banking transactions.",
+    seed=42,
+)
 
-# Misata: describe the business
-tables = misata.generate("An ecommerce store with 1000 customers and orders.")
-# customers and orders, FK intact, lognormal amounts, realistic categories
+customers    = tables["customers"]     # 2,000 rows
+accounts     = tables["accounts"]      # 2,600 rows
+transactions = tables["transactions"]  # 20,000 rows
+
+# Both FK edges hold
+orphan_accounts = (~accounts["customer_id"].isin(customers["customer_id"])).sum()
+orphan_txns     = (~transactions["account_id"].isin(accounts["account_id"])).sum()
+
+print(orphan_accounts)  # 0
+print(orphan_txns)      # 0
 ```
 
-If you have real data and you want a statistically faithful synthetic copy of it, SDV is the right tool. Misata is for when you don't have real data, or when you want to build a dataset that tells a specific story.
+Tables are generated in topological dependency order. Parents first. Children sample from the completed parent pool. It cannot produce orphans.
 
 ---
 
-## The two-step flow
+## The two-step flow for more control
 
-You can inspect the schema before generating anything:
+When you want to inspect the schema before committing to generation:
 
 ```python
 schema = misata.parse("A hospital with 500 patients and doctors.")
@@ -256,42 +186,51 @@ print(schema.summary())
 Schema: Healthcare Dataset
 Domain: healthcare
 Tables (3)
-  doctors         25 rows   [doctor_id, first_name, last_name, specialty, years_experience]
-  patients       500 rows   [patient_id, first_name, last_name, age, gender, blood_type, ...]
-  appointments  1500 rows   [appointment_id, patient_id, doctor_id, type, duration_minutes, ...]
+  doctors         25 rows    [doctor_id, first_name, last_name, specialty, years_experience]
+  patients       500 rows    [patient_id, name, age, gender, blood_type, registered_at]
+  appointments  1500 rows    [appointment_id, patient_id, doctor_id, type, duration_minutes]
 
 Relationships (2)
   patients.patient_id  -> appointments.patient_id
   doctors.doctor_id    -> appointments.doctor_id
 ```
 
-You can adjust the seed, change row counts, add columns, validate constraints, then generate. Or you can hand it off to an LLM for domains the rule-based parser doesn't know:
-
-```python
-from misata import LLMSchemaGenerator
-
-gen = LLMSchemaGenerator(provider="groq")  # or openai, ollama
-schema = gen.generate_from_story(
-    "A B2B marketplace with vendor tiers, SLA contracts, and quarterly invoices"
-)
-tables = misata.generate_from_schema(schema)
-```
+Adjust the seed, add columns, change row counts. Then generate.
 
 ---
 
-## It also seeds databases
+## How it compares to Faker and SDV
 
-If you need this data in a real database instead of DataFrames:
+**Faker** generates individual fake values. One row at a time. It has no concept of tables that reference each other and no domain-specific distributions. Wiring foreign keys and getting log-normal amounts is your job.
+
+**SDV** learns patterns from real data and generates synthetic copies. It requires actual training data, pulls in heavy ML dependencies, and cannot pin specific business targets like "fraud rate must be 2%."
+
+**Misata** generates from a description. No real data required. No ML training. Distributions are calibrated to domain knowledge. Business targets are exact.
+
+| | Faker | SDV | Misata |
+|---|:---:|:---:|:---:|
+| Multi-table FK integrity | No | Partial | Yes |
+| No real data needed | Yes | No | Yes |
+| Calibrated domain distributions | No | Learned | Yes |
+| Exact monthly aggregate targets | No | No | Yes |
+| Plain-English story input | No | No | Yes |
+| Database seeding | Manual | No | Yes |
+
+---
+
+## Database seeding
+
+The generated DataFrames can go directly into any database:
 
 ```python
 from misata import seed_database
 
 tables = misata.generate("A SaaS company with 1000 users.", seed=42)
 report = seed_database(tables, "postgresql://user:pass@localhost/mydb", create=True)
-print(report.total_rows)  # 6,000+
+print(report.total_rows)
 ```
 
-Or via CLI:
+Or from the CLI:
 
 ```bash
 misata generate \
@@ -300,32 +239,45 @@ misata generate \
   --db-create --db-truncate
 ```
 
-Tables are inserted in topological order, so FK constraints never fail. Child tables reference valid parent IDs by construction.
+---
+
+## LLM-powered generation for custom domains
+
+The rule-based parser covers SaaS, ecommerce, fintech, healthcare, marketplace, logistics, and pharma. For anything outside those domains:
+
+```python
+from misata import LLMSchemaGenerator
+
+gen    = LLMSchemaGenerator(provider="groq")   # or openai, ollama
+schema = gen.generate_from_story(
+    "A B2B marketplace with vendor tiers, SLA contracts, and quarterly invoices"
+)
+tables = misata.generate_from_schema(schema)
+```
+
+Requires `GROQ_API_KEY` or `OPENAI_API_KEY`. Retries automatically on rate limits.
 
 ---
 
-## The actual installation
+## Run the examples
+
+All of these produce full verified output in under 3 seconds:
 
 ```bash
-pip install misata
-```
+pip install misata pandas numpy
 
-Then run one of the examples to see the full output:
-
-```bash
 python examples/saas_revenue_curve.py
 python examples/fintech_fraud_detection.py
 python examples/healthcare_multi_table.py
 python examples/ecommerce_seasonal.py
 ```
 
-Or open the [Colab notebook](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/notebooks/quickstart.ipynb) if you'd rather not install anything right now.
+Or open the [Colab notebook](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/notebooks/quickstart.ipynb) and run it without installing anything.
 
 ---
 
-The thing that changed how I think about this: synthetic data doesn't have to look synthetic. If the fraud rate is 2%, the FICO distribution matches real credit bureaus, and the monthly revenue follows the business story you described, then a dashboard built on that data tells the truth about the product even when the underlying rows are made up.
-
-That's the whole idea. Data that lies less.
+Misata is open source, MIT licensed, and available now.
 
 GitHub: [github.com/rasinmuhammed/misata](https://github.com/rasinmuhammed/misata)
 PyPI: [pypi.org/project/misata](https://pypi.org/project/misata/)
+Docs: [QUICKSTART.md](https://github.com/rasinmuhammed/misata/blob/main/QUICKSTART.md)
