@@ -27,7 +27,7 @@ keywords = [
     "database",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
@@ -41,6 +41,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Database",
+    "Topic :: Software Development :: Testing :: Mocking",
+    "Topic :: Utilities",
+    "Natural Language :: English",
 ]
 dependencies = [
     "pandas>=2.0.0",
