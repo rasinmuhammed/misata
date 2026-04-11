@@ -5,6 +5,19 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-04-11
+
+### Changed
+- Bump Development Status classifier to Production/Stable
+- Add `Testing::Mocking` and `Utilities` PyPI classifiers
+
+### Documentation
+- Rewrote all 5 `docs/` pages with working one-liner API and real output numbers
+- Rewrote `QUICKSTART.md` to use `misata.generate()` / `misata.parse()` / `misata.generate_from_schema()`
+- Added Colab quickstart notebook (`notebooks/quickstart.ipynb`) with matplotlib charts
+- Added Colab badge to README
+- Added "Run the examples" section to README
+
 ## [0.6.0] - 2026-04-11
 
 ### Added
