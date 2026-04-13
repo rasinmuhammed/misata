@@ -21,6 +21,11 @@ try:
 except ImportError:
     Groq = None
 
+try:
+    import anthropic as _anthropic_sdk
+except ImportError:
+    _anthropic_sdk = None
+
 from misata.curve_fitting import CurveFitter
 from misata.feedback import FeedbackDatabase
 from misata.schema import Column, OutcomeCurve, Relationship, ScenarioEvent, SchemaConfig, Table
@@ -292,16 +297,31 @@ class LLMSchemaGenerator:
             "base_url": None,  # Uses default
             "env_key": "GROQ_API_KEY",
             "default_model": "llama-3.3-70b-versatile",
+            "protocol": "openai",
         },
         "openai": {
             "base_url": None,
             "env_key": "OPENAI_API_KEY",
             "default_model": "gpt-4o-mini",
+            "protocol": "openai",
         },
         "ollama": {
             "base_url": "http://localhost:11434/v1",
             "env_key": None,  # No key needed for local
             "default_model": "llama3",
+            "protocol": "openai",
+        },
+        "anthropic": {
+            "base_url": None,
+            "env_key": "ANTHROPIC_API_KEY",
+            "default_model": "claude-haiku-4-5-20251001",
+            "protocol": "anthropic",
+        },
+        "gemini": {
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+            "env_key": "GEMINI_API_KEY",
+            "default_model": "gemini-2.0-flash",
+            "protocol": "openai",  # Gemini exposes an OpenAI-compatible endpoint
         },
     }
 
@@ -336,13 +356,14 @@ class LLMSchemaGenerator:
             raise ValueError(f"Unknown provider: {self.provider}. Use: {list(self.PROVIDERS.keys())}")
 
         config = self.PROVIDERS[self.provider]
+        self._protocol = config["protocol"]
 
         # Get API key
         self.api_key = api_key
         if not self.api_key and config["env_key"]:
             self.api_key = os.environ.get(config["env_key"])
 
-        if not self.api_key and self.provider != "ollama":
+        if not self.api_key and self.provider not in ("ollama",):
             env_key = config["env_key"]
             raise ValueError(
                 f"{self.provider.title()} API key required. "
@@ -355,7 +376,7 @@ class LLMSchemaGenerator:
         # Set base URL
         self.base_url = base_url or config["base_url"]
 
-        # Initialize client (all providers use OpenAI-compatible API)
+        # Initialize client
         if self.provider == "groq":
             if Groq is None:
                 raise ImportError(
@@ -363,8 +384,16 @@ class LLMSchemaGenerator:
                     "Install with: pip install groq"
                 )
             self.client = Groq(api_key=self.api_key)
+
+        elif self.provider == "anthropic":
+            if _anthropic_sdk is None:
+                raise ImportError(
+                    "anthropic package required. Install with: pip install anthropic"
+                )
+            self.client = _anthropic_sdk.Anthropic(api_key=self.api_key)
+
         else:
-            # OpenAI and Ollama use openai package
+            # OpenAI, Ollama, and Gemini all use the OpenAI-compatible interface
             try:
                 from openai import OpenAI
             except ImportError:
@@ -373,7 +402,7 @@ class LLMSchemaGenerator:
                     "Install with: pip install openai"
                 )
 
-            client_kwargs = {}
+            client_kwargs: Dict[str, str] = {}
             if self.api_key:
                 client_kwargs["api_key"] = self.api_key
             if self.base_url:
@@ -565,38 +594,74 @@ Include reference tables with inline_data for lookup values and transactional ta
         """
         Call the LLM API with retry logic for transient failures.
 
-        Retries on rate-limit (429), server error (5xx), and timeout.
-        Returns the raw response text, never raises on parse errors — let
-        callers handle that.
+        Supports OpenAI-compatible (groq, openai, ollama, gemini) and native
+        Anthropic protocols.  Returns raw response text; never raises on parse
+        errors — callers handle that.
         """
         last_exc: Optional[Exception] = None
         for attempt in range(max_retries):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    response_format={"type": "json_object"},
-                )
-                content = response.choices[0].message.content
+                if getattr(self, "_protocol", "openai") == "anthropic":
+                    content = self._call_anthropic(messages, max_tokens, temperature)
+                else:
+                    content = self._call_openai_compatible(messages, max_tokens, temperature)
                 if not content:
                     raise ValueError("LLM returned an empty response.")
                 return content
             except Exception as exc:
                 last_exc = exc
                 exc_str = str(exc).lower()
-                # Retry on transient conditions only
-                if any(signal in exc_str for signal in ("rate_limit", "429", "timeout", "502", "503", "504", "connection")):
-                    wait = 2 ** attempt  # 1s, 2s, 4s
+                if any(s in exc_str for s in ("rate_limit", "429", "timeout", "502", "503", "504", "connection", "overloaded")):
+                    wait = 2 ** attempt
                     warnings.warn(f"LLM API transient error (attempt {attempt + 1}/{max_retries}): {exc}. Retrying in {wait}s.")
                     time.sleep(wait)
                     continue
-                # Non-transient — fail immediately
                 break
         raise RuntimeError(
             f"LLM API call failed after {max_retries} attempts. Last error: {last_exc}"
         ) from last_exc
+
+    def _call_openai_compatible(self, messages: List[Dict], max_tokens: int, temperature: float) -> str:
+        """Call any OpenAI-compatible endpoint."""
+        kwargs: Dict = dict(
+            model=self.model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        # Gemini's OpenAI-compat layer doesn't support response_format yet
+        if self.provider not in ("gemini", "ollama"):
+            kwargs["response_format"] = {"type": "json_object"}
+        response = self.client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
+
+    def _call_anthropic(self, messages: List[Dict], max_tokens: int, temperature: float) -> str:
+        """Call Anthropic's Messages API (native SDK, different wire format)."""
+        # Anthropic separates the system prompt from user/assistant turns
+        system_text = ""
+        turns = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_text = msg["content"]
+            else:
+                turns.append({"role": msg["role"], "content": msg["content"]})
+
+        # Ask the model to respond with JSON explicitly since Anthropic has no
+        # response_format parameter like OpenAI does.
+        if turns and not turns[-1]["content"].strip().endswith("JSON"):
+            turns[-1] = {
+                "role": turns[-1]["role"],
+                "content": turns[-1]["content"] + "\n\nRespond with valid JSON only.",
+            }
+
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system_text,
+            messages=turns,
+        )
+        return response.content[0].text
 
     def _parse_json_response(self, raw: str) -> Dict:
         """

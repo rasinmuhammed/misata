@@ -29,9 +29,18 @@ class StoryParser:
     SCALE_PATTERNS = {
         r"(\d+[KkMm]?)\s*users": "users",
         r"(\d+[KkMm]?)\s*customers": "users",
+        r"(\d+[KkMm]?)\s*employees": "users",
+        r"(\d+[KkMm]?)\s*patients": "users",
+        r"(\d+[KkMm]?)\s*members": "users",
         r"(\d+[KkMm]?)\s*transactions": "transactions",
         r"(\d+[KkMm]?)\s*orders": "orders",
         r"(\d+[KkMm]?)\s*projects": "projects",
+        r"(\d+[KkMm]?)\s*properties": "properties",
+        r"(\d+[KkMm]?)\s*listings": "properties",
+        r"(\d+[KkMm]?)\s*agents": "agents",
+        r"(\d+[KkMm]?)\s*drivers": "drivers",
+        r"(\d+[KkMm]?)\s*sellers": "sellers",
+        r"(\d+[KkMm]?)\s*doctors": "doctors",
     }
 
     TEMPORAL_PATTERNS = {
@@ -48,8 +57,11 @@ class StoryParser:
         "pharma": ["pharma", "research", "timesheet", "clinical", "trials"],
         "fintech": ["fintech", "transactions", "payments", "wallet", "banking", "loans", "credit", "fraud"],
         "healthcare": ["healthcare", "health", "patients", "doctors", "hospital", "clinic", "appointments", "medical"],
+        # realestate before marketplace — both have "listings" and "agents" as keywords
+        "realestate": ["real estate", "realty", "housing", "mortgage", "homes for sale", "property listing"],
         "marketplace": ["marketplace", "gig", "freelance", "platform", "sellers", "buyers", "listings"],
         "logistics": ["logistics", "shipping", "delivery", "fleet", "warehouse", "supply chain", "routes", "drivers"],
+        "hr": ["hr", "human resources", "employees", "payroll", "workforce", "hiring", "headcount", "salaries", "onboarding"],
     }
 
     MONTHS = {
@@ -364,6 +376,10 @@ class StoryParser:
             return self._build_marketplace_schema(story, default_rows)
         elif self.detected_domain == "logistics":
             return self._build_logistics_schema(story, default_rows)
+        elif self.detected_domain == "hr":
+            return self._build_hr_schema(story, default_rows)
+        elif self.detected_domain == "realestate":
+            return self._build_realestate_schema(story, default_rows)
         else:
             return self._build_generic_schema(story, default_rows)
 
@@ -424,9 +440,17 @@ class StoryParser:
                 Column(
                     name="mrr",
                     type="float",
-                    # Domain prior applies lognormal (mu=4.6, sigma=0.9) → median ~$99
-                    # free-tier rows will naturally cluster near $0 via outcome curve allocation
+                    # Conditional on plan tier — free=$0, paid tiers follow lognormal
+                    # matching real SaaS pricing benchmarks (Starter~$49, Pro~$149, Enterprise~$665)
                     distribution_params={
+                        "depends_on": "plan",
+                        "mapping": {
+                            "free":       {"value": 0.0},
+                            "starter":    {"distribution": "lognormal", "mu": 3.9, "sigma": 0.25, "min": 9.0,  "decimals": 2},
+                            "pro":        {"distribution": "lognormal", "mu": 5.0, "sigma": 0.30, "min": 49.0, "decimals": 2},
+                            "enterprise": {"distribution": "lognormal", "mu": 6.5, "sigma": 0.50, "min": 200.0,"decimals": 2},
+                        },
+                        "default": {"distribution": "lognormal", "mu": 4.6, "sigma": 0.9},
                         "min": 0.0,
                         "decimals": 2,
                     },
@@ -754,7 +778,8 @@ class StoryParser:
 
     def _build_healthcare_schema(self, story: str, default_rows: int) -> SchemaConfig:
         num_patients = self.scale_params.get("users", default_rows)
-        num_doctors = max(10, num_patients // 20)
+        # 1 doctor per ~20 patients; cap to avoid absurd doctor counts
+        num_doctors = self.scale_params.get("doctors", min(max(10, num_patients // 20), 500))
         num_appointments = int(num_patients * 3)
 
         tables = [
@@ -958,6 +983,208 @@ class StoryParser:
         return SchemaConfig(
             name="Logistics Dataset", description=f"Generated from story: {story}",
             domain="logistics", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
+        )
+
+    def _build_hr_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        """Build an HR / workforce schema."""
+        num_employees   = self.scale_params.get("users", default_rows)
+        # Real companies have 5-20 departments regardless of headcount
+        num_departments = min(max(5, num_employees // 50), 20)
+        num_payroll     = int(num_employees * 12)  # ~12 pay periods per employee
+
+        tables = [
+            Table(name="departments", row_count=num_departments),
+            Table(name="employees",   row_count=num_employees),
+            Table(name="payroll",     row_count=num_payroll),
+        ]
+        columns = {
+            "departments": [
+                Column(name="department_id", type="int", unique=True, distribution_params={"min": 1, "max": num_departments + 1}),
+                Column(name="name", type="categorical", distribution_params={
+                    "choices": ["Engineering", "Product", "Design", "Sales", "Marketing", "HR", "Finance", "Operations", "Legal", "Support"],
+                    "sampling": "zipf",
+                }),
+                Column(name="headcount_budget", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 2.8, "sigma": 0.8, "min": 2, "decimals": 0,
+                }),
+                Column(name="location", type="categorical", distribution_params={
+                    "choices": ["Remote", "New York", "San Francisco", "Austin", "London", "Berlin", "Singapore"],
+                    "probabilities": [0.35, 0.18, 0.15, 0.10, 0.10, 0.07, 0.05],
+                }),
+            ],
+            "employees": [
+                Column(name="employee_id", type="int", unique=True, distribution_params={"min": 1, "max": num_employees + 1}),
+                Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",  type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",      type="text", distribution_params={"text_type": "email"}),
+                Column(name="department_id", type="foreign_key"),
+                Column(name="role", type="categorical", distribution_params={
+                    "choices": ["Individual Contributor", "Senior IC", "Staff", "Manager", "Director", "VP", "C-Level"],
+                    "probabilities": [0.35, 0.25, 0.15, 0.13, 0.07, 0.04, 0.01],
+                }),
+                Column(name="salary", type="float", distribution_params={
+                    # Conditional on seniority — role drives salary tier
+                    "depends_on": "role",
+                    "mapping": {
+                        "Individual Contributor": {"distribution": "lognormal", "mu": 11.0, "sigma": 0.25, "min": 45000,  "decimals": 0},
+                        "Senior IC":              {"distribution": "lognormal", "mu": 11.4, "sigma": 0.20, "min": 90000,  "decimals": 0},
+                        "Staff":                  {"distribution": "lognormal", "mu": 11.7, "sigma": 0.20, "min": 130000, "decimals": 0},
+                        "Manager":                {"distribution": "lognormal", "mu": 11.6, "sigma": 0.25, "min": 100000, "decimals": 0},
+                        "Director":               {"distribution": "lognormal", "mu": 11.9, "sigma": 0.25, "min": 140000, "decimals": 0},
+                        "VP":                     {"distribution": "lognormal", "mu": 12.2, "sigma": 0.30, "min": 200000, "decimals": 0},
+                        "C-Level":                {"distribution": "lognormal", "mu": 12.7, "sigma": 0.40, "min": 300000, "decimals": 0},
+                    },
+                    "default": {"distribution": "lognormal", "mu": 11.2, "sigma": 0.30},
+                    "decimals": 0,
+                }),
+                Column(name="hire_date", type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+                Column(name="tenure_years", type="float", distribution_params={
+                    "distribution": "exponential", "scale": 3.2, "min": 0.0, "max": 20.0, "decimals": 1,
+                }),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["active", "on_leave", "terminated"],
+                    "probabilities": [0.88, 0.05, 0.07],
+                }),
+                Column(name="performance_score", type="float", distribution_params={
+                    # Real performance distributions: most cluster around 3, few at extremes
+                    "distribution": "beta", "a": 5.0, "b": 2.0, "min": 1.0, "max": 5.0, "decimals": 1,
+                }),
+            ],
+            "payroll": [
+                Column(name="payroll_id",  type="int", unique=True, distribution_params={"min": 1, "max": num_payroll + 1}),
+                Column(name="employee_id", type="foreign_key"),
+                Column(name="period_start", type="date", distribution_params={"start": "2023-01-01", "end": "2024-12-01"}),
+                Column(name="gross_pay", type="float", distribution_params={
+                    # Domain prior will apply salary-like lognormal
+                    "distribution": "lognormal", "mu": 9.8, "sigma": 0.5, "min": 1500.0, "decimals": 2,
+                }),
+                Column(name="tax_withheld", type="float", distribution_params={
+                    # ~22-32% effective tax rate
+                    "distribution": "beta", "a": 3.0, "b": 7.0, "min": 0.18, "max": 0.40, "decimals": 4,
+                }),
+                Column(name="net_pay", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 9.5, "sigma": 0.5, "min": 1000.0, "decimals": 2,
+                }),
+                Column(name="pay_type", type="categorical", distribution_params={
+                    "choices": ["regular", "overtime", "bonus", "commission"],
+                    "probabilities": [0.78, 0.10, 0.08, 0.04],
+                }),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="departments", child_table="employees",
+                         parent_key="department_id", child_key="department_id"),
+            Relationship(parent_table="employees", child_table="payroll",
+                         parent_key="employee_id", child_key="employee_id"),
+        ]
+        outcome_curve = self._build_absolute_monthly_curve(
+            story, table="payroll", column="gross_pay", time_column="period_start", avg_transaction_value=6000.0,
+        )
+        return SchemaConfig(
+            name="HR Dataset", description=f"Generated from story: {story}",
+            domain="hr", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+            outcome_curves=[outcome_curve] if outcome_curve else [],
+        )
+
+    def _build_realestate_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        """Build a real estate schema: agents, properties, transactions."""
+        num_properties   = self.scale_params.get("properties", self.scale_params.get("users", default_rows))
+        # Each agent handles ~15-25 listings; cap agents at a sensible number
+        num_agents       = self.scale_params.get("agents", min(max(10, num_properties // 20), 500))
+        num_transactions = int(num_properties * 0.6)  # ~60% of listings close
+
+        tables = [
+            Table(name="agents",       row_count=num_agents),
+            Table(name="properties",   row_count=num_properties),
+            Table(name="transactions", row_count=num_transactions),
+        ]
+        columns = {
+            "agents": [
+                Column(name="agent_id",         type="int",  unique=True, distribution_params={"min": 1, "max": num_agents + 1}),
+                Column(name="first_name",        type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",         type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",             type="text", distribution_params={"text_type": "email"}),
+                Column(name="years_experience",  type="int",  distribution_params={
+                    "distribution": "lognormal", "mu": 1.8, "sigma": 0.9, "min": 1, "max": 40, "decimals": 0,
+                }),
+                Column(name="rating",            type="float", distribution_params={
+                    # Agents who survive are rated high — right-skewed toward 5
+                    "distribution": "beta", "a": 8.0, "b": 2.0, "min": 1.0, "max": 5.0, "decimals": 1,
+                }),
+                Column(name="total_sales",       type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 3.2, "sigma": 1.1, "min": 0, "decimals": 0,
+                }),
+                Column(name="agency", type="categorical", distribution_params={
+                    "choices": ["Coldwell Banker", "RE/MAX", "Keller Williams", "Century 21", "eXp Realty", "Independent"],
+                    "probabilities": [0.20, 0.18, 0.17, 0.15, 0.12, 0.18],
+                }),
+            ],
+            "properties": [
+                Column(name="property_id",  type="int",  unique=True, distribution_params={"min": 1, "max": num_properties + 1}),
+                Column(name="agent_id",     type="foreign_key"),
+                Column(name="property_type", type="categorical", distribution_params={
+                    "choices": ["single_family", "condo", "townhouse", "multi_family", "land"],
+                    "probabilities": [0.52, 0.25, 0.13, 0.07, 0.03],
+                }),
+                Column(name="bedrooms", type="int", distribution_params={
+                    "choices": [1, 2, 3, 4, 5, 6],
+                    "probabilities": [0.08, 0.22, 0.38, 0.22, 0.07, 0.03],
+                }),
+                Column(name="bathrooms", type="float", distribution_params={
+                    "choices": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
+                    "probabilities": [0.10, 0.12, 0.35, 0.18, 0.15, 0.06, 0.04],
+                }),
+                Column(name="sqft", type="int", distribution_params={
+                    # Real US home size: median ~1900 sqft, right-skewed
+                    "distribution": "lognormal", "mu": 7.6, "sigma": 0.4, "min": 400, "decimals": 0,
+                }),
+                Column(name="list_price", type="float", distribution_params={
+                    # US median home ~$410k, heavy right tail
+                    "distribution": "lognormal", "mu": 12.9, "sigma": 0.7, "min": 50000, "decimals": 0,
+                }),
+                Column(name="city", type="text", distribution_params={"text_type": "city"}),
+                Column(name="state", type="text", distribution_params={"text_type": "state"}),
+                Column(name="listed_date", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["active", "pending", "sold", "withdrawn", "expired"],
+                    "probabilities": [0.25, 0.12, 0.48, 0.09, 0.06],
+                }),
+            ],
+            "transactions": [
+                Column(name="transaction_id", type="int", unique=True, distribution_params={"min": 1, "max": num_transactions + 1}),
+                Column(name="property_id",    type="foreign_key"),
+                Column(name="sale_price",     type="float", distribution_params={
+                    # Sale price slightly below/above list price — lognormal, median ~$400k
+                    "distribution": "lognormal", "mu": 12.9, "sigma": 0.65, "min": 50000, "decimals": 0,
+                }),
+                Column(name="days_on_market", type="int", distribution_params={
+                    # Real US DOM: median ~23 days, right-skewed
+                    "distribution": "lognormal", "mu": 3.1, "sigma": 0.9, "min": 1, "max": 500, "decimals": 0,
+                }),
+                Column(name="close_date", type="date", distribution_params={"start": "2022-02-01", "end": "2025-01-31"}),
+                Column(name="commission_pct", type="float", distribution_params={
+                    # Typical agent commission: 2.5-3% per side
+                    "distribution": "beta", "a": 5.0, "b": 3.0, "min": 0.02, "max": 0.04, "decimals": 4,
+                }),
+                Column(name="financing_type", type="categorical", distribution_params={
+                    "choices": ["conventional", "FHA", "VA", "cash", "jumbo"],
+                    "probabilities": [0.48, 0.18, 0.12, 0.15, 0.07],
+                }),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="agents",     child_table="properties",   parent_key="agent_id",    child_key="agent_id"),
+            Relationship(parent_table="properties", child_table="transactions", parent_key="property_id", child_key="property_id"),
+        ]
+        outcome_curve = self._build_absolute_monthly_curve(
+            story, table="transactions", column="sale_price", time_column="close_date", avg_transaction_value=420000.0,
+        )
+        return SchemaConfig(
+            name="Real Estate Dataset", description=f"Generated from story: {story}",
+            domain="realestate", tables=tables, columns=columns,
             relationships=relationships, events=[],
             outcome_curves=[outcome_curve] if outcome_curve else [],
         )

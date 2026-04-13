@@ -746,7 +746,9 @@ class TestDomainPriors:
     """Domain priors applied automatically from story-parsed domain."""
 
     def test_saas_mrr_is_lognormal_shaped(self):
-        """SaaS domain: mrr column should get lognormal prior → right-skewed."""
+        """SaaS domain: mrr column should be plan-conditional and right-skewed.
+        Free-tier subscriptions correctly have $0 MRR; paid tiers are lognormal.
+        """
         from misata.story_parser import StoryParser
         schema = StoryParser().parse(
             "A SaaS platform with 500 users and monthly subscriptions.",
@@ -755,9 +757,17 @@ class TestDomainPriors:
         assert schema.domain == "saas"
         sim = DataSimulator(schema)
         tables = {n: df for n, df in sim.generate_all()}
-        mrr = tables["subscriptions"]["mrr"]
-        assert (mrr > 0).all()
-        assert mrr.mean() > mrr.median()   # right-skewed
+        subs = tables["subscriptions"]
+        mrr  = subs["mrr"]
+
+        # Free-tier users have $0 MRR — that is correct behaviour
+        free_mrr = mrr[subs["plan"] == "free"]
+        assert (free_mrr == 0).all(), "Free-plan MRR should be exactly 0"
+
+        # Paid-tier MRR should be positive and right-skewed (mean > median)
+        paid_mrr = mrr[subs["plan"] != "free"].dropna()
+        assert (paid_mrr > 0).all(), "Paid-plan MRR should be positive"
+        assert paid_mrr.mean() > paid_mrr.median(), "Paid MRR should be right-skewed"
 
     def test_get_column_prior_saas_mrr(self):
         from misata.domain_priors import get_column_prior

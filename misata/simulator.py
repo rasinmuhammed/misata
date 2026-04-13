@@ -64,7 +64,8 @@ class DataSimulator:
 
     def __init__(self, config: SchemaConfig,
                  apply_semantic_fixes: bool = True, batch_size: int = 10_000,
-                 smart_mode: bool = False, use_llm: bool = True):
+                 smart_mode: bool = False, use_llm: bool = True,
+                 custom_generators: Optional[Dict[str, Dict[str, Any]]] = None):
         """
         Initialize the simulator.
 
@@ -74,6 +75,9 @@ class DataSimulator:
             batch_size: Number of rows to generate per batch
             smart_mode: Enable LLM-powered context-aware value generation
             use_llm: If smart_mode is True, whether to use LLM (vs curated fallbacks)
+            custom_generators: Optional dict of ``{table: {column: callable}}`` where
+                each callable receives ``(partial_df, context_tables)`` and returns a
+                ``pd.Series`` or array of length ``len(partial_df)``.
         """
         from misata.validation import validate_schema
         validate_schema(config)
@@ -84,6 +88,8 @@ class DataSimulator:
         self.batch_size = batch_size
         self.smart_mode = smart_mode
         self.use_llm = use_llm
+        # custom_generators: {table_name: {col_name: callable(df, context) -> array}}
+        self.custom_generators: Dict[str, Dict[str, Any]] = custom_generators or {}
         self._smart_gen = None  # Lazy init
         self._unique_pools: Dict[str, np.ndarray] = {}  # Store pre-generated unique values
         self._unique_counters: Dict[str, int] = {}      # Track usage of unique pools
@@ -287,6 +293,38 @@ class DataSimulator:
         Returns:
             Numpy array of generated values
         """
+        # ========== CUSTOM CALLABLE GENERATOR ==========
+        # Check before any other dispatch so user logic always wins.
+        # Two calling conventions are accepted:
+        #   vectorized: fn(partial_df, context_tables)  → array of length size
+        #   per-row:    fn(row, col_name, context_tables) → scalar per row
+        # The per-row form is detected by inspecting the callable's signature.
+        _custom_fn = self.custom_generators.get(table_name, {}).get(column.name)
+        if callable(_custom_fn):
+            partial_df = table_data if table_data is not None else pd.DataFrame()
+            try:
+                import inspect as _inspect
+                _sig = _inspect.signature(_custom_fn)
+                _nparams = len(_sig.parameters)
+            except (TypeError, ValueError):
+                _nparams = 2  # default to vectorized
+
+            if _nparams >= 3:
+                # Per-row signature: fn(row, col_name, context_tables) → scalar
+                # Graceful fallback: if partial_df is empty generate zeros
+                if partial_df.empty or len(partial_df) == 0:
+                    return np.zeros(size, dtype=object)
+                result = partial_df.apply(
+                    lambda row: _custom_fn(row, column.name, self.context), axis=1
+                )
+            else:
+                # Vectorized signature: fn(partial_df, context_tables) → array
+                result = _custom_fn(partial_df, self.context)
+
+            if isinstance(result, pd.Series):
+                return result.to_numpy()
+            return np.asarray(result)
+
         # Apply domain priors as defaults — user-defined params always win.
         _domain = getattr(self.config, "domain", None) or getattr(
             getattr(self.config, "realism", None), "domain_hint", None
@@ -349,12 +387,14 @@ class DataSimulator:
                                     parent_values = np.array([id_to_name.get(safe_str(val), val) for val in parent_values])
                                     break
 
-                if isinstance(first_val, dict) and "mean" in first_val:
-                    # Numeric conditional distribution (e.g., salary based on job_title)
-                    # mapping = {"Intern": {"mean": 40000, "std": 5000}, "CTO": {"mean": 200000, "std": 30000}}
-                    values = np.zeros(size)
+                if isinstance(first_val, dict) and any(k in first_val for k in ("mean", "mu", "value")):
+                    # Numeric conditional distribution — supports three sub-types per key:
+                    #   normal:    {"mean": 150, "std": 30}
+                    #   lognormal: {"distribution": "lognormal", "mu": 5.0, "sigma": 0.4}
+                    #   constant:  {"value": 0}
+                    # Example: {"free": {"value": 0}, "pro": {"distribution": "lognormal", "mu": 5.0, "sigma": 0.3}}
+                    values = np.zeros(size, dtype=float)
                     for key, dist in mapping.items():
-                        # Ensure types match for numpy comparison (e.g. key="1", parent_values=[1, 2])
                         compare_key = key
                         if len(parent_values) > 0:
                             target_type = type(parent_values[0])
@@ -362,34 +402,65 @@ class DataSimulator:
                                 compare_key = target_type(key)
                             except (TypeError, ValueError):
                                 pass
-                        
+
                         mask = parent_values == compare_key
-                        count = mask.sum()
-                        if count > 0:
-                            mean = dist.get("mean", 50000)
-                            std = dist.get("std", mean * 0.1)
-                            values[mask] = self.rng.normal(mean, std, count)
-                    
-                    # Handle values that didn't match any key (use default)
+                        count = int(mask.sum())
+                        if count == 0:
+                            continue
+
+                        sub_dist = dist.get("distribution", "normal")
+                        if "value" in dist:
+                            values[mask] = float(dist["value"])
+                        elif sub_dist == "lognormal":
+                            mu    = float(dist.get("mu", 4.5))
+                            sigma = float(dist.get("sigma", 0.5))
+                            raw   = self.rng.lognormal(mu, sigma, count)
+                            lo    = dist.get("min")
+                            hi    = dist.get("max")
+                            if lo is not None:
+                                raw = np.clip(raw, lo, None)
+                            if hi is not None:
+                                raw = np.clip(raw, None, hi)
+                            dec = dist.get("decimals")
+                            if dec is not None:
+                                raw = np.round(raw, dec)
+                            values[mask] = raw
+                        else:
+                            mean = float(dist.get("mean", 50000))
+                            std  = float(dist.get("std", mean * 0.1))
+                            raw  = self.rng.normal(mean, std, count)
+                            lo   = dist.get("min")
+                            hi   = dist.get("max")
+                            if lo is not None:
+                                raw = np.clip(raw, lo, None)
+                            if hi is not None:
+                                raw = np.clip(raw, None, hi)
+                            dec = dist.get("decimals")
+                            if dec is not None:
+                                raw = np.round(raw, dec)
+                            values[mask] = raw
+
+                    # Fill any unmatched rows with the default distribution
                     default = params.get("default", {"mean": 50000, "std": 10000})
-                    
                     if len(parent_values) > 0:
-                        target_type = type(parent_values[0])
-                        safe_keys = [target_type(k) if isinstance(k, str) and k.isdigit() else k for k in mapping.keys()]
                         try:
+                            target_type = type(parent_values[0])
                             safe_keys = [target_type(k) for k in mapping.keys()]
                         except (TypeError, ValueError):
-                            pass
+                            safe_keys = list(mapping.keys())
                     else:
                         safe_keys = list(mapping.keys())
-                        
+
                     unmatched = ~np.isin(parent_values, safe_keys)
                     if unmatched.sum() > 0:
-                        values[unmatched] = self.rng.normal(
-                            default.get("mean", 50000), 
-                            default.get("std", 10000), 
-                            unmatched.sum()
-                        )
+                        if default.get("distribution") == "lognormal":
+                            values[unmatched] = self.rng.lognormal(
+                                default.get("mu", 4.5), default.get("sigma", 0.5), int(unmatched.sum())
+                            )
+                        else:
+                            values[unmatched] = self.rng.normal(
+                                default.get("mean", 50000), default.get("std", 10000), int(unmatched.sum())
+                            )
                     return values
                     
                 elif isinstance(first_val, list):

@@ -93,12 +93,18 @@ def generate(
     return tables
 
 
-def generate_from_schema(schema: "SchemaConfig") -> "Dict[str, Any]":
+def generate_from_schema(
+    schema: "SchemaConfig",
+    custom_generators: "Optional[Dict[str, Dict[str, Any]]]" = None,
+) -> "Dict[str, Any]":
     """Generate data from an already-built SchemaConfig.
 
     Args:
-        schema: A SchemaConfig (from ``misata.parse()``, an LLM generator,
-                or built manually).
+        schema:            A SchemaConfig (from ``misata.parse()``, an LLM generator,
+                           or built manually).
+        custom_generators: Optional ``{table: {column: callable}}`` overrides.
+                           Each callable receives ``(partial_df, context_tables)``
+                           and returns an array of length ``len(partial_df)``.
 
     Returns:
         Dict mapping table name → ``pd.DataFrame``.
@@ -111,7 +117,7 @@ def generate_from_schema(schema: "SchemaConfig") -> "Dict[str, Any]":
     import pandas as pd
     from misata.simulator import DataSimulator
 
-    sim = DataSimulator(schema)
+    sim = DataSimulator(schema, custom_generators=custom_generators)
     tables: Dict[str, Any] = {}
     for name, batch in sim.generate_all():
         if name in tables:
@@ -119,6 +125,87 @@ def generate_from_schema(schema: "SchemaConfig") -> "Dict[str, Any]":
         else:
             tables[name] = batch
     return tables
+
+
+def generate_more(
+    tables: "Dict[str, Any]",
+    schema: "SchemaConfig",
+    n: int,
+    seed: "Optional[int]" = None,
+) -> "Dict[str, Any]":
+    """Extend an existing dataset by generating additional rows.
+
+    Generates ``n`` more rows per table, maintaining referential integrity with
+    the existing data.  New rows are appended and the combined dataset returned.
+
+    Args:
+        tables: Existing ``{table_name: pd.DataFrame}`` dataset.
+        schema: The ``SchemaConfig`` the original dataset was generated from.
+        n:      Number of additional rows to generate for the primary table
+                (child tables scale according to their original row ratios).
+        seed:   Optional seed for the new batch (defaults to ``schema.seed + 1``
+                for deterministic but distinct data).
+
+    Returns:
+        Dict mapping table name → merged ``pd.DataFrame`` (original + new rows).
+
+    Example::
+
+        tables = misata.generate("A fintech company with 1000 customers", seed=1)
+        # Later — double the dataset without regenerating from scratch
+        tables = misata.generate_more(tables, schema, n=1000, seed=2)
+        print(len(tables["customers"]))  # 2000
+    """
+    import copy
+
+    import pandas as pd
+    from misata.simulator import DataSimulator
+
+    # Build a fresh schema with the desired row counts, offset seed
+    new_schema = copy.deepcopy(schema)
+    if seed is not None:
+        new_schema.seed = seed
+    elif new_schema.seed is not None:
+        new_schema.seed = new_schema.seed + 1
+
+    # Scale each table proportionally to the requested n
+    if new_schema.tables:
+        primary = new_schema.tables[0]
+        original_primary_count = primary.row_count or 1
+        scale = n / original_primary_count
+        for t in new_schema.tables:
+            t.row_count = max(1, int((t.row_count or 1) * scale))
+
+    sim = DataSimulator(new_schema)
+    new_tables: Dict[str, Any] = {}
+    for name, batch in sim.generate_all():
+        if name in new_tables:
+            new_tables[name] = pd.concat([new_tables[name], batch], ignore_index=True)
+        else:
+            new_tables[name] = batch
+
+    # Merge with existing, re-index IDs to avoid collisions
+    merged: Dict[str, Any] = {}
+    for name in set(list(tables.keys()) + list(new_tables.keys())):
+        existing = tables.get(name)
+        new_df = new_tables.get(name)
+
+        if existing is None:
+            merged[name] = new_df
+        elif new_df is None:
+            merged[name] = existing
+        else:
+            # Offset integer PK-like columns in the new batch to avoid ID clashes
+            if "id" in new_df.columns:
+                try:
+                    id_offset = int(existing["id"].max()) + 1
+                    new_df = new_df.copy()
+                    new_df["id"] = new_df["id"] + id_offset
+                except Exception:
+                    pass
+            merged[name] = pd.concat([existing, new_df], ignore_index=True)
+
+    return merged
 
 from misata.schema import (
     Column,
@@ -163,6 +250,8 @@ from misata.exceptions import (
     ConfigurationError,
     ExportError,
 )
+from misata.export import to_parquet, to_duckdb, to_jsonl
+from misata.compat import from_dict_schema, verify_integrity, IntegrityReport
 from misata.smart_values import SmartValueGenerator
 from misata.noise import NoiseInjector, add_noise
 from misata.customization import Customizer, ColumnOverride
@@ -207,6 +296,10 @@ __all__ = [
     "parse",
     "generate",
     "generate_from_schema",
+    "generate_more",
+    "from_dict_schema",
+    "verify_integrity",
+    "IntegrityReport",
     # Core
     "Column",
     "Constraint",
@@ -295,6 +388,11 @@ __all__ = [
     # Templates
     "load_template",
     "list_templates",
+    # DB seeding
+    # Export
+    "to_parquet",
+    "to_duckdb",
+    "to_jsonl",
     # DB seeding
     "seed_database",
     "seed_database_sqlalchemy",
