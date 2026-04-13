@@ -837,39 +837,48 @@ class DataSimulator:
                         values = self.rng.choice(pool, size=size)
                         return values
 
-            if text_strategy:
+            # Map simulator text_type → RealisticTextGenerator semantic types.
+            # RealisticTextGenerator uses the domain capsule (vocab seeds +
+            # Kaggle-enriched asset store) so these paths get real, diverse,
+            # domain-appropriate values automatically.
+            _REALISTIC_TYPE_MAP = {
+                "name":       "person_name",
+                "email":      "email",
+                "company":    "company_name",
+                "first_name": "first_name",
+                "last_name":  "last_name",
+                "job":        "job_title",
+                "city":       "city",
+                "state":      "state",
+            }
+            semantic = text_strategy or _REALISTIC_TYPE_MAP.get(text_type)
+            if semantic:
                 return self.realistic_text.generate(
                     column_name=column.name,
                     table_name=table_name,
                     size=size,
-                    semantic_type=text_strategy,
+                    semantic_type=semantic,
                     table_data=table_data,
                 )
 
-            # Pool size: at least 5× the request and never below 200 so that
-            # sampling-with-replacement produces visibly diverse output even on
-            # small datasets (10–100 rows).
+            # For types not handled by RealisticTextGenerator (sentence, word,
+            # address, phone, url) fall back to the legacy pool sampler.
+            # Pool is at least 5× the request size to reduce visible repetition.
             _pool_size = min(max(size * 5, 200), self.TEXT_POOL_SIZE)
-
-            _TEXT_GEN_MAP = {
-                "name":     (self.text_gen.name,         "text_name"),
-                "email":    (self.text_gen.email,        "text_email"),
-                "company":  (self.text_gen.company,      "text_company"),
+            _LEGACY_GEN_MAP = {
                 "sentence": (self.text_gen.sentence,     "text_sentence"),
                 "word":     (self.text_gen.word,         "text_word"),
                 "address":  (self.text_gen.full_address, "text_address"),
                 "phone":    (self.text_gen.phone_number, "text_phone"),
                 "url":      (self.text_gen.url,          "text_url"),
             }
-            gen_fn, pool_key = _TEXT_GEN_MAP.get(text_type, (self.text_gen.sentence, "text_sentence"))
+            gen_fn, pool_key = _LEGACY_GEN_MAP.get(text_type, (self.text_gen.sentence, "text_sentence"))
             if pool_key not in self._text_pools:
                 self._text_pools[pool_key] = np.array([gen_fn() for _ in range(_pool_size)])
             elif len(self._text_pools[pool_key]) < size:
-                # Pool from a prior small batch — grow it on demand
                 extra = [gen_fn() for _ in range(_pool_size - len(self._text_pools[pool_key]))]
                 self._text_pools[pool_key] = np.concatenate([self._text_pools[pool_key], extra])
             values = self.rng.choice(self._text_pools[pool_key], size=size)
-
             return values
 
         # BOOLEAN

@@ -284,6 +284,14 @@ from misata.assets import (
 )
 from misata.domain_capsule import AssetProvenance, DomainCapsule, VocabularyAsset
 from misata.vocabulary import SemanticVocabularyGenerator
+from misata.kaggle_integration import (
+    enrich_from_kaggle,
+    ingest_csv as ingest_csv_vocab,
+    kaggle_find,
+    kaggle_status,
+    detect_column_assets,
+    EnrichmentResult,
+)
 from misata.workflows import WORKFLOW_PRESETS, WorkflowEngine
 from misata.generators.base import (
     ConditionalCategoricalGenerator,
@@ -377,6 +385,13 @@ __all__ = [
     "VocabularyAsset",
     "DomainCapsule",
     "SemanticVocabularyGenerator",
+    # Kaggle enrichment
+    "enrich_from_kaggle",
+    "ingest_csv_vocab",
+    "kaggle_find",
+    "kaggle_status",
+    "detect_column_assets",
+    "EnrichmentResult",
     # ML-ready features
     "NoiseInjector",
     "add_noise",
