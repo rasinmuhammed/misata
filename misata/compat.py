@@ -153,6 +153,7 @@ def _col_from_dict(
 
     nullable = bool(col_def.get("nullable", True))
     unique = bool(col_def.get("unique", False))
+    description = col_def.get("description") or None
 
     return Column(
         name=col_name,
@@ -160,6 +161,7 @@ def _col_from_dict(
         distribution_params=params,
         nullable=nullable,
         unique=unique,
+        description=description,
     )
 
 
@@ -232,11 +234,18 @@ def from_dict_schema(
             warnings.warn(f"Skipping non-dict entry for table '{table_name}'.")
             continue
 
+        # Support both __table_description__ and __description__ as table-level metadata
+        table_desc = (
+            table_def.get("__table_description__")
+            or table_def.get("__description__")
+            or None
+        )
+
         pk_col = _detect_pk(table_def)
         table_cols: List[Column] = []
 
         for col_name, col_def in table_def.items():
-            if not isinstance(col_def, dict):
+            if col_name.startswith("__") or not isinstance(col_def, dict):
                 continue
 
             # Collect FK relationships
@@ -253,7 +262,7 @@ def from_dict_schema(
             if col is not None:
                 table_cols.append(col)
 
-        tables.append(Table(name=table_name, row_count=row_count))
+        tables.append(Table(name=table_name, row_count=row_count, description=table_desc))
         columns_map[table_name] = table_cols
 
     return SchemaConfig(

@@ -19,7 +19,6 @@ import pandas as pd
 
 from misata.assets import AssetStore
 from misata.engines import FactEngine
-from misata.generators.base import TextGenerator as _FactoryTextGenerator  # Generator factory version
 # Use the original generators.py TextGenerator which supports seed
 from misata.generators_legacy import TextGenerator
 from misata.noise import NoiseInjector
@@ -116,6 +115,34 @@ class DataSimulator:
         self.coherence_engine = EntityCoherenceEngine(self.rng, capsule=self.domain_capsule)
         self.workflow_engine = WorkflowEngine(self.rng)
     
+    def _generate_unique_text(self, text_type: str, size: int) -> np.ndarray:
+        """Generate exactly `size` distinct text values for a unique column."""
+        method_map = {
+            "name":       self.text_gen.name,
+            "email":      self.text_gen.email,
+            "company":    self.text_gen.company,
+            "address":    self.text_gen.full_address,
+            "phone":      self.text_gen.phone_number,
+            "url":        self.text_gen.url,
+            "sentence":   self.text_gen.sentence,
+            "word":       self.text_gen.word,
+        }
+        gen_fn = method_map.get(text_type, self.text_gen.sentence)
+        seen: set = set()
+        results: list = []
+        max_attempts = size * 10
+        attempts = 0
+        while len(results) < size and attempts < max_attempts:
+            val = gen_fn()
+            if val not in seen:
+                seen.add(val)
+                results.append(val)
+            attempts += 1
+        # If we still need more (pool exhausted), append with suffix
+        while len(results) < size:
+            results.append(f"{gen_fn()}_{len(results)}")
+        return np.array(results)
+
     def _get_smart_gen(self):
         """Lazy initialize SmartValueGenerator."""
         if self._smart_gen is None:
@@ -557,10 +584,16 @@ class DataSimulator:
                     self._unique_pools[pool_key] = pool
                     self._unique_counters[pool_key] = 0
 
-                # Fetch chunk
+                # Fetch chunk — auto-extend pool if exhausted (e.g. multi-batch curves)
                 current_idx = self._unique_counters[pool_key]
                 if current_idx + size > len(self._unique_pools[pool_key]):
-                     raise ValueError(f"Exhausted unique values for {column.name}")
+                    # Grow by another block the same size as the original pool
+                    existing_max = self._unique_pools[pool_key].max()
+                    extension = np.arange(existing_max + 1, existing_max + 1 + size + 1000)
+                    self.rng.shuffle(extension)
+                    self._unique_pools[pool_key] = np.concatenate(
+                        [self._unique_pools[pool_key], extension]
+                    )
 
                 values = self._unique_pools[pool_key][current_idx : current_idx + size]
                 self._unique_counters[pool_key] += size
@@ -770,6 +803,9 @@ class DataSimulator:
         # TEXT
         elif column.type == "text":
             text_type = params.get("text_type", "sentence")
+            # For unique text columns, generate exactly `size` distinct values.
+            if column.unique:
+                return self._generate_unique_text(text_type, size)
             text_strategy = self._text_strategy_for(table_name, column.name)
             
             # Smart value generation - check for domain-specific content
@@ -810,60 +846,29 @@ class DataSimulator:
                     table_data=table_data,
                 )
 
-            if text_type == "name":
-                pool_key = "text_name"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.name() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            elif text_type == "email":
-                pool_key = "text_email"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.email() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            elif text_type == "company":
-                pool_key = "text_company"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.company() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            elif text_type == "sentence":
-                pool_key = "text_sentence"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.sentence() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            elif text_type == "word":
-                pool_key = "text_word"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.word() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            elif text_type == "address":
-                pool_key = "text_address"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.full_address() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            elif text_type == "phone":
-                pool_key = "text_phone"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.phone_number() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            elif text_type == "url":
-                pool_key = "text_url"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.url() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
-            else:
-                pool_key = "text_sentence"
-                if pool_key not in self._text_pools:
-                    pool_size = min(size, self.TEXT_POOL_SIZE)
-                    self._text_pools[pool_key] = np.array([self.text_gen.sentence() for _ in range(pool_size)])
-                values = self.rng.choice(self._text_pools[pool_key], size=size)
+            # Pool size: at least 5× the request and never below 200 so that
+            # sampling-with-replacement produces visibly diverse output even on
+            # small datasets (10–100 rows).
+            _pool_size = min(max(size * 5, 200), self.TEXT_POOL_SIZE)
+
+            _TEXT_GEN_MAP = {
+                "name":     (self.text_gen.name,         "text_name"),
+                "email":    (self.text_gen.email,        "text_email"),
+                "company":  (self.text_gen.company,      "text_company"),
+                "sentence": (self.text_gen.sentence,     "text_sentence"),
+                "word":     (self.text_gen.word,         "text_word"),
+                "address":  (self.text_gen.full_address, "text_address"),
+                "phone":    (self.text_gen.phone_number, "text_phone"),
+                "url":      (self.text_gen.url,          "text_url"),
+            }
+            gen_fn, pool_key = _TEXT_GEN_MAP.get(text_type, (self.text_gen.sentence, "text_sentence"))
+            if pool_key not in self._text_pools:
+                self._text_pools[pool_key] = np.array([gen_fn() for _ in range(_pool_size)])
+            elif len(self._text_pools[pool_key]) < size:
+                # Pool from a prior small batch — grow it on demand
+                extra = [gen_fn() for _ in range(_pool_size - len(self._text_pools[pool_key]))]
+                self._text_pools[pool_key] = np.concatenate([self._text_pools[pool_key], extra])
+            values = self.rng.choice(self._text_pools[pool_key], size=size)
 
             return values
 

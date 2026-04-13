@@ -28,6 +28,7 @@ class Column(BaseModel):
     distribution_params: Dict[str, Any] = Field(default_factory=dict, validate_default=True)
     nullable: bool = False
     unique: bool = False
+    description: Optional[str] = None  # Human-readable context; used by LLM enrichment
 
     @staticmethod
     def _normalize_distribution_params(

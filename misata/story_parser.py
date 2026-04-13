@@ -401,7 +401,7 @@ class StoryParser:
         # Define columns
         columns = {
             "users": [
-                Column(name="user_id", type="int", distribution_params={"min": 1, "max": num_users}),
+                Column(name="user_id", type="int", unique=True, distribution_params={"min": 1, "max": num_users * 2}),
                 Column(name="email", type="text", distribution_params={"text_type": "email"}),
                 Column(name="name", type="text", distribution_params={"text_type": "name"}),
                 Column(
@@ -411,8 +411,14 @@ class StoryParser:
                 ),
                 Column(
                     name="country",
-                    type="text",
-                    distribution_params={"text_type": "country"},
+                    type="categorical",
+                    distribution_params={
+                        "choices": ["United States", "United Kingdom", "Canada", "Germany",
+                                    "France", "Australia", "India", "Brazil", "Netherlands",
+                                    "Sweden", "Spain", "Japan", "Singapore", "Mexico", "Italy"],
+                        "probabilities": [0.32, 0.10, 0.07, 0.07, 0.06, 0.05, 0.07,
+                                          0.04, 0.03, 0.03, 0.03, 0.04, 0.03, 0.03, 0.03],
+                    },
                 ),
                 Column(name="churned", type="boolean", distribution_params={"probability": 0.15}),
             ],
@@ -420,7 +426,8 @@ class StoryParser:
                 Column(
                     name="subscription_id",
                     type="int",
-                    distribution_params={"min": 1, "max": num_subscriptions},
+                    unique=True,
+                    distribution_params={"min": 1, "max": num_subscriptions * 2},
                 ),
                 Column(name="user_id", type="foreign_key", distribution_params={}),
                 Column(
@@ -547,8 +554,8 @@ class StoryParser:
 
         columns = {
             "customers": [
-                Column(name="customer_id", type="int", distribution_params={"min": 1, "max": num_customers}),
-                Column(name="email", type="text", distribution_params={"text_type": "email"}),
+                Column(name="customer_id", type="int", unique=True, distribution_params={"min": 1, "max": num_customers * 2}),
+                Column(name="email", type="text", unique=True, distribution_params={"text_type": "email"}),
                 Column(name="name", type="text", distribution_params={"text_type": "name"}),
                 Column(
                     name="signup_date",
@@ -557,12 +564,18 @@ class StoryParser:
                 ),
                 Column(
                     name="country",
-                    type="text",
-                    distribution_params={"text_type": "country"},
+                    type="categorical",
+                    distribution_params={
+                        "choices": ["United States", "United Kingdom", "Canada", "Germany",
+                                    "France", "Australia", "India", "Brazil", "Netherlands",
+                                    "Sweden", "Spain", "Japan", "Singapore", "Mexico", "Italy"],
+                        "probabilities": [0.32, 0.10, 0.07, 0.07, 0.06, 0.05, 0.07,
+                                          0.04, 0.03, 0.03, 0.03, 0.04, 0.03, 0.03, 0.03],
+                    },
                 ),
             ],
             "orders": [
-                Column(name="order_id", type="int", distribution_params={"min": 1, "max": num_orders}),
+                Column(name="order_id", type="int", unique=True, distribution_params={"min": 1, "max": num_orders * 2}),
                 Column(name="customer_id", type="foreign_key", distribution_params={}),
                 Column(
                     name="order_date",
