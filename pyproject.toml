@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.6.1"
+version = "0.7.0"
 description = "Python synthetic data generator for realistic multi-table test data, database seeding, and scenario simulation"
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}

@@ -31,10 +31,19 @@ That's it. Misata reads your intent, infers a relational schema, generates linke
 pip install misata
 ```
 
-For LLM-assisted generation (optional):
+For LLM-assisted generation (optional — pick any provider):
 ```bash
 pip install "misata[llm]"
-export GROQ_API_KEY=gsk_...   # or OPENAI_API_KEY
+export GROQ_API_KEY=gsk_...        # Groq (fast, free tier)
+export OPENAI_API_KEY=sk-...       # OpenAI
+export ANTHROPIC_API_KEY=sk-ant-... # Anthropic / Claude
+# Gemini: set GOOGLE_API_KEY
+# Ollama: no key needed — runs locally
+```
+
+For PDF document output (optional):
+```bash
+pip install "misata[documents]"
 ```
 
 ---
@@ -117,6 +126,10 @@ No keyword match → falls back to a generic single-table schema with a warning.
 | Referential integrity | No | Yes | **Yes** |
 | Domain-realistic distributions | No | Limited | **Yes** |
 | Pre-generation schema validation | No | No | **Yes** |
+| Multi-provider LLM (OpenAI / Groq / Anthropic / Gemini / Ollama) | No | No | **Yes** |
+| Document generation (HTML / PDF / Markdown per row) | No | No | **Yes** |
+| Custom callable generators per column | No | No | **Yes** |
+| Kaggle vocabulary enrichment (zero-token realism) | No | No | **Yes** |
 | Streaming-safe for large datasets | No | No | **Yes** |
 
 The core difference: Faker generates individual fake values. SDV learns from real data. **Misata generates from intent** — you describe a business, and it builds a logically consistent world.
@@ -150,22 +163,112 @@ story / intent
 ```python
 import misata
 
-# One-liner
+# ── Core generation ──────────────────────────────────────────────────────────
+
+# One-liner: story → DataFrames
 tables = misata.generate(story, rows=10_000, seed=42)
 
-# Two-step
+# Two-step: inspect schema first
 schema = misata.parse(story, rows=10_000)
 print(schema.summary())
 tables = misata.generate_from_schema(schema)
 
+# Append more rows to an existing dataset (IDs auto-offset, no collisions)
+tables = misata.generate_more(tables, schema, n=5_000)
+
 # Validate a schema before generation
 misata.validate_schema(schema)   # raises SchemaValidationError with all issues listed
 
-# LLM-powered (requires misata[llm] + API key)
+# ── Import your own schema ───────────────────────────────────────────────────
+
+schema = misata.from_dict_schema({
+    "customers": {
+        "id":     {"type": "integer", "primary_key": True},
+        "email":  {"type": "email"},
+        "plan":   {"type": "string", "enum": ["free", "pro", "enterprise"]},
+    },
+    "orders": {
+        "id":          {"type": "integer", "primary_key": True},
+        "customer_id": {"type": "integer",
+                        "foreign_key": {"table": "customers", "column": "id"}},
+        "amount":      {"type": "float", "min": 1.0, "max": 999.0},
+    },
+}, row_count=5_000)
+
+# Verify referential integrity after generation or manual edits
+report = misata.verify_integrity(tables, schema)
+report.raise_if_invalid()   # raises ValueError if orphaned FK values exist
+
+# ── Custom generators ────────────────────────────────────────────────────────
+
+# Override any column with a Python callable
+tables = misata.generate_from_schema(schema, custom_generators={
+    "orders": {
+        # vectorized: receives the partial DataFrame, returns an array
+        "amount": lambda df, ctx: (df["plan"] == "enterprise").map({True: 999, False: 49}),
+        # per-row: receives one row dict, returns a scalar
+        "note":   lambda row, col, ctx: f"Order for plan {row.get('plan', '?')}",
+    }
+})
+
+# ── Multi-provider LLM ───────────────────────────────────────────────────────
+
 from misata import LLMSchemaGenerator
-gen = LLMSchemaGenerator(provider="groq")   # or "openai", "ollama"
+
+# Groq (fast, free tier)
+gen = LLMSchemaGenerator(provider="groq")
+
+# Anthropic Claude — uses native SDK, no JSON-mode hack needed
+gen = LLMSchemaGenerator(provider="anthropic", model="claude-haiku-4-5-20251001")
+
+# Gemini
+gen = LLMSchemaGenerator(provider="gemini", model="gemini-2.0-flash")
+
+# Ollama — fully local, no API key
+gen = LLMSchemaGenerator(provider="ollama", model="llama3")
+
 schema = gen.generate_from_story("A fraud detection dataset with 2% positive rate")
 tables = misata.generate_from_schema(schema)
+
+# ── Document generation ──────────────────────────────────────────────────────
+
+# Built-in templates — no template file needed
+paths = misata.generate_documents(tables, "invoice",
+                                  table="orders", output_dir="/tmp/invoices")
+
+# Auto-detect template from column names
+paths = misata.generate_documents(tables, "auto",
+                                  output_dir="/tmp/docs", format="html")
+
+# Custom Jinja2 template string
+html_tmpl = "<h1>Order #{{ order_id }}</h1><p>Amount: ${{ amount }}</p>"
+paths = misata.generate_documents(tables, html_tmpl,
+                                  table="orders", output_dir="/tmp/custom")
+
+# PDF output (requires pip install "misata[documents]")
+paths = misata.generate_documents(tables, "invoice",
+                                  table="orders", output_dir="/tmp/pdfs",
+                                  format="pdf")
+
+# See all available built-in templates
+misata.list_document_templates()
+# ['generic', 'invoice', 'patient_report', 'transaction_receipt', 'user_profile']
+
+# ── Kaggle vocabulary enrichment ─────────────────────────────────────────────
+
+# One-time: populate real-world vocabulary for a domain (requires pip install kaggle)
+result = misata.enrich_from_kaggle("ecommerce")
+# EnrichmentResult(domain='ecommerce', datasets_ingested=1, assets_added=3, status='ok')
+
+# All future generate() calls use the enriched vocabulary automatically
+tables = misata.generate("An ecommerce store with 5k orders")
+
+# Bring your own CSV — no Kaggle account needed
+misata.ingest_csv_vocab("~/data/companies.csv", domain="fintech",
+                        column_map={"CompanyName": "company_name", "City": "city"})
+
+# Check what's stored
+print(misata.kaggle_status())
 ```
 
 ---

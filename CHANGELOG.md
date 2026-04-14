@@ -5,6 +5,52 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-14
+
+### Added
+
+#### Document generation
+- `misata.generate_documents(tables, template, table, output_dir, format)` — renders one document per row from any generated table; output can be `"html"` (default), `"markdown"`, `"txt"`, or `"pdf"` (requires `pip install "misata[documents]"`)
+- `DocumentTemplate` — Jinja2-backed renderer; accepts a built-in name, a raw template string, or a file path
+- Five built-in templates: `"invoice"`, `"patient_report"`, `"user_profile"`, `"transaction_receipt"`, `"generic"`
+- `"auto"` mode: picks the best built-in template by inspecting column names
+- `misata.list_document_templates()` — returns all built-in template names
+- Added `jinja2>=3.1.0` to core dependencies; added `documents` optional extras group (`weasyprint`)
+
+#### Multi-provider LLM support
+- `LLMSchemaGenerator` now supports five providers: `"openai"`, `"groq"`, `"anthropic"`, `"gemini"`, `"ollama"`
+- Anthropic uses its native SDK wire format; Gemini uses the OpenAI-compatible endpoint; Ollama works fully locally (no API key)
+- Provider detected automatically from environment keys or explicit `provider=` argument
+
+#### Custom callable generators
+- `generate_from_schema(schema, custom_generators={table: {col: fn}})` — override any column with a Python callable
+- Two supported signatures: vectorized `fn(df, context_tables)` returning an array, or per-row `fn(row, col_name, context_tables)` returning a scalar
+- Signature detected automatically via `inspect.signature`
+
+#### Schema import and FK integrity
+- `misata.from_dict_schema(schemas, row_count, seed)` — converts a plain `{table: {col: {type, constraints}}}` dict into a `SchemaConfig`; supports 20+ type aliases, `enum`/`choices`, `min`/`max`, `nullable`, `unique`, `foreign_key`, `primary_key`, `min_date`/`max_date`
+- `misata.verify_integrity(tables, schema)` → `IntegrityReport` — post-generation referential integrity check with orphan counts and sample values; call `.raise_if_invalid()` to turn failures into exceptions
+
+#### Incremental generation
+- `misata.generate_more(tables, schema, n, seed)` — append `n` more rows to an existing dataset; scales all tables proportionally, offsets IDs to avoid collisions
+
+#### Kaggle vocabulary enrichment
+- `misata.enrich_from_kaggle(domain)` — downloads CC0-licensed datasets from Kaggle and stores vocabulary (names, companies, cities, etc.) in `~/.misata/assets/`; all subsequent `generate()` calls use the richer vocabulary automatically
+- `misata.kaggle_find(domain)` — list candidate datasets without downloading
+- `misata.kaggle_status()` — print a summary of locally stored vocabulary assets with value counts
+- `misata.ingest_csv_vocab(path, domain, column_map)` — import any local CSV into the asset store without Kaggle credentials
+- `misata.detect_column_assets(columns)` — heuristically map 60+ column name patterns to semantic asset names
+- Requires `pip install kaggle` and Kaggle credentials for auto-download; manual CSV import has no extra deps
+
+#### Domain-aware text generation
+- Name, email, company, city, state, and job-title columns now route through `RealisticTextGenerator` (domain capsule + Kaggle asset store) by default, replacing the lorem-ipsum pool
+
+### Fixed
+- Country columns no longer output lorem-ipsum text — changed to categorical with 15 real country names and realistic probability weights
+- `customer_id`, `user_id`, `order_id` in generated schemas now produce unique values instead of repeating the `max` bound
+- Duplicate names/emails on small datasets fixed (pool size was capped at `min(n, 10 000)`, now scales at `5×n` with a 200-item floor)
+- Multi-batch outcome curve generation no longer crashes with `ValueError: Exhausted unique values` — unique pools auto-extend instead of raising
+
 ## [0.6.1] - 2026-04-11
 
 ### Changed
