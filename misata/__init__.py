@@ -292,6 +292,11 @@ from misata.kaggle_integration import (
     detect_column_assets,
     EnrichmentResult,
 )
+from misata.documents import (
+    DocumentTemplate,
+    generate_documents,
+    list_document_templates,
+)
 from misata.workflows import WORKFLOW_PRESETS, WorkflowEngine
 from misata.generators.base import (
     ConditionalCategoricalGenerator,
@@ -385,6 +390,10 @@ __all__ = [
     "VocabularyAsset",
     "DomainCapsule",
     "SemanticVocabularyGenerator",
+    # Document generation
+    "DocumentTemplate",
+    "generate_documents",
+    "list_document_templates",
     # Kaggle enrichment
     "enrich_from_kaggle",
     "ingest_csv_vocab",

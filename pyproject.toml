@@ -54,6 +54,7 @@ dependencies = [
     "rich>=13.0.0",
     "scipy>=1.10.0",
     "networkx>=3.0",
+    "jinja2>=3.1.0",
 ]
 
 [project.urls]
@@ -100,8 +101,11 @@ advanced = [
     "langgraph>=0.2.0",     # Multi-agent pipeline
     "z3-solver>=4.12.0",    # Constraint satisfaction
 ]
+documents = [
+    "weasyprint>=60.0",       # HTML → PDF conversion
+]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents]",
 ]
 
 [project.scripts]
