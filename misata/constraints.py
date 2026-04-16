@@ -275,6 +275,81 @@ class TemporalConstraint(BaseConstraint):
         return (gap >= self.min_gap_days).all()
 
 
+class InequalityConstraint(BaseConstraint):
+    """Enforces col_a OP col_b by adjusting col_a on violating rows.
+
+    Example::
+
+        InequalityConstraint("price", ">", "cost")
+        # Guarantees every price > cost after apply()
+    """
+
+    def __init__(
+        self,
+        column_a: str,
+        operator: str,    # ">", ">=", "<", "<="
+        column_b: str,
+    ):
+        self.column_a = column_a
+        self.operator = operator
+        self.column_b = column_b
+
+    def _violations(self, df: pd.DataFrame) -> "pd.Series":
+        a, b = df[self.column_a], df[self.column_b]
+        return {">": a <= b, ">=": a < b, "<": a >= b, "<=": a > b}[self.operator]
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        if self.column_a not in df.columns or self.column_b not in df.columns:
+            return df
+        df = df.copy()
+        mask = self._violations(df)
+        if not mask.any():
+            return df
+        b_vals = df.loc[mask, self.column_b]
+        offset = (b_vals.abs() * 0.01).clip(lower=1e-6)
+        if self.operator in (">", ">="):
+            df.loc[mask, self.column_a] = b_vals + offset
+        else:
+            df.loc[mask, self.column_a] = b_vals - offset
+        return df
+
+    def validate(self, df: pd.DataFrame) -> bool:
+        if self.column_a not in df.columns or self.column_b not in df.columns:
+            return True
+        return not self._violations(df).any()
+
+
+class ColumnRangeConstraint(BaseConstraint):
+    """Enforces low_column <= column <= high_column by clipping.
+
+    Example::
+
+        ColumnRangeConstraint("discount", "min_discount", "max_discount")
+    """
+
+    def __init__(self, column: str, low_column: str, high_column: str):
+        self.column = column
+        self.low_column = low_column
+        self.high_column = high_column
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        required = {self.column, self.low_column, self.high_column}
+        if not required.issubset(df.columns):
+            return df
+        df = df.copy()
+        df[self.column] = df[self.column].clip(
+            lower=df[self.low_column], upper=df[self.high_column]
+        )
+        return df
+
+    def validate(self, df: pd.DataFrame) -> bool:
+        required = {self.column, self.low_column, self.high_column}
+        if not required.issubset(df.columns):
+            return True
+        col = df[self.column]
+        return (col >= df[self.low_column]).all() and (col <= df[self.high_column]).all()
+
+
 class ConstraintEngine:
     """Engine for applying multiple constraints to a DataFrame."""
     
@@ -305,3 +380,17 @@ class ConstraintEngine:
             name = type(constraint).__name__
             results[name] = constraint.validate(df)
         return results
+
+    @staticmethod
+    def from_schema_constraint(c: Any) -> "BaseConstraint":
+        """Build a runtime constraint from a schema.Constraint Pydantic model."""
+        t = c.type
+        if t in ("max_per_group", "min_per_group", "sum_limit"):
+            return SumConstraint(c.column, c.value or 0, group_by=c.group_by or [], action=c.action)
+        if t == "unique_combination":
+            return UniqueConstraint(c.group_by or ([c.column] if c.column else []))
+        if t == "inequality":
+            return InequalityConstraint(c.column_a, c.operator, c.column_b)
+        if t == "col_range":
+            return ColumnRangeConstraint(c.column, c.low_column, c.high_column)
+        raise ValueError(f"Unknown constraint type: {t!r}")

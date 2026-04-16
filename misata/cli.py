@@ -23,6 +23,7 @@ from rich.table import Table as RichTable
 
 from misata import DataSimulator, SchemaConfig, __version__
 from misata.audit import AuditLogger
+from misata.yaml_schema import MISATA_YAML_TEMPLATE, load_yaml_schema, save_yaml_schema
 from misata.codegen import ScriptGenerator
 from misata.db import load_tables_from_db, seed_database
 from misata.quality import check_quality
@@ -201,6 +202,63 @@ def main() -> None:
     pass
 
 
+@main.command("init")
+@click.option("--db", type=str, default=None,
+              help="Database URL to introspect (e.g., postgresql://localhost/myapp)")
+@click.option("--story", "-s", type=str, default=None,
+              help='Natural language description (e.g., "A SaaS company with users")')
+@click.option("--output", "-o", type=click.Path(), default="misata.yaml",
+              help="Output file path (default: misata.yaml)")
+@click.option("--rows", "-n", type=int, default=1000,
+              help="Default row count per table (default: 1000)")
+@click.option("--seed", type=int, default=42, help="Random seed (default: 42)")
+@click.option("--force", is_flag=True, default=False,
+              help="Overwrite existing file without prompting")
+def init(db: Optional[str], story: Optional[str], output: str,
+         rows: int, seed: int, force: bool) -> None:
+    """Scaffold a misata.yaml schema file in the current directory.
+
+    \b
+    Examples:
+        misata init                                    # commented template
+        misata init --story "A SaaS company"          # from natural language
+        misata init --db postgresql://localhost/myapp  # from existing database
+        git commit misata.yaml
+        misata generate                                # teammates regenerate data
+    """
+    out_path = Path(output)
+    if out_path.exists() and not force:
+        console.print(f"[yellow]{output} already exists. Use --force to overwrite.[/yellow]")
+        sys.exit(1)
+
+    if db:
+        try:
+            from misata.introspect import schema_from_db
+            console.print(f"Introspecting schema from [cyan]{db}[/cyan] ...")
+            schema = schema_from_db(db, default_rows=rows)
+            schema.seed = seed
+            save_yaml_schema(schema, out_path)
+            console.print(f"[green]Detected {len(schema.tables)} table(s) → {output}[/green]")
+        except Exception as exc:
+            console.print(f"[red]DB introspection failed: {exc}[/red]")
+            sys.exit(1)
+    elif story:
+        try:
+            schema = StoryParser().parse(story, default_rows=rows)
+            schema.seed = seed
+            save_yaml_schema(schema, out_path)
+            console.print(f"[green]Parsed {len(schema.tables)} table(s) → {output}[/green]")
+        except Exception as exc:
+            console.print(f"[red]Story parsing failed: {exc}[/red]")
+            sys.exit(1)
+    else:
+        out_path.write_text(MISATA_YAML_TEMPLATE, encoding="utf-8")
+        console.print(f"[green]Template written → {output}[/green]")
+
+    console.print(f"\n  Edit [cyan]{output}[/cyan], then run:")
+    console.print("    [bold cyan]misata generate[/bold cyan]")
+
+
 @main.command()
 @click.option(
     "--story",
@@ -340,18 +398,28 @@ def generate(
     """
     print_banner()
 
-    # Validate inputs
+    # Auto-detect misata.yaml when no source is given
     if not story and not config and not sqlalchemy and not db_url:
-        console.print("[red]Error: Must provide --story, --config, --sqlalchemy, or --db-url[/red]")
-        sys.exit(1)
+        if Path("misata.yaml").exists():
+            config = "misata.yaml"
+            console.print("[dim]Auto-detected misata.yaml in current directory.[/dim]")
+        else:
+            console.print("[red]Error: Must provide --story, --config, --sqlalchemy, or --db-url[/red]")
+            console.print("[dim]Tip: run `misata init` to scaffold a misata.yaml file.[/dim]")
+            sys.exit(1)
 
     if sum(1 for x in [story, config, sqlalchemy] if x) > 1:
         console.print("[yellow]Warning: Multiple schema sources provided. Using priority: config > sqlalchemy > story.[/yellow]")
 
     if config:
-        console.print(f"📄 Loading configuration from: [cyan]{config}[/cyan]")
+        console.print(f"Loading schema from: [cyan]{config}[/cyan]")
         config_dict = _load_yaml_or_json(config)
-        schema_config = SchemaConfig(**config_dict)
+        # Route to yaml_schema loader when the file uses the misata.yaml format
+        # (has a "tables" dict, not the Pydantic-serialised SchemaConfig list format)
+        if isinstance(config_dict.get("tables"), dict):
+            schema_config = load_yaml_schema(config, rows=rows, seed=seed)
+        else:
+            schema_config = SchemaConfig(**config_dict)
     elif sqlalchemy:
         from misata.introspect import load_sqlalchemy_target, schema_from_sqlalchemy
 

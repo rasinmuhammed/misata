@@ -162,11 +162,25 @@ class Constraint(BaseModel):
     """
 
     name: str
-    type: Literal["max_per_group", "min_per_group", "sum_limit", "unique_combination"]
+    type: Literal[
+        "max_per_group",
+        "min_per_group",
+        "sum_limit",
+        "unique_combination",
+        "inequality",     # col_a OP col_b  (e.g. price > cost)
+        "col_range",      # low_col <= col <= high_col
+    ]
     group_by: List[str] = Field(default_factory=list)
-    column: Optional[str] = None  # Not needed for unique_combination
-    value: Optional[float] = None  # The limit value
+    column: Optional[str] = None
+    value: Optional[float] = None
     action: Literal["cap", "redistribute", "drop", "error"] = "cap"
+    # inequality fields
+    column_a: Optional[str] = None
+    operator: Optional[Literal[">", ">=", "<", "<="]] = None
+    column_b: Optional[str] = None
+    # col_range fields
+    low_column: Optional[str] = None
+    high_column: Optional[str] = None
 
 
 class ScenarioEvent(BaseModel):

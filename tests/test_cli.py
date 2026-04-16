@@ -255,3 +255,73 @@ class TestCLIGenerate:
                 manifest = json.load(f)
 
             assert manifest["tables"]["users"] == 5
+
+
+class TestCLIInit:
+    """Tests for `misata init` command."""
+
+    @pytest.fixture
+    def runner(self):
+        return CliRunner()
+
+    def test_init_no_flags_writes_template(self, runner, tmp_path):
+        """Default init writes the commented YAML template."""
+        out = tmp_path / "misata.yaml"
+        result = runner.invoke(main, ["init", "--output", str(out)])
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        content = out.read_text()
+        assert "tables:" in content
+        assert "relationships:" in content
+
+    def test_init_story_mode_writes_valid_yaml(self, runner, tmp_path):
+        """--story flag produces a loadable misata.yaml."""
+        out = tmp_path / "misata.yaml"
+        result = runner.invoke(main, [
+            "init",
+            "--story", "A SaaS company with 50 users",
+            "--rows", "50",
+            "--output", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        data = yaml.safe_load(out.read_text())
+        assert "tables" in data or "name" in data  # valid YAML was written
+
+    def test_init_no_overwrite_without_force(self, runner, tmp_path):
+        """init refuses to overwrite without --force."""
+        out = tmp_path / "misata.yaml"
+        out.write_text("existing: true\n")
+        result = runner.invoke(main, ["init", "--output", str(out)])
+        # Should either fail with a non-zero exit code or warn the user
+        assert result.exit_code != 0 or "force" in result.output.lower() or "exist" in result.output.lower()
+
+    def test_init_force_overwrites(self, runner, tmp_path):
+        """--force overwrites an existing file."""
+        out = tmp_path / "misata.yaml"
+        out.write_text("existing: true\n")
+        result = runner.invoke(main, ["init", "--output", str(out), "--force"])
+        assert result.exit_code == 0, result.output
+        content = out.read_text()
+        assert "tables:" in content  # original content replaced
+
+    def test_init_db_mode_sqlite(self, runner, tmp_path):
+        """--db flag introspects a SQLite DB and writes its schema."""
+        db_path = tmp_path / "app.db"
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)")
+        conn.commit()
+        conn.close()
+
+        out = tmp_path / "misata.yaml"
+        result = runner.invoke(main, [
+            "init",
+            "--db", f"sqlite:///{db_path}",
+            "--output", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        content = out.read_text()
+        # The saved YAML should reference the "products" table
+        assert "products" in content

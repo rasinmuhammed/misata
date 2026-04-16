@@ -297,6 +297,12 @@ from misata.documents import (
     generate_documents,
     list_document_templates,
 )
+from misata.yaml_schema import (
+    load_yaml_schema,
+    save_yaml_schema,
+    MISATA_YAML_TEMPLATE,
+)
+from misata.constraints import InequalityConstraint, ColumnRangeConstraint
 from misata.workflows import WORKFLOW_PRESETS, WorkflowEngine
 from misata.generators.base import (
     ConditionalCategoricalGenerator,
@@ -394,6 +400,13 @@ __all__ = [
     "DocumentTemplate",
     "generate_documents",
     "list_document_templates",
+    # YAML schema
+    "load_yaml_schema",
+    "save_yaml_schema",
+    "MISATA_YAML_TEMPLATE",
+    # Constraints
+    "InequalityConstraint",
+    "ColumnRangeConstraint",
     # Kaggle enrichment
     "enrich_from_kaggle",
     "ingest_csv_vocab",
