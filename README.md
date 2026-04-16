@@ -1,24 +1,28 @@
 <div align="center">
 
+<img src="public/misata-motion-logo.svg" width="180" alt="Misata" />
+
 # Misata
 
-### Realistic multi-table synthetic data for testing and demos
+**Realistic multi-table synthetic data — from a sentence, a YAML file, or your own database.**
 
-[![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=for-the-badge)](https://pypi.org/project/misata/)
-[![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=for-the-badge)](https://pypi.org/project/misata/)
-[![CI](https://img.shields.io/github/actions/workflow/status/rasinmuhammed/misata/ci.yml?branch=main&style=for-the-badge&label=tests)](https://github.com/rasinmuhammed/misata/actions)
-[![License](https://img.shields.io/github/license/rasinmuhammed/misata.svg?style=for-the-badge)](https://github.com/rasinmuhammed/misata/blob/main/LICENSE)
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/notebooks/quickstart.ipynb)
+[![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=flat-square&color=E89030)](https://pypi.org/project/misata/)
+[![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=flat-square)](https://pypi.org/project/misata/)
+[![CI](https://img.shields.io/github/actions/workflow/status/rasinmuhammed/misata/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/rasinmuhammed/misata/actions)
+[![License](https://img.shields.io/github/license/rasinmuhammed/misata.svg?style=flat-square)](LICENSE)
+[![Open in Colab](https://img.shields.io/badge/Open%20in-Colab-F9AB00?style=flat-square&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/notebooks/quickstart.ipynb)
 
 </div>
 
-Misata generates consistent, relational datasets — linked tables, foreign key integrity, domain-realistic distributions — from a plain English description, a YAML schema file, an existing database, or a Python dict. No ML model required. No real data needed.
+---
+
+Misata generates consistent, referentially-intact multi-table datasets from a plain-English description, a YAML schema file, or an existing database schema. No machine-learning model is required. No real data is needed.
 
 Built for:
-- **Seeding dev/staging databases** with production-like data
-- **Integration tests** that need referentially consistent multi-table fixtures
-- **Demos and prototypes** that should feel real without exposing PII
-- **BI and dashboard development** against a realistic data shape
+- **Database seeding** — fill dev and staging environments with production-like data
+- **Integration tests** — relational fixtures with FK integrity across every table
+- **Demos and prototypes** — realistic numbers, names, and distributions, no PII
+- **BI and dashboard development** — data shaped like your real domain before launch
 
 ---
 
@@ -29,34 +33,49 @@ pip install misata
 ```
 
 Optional extras:
+
 ```bash
 pip install "misata[llm]"        # multi-provider LLM schema generation
 pip install "misata[documents]"  # PDF output via weasyprint
-pip install "misata[advanced]"   # SDV/CTGAN ML synthesis
+pip install "misata[advanced]"   # SDV/CTGAN statistical synthesis
+```
+
+---
+
+## Quick start
+
+```python
+import misata
+
+# One sentence → multi-table DataFrame dict
+tables = misata.generate("A SaaS company with 5k users, monthly subscriptions, and 20% churn")
+
+print(tables["users"].head())
+print(tables["subscriptions"].head())
+```
+
+```bash
+# Or from the CLI
+misata generate --story "A SaaS company with 5k users and 20% churn" --rows 5000
 ```
 
 ---
 
 ## Six ways to generate data
 
-### 1. Plain English (no config needed)
+### 1. Plain English — no config required
 
 ```python
-import misata
-
-tables = misata.generate("A SaaS company with 5k users, monthly subscriptions, and 20% churn")
-print(tables["users"].head())
-print(tables["subscriptions"].head())
+tables = misata.generate("A fintech startup with 10k customers, fraud rate 3%, and IBAN accounts")
 ```
 
-### 2. YAML schema-as-code (commit to git, reproduce anywhere)
+Misata reads the story, infers domain (fintech), scale (10 000 rows), and column semantics (fraud flag, IBAN format) — no schema authoring needed.
+
+### 2. YAML schema-as-code — commit it to git
 
 ```bash
-# Scaffold a schema file
-misata init
-
-# Edit misata.yaml, then generate
-misata generate
+misata init           # scaffolds misata.yaml in the current directory
+misata generate       # reads misata.yaml automatically
 ```
 
 ```yaml
@@ -96,49 +115,36 @@ schema = misata.load_yaml_schema("misata.yaml")
 tables = misata.generate_from_schema(schema)
 ```
 
-### 3. Seed an existing database
-
-The most common production use case: point Misata at your database and fill it with realistic data.
+### 3. Seed an existing database directly
 
 ```python
 from misata import schema_from_db, generate_from_schema, seed_database
 
-# Introspect your existing schema
+# Introspect the live schema — no manual column definitions
 schema = schema_from_db("postgresql://user:pass@localhost/myapp")
-
-# Generate data that matches your real table structure
 tables = generate_from_schema(schema)
 
-# Seed it back — handles FK ordering automatically
-from misata import seed_database
+# Seed it back — insert order respects FK dependencies automatically
 report = seed_database(tables, "postgresql://user:pass@localhost/myapp_dev")
-print(report)
 # SeedReport: seeded 6 tables, 47,300 rows in 1.2s
 ```
 
-Or use the CLI:
 ```bash
-# Introspect DB schema → write misata.yaml
-misata init --db postgresql://user:pass@localhost/myapp
-
-# Generate and seed in one command
+# One-command workflow
+misata init --db postgresql://user:pass@localhost/myapp   # writes misata.yaml
 misata generate --db-url postgresql://user:pass@localhost/myapp_dev --db-create
 ```
 
 SQLAlchemy models are supported too:
+
 ```python
 from misata import seed_from_sqlalchemy_models
-from myapp.models import Base  # your SQLAlchemy declarative base
+from myapp.models import Base
 
-report = seed_from_sqlalchemy_models(
-    Base,
-    db_url="sqlite:///test.db",
-    row_count=500,
-    create_tables=True,
-)
+report = seed_from_sqlalchemy_models(Base, db_url="sqlite:///test.db", row_count=500, create_tables=True)
 ```
 
-### 4. Python dict schema (import your own structure)
+### 4. Python dict schema
 
 ```python
 schema = misata.from_dict_schema({
@@ -149,8 +155,7 @@ schema = misata.from_dict_schema({
     },
     "orders": {
         "id":          {"type": "integer", "primary_key": True},
-        "customer_id": {"type": "integer",
-                        "foreign_key": {"table": "customers", "column": "id"}},
+        "customer_id": {"type": "integer", "foreign_key": {"table": "customers", "column": "id"}},
         "amount":      {"type": "float", "min": 1.0, "max": 999.0},
     },
 }, row_count=5_000)
@@ -158,67 +163,102 @@ schema = misata.from_dict_schema({
 tables = misata.generate_from_schema(schema)
 ```
 
-### 5. LLM-assisted (richer semantics, optional)
+### 5. LLM-assisted generation — richer semantics, optional
 
 ```python
 from misata import LLMSchemaGenerator
 
-gen = LLMSchemaGenerator(provider="groq")          # fast, free tier
+gen = LLMSchemaGenerator(provider="groq")          # free tier, fast
 # gen = LLMSchemaGenerator(provider="anthropic")   # Claude
-# gen = LLMSchemaGenerator(provider="ollama", model="llama3")  # local
+# gen = LLMSchemaGenerator(provider="ollama", model="llama3")  # fully local, no API key
 
-schema = gen.generate_from_story("A fraud detection dataset — 2% positive rate, FICO scores, transaction velocity features")
+schema = gen.generate_from_story(
+    "A fraud detection dataset — 2% positive rate, FICO scores, transaction velocity features"
+)
 tables = misata.generate_from_schema(schema)
 ```
 
-Requires: `pip install "misata[llm]"` + one of `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
+Requires `pip install "misata[llm]"` plus one of `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
 
-### 6. Incremental generation (grow a dataset without re-seeding)
+### 6. Incremental generation — grow a dataset without re-seeding
 
 ```python
-# Initial seed
 tables = misata.generate("A fintech company with 1000 customers", seed=1)
 
-# Add 1000 more rows later — IDs auto-offset, FK integrity maintained
+# Add 1 000 more rows — IDs auto-offset, FK integrity maintained across both batches
 tables = misata.generate_more(tables, schema, n=1000, seed=2)
 print(len(tables["customers"]))  # 2000
 ```
 
 ---
 
-## CLI
+## Localisation
 
-```bash
-# Scaffold a new misata.yaml
-misata init
+Misata automatically detects the country context from your story and generates statistically accurate data for that locale — the right names, salary distributions, national ID formats, currencies, postcodes, and company naming conventions.
 
-# Scaffold from an existing database
-misata init --db postgresql://localhost/myapp
+```python
+# Locale is detected automatically — no extra flag needed
+tables = misata.generate("German SaaS company in Berlin with 2k enterprise customers")
+# → names from de_DE Faker pool, salary ~ lognormal(μ=10.71, σ=0.5) ≈ €45k median,
+#   postcodes are 5-digit, company names end in GmbH/AG/UG
 
-# Scaffold from a plain-English description
-misata init --story "A marketplace with sellers, buyers, and listings"
+tables = misata.generate("Brazilian fintech with R$ payments and CPF verification, 50k users")
+# → pt_BR names, salary median ~BRL 33.6k, national IDs match CPF format ###.###.###-##
 
-# Generate from misata.yaml (auto-detected if present)
-misata generate
+tables = misata.generate("Indian startup in Bangalore with ₹ salary bands and Aadhaar KYC")
+# → hi_IN names, salary median ~₹350k/yr, national IDs match Aadhaar 12-digit format
+```
 
-# Generate with a specific story
-misata generate --story "Ecommerce with 10k orders" --rows 10000 --output-dir data/
+Force or override a locale explicitly:
 
-# Use a built-in domain template
-misata template saas --scale 0.1 --output-dir data/
+```python
+schema = misata.parse("An ecommerce store with 10k orders")
+tables = misata.generate_from_schema(schema)  # defaults to en_US
 
-# List available templates
-misata templates-list
+# CLI
+misata generate --story "Ecommerce store" --locale ja_JP
+```
 
-# Export schema to YAML
-misata schema --db-url postgresql://localhost/myapp --output schema.yaml
+### 15 built-in locales
+
+| Locale | Country | Currency | Salary median | National ID |
+|:--|:--|:--|--:|:--|
+| `en_US` | United States | USD / $ | $62 000 | SSN `###-##-####` |
+| `en_GB` | United Kingdom | GBP / £ | £34 000 | NIN `AA######A` |
+| `de_DE` | Germany | EUR / € | €45 000 | Steuer-IdNr |
+| `fr_FR` | France | EUR / € | €38 000 | NIR |
+| `pt_BR` | Brazil | BRL / R$ | R$33 600 | CPF `###.###.###-##` |
+| `es_ES` | Spain | EUR / € | €27 000 | NIE |
+| `hi_IN` | India | INR / ₹ | ₹350 000 | Aadhaar `####-####-####` |
+| `ja_JP` | Japan | JPY / ¥ | ¥4 400 000 | My Number |
+| `zh_CN` | China | CNY / ¥ | ¥90 000 | Resident ID |
+| `ar_SA` | Saudi Arabia | SAR | SAR 96 000 | National ID |
+| `ko_KR` | South Korea | KRW / ₩ | ₩42 000 000 | RRN |
+| `nl_NL` | Netherlands | EUR / € | €42 000 | BSN |
+| `it_IT` | Italy | EUR / € | €29 000 | Codice Fiscale |
+| `pl_PL` | Poland | PLN | PLN 72 000 | PESEL |
+| `tr_TR` | Turkey | TRY | TRY 720 000 | TC Kimlik |
+
+Each pack carries real salary distributions (median and lognormal priors), age distributions, top-ranked cities, phone-number prefixes, postcode patterns, company suffixes, and VAT rates — sourced from OECD, World Bank, ILO, and national statistics offices (2023–24 data).
+
+```python
+# Inspect a locale pack directly
+pack = misata.get_locale_pack("de_DE")
+print(pack.salary_median)       # 45000
+print(pack.currency_symbol)     # €
+print(pack.top_cities[:3])      # ['Berlin', 'Hamburg', 'Munich']
+print(pack.company_suffixes)    # ['GmbH', 'AG', 'UG', 'KG', 'e.K.']
+
+# Auto-detect from a story
+locale = misata.detect_locale("South Korean company in Seoul with KRW salaries")
+# → "ko_KR"
 ```
 
 ---
 
 ## Constraints
 
-Enforce business rules that survive generation:
+Enforce business rules that survive every row of generation:
 
 ```python
 from misata.constraints import (
@@ -226,54 +266,38 @@ from misata.constraints import (
     ColumnRangeConstraint,  # min_price <= price <= max_price
     RatioConstraint,        # 70% free / 30% pro
     UniqueConstraint,       # no duplicate (user_id, date) pairs
-    SumConstraint,          # total hours per employee per day ≤ 8
+    SumConstraint,          # total_hours per employee per day <= 8
+    NotNullConstraint,      # no nulls in required columns
 )
 
-# Apply programmatically
 c = InequalityConstraint("price", ">", "cost")
 df = c.apply(df)
-
-# Or declare in a SchemaConfig / misata.yaml
 ```
+
+Constraints can also be declared in `misata.yaml` — they run at generation time, not as a post-processing step.
 
 ---
 
 ## Export
 
 ```python
-# Parquet
 misata.to_parquet(tables, "data/")
-
-# DuckDB
 misata.to_duckdb(tables, "data/dataset.duckdb")
-
-# JSON Lines
 misata.to_jsonl(tables, "data/")
-```
-
----
-
-## Quality and privacy reports
-
-```python
-bundle = misata.analyze_generation(tables, schema)
-
-print(bundle.data_card.summary())        # row counts, null rates, type distribution
-print(bundle.fidelity_report.score)      # 0–1 statistical fidelity vs. schema intent
-print(bundle.privacy_report.pii_risk)    # column-level PII exposure analysis
 ```
 
 ---
 
 ## Document generation
 
-Turn any table into per-row documents — useful for demo datasets that need to look real end-to-end:
+Render one document per row from any table — useful for demo datasets that need to look real end-to-end:
 
 ```python
 # Built-in templates: invoice, patient_report, transaction_receipt, user_profile
-paths = misata.generate_documents(tables, "invoice",
-                                  table="orders", output_dir="/tmp/invoices",
-                                  format="html")  # or "pdf" with misata[documents]
+paths = misata.generate_documents(
+    tables, "invoice", table="orders", output_dir="/tmp/invoices", format="html"
+)
+# format="pdf" requires: pip install "misata[documents]"
 
 # Custom Jinja2 template
 tmpl = "<h1>Order #{{ order_id }}</h1><p>Amount: ${{ amount }}</p>"
@@ -282,37 +306,22 @@ paths = misata.generate_documents(tables, tmpl, table="orders", output_dir="/tmp
 
 ---
 
-## What makes Misata different
+## Quality and privacy analysis
 
-| | Faker | Synth | syda | SDV | **Misata** |
-|---|:---:|:---:|:---:|:---:|:---:|
-| No config, one line to multi-table data | No | No | No | No | **Yes** |
-| YAML schema committed to git | No | **Yes** | **Yes** | No | **Yes** |
-| DB introspection → schema | No | **Yes** | No | Limited | **Yes** |
-| Direct DB seeding (Postgres, MySQL, SQLite) | No | No | No | No | **Yes** |
-| SQLAlchemy model seeding | No | No | No | No | **Yes** |
-| Referential integrity (multi-table FK) | No | **Yes** | **Yes** | **Yes** | **Yes** |
-| Inequality / range constraints (price > cost) | No | Limited | No | **Yes** | **Yes** |
-| Exact aggregate targets (monthly MRR curve) | No | No | No | No | **Yes** |
-| Domain-realistic distributions | No | No | No | Limited | **Yes** |
-| Multi-provider LLM (Groq / OpenAI / Claude / Gemini / Ollama) | No | No | **Yes** | No | **Yes** |
-| No LLM required (full offline generation) | **Yes** | **Yes** | No | **Yes** | **Yes** |
-| Document generation (HTML / PDF per row) | No | No | No | No | **Yes** |
-| Quality + privacy reports | No | No | No | Limited | **Yes** |
-| Pure Python, no external services | **Yes** | No | No | **Yes** | **Yes** |
+```python
+bundle = misata.analyze_generation(tables, schema)
 
-**Faker** generates individual fake values — not relational, no schema.
-**Synth** is schema-as-code focused, great for git workflows, limited distribution control.
-**syda** uses an LLM for every single row — semantically rich but expensive and slow, no offline path.
-**SDV** learns from real data (you need real data first) — different problem entirely.
-**Misata** generates from intent or schema without real data, offline by default, seeds databases directly.
+print(bundle.data_card.summary())        # row counts, null rates, type distribution
+print(bundle.fidelity_report.score)      # 0–1 statistical fidelity score vs. schema intent
+print(bundle.privacy_report.pii_risk)    # column-level PII exposure analysis
+```
 
 ---
 
 ## Supported domains
 
 | Domain | Trigger keywords | Tables generated |
-|---|---|---|
+|:--|:--|:--|
 | SaaS | saas, subscription, mrr, churn | users, subscriptions |
 | Ecommerce | ecommerce, orders, store, retail | customers, orders |
 | Fintech | fintech, payments, banking, fraud | customers, accounts, transactions |
@@ -320,7 +329,7 @@ paths = misata.generate_documents(tables, tmpl, table="orders", output_dir="/tmp
 | Marketplace | marketplace, sellers, buyers, listings | sellers, buyers, listings, orders |
 | Logistics | logistics, shipping, drivers, routes | drivers, vehicles, routes, shipments |
 
-No keyword match → falls back to a generic single-table schema.
+No keyword match → generic single-table schema with smart column inference.
 
 ---
 
@@ -329,20 +338,57 @@ No keyword match → falls back to a generic single-table schema.
 ```
 story / YAML / dict / DB introspection
               ↓
-        StoryParser / load_yaml_schema / from_dict_schema / schema_from_db
+        StoryParser  ·  locale detection  ·  load_yaml_schema  ·  schema_from_db
               ↓
-        SchemaConfig  ← validate_schema() catches issues before generation
+        SchemaConfig  ←  validate_schema() catches issues before any rows are generated
               ↓
-        DataSimulator ← topological sort, FK sampling, domain priors
+        DataSimulator
+          ├─ topological sort (FK dependency order)
+          ├─ domain priors  →  locale priors (salary, age, monetary)
+          ├─ constraint engine (inequality, range, ratio, sum, unique)
+          ├─ outcome curves ("revenue rises from 50k in Jan to 200k in Dec")
+          └─ RealisticTextGenerator (Faker locale + Kaggle vocabulary assets)
               ↓
-        {table: DataFrame}  →  seed_database / to_parquet / to_duckdb
+        {table_name: DataFrame}
+              ↓
+        seed_database  ·  to_parquet  ·  to_duckdb  ·  generate_documents
 ```
 
-**Domain priors** — monetary columns get log-normal distributions. Categorical columns use Zipf sampling. Blood types use real-world probabilities.
+**Domain priors** — monetary columns get log-normal distributions. Categoricals use Zipf sampling. Blood types, country distributions, and salary bands reflect real-world statistics.
 
-**Outcome curves** — "revenue rises from 50k in Jan to 200k in Dec" becomes exact per-month targets that constrain row-by-row generation.
+**Locale priors** — salary and age distributions are overridden with country-specific lognormal/normal parameters sourced from national statistics. `"Brazilian fintech"` in your story means salaries are sampled from the BRL distribution, not the USD one.
 
-**Realism rules** — `cost` is always less than `price`. `delivered_at` is always after `shipped_at`. Email addresses derive from first and last name.
+**Outcome curves** — `"revenue rises from 50k in Jan to 200k in Dec"` becomes exact per-month targets that constrain row-by-row generation.
+
+**Realism rules** — `cost` is always less than `price`. `delivered_at` is always after `shipped_at`. Email addresses derive from first and last name columns.
+
+---
+
+## What makes Misata different
+
+| | Faker | Synth | syda | SDV | **Misata** |
+|:--|:--:|:--:|:--:|:--:|:--:|
+| No config, one line to multi-table data | — | — | — | — | **Yes** |
+| Story auto-detects locale + country stats | — | — | — | — | **Yes** |
+| YAML schema committed to git | — | **Yes** | **Yes** | — | **Yes** |
+| DB introspection → generate → re-seed | — | **Yes** | — | Limited | **Yes** |
+| Direct DB seeding (Postgres / MySQL / SQLite) | — | — | — | — | **Yes** |
+| SQLAlchemy model seeding | — | — | — | — | **Yes** |
+| Referential integrity across all FK tables | — | **Yes** | **Yes** | **Yes** | **Yes** |
+| Inequality / range constraints (`price > cost`) | — | Limited | — | **Yes** | **Yes** |
+| Aggregate target curves (monthly MRR shape) | — | — | — | — | **Yes** |
+| Domain-realistic distributions | — | — | — | Limited | **Yes** |
+| Multi-provider LLM (Groq / OpenAI / Claude / Gemini / Ollama) | — | — | **Yes** | — | **Yes** |
+| Fully offline, no LLM required | **Yes** | **Yes** | — | **Yes** | **Yes** |
+| Document generation (HTML / PDF per row) | — | — | — | — | **Yes** |
+| Quality + privacy reports | — | — | — | Limited | **Yes** |
+| Pure Python, no external services | **Yes** | — | — | **Yes** | **Yes** |
+
+**Faker** generates individual fake values — not relational, no schema, no statistical accuracy.  
+**Synth** excels at schema-as-code git workflows; limited distribution control.  
+**syda** uses an LLM for every row — semantically rich but expensive, slow, and requires an API key.  
+**SDV** learns from real data — a different problem (you need real data first).  
+**Misata** generates from intent, offline by default, seeds databases directly, and now brings country-accurate statistics to every column automatically.
 
 ---
 
@@ -350,10 +396,10 @@ story / YAML / dict / DB introspection
 
 Measured on Apple M-series (single core, no GPU):
 
-| Workload | Rows | Time | Rows/s |
-|---|---:|---:|---:|
-| Single table, lognormal | 1,000,000 | 0.06s | ~16M |
-| Star schema (5 tables, 4 FKs) | 1,055,030 | 1.54s | ~687k |
+| Workload | Rows | Time | Throughput |
+|:--|--:|--:|--:|
+| Single table, lognormal | 1 000 000 | 0.06 s | ~16M rows/s |
+| Star schema (5 tables, 4 FKs) | 1 055 030 | 1.54 s | ~687k rows/s |
 
 ---
 
@@ -366,7 +412,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-Issues and PRs welcome: [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
+Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
 
 ---
 

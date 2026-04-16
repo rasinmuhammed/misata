@@ -311,6 +311,7 @@ from misata.locales import (
     LocaleRegistry,
     LOCALE_PACKS,
 )
+from misata.locales.packs import LocalePack
 from misata.generators.base import (
     ConditionalCategoricalGenerator,
     CONDITIONAL_LOOKUPS,
@@ -450,5 +451,6 @@ __all__ = [
     "detect_locale_from_story",
     "get_locale_pack",
     "LocaleRegistry",
+    "LocalePack",
     "LOCALE_PACKS",
 ]

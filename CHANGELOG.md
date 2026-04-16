@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Localisation system — 15 locale data packs, automatic story detection
+- `misata/locales/packs.py` — `LocalePack` dataclass with real statistical data per country: salary medians (OECD/World Bank/ILO 2023–24), lognormal salary priors, age distributions, currency codes and symbols, phone prefixes, postcode patterns, national ID formats (SSN, NIN, Steuer-IdNr, NIE, CPF, Aadhaar, etc.), ranked top cities, company suffixes, VAT rates, timezones
+- 15 built-in locales: `en_US`, `en_GB`, `de_DE`, `fr_FR`, `pt_BR`, `es_ES`, `hi_IN`, `ja_JP`, `zh_CN`, `ar_SA`, `ko_KR`, `nl_NL`, `it_IT`, `pl_PL`, `tr_TR`
+- `misata/locales/detector.py` — `detect_locale_from_story(story)`: keyword + currency symbol + city scoring with per-signal weights; fires automatically from any story string — no annotation needed
+- `misata/locales/registry.py` — `LocaleRegistry` with per-locale Faker instance cache (process-level singleton); `supported_locales()` list
+- `TextGenerator(locale=)` — Faker-backed locale-aware generation for names, addresses, phone numbers, postcodes, and national IDs; pure-Python `_expand_pattern()` handles regex patterns (`\d{5}`, `[A-Z]{2}\d{3}`) with no additional dependencies
+- `RealisticTextGenerator(locale=)` — uses Faker for locale-specific names, cities, and company suffixes; asset-backed vocabulary (Kaggle enrichment) always takes precedence over locale defaults
+- `apply_locale_priors(column, params, locale)` in `domain_priors.py` — automatically overlays locale-specific lognormal salary distributions and age normal priors; only fires when the user has not explicitly set distribution parameters
+- `StoryParser` auto-detects locale and injects it into `schema.realism.locale` — "Brazilian fintech with R$ payments" → `pt_BR` with no extra code
+- `misata generate --locale de_DE` — CLI flag to force or override locale at generation time
+- `misata.LocalePack`, `misata.LocaleRegistry`, `misata.LOCALE_PACKS`, `misata.detect_locale`, `misata.get_locale_pack` all exported from top-level `__init__.py`
+- `faker>=20.0.0` added as a core dependency (was already used transitively; now declared)
+
 #### YAML schema-as-code (`misata init`)
 - `misata/yaml_schema.py` — first-class YAML schema format: more readable than Synth's JSON, no LLM required (unlike syda)
 - `misata.load_yaml_schema(path)` — load a `misata.yaml` file into a `SchemaConfig` for immediate generation
