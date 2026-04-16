@@ -5,6 +5,40 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-04-16
+
+### Added
+
+#### YAML schema-as-code (`misata init`)
+- `misata/yaml_schema.py` — first-class YAML schema format: more readable than Synth's JSON, no LLM required (unlike syda)
+- `misata.load_yaml_schema(path)` — load a `misata.yaml` file into a `SchemaConfig` for immediate generation
+- `misata.save_yaml_schema(schema, path)` — round-trip serialize any `SchemaConfig` back to YAML; commit it to git
+- Arrow shorthand for relationships: `"users.user_id → orders.user_id"` (also accepts ASCII `->`)
+- Per-table and top-level constraints in YAML with explicit `table:` field for unambiguous assignment
+- `MISATA_YAML_TEMPLATE` — commented starter schema written by `misata init`
+- `misata generate` auto-detects `misata.yaml` in the working directory if no other source is given
+
+#### `misata init` CLI command
+- Three modes: `misata init` (template scaffold), `misata init --db <url>` (DB introspection), `misata init --story "..."` (story parse)
+- `--output` / `--force` flags; refuses to overwrite without `--force`
+- Makes Misata's workflow parallel to `synth init` — schema lives in git, reproducible across the whole team
+
+#### New constraint types
+- `InequalityConstraint(col_a, operator, col_b)` — enforces `col_a OP col_b` (e.g. `price > cost`) on every row; fixes violations by adjusting `col_a` with a small offset
+- `ColumnRangeConstraint(column, low_col, high_col)` — clips `column` to `[low_col, high_col]` per row
+- `ConstraintEngine.from_schema_constraint(c)` — factory method dispatching all constraint types from a `schema.Constraint` Pydantic model
+- `schema.Constraint` model extended with `inequality` and `col_range` types and five new optional fields: `column_a`, `operator`, `column_b`, `low_column`, `high_column`
+- Both constraint types available in `misata.yaml` constraints list and in `__all__`
+
+### Changed
+- README restructured to show all six generation entry points with DB seeding as a hero workflow; comparison table now includes Synth and syda
+- Version badge and `__version__` updated to 0.8.0
+
+### Tests
+- 31 new tests: `tests/test_yaml_schema.py` (load/save/round-trip, arrow relationships, constraint parsing), `TestInequalityConstraint`, `TestColumnRangeConstraint`, `TestCLIInit`; suite grows from 283 → 314 passing
+
+---
+
 ## [0.7.0] - 2026-04-14
 
 ### Added
