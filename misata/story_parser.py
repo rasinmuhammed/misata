@@ -361,27 +361,43 @@ class StoryParser:
         self.scale_params = self._extract_scale(story)
         self.temporal_events = self._extract_temporal_events(story)
 
+        # Detect locale from story text
+        try:
+            from misata.locales.detector import detect_locale_from_story
+            self.detected_locale = detect_locale_from_story(story)
+        except Exception:
+            self.detected_locale = None
+
         # Build schema based on detected domain
         if self.detected_domain == "saas":
-            return self._build_saas_schema(story, default_rows)
+            schema = self._build_saas_schema(story, default_rows)
         elif self.detected_domain == "ecommerce":
-            return self._build_ecommerce_schema(story, default_rows)
+            schema = self._build_ecommerce_schema(story, default_rows)
         elif self.detected_domain == "pharma":
-            return self._build_pharma_schema(story, default_rows)
+            schema = self._build_pharma_schema(story, default_rows)
         elif self.detected_domain == "fintech":
-            return self._build_fintech_schema(story, default_rows)
+            schema = self._build_fintech_schema(story, default_rows)
         elif self.detected_domain == "healthcare":
-            return self._build_healthcare_schema(story, default_rows)
+            schema = self._build_healthcare_schema(story, default_rows)
         elif self.detected_domain == "marketplace":
-            return self._build_marketplace_schema(story, default_rows)
+            schema = self._build_marketplace_schema(story, default_rows)
         elif self.detected_domain == "logistics":
-            return self._build_logistics_schema(story, default_rows)
+            schema = self._build_logistics_schema(story, default_rows)
         elif self.detected_domain == "hr":
-            return self._build_hr_schema(story, default_rows)
+            schema = self._build_hr_schema(story, default_rows)
         elif self.detected_domain == "realestate":
-            return self._build_realestate_schema(story, default_rows)
+            schema = self._build_realestate_schema(story, default_rows)
         else:
-            return self._build_generic_schema(story, default_rows)
+            schema = self._build_generic_schema(story, default_rows)
+
+        # Inject detected locale into realism config
+        if self.detected_locale:
+            if schema.realism is None:
+                from misata.schema import RealismConfig
+                object.__setattr__(schema, "realism", RealismConfig())
+            object.__setattr__(schema.realism, "locale", self.detected_locale)
+
+        return schema
 
     def _build_saas_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a SaaS-specific schema."""

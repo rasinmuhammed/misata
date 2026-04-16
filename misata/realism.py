@@ -67,9 +67,25 @@ class RealisticTextGenerator:
         self,
         rng: Optional[np.random.Generator] = None,
         capsule: Optional[DomainCapsule] = None,
+        locale: Optional[str] = None,
     ):
         self.rng = rng or np.random.default_rng(42)
         self.capsule = capsule
+        self.locale = locale or "en_US"
+        self._faker = None  # lazy
+
+    def _get_faker(self):
+        if self._faker is None:
+            try:
+                from misata.locales.registry import LocaleRegistry
+                self._faker = LocaleRegistry.global_instance().get_faker(self.locale)
+            except Exception:
+                try:
+                    from faker import Faker
+                    self._faker = Faker(self.locale)
+                except Exception:
+                    self._faker = None
+        return self._faker
 
     def generate(
         self,
@@ -81,15 +97,30 @@ class RealisticTextGenerator:
     ) -> np.ndarray:
         semantic = semantic_type or self._infer_semantic(column_name, table_name)
 
+        # When a non-default locale is active, prefer Faker for person/address data
+        # so names, cities, and phones match the target locale.
+        # Exception: if the domain capsule already has vocabulary loaded for this
+        # semantic type (e.g. from a Kaggle asset store), the capsule takes priority.
+        _has_capsule_vocab = lambda key: bool(self._vocabulary(key, []))  # noqa: E731
+        faker = self._get_faker() if self.locale != "en_US" else None
+
         if semantic == "first_name":
+            if faker and not _has_capsule_vocab("first_name"):
+                return np.array([faker.first_name() for _ in range(size)])
             return self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
         if semantic == "last_name":
+            if faker and not _has_capsule_vocab("last_name"):
+                return np.array([faker.last_name() for _ in range(size)])
             return self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
         if semantic == "person_name":
+            if faker and not _has_capsule_vocab("first_name"):
+                return np.array([faker.name() for _ in range(size)])
             first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
             last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
             return np.array([f"{f} {l}" for f, l in zip(first, last)])
         if semantic == "email":
+            if faker and not _has_capsule_vocab("first_name"):
+                return np.array([faker.email() for _ in range(size)])
             first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
             last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
             separators = self.rng.choice([".", "_", ""], size=size, p=[0.5, 0.2, 0.3])
@@ -104,6 +135,14 @@ class RealisticTextGenerator:
                 ]
             )
         if semantic == "company_name":
+            if faker:
+                try:
+                    from misata.locales.registry import LocaleRegistry
+                    pack = LocaleRegistry.global_instance().get_pack(self.locale)
+                    suffix = pack.company_suffixes
+                    return np.array([f"{faker.company().split()[0]} {np.random.choice(suffix)}" for _ in range(size)])
+                except Exception:
+                    return np.array([faker.company() for _ in range(size)])
             company_names = self._vocabulary("company_name", [])
             if company_names:
                 return self.rng.choice(company_names, size=size)
@@ -114,10 +153,25 @@ class RealisticTextGenerator:
                 ]
             )
         if semantic == "job_title":
+            if faker:
+                try:
+                    return np.array([faker.job() for _ in range(size)])
+                except Exception:
+                    pass
             return self.rng.choice(self._vocabulary("job_title", JOB_TITLES), size=size)
         if semantic == "country":
+            if faker:
+                try:
+                    return np.array([faker.country() for _ in range(size)])
+                except Exception:
+                    pass
             return self.rng.choice(self._vocabulary("country", COUNTRIES), size=size)
         if semantic == "state":
+            if faker:
+                try:
+                    return np.array([faker.city() for _ in range(size)])  # state/prefecture via city for non-US
+                except Exception:
+                    pass
             countries = self._series_from_table(table_data, "country", size)
             states = self._vocabulary("state", [])
             if states:
@@ -127,6 +181,19 @@ class RealisticTextGenerator:
                 for country in countries
             ])
         if semantic == "city":
+            # Use locale pack top_cities list when available (real, population-ranked)
+            try:
+                from misata.locales.registry import LocaleRegistry
+                pack = LocaleRegistry.global_instance().get_pack(self.locale)
+                if pack.top_cities:
+                    return self.rng.choice(pack.top_cities, size=size)
+            except Exception:
+                pass
+            if faker:
+                try:
+                    return np.array([faker.city() for _ in range(size)])
+                except Exception:
+                    pass
             countries = self._series_from_table(table_data, "country", size)
             cities = self._vocabulary("city", [])
             if cities:

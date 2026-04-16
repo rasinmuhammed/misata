@@ -363,6 +363,15 @@ def init(db: Optional[str], story: Optional[str], output: str,
     default=False,
     help="Disable LLM for smart value generation (use curated pools only)",
 )
+@click.option(
+    "--locale",
+    type=str,
+    default=None,
+    help=(
+        "Locale for names, addresses, phone formats, and salary distributions "
+        "(e.g. de_DE, pt_BR, ja_JP, hi_IN). Auto-detected from story when not set."
+    ),
+)
 def generate(
     story: Optional[str],
     config: Optional[str],
@@ -381,6 +390,7 @@ def generate(
     db_batch_size: Optional[int],
     smart: bool,
     smart_no_llm: bool,
+    locale: Optional[str],
 ) -> None:
     """
     Generate synthetic data from a story or configuration file.
@@ -522,6 +532,19 @@ def generate(
     # Set seed if provided
     if seed is not None:
         schema_config.seed = seed
+
+    # Inject locale: --locale flag overrides auto-detected locale from story parser
+    _effective_locale = locale
+    if not _effective_locale:
+        _effective_locale = getattr(
+            getattr(schema_config, "realism", None), "locale", None
+        )
+    if _effective_locale:
+        from misata.schema import RealismConfig
+        if schema_config.realism is None:
+            object.__setattr__(schema_config, "realism", RealismConfig())
+        object.__setattr__(schema_config.realism, "locale", _effective_locale)
+        console.print(f"   Locale: [cyan]{_effective_locale}[/cyan]")
 
     # Display schema info
     console.print(f"\n📋 Schema: [bold]{schema_config.name}[/bold]")

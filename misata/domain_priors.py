@@ -361,6 +361,70 @@ def get_column_prior(
     return None
 
 
+def apply_locale_priors(
+    column_name: str,
+    existing_params: Dict[str, Any],
+    locale: str,
+) -> Dict[str, Any]:
+    """Overlay locale-specific statistical priors for salary and age columns.
+
+    Called *after* ``apply_domain_priors`` so locale data takes precedence over
+    domain defaults for columns whose realistic range is strongly locale-dependent
+    (e.g. salary in JPY vs USD vs BRL are orders of magnitude apart).
+
+    Only overrides when the user has NOT explicitly set ``mu``/``mean`` in their
+    schema (detected via ``_distribution_is_default`` sentinel).
+    """
+    if locale in ("en_US", None):
+        return existing_params  # en_US data is already baked into domain priors
+
+    role = _semantic_role(column_name)
+    if role not in ("salary", "age"):
+        return existing_params
+
+    try:
+        from misata.locales.packs import LOCALE_PACKS
+        pack = LOCALE_PACKS.get(locale)
+        if pack is None:
+            return existing_params
+    except Exception:
+        return existing_params
+
+    # Only inject when no explicit user distribution is set
+    user_params = dict(existing_params)
+    user_params.pop("_distribution_is_default", None)
+    has_explicit_dist = "mu" in user_params or "mean" in user_params
+
+    if has_explicit_dist:
+        return existing_params  # user knows what they want
+
+    if role == "salary":
+        override = {
+            "distribution": "lognormal",
+            "mu": pack.salary_lognormal_mean,
+            "sigma": pack.salary_lognormal_std,
+            "min": pack.salary_min,
+            "decimals": 0,
+        }
+        # override wins; user_params contributes only keys not already in override
+        return {**user_params, **override}
+
+    if role == "age":
+        override = {
+            "distribution": "normal",
+            "mean": pack.age_mean,
+            "std": pack.age_std,
+            "min": 18,
+            "max": 85,
+            "decimals": 0,
+        }
+        merged = dict(override)
+        merged.update(user_params)
+        return merged
+
+    return existing_params
+
+
 def apply_domain_priors(
     domain: str,
     column_name: str,

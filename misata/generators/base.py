@@ -297,29 +297,189 @@ class DateGenerator(BaseGenerator):
 
 
 class TextGenerator(BaseGenerator):
-    """Generator for text values using Faker or patterns."""
-    
-    def __init__(self):
+    """Generator for text values using Faker with locale support.
+
+    Pass ``locale="de_DE"`` (or any BCP-47 code in ``LOCALE_PACKS``) to get
+    locale-appropriate names, addresses, phone numbers, cities, etc.
+
+    Example::
+
+        gen = TextGenerator(locale="pt_BR")
+        gen.generate(5, {"text_type": "name"})
+        # → array of Brazilian names from Faker("pt_BR")
+    """
+
+    def __init__(self, locale: str = "en_US"):
+        self._locale = locale
+        self._faker = self._build_faker(locale)
+
+    @staticmethod
+    def _build_faker(locale: str):
         try:
-            from faker import Faker
-            self._faker = Faker()
-        except ImportError:
-            self._faker = None
-    
+            from misata.locales.registry import LocaleRegistry
+            return LocaleRegistry.global_instance().get_faker(locale)
+        except Exception:
+            try:
+                from faker import Faker
+                return Faker(locale)
+            except Exception:
+                return None
+
+    def set_locale(self, locale: str) -> None:
+        """Switch to a different locale (rebuilds Faker if needed)."""
+        if locale != self._locale:
+            self._locale = locale
+            self._faker = self._build_faker(locale)
+
+    # ── locale-aware extras ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _expand_pattern(pattern: str) -> str:
+        """Expand a simple regex pattern into a random matching string.
+
+        Handles the subset used in locale patterns:
+        ``\\d{n}``, ``[A-Z]{n}``, ``[A-Z\\d]{n}``, literal chars, spaces.
+        Falls back to a digit string if the pattern is too complex.
+        """
+        import re as _re
+        import random as _random
+        import string as _string
+
+        result = []
+        i = 0
+        while i < len(pattern):
+            # Escaped shorthand: \d, \w
+            if pattern[i] == "\\" and i + 1 < len(pattern):
+                ch = pattern[i + 1]
+                if ch in ("d", "w"):
+                    pool_chars = (
+                        _string.digits if ch == "d"
+                        else _string.ascii_letters + _string.digits + "_"
+                    )
+                    i += 2
+                    m = _re.match(r"\{(\d+)(?:,(\d+))?\}", pattern[i:])
+                    if m:
+                        lo = int(m.group(1))
+                        hi = int(m.group(2)) if m.group(2) else lo
+                        count = _random.randint(lo, hi)
+                        i += len(m.group(0))
+                    else:
+                        count = 1
+                    result.append("".join(_random.choices(pool_chars, k=count)))
+                    continue
+
+            # Character class: [A-Z] [A-Z\d] [\d] etc.
+            if pattern[i] == "[":
+                end = pattern.index("]", i)
+                cls_str = pattern[i + 1:end]
+                pool: list = []
+                j = 0
+                while j < len(cls_str):
+                    if cls_str[j] == "\\" and j + 1 < len(cls_str):
+                        if cls_str[j + 1] == "d":
+                            pool.extend(list(_string.digits))
+                        j += 2
+                    elif j + 2 < len(cls_str) and cls_str[j + 1] == "-":
+                        pool.extend([chr(c) for c in range(ord(cls_str[j]), ord(cls_str[j + 2]) + 1)])
+                        j += 3
+                    else:
+                        pool.append(cls_str[j])
+                        j += 1
+                i = end + 1
+                # Optional quantifier {n} or {n,m}
+                m = _re.match(r"\{(\d+)(?:,(\d+))?\}", pattern[i:])
+                if m:
+                    lo = int(m.group(1))
+                    hi = int(m.group(2)) if m.group(2) else lo
+                    count = _random.randint(lo, hi)
+                    i += len(m.group(0))
+                else:
+                    count = 1
+                result.append("".join(_random.choices(pool, k=count)))
+                continue
+
+            # Literal char followed by optional {n}
+            ch = pattern[i]
+            i += 1
+            m = _re.match(r"\{(\d+)(?:,(\d+))?\}", pattern[i:])
+            if m:
+                lo = int(m.group(1))
+                hi = int(m.group(2)) if m.group(2) else lo
+                count = _random.randint(lo, hi)
+                i += len(m.group(0))
+            else:
+                count = 1
+            result.append(ch * count)
+
+        return "".join(result)
+
+    def _national_id(self, size: int) -> np.ndarray:
+        """Generate national ID strings based on the current locale's pattern."""
+        try:
+            from misata.locales.registry import LocaleRegistry
+            pack = LocaleRegistry.global_instance().get_pack(self._locale)
+            pattern = pack.national_id_pattern
+        except Exception:
+            pattern = r"\d{9}"
+        try:
+            return np.array([self._expand_pattern(pattern) for _ in range(size)])
+        except Exception:
+            return np.array([f"ID-{i:08d}" for i in range(size)])
+
+    def _postcode(self, size: int) -> np.ndarray:
+        try:
+            from misata.locales.registry import LocaleRegistry
+            pack = LocaleRegistry.global_instance().get_pack(self._locale)
+            pattern = pack.postcode_pattern
+        except Exception:
+            pattern = r"\d{5}"
+        try:
+            return np.array([self._expand_pattern(pattern) for _ in range(size)])
+        except Exception:
+            if self._faker:
+                return np.array([self._faker.postcode() for _ in range(size)])
+            return np.array([f"{i:05d}" for i in range(size)])
+
+    def _locale_city(self, size: int) -> np.ndarray:
+        """Return cities weighted toward the locale's top_cities list."""
+        try:
+            from misata.locales.registry import LocaleRegistry
+            pack = LocaleRegistry.global_instance().get_pack(self._locale)
+            if pack.top_cities:
+                return np.random.choice(pack.top_cities, size=size)
+        except Exception:
+            pass
+        if self._faker:
+            return np.array([self._faker.city() for _ in range(size)])
+        return np.array([f"City_{i}" for i in range(size)])
+
+    # ── main generate ────────────────────────────────────────────────────────
+
     def generate(self, size: int, params: Dict[str, Any]) -> np.ndarray:
         text_type = params.get("text_type", params.get("distribution", "uuid"))
-        
-        if text_type == "uuid" or text_type == "text":
+
+        if text_type in ("uuid", "text"):
             import uuid
             return np.array([str(uuid.uuid4()) for _ in range(size)])
-        
+
+        # Locale-specific generators
+        if text_type in ("national_id", "ssn", "cpf", "aadhaar", "nid"):
+            return self._national_id(size)
+
+        if text_type in ("postcode", "postal_code", "zip", "zip_code"):
+            return self._postcode(size)
+
+        if text_type == "city":
+            return self._locale_city(size)
+
         if self._faker is None:
-            # Fallback without faker
             return np.array([f"text_{i}" for i in range(size)])
-        
+
         faker_methods = {
             "name": self._faker.name,
             "fake.name": self._faker.name,
+            "first_name": self._faker.first_name,
+            "last_name": self._faker.last_name,
             "email": self._faker.email,
             "fake.email": self._faker.email,
             "address": self._faker.address,
@@ -327,19 +487,25 @@ class TextGenerator(BaseGenerator):
             "company": self._faker.company,
             "fake.company": self._faker.company,
             "phone": self._faker.phone_number,
+            "phone_number": self._faker.phone_number,
             "fake.phone": self._faker.phone_number,
-            "city": self._faker.city,
             "country": self._faker.country,
             "job": self._faker.job,
             "sentence": self._faker.sentence,
             "paragraph": self._faker.paragraph,
+            "url": self._faker.url,
+            "domain": self._faker.domain_name,
+            "username": self._faker.user_name,
+            "password": self._faker.password,
+            "color": self._faker.color_name,
+            "currency_code": self._faker.currency_code,
         }
-        
+
         method = faker_methods.get(text_type)
         if method:
             return np.array([method() for _ in range(size)])
-        
-        # Default to name
+
+        # Default to locale-appropriate name
         return np.array([self._faker.name() for _ in range(size)])
 
 

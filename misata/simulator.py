@@ -111,8 +111,16 @@ class DataSimulator:
         realism = getattr(self.config, "realism", None)
         asset_store = AssetStore(getattr(realism, "asset_store_dir", None))
         self.domain_capsule = SemanticVocabularyGenerator(asset_store=asset_store).build_capsule(self.config)
-        self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule)
+        # Resolve locale: schema.realism.locale → schema.domain hint → default en_US
+        self.locale = getattr(realism, "locale", None) or "en_US"
+        self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule, locale=self.locale)
         self.coherence_engine = EntityCoherenceEngine(self.rng, capsule=self.domain_capsule)
+        # Locale-aware Faker for address/phone (legacy path)
+        try:
+            from misata.locales.registry import LocaleRegistry
+            self._locale_faker = LocaleRegistry.global_instance().get_faker(self.locale)
+        except Exception:
+            self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
     
     def _generate_unique_text(self, text_type: str, size: int) -> np.ndarray:
@@ -360,6 +368,11 @@ class DataSimulator:
             params = apply_domain_priors(_domain, column.name, column.distribution_params)
         else:
             params = column.distribution_params
+
+        # Apply locale-specific priors (salary/age) — overrides en_US domain defaults
+        if column.type in ("int", "float") and self.locale != "en_US":
+            from misata.domain_priors import apply_locale_priors
+            params = apply_locale_priors(column.name, params, self.locale)
 
         # ========== CORRELATED COLUMN GENERATION ==========
         # If this column depends on another column's value, use conditional distribution
@@ -865,12 +878,16 @@ class DataSimulator:
             # address, phone, url) fall back to the legacy pool sampler.
             # Pool is at least 5× the request size to reduce visible repetition.
             _pool_size = min(max(size * 5, 200), self.TEXT_POOL_SIZE)
+            # Use locale-aware Faker for address and phone when available
+            _lf = self._locale_faker
+            _addr_fn = (_lf.address if _lf else None) or self.text_gen.full_address
+            _phone_fn = (_lf.phone_number if _lf else None) or self.text_gen.phone_number
             _LEGACY_GEN_MAP = {
-                "sentence": (self.text_gen.sentence,     "text_sentence"),
-                "word":     (self.text_gen.word,         "text_word"),
-                "address":  (self.text_gen.full_address, "text_address"),
-                "phone":    (self.text_gen.phone_number, "text_phone"),
-                "url":      (self.text_gen.url,          "text_url"),
+                "sentence": (self.text_gen.sentence, "text_sentence"),
+                "word":     (self.text_gen.word,     "text_word"),
+                "address":  (_addr_fn,               f"text_address_{self.locale}"),
+                "phone":    (_phone_fn,               f"text_phone_{self.locale}"),
+                "url":      (self.text_gen.url,       "text_url"),
             }
             gen_fn, pool_key = _LEGACY_GEN_MAP.get(text_type, (self.text_gen.sentence, "text_sentence"))
             if pool_key not in self._text_pools:
