@@ -1,3 +1,8 @@
+---
+title: CLI Reference — Misata Command-Line Synthetic Data Tool
+description: Full CLI reference for Misata. Generate synthetic datasets, scaffold YAML schemas, seed databases, and validate CSV files — all from the command line.
+---
+
 # CLI Reference
 
 ```bash

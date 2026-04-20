@@ -1,3 +1,8 @@
+---
+title: Validate CSV — Data Quality Profiling with Misata
+description: Profile any CSV file with Misata's validate command. Get per-column statistics, null rates, type inference, and a 0-100 quality score. Optionally check against a schema.
+---
+
 # Validate
 
 Profile any CSV file and optionally check it against a Misata schema. Useful for verifying that real data matches your expectations, or for auditing generated data before seeding.

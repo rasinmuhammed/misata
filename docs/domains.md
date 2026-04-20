@@ -1,3 +1,8 @@
+---
+title: Supported Domains — Misata Synthetic Data Generator
+description: Misata auto-detects your business domain and generates statistically accurate multi-table synthetic data. Covers SaaS, ecommerce, fintech, healthcare, marketplace, logistics, HR, social, and real estate.
+---
+
 # Supported Domains
 
 Each domain produces a multi-table schema with realistic FK relationships, domain-calibrated distributions, and semantic column types.

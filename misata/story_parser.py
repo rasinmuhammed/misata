@@ -835,7 +835,7 @@ class StoryParser:
                 Column(name="patient_id", type="int", unique=True, distribution_params={"min": 1, "max": num_patients + 1}),
                 Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
                 Column(name="last_name", type="text", distribution_params={"text_type": "last_name"}),
-                Column(name="age", type="int", distribution_params={"distribution": "normal", "mean": 45, "std": 18, "min": 0, "max": 100}),
+                Column(name="age", type="int", distribution_params={"distribution": "normal", "mean": 45, "std": 18, "min": 1, "max": 100}),
                 Column(name="gender", type="categorical", distribution_params={"choices": ["Male", "Female", "Non-binary"], "probabilities": [0.49, 0.49, 0.02]}),
                 Column(name="blood_type", type="categorical", distribution_params={
                     "choices": ["O+", "A+", "B+", "AB+", "O-", "A-", "B-", "AB-"],
@@ -909,7 +909,9 @@ class StoryParser:
                     "choices": ["electronics", "clothing", "home", "sports", "books", "beauty"],
                     "sampling": "zipf",
                 }),
-                Column(name="price", type="float", distribution_params={"min": 1.0, "decimals": 2}),
+                Column(name="price", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 4.5, "sigma": 1.5, "min": 0.99, "max": 50000, "decimals": 2,
+                }),
                 Column(name="status", type="categorical", distribution_params={
                     "choices": ["active", "sold", "paused", "removed"],
                     "probabilities": [0.60, 0.25, 0.10, 0.05],
@@ -920,7 +922,9 @@ class StoryParser:
                 Column(name="order_id", type="int", unique=True, distribution_params={"min": 1, "max": num_orders + 1}),
                 Column(name="buyer_id", type="foreign_key"),
                 Column(name="listing_id", type="foreign_key"),
-                Column(name="amount", type="float", distribution_params={"min": 1.0, "decimals": 2}),
+                Column(name="amount", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 4.5, "sigma": 1.2, "min": 0.99, "max": 50000, "decimals": 2,
+                }),
                 Column(name="status", type="categorical", distribution_params={
                     "choices": ["completed", "shipped", "pending", "refunded", "cancelled"],
                     "probabilities": [0.65, 0.15, 0.10, 0.06, 0.04],
@@ -989,7 +993,7 @@ class StoryParser:
                 Column(name="origin_city", type="text", distribution_params={"text_type": "city"}),
                 Column(name="destination_city", type="text", distribution_params={"text_type": "city"}),
                 Column(name="distance_km", type="float", distribution_params={"distribution": "lognormal", "mu": 5.0, "sigma": 1.0, "min": 5, "decimals": 1}),
-                Column(name="estimated_hours", type="float", distribution_params={"distribution": "lognormal", "mu": 2.5, "sigma": 0.7, "min": 0.5, "decimals": 1}),
+                Column(name="estimated_hours", type="float", distribution_params={"distribution": "lognormal", "mu": 1.8, "sigma": 0.6, "min": 0.5, "max": 16.0, "decimals": 1}),
             ],
             "shipments": [
                 Column(name="shipment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_shipments + 1}),
@@ -1090,15 +1094,15 @@ class StoryParser:
                 Column(name="employee_id", type="foreign_key"),
                 Column(name="period_start", type="date", distribution_params={"start": "2023-01-01", "end": "2024-12-01"}),
                 Column(name="gross_pay", type="float", distribution_params={
-                    # Domain prior will apply salary-like lognormal
-                    "distribution": "lognormal", "mu": 9.8, "sigma": 0.5, "min": 1500.0, "decimals": 2,
+                    # Monthly pay: median ~$5k (ln(5000)≈8.5); sigma gives realistic spread
+                    "distribution": "lognormal", "mu": 8.5, "sigma": 0.5, "min": 1200.0, "decimals": 2,
                 }),
                 Column(name="tax_withheld", type="float", distribution_params={
                     # ~22-32% effective tax rate
                     "distribution": "beta", "a": 3.0, "b": 7.0, "min": 0.18, "max": 0.40, "decimals": 4,
                 }),
                 Column(name="net_pay", type="float", distribution_params={
-                    "distribution": "lognormal", "mu": 9.5, "sigma": 0.5, "min": 1000.0, "decimals": 2,
+                    "distribution": "lognormal", "mu": 8.2, "sigma": 0.5, "min": 900.0, "decimals": 2,
                 }),
                 Column(name="pay_type", type="categorical", distribution_params={
                     "choices": ["regular", "overtime", "bonus", "commission"],
@@ -1255,8 +1259,8 @@ class StoryParser:
                     "probabilities": [0.70, 0.18, 0.07, 0.05],
                 }),
                 Column(name="follower_count", type="int", distribution_params={
-                    # Power-law: most accounts have <1k followers, a few have millions
-                    "distribution": "pareto", "scale": 100, "shape": 1.5, "max": 10_000_000, "decimals": 0,
+                    # Power-law approximated with lognormal: median ~250, tail reaches millions
+                    "distribution": "lognormal", "mu": 5.5, "sigma": 2.5, "min": 10, "max": 50_000_000, "decimals": 0,
                 }),
                 Column(name="following_count", type="int", distribution_params={
                     "distribution": "lognormal", "mu": 5.5, "sigma": 1.2, "min": 0, "max": 5000, "decimals": 0,
@@ -1303,14 +1307,14 @@ class StoryParser:
             "follows": [
                 Column(name="follow_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_follows + 1}),
                 Column(name="follower_id", type="foreign_key"),
-                Column(name="followee_id", type="int", distribution_params={"min": 1, "max": num_users}),
+                Column(name="followee_id", type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
                 Column(name="followed_at", type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
                 Column(name="is_mutual",   type="boolean", distribution_params={"probability": 0.42}),
             ],
             "reactions": [
                 Column(name="reaction_id", type="int", unique=True, distribution_params={"min": 1, "max": num_reactions + 1}),
                 Column(name="post_id",     type="foreign_key"),
-                Column(name="user_id",     type="int", distribution_params={"min": 1, "max": num_users}),
+                Column(name="user_id",     type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
                 Column(name="reaction_type", type="categorical", distribution_params={
                     "choices": ["like", "love", "haha", "wow", "sad", "angry"],
                     "probabilities": [0.65, 0.18, 0.07, 0.05, 0.03, 0.02],
@@ -1320,7 +1324,7 @@ class StoryParser:
             "comments": [
                 Column(name="comment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_comments + 1}),
                 Column(name="post_id",    type="foreign_key"),
-                Column(name="user_id",    type="int", distribution_params={"min": 1, "max": num_users}),
+                Column(name="user_id",    type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
                 Column(name="body",       type="text", distribution_params={"text_type": "sentence"}),
                 Column(name="like_count", type="int", distribution_params={
                     "distribution": "lognormal", "mu": 1.0, "sigma": 1.5, "min": 0, "decimals": 0,

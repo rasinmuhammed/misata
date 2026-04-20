@@ -1,3 +1,8 @@
+---
+title: Synthetic Data for BI Demos — Realistic Dashboard Datasets in Python
+description: Create compelling BI demo datasets with realistic trends, seasonality, and growth curves using Misata. Perfect for Tableau, Power BI, Looker, and Metabase demos.
+---
+
 # Synthetic Data for BI Demos
 
 BI dashboards live or die by their data story. A chart that shows flat revenue or

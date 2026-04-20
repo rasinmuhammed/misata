@@ -1,3 +1,8 @@
+---
+title: Localisation — Country-Accurate Synthetic Data in 15 Locales
+description: Misata generates country-accurate synthetic data for 15 locales including US, UK, Germany, Japan, India, and more — with real salary distributions, national ID formats, and currencies.
+---
+
 # Localisation
 
 Misata generates country-accurate data automatically — names, salary distributions, national ID formats, currencies, postcodes, and company suffixes — from a geographic signal in your story.

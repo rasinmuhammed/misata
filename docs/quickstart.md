@@ -1,3 +1,8 @@
+---
+title: Quick Start — Misata Synthetic Data Generator
+description: Get started with Misata in 5 minutes. Install, generate your first multi-table synthetic dataset from plain English, and export to CSV, Parquet, or your database.
+---
+
 # Quick Start
 
 ## Install

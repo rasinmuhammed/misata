@@ -1,3 +1,8 @@
+---
+title: Time Series Synthetic Data — Generate Realistic Temporal Datasets in Python
+description: Generate realistic time-series synthetic data with Misata. Add linear/exponential trends, weekly and yearly seasonality, Gaussian noise, and anomaly injection — for metrics, KPIs, and sensor data.
+---
+
 # Time Series
 
 Generate realistic temporal sequences with trend, seasonality, noise, and anomaly injection — metrics, sensor data, KPIs, DAU curves, revenue forecasts.

@@ -1,3 +1,8 @@
+---
+title: Multi-Table Synthetic Data in Python — FK-Safe Relational Datasets
+description: Generate multi-table synthetic data in Python with referential integrity guaranteed. Learn how Misata creates realistic relational datasets for testing, ML, and demos — in one line of code.
+---
+
 # Multi-Table Synthetic Data in Python
 
 Most synthetic data tools generate rows one table at a time. That breaks the moment

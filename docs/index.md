@@ -1,4 +1,9 @@
-# Misata
+---
+title: Misata — Python Synthetic Data Generator
+description: Generate realistic multi-table synthetic data from plain English, YAML, or your own database. The best Faker alternative for test data, database seeding, and ML datasets. Free and open-source.
+---
+
+# Misata — Python Synthetic Data Generator
 
 **Realistic multi-table synthetic data — from a sentence, a YAML file, or your own database.**
 
@@ -72,16 +77,41 @@ pip install misata
 
 ---
 
-## Why Misata
+## Why Misata over Faker or SDV?
 
-| | Faker | Synth | syda | SDV | **Misata** |
-|:--|:--:|:--:|:--:|:--:|:--:|
-| One-liner multi-table generation | — | — | — | — | **✓** |
-| Story auto-detects locale + country stats | — | — | — | — | **✓** |
-| YAML schema committed to git | — | **✓** | **✓** | — | **✓** |
-| DB introspection → generate → re-seed | — | **✓** | — | Limited | **✓** |
-| Direct DB seeding | — | — | — | — | **✓** |
-| FK integrity across all tables | — | **✓** | **✓** | **✓** | **✓** |
-| Fully offline, no LLM required | **✓** | **✓** | — | **✓** | **✓** |
-| Time-series generation | — | — | — | — | **✓** |
-| Quality + privacy reports | — | — | — | Limited | **✓** |
+Faker generates one column at a time — you write the loop, manage the IDs, enforce uniqueness yourself.
+SDV requires real training data and a fitted model before you get anything.
+**Misata generates a complete relational dataset from a single sentence — no training data, no boilerplate.**
+
+| Feature | Faker | SDV | **Misata** |
+|:--|:--:|:--:|:--:|
+| One-liner multi-table generation | — | — | **✓** |
+| Story auto-detects locale + country stats | — | — | **✓** |
+| YAML schema committed to git | — | — | **✓** |
+| DB introspection → generate → re-seed | — | Limited | **✓** |
+| Direct PostgreSQL / SQLite seeding | — | — | **✓** |
+| FK integrity across all tables | — | **✓** | **✓** |
+| Fully offline, no LLM required | **✓** | **✓** | **✓** |
+| Time-series generation | — | — | **✓** |
+| 15 country locale packs | — | — | **✓** |
+| CSV quality validation | — | — | **✓** |
+
+---
+
+## What people use Misata for
+
+- **Test data generation** — seed your dev/staging database with realistic data in seconds
+- **BI and dashboard demos** — populate a demo environment with coherent, believable numbers
+- **Machine learning datasets** — create labelled training data without touching real user data
+- **Database seeding in CI/CD** — reproducible, seed-controlled datasets for every test run
+- **Privacy-safe development** — work with realistic schemas without exposure to PII
+
+---
+
+## Supported domains
+
+Misata auto-detects your domain from the story and applies statistically accurate priors:
+
+`saas` · `ecommerce` · `fintech` · `healthcare` · `marketplace` · `logistics` · `hr` · `social` · `realestate`
+
+[See all domains →](domains.md)

@@ -1,3 +1,8 @@
+---
+title: Python Synthetic Data Generator — Misata
+description: Misata is an open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English — no training data, no config. The best Faker alternative for developers.
+---
+
 # Python Synthetic Data Generator
 
 Misata is a Python synthetic data generator for teams who need more than random rows.

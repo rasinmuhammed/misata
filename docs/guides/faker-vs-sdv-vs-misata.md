@@ -1,3 +1,8 @@
+---
+title: Faker vs SDV vs Misata — Choosing the Right Python Synthetic Data Tool
+description: Compare Faker, SDV, and Misata for Python synthetic data generation. See real code examples for multi-table datasets, database seeding, and test data — and pick the right tool for your use case.
+---
+
 # Faker vs SDV vs Misata: Choosing the Right Python Synthetic Data Tool
 
 Generating synthetic data in Python means picking from three very different tools:
