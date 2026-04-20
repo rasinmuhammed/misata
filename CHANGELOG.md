@@ -5,6 +5,46 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-04-20
+
+### Added
+
+#### Food delivery domain
+- `StoryParser._build_fooddelivery_schema` — new domain with 5 tables: `restaurants`, `customers`, `couriers`, `orders`, `order_items`
+- Cuisine type, delivery fee, avg prep time, vehicle type, payment method, customer rating columns — all with calibrated distributions
+- `delivered_at` uses `after_column: placed_at` so every order delivery is chronologically valid
+- `DOMAIN_KEYWORDS["fooddelivery"]` moved before `ecommerce` so UberEats/DoorDash stories don't fall through to the generic ecommerce schema
+
+#### Social domain improvements
+- `_generate_caption` — realistic social media captions with emoji and hashtags via template engine (replaces product-description Lorem Ipsum)
+- `_generate_bio` — role + vibe + optional emoji format (e.g. "Developer | sharing what I love 🚀")
+- `caption` and `bio` text types now route correctly through `_infer_semantic` in `RealisticTextGenerator`
+
+#### Ecommerce domain improvements
+- `products` table added (product_id, name, category, price, stock_count, rating)
+- `orders` now FK to `products` for realistic item linkage
+
+#### Realism engine hardening
+- Fixed `Set[str]` / `List[str]` typing imports in `realism.py` (Python 3.10 built-in generics)
+- `_infer_semantic` extended to handle `bio`, `caption`, `description`, and product/item/listing tables
+
+#### Simulator improvements
+- Integer columns with only `min`/`max` (no `mean`) now default to `"uniform"` distribution (was `"normal"` — produced mean-heavy clusters)
+- `after_column` date param: generated date is always ≥ base column + `min_delta_days`
+- `_REALISTIC_TYPE_MAP` expanded with `city`, `state`, `country`, `username`, `product_name`, `description`
+
+#### Distribution fixes
+- Logistics `estimated_hours`: lognormal instead of uniform
+- Logistics `delivered_at`: `after_column: shipped_at` — eliminates delivery-before-shipment rows
+- HR `net_pay`: formula column (`gross_pay * (1 - tax_withheld)`) — eliminates net > gross violations
+- Social `follower_count`: lognormal power-law (median ~245, tail ~50M) — replaced broken Pareto
+- Fintech `transaction_amount` / `amount`: sigma lowered to 1.3 for realistic spread
+- Real estate `state`: US states categorical with real population-weighted probabilities
+- Marketplace `price` / `amount`: lognormal with realistic e-commerce spread
+
+### Fixed
+- `parent_comment_id` in social `comments` was compressing to max ~167; now uniform up to `num_comments`
+
 ## [0.7.1] - 2026-04-16
 
 ### Added

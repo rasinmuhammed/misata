@@ -11,7 +11,7 @@ Rules are applied conservatively — only when relevant columns exist.
 from __future__ import annotations
 
 import re
-from typing import Iterable, Optional, Set
+from typing import Iterable, Optional
 
 import numpy as np
 import pandas as pd
@@ -227,6 +227,10 @@ class RealisticTextGenerator:
             return np.array([f"{left}-{right}" for left, right in words])
         if semantic in {"product_name", "product_description"}:
             return self._generate_product_text(size=size, semantic=semantic, table_data=table_data)
+        if semantic == "bio":
+            return self._generate_bio(size=size)
+        if semantic == "caption":
+            return self._generate_caption(size=size, table_data=table_data)
 
         return np.array([
             self.rng.choice(self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES))
@@ -254,11 +258,64 @@ class RealisticTextGenerator:
             return "state"
         if "city" in name:
             return "city"
-        if "product" in table or "item" in table:
+        if "product" in table or "item" in table or "listing" in table:
             return "product_name"
         if name == "name":
             return "person_name"
+        if name in ("bio", "about"):
+            return "bio"
+        if name == "caption":
+            return "caption"
+        if name in ("body", "description", "summary"):
+            return "product_description"
         return "description"
+
+    def _generate_caption(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:  # noqa: ARG002
+        _TEMPLATES = [
+            "loving every moment of this {adj} journey ✨",
+            "when the {noun} hits just right 🙌",
+            "grateful for days like this 🌟",
+            "this {adj} view never gets old 📸",
+            "making memories that matter 💫",
+            "small moments, big vibes ☀️",
+            "just another {adj} day doing what I love",
+            "the {noun} life chose me 🔥",
+            "chasing {noun}s and good energy ✌️",
+            "no filter needed when the {noun} is this good 🌿",
+        ]
+        _ADJ = ["beautiful", "wild", "golden", "peaceful", "chaotic", "amazing", "cozy", "electric"]
+        _NOUN = ["creative", "adventure", "coffee", "sunset", "hustle", "moment", "vibe", "grind"]
+        _TAGS = [
+            "#lifestyle", "#instagood", "#photooftheday", "#love", "#happy",
+            "#travel", "#nature", "#food", "#art", "#motivation",
+            "#explore", "#vibes", "#authentic", "#grateful", "#daily",
+        ]
+        results = []
+        for _ in range(size):
+            tmpl = self.rng.choice(_TEMPLATES)
+            text = tmpl.format(
+                adj=self.rng.choice(_ADJ),
+                noun=self.rng.choice(_NOUN),
+            )
+            n_tags = int(self.rng.integers(2, 6))
+            tags = " ".join(self.rng.choice(_TAGS, size=n_tags, replace=False))
+            results.append(f"{text} {tags}")
+        return np.array(results)
+
+    def _generate_bio(self, *, size: int) -> np.ndarray:
+        _ROLES = ["developer", "designer", "founder", "marketer", "photographer",
+                  "writer", "artist", "engineer", "entrepreneur", "creator",
+                  "traveller", "chef", "coach", "consultant", "student"]
+        _VIBES = ["sharing what I love", "living my best life", "making things happen",
+                  "building in public", "exploring the world", "chasing ideas",
+                  "creating every day", "telling stories", "obsessed with details",
+                  "always learning", "turning coffee into code", "dreaming big",
+                  "on a mission", "figuring it all out", "here for the journey"]
+        _EXTRAS = ["", " ✌️", " 🌍", " 🚀", " 💡", " 📸", " 🎨", " ☕", "", ""]
+        roles = self.rng.choice(_ROLES, size=size)
+        vibes = self.rng.choice(_VIBES, size=size)
+        extras = self.rng.choice(_EXTRAS, size=size)
+        return np.array([f"{r.capitalize()} | {v}{e}" for r, v, e in zip(roles, vibes, extras)])
 
     def _generate_product_text(
         self,
@@ -294,7 +351,7 @@ class RealisticTextGenerator:
             slugs.append(slug or "site")
         return np.array(slugs)
 
-    def _vocabulary(self, name: str, fallback: Iterable[str]) -> List[str]:
+    def _vocabulary(self, name: str, fallback: Iterable[str]) -> list[str]:
         if self.capsule is not None:
             values = self.capsule.get_values(name, list(fallback))
             if values:
@@ -540,7 +597,7 @@ def apply_realism_rules(
 
 # ─── TEMPORAL RULES ───────────────────────────────────────────────────────────
 
-def _fix_created_updated(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+def _fix_created_updated(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """updated_at must be >= created_at."""
     if "created_at" in columns and "updated_at" in columns:
         created = pd.to_datetime(df["created_at"], errors="coerce")
@@ -552,7 +609,7 @@ def _fix_created_updated(df: pd.DataFrame, columns: Set[str], rng: np.random.Gen
             df["updated_at"] = updated
 
 
-def _fix_start_end_dates(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+def _fix_start_end_dates(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """end_date must be >= start_date."""
     if "start_date" in columns and "end_date" in columns:
         start = pd.to_datetime(df["start_date"], errors="coerce")
@@ -565,7 +622,7 @@ def _fix_start_end_dates(df: pd.DataFrame, columns: Set[str], rng: np.random.Gen
         df["end_date"] = end
 
 
-def _fix_created_delivered(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+def _fix_created_delivered(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """delivered_at must be after created_at. Only fixes rows where the order is violated."""
     if "created_at" in columns and "delivered_at" in columns:
         created = pd.to_datetime(df["created_at"], errors="coerce")
@@ -579,7 +636,7 @@ def _fix_created_delivered(df: pd.DataFrame, columns: Set[str], rng: np.random.G
             df["delivered_at"] = delivered
 
 
-def _fix_delivered_requires_status(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_delivered_requires_status(df: pd.DataFrame, columns: set[str]) -> None:
     """delivered_at should be null unless status is 'delivered'/'completed'."""
     if "status" in columns and "delivered_at" in columns:
         status = df["status"].astype(str).str.strip().str.lower()
@@ -590,7 +647,7 @@ def _fix_delivered_requires_status(df: pd.DataFrame, columns: Set[str]) -> None:
 
 # ─── MONETARY RULES ──────────────────────────────────────────────────────────
 
-def _fix_cost_less_than_price(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+def _fix_cost_less_than_price(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """Ensure cost < price. Only corrects rows where the constraint is violated or cost is missing."""
     if "cost" in columns and "price" in columns:
         price = pd.to_numeric(df["price"], errors="coerce").fillna(0)
@@ -601,7 +658,7 @@ def _fix_cost_less_than_price(df: pd.DataFrame, columns: Set[str], rng: np.rando
             df.loc[violating, "cost"] = np.round(price[violating].values * margin, 2)
 
 
-def _fix_discount_cap(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_discount_cap(df: pd.DataFrame, columns: set[str]) -> None:
     """discount <= 30% of unit_price (or price)."""
     price_col = "unit_price" if "unit_price" in columns else ("price" if "price" in columns else None)
     if "discount" in columns and price_col:
@@ -611,7 +668,7 @@ def _fix_discount_cap(df: pd.DataFrame, columns: Set[str]) -> None:
         df["discount"] = np.round(np.minimum(discount, max_discount), 2)
 
 
-def _fix_line_total(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_line_total(df: pd.DataFrame, columns: set[str]) -> None:
     """line_total = quantity * unit_price - discount."""
     if {"quantity", "unit_price", "line_total"}.issubset(columns):
         qty = pd.to_numeric(df["quantity"], errors="coerce").fillna(1)
@@ -620,7 +677,7 @@ def _fix_line_total(df: pd.DataFrame, columns: Set[str]) -> None:
         df["line_total"] = np.round(qty * unit_price - discount, 2).clip(lower=0)
 
 
-def _fix_order_total(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_order_total(df: pd.DataFrame, columns: set[str]) -> None:
     """total = subtotal + tax + shipping_cost."""
     if {"subtotal", "total"}.issubset(columns):
         subtotal = pd.to_numeric(df["subtotal"], errors="coerce").fillna(0)
@@ -634,7 +691,7 @@ def _fix_order_total(df: pd.DataFrame, columns: Set[str]) -> None:
         df["total"] = np.round(qty * unit_price - discount, 2).clip(lower=0)
 
 
-def _apply_plan_price_mapping(df: pd.DataFrame, columns: Set[str]) -> None:
+def _apply_plan_price_mapping(df: pd.DataFrame, columns: set[str]) -> None:
     """Map plan names to standard prices."""
     if "plan" in columns and "price" in columns:
         plan_prices = {
@@ -649,7 +706,7 @@ def _apply_plan_price_mapping(df: pd.DataFrame, columns: Set[str]) -> None:
 
 # ─── IDENTITY RULES ──────────────────────────────────────────────────────────
 
-def _fix_email_from_name(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+def _fix_email_from_name(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """Compose email from first_name + last_name for consistency."""
     if {"first_name", "last_name", "email"}.issubset(columns):
         domains = [
@@ -673,7 +730,7 @@ def _fix_email_from_name(df: pd.DataFrame, columns: Set[str], rng: np.random.Gen
         df["email"] = emails
 
 
-def _fix_slug_from_name(df: pd.DataFrame, columns: Set[str]) -> None:
+def _fix_slug_from_name(df: pd.DataFrame, columns: set[str]) -> None:
     """Generate slug from name column."""
     if "slug" in columns and "name" in columns:
         df["slug"] = (
@@ -688,7 +745,7 @@ def _fix_slug_from_name(df: pd.DataFrame, columns: Set[str]) -> None:
 
 # ─── STATUS-BASED RULES ──────────────────────────────────────────────────────
 
-def _apply_status_end_date(df: pd.DataFrame, columns: Set[str], rng: np.random.Generator) -> None:
+def _apply_status_end_date(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """Clear end_date for active statuses, set for inactive."""
     if "status" in columns and "end_date" in columns:
         status = df["status"].astype(str).str.strip().str.lower()

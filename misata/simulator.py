@@ -613,6 +613,12 @@ class DataSimulator:
                 return values.astype(int)
 
             distribution = params.get("distribution", "normal")
+            # When no explicit distribution is specified but min/max are present
+            # (and no mean/mu), default to uniform instead of normal so that
+            # reference ID columns (parent_comment_id, followee_id, etc.) span
+            # their full declared range rather than clustering around mean=100.
+            if distribution == "normal" and "mean" not in params and "min" in params:
+                distribution = "uniform"
 
             # Handle categorical distribution (fixed choices)
             if distribution == "categorical" or "choices" in params:
@@ -723,6 +729,17 @@ class DataSimulator:
 
         # DATE
         elif column.type == "date":
+            # Same-row date dependency: delivered_at = shipped_at + delta
+            if "after_column" in params and table_data is not None:
+                base_col = params["after_column"]
+                if base_col in table_data.columns:
+                    min_delta = params.get("min_delta_days", 1)
+                    max_delta = params.get("max_delta_days", 30)
+                    deltas = self.rng.integers(min_delta, max_delta + 1, size=size)
+                    base_dates = pd.to_datetime(table_data[base_col], errors="coerce")
+                    dates = base_dates + pd.to_timedelta(deltas, unit="D")
+                    return pd.to_datetime(dates).values
+
             # Parent-Relative Date Generation (Time Travel Fix)
             if "relative_to" in params:
                 # Format: "parent_table.column_name"
@@ -855,30 +872,34 @@ class DataSimulator:
             # Kaggle-enriched asset store) so these paths get real, diverse,
             # domain-appropriate values automatically.
             _REALISTIC_TYPE_MAP = {
-                "name":       "person_name",
-                "email":      "email",
-                "company":    "company_name",
-                "first_name": "first_name",
-                "last_name":  "last_name",
-                "job":        "job_title",
-                "city":       "city",
-                "state":      "state",
+                "name":         "person_name",
+                "email":        "email",
+                "company":      "company_name",
+                "first_name":   "first_name",
+                "last_name":    "last_name",
+                "job":          "job_title",
+                "city":         "city",
+                "state":        "state",
+                "country":      "country",
+                "username":     "username",
+                "product_name": "product_name",
+                "description":  "product_description",
             }
             semantic = text_strategy or _REALISTIC_TYPE_MAP.get(text_type)
-            if semantic:
+            # Route to RealisticTextGenerator for known types OR any unrecognised
+            # type that is not a legacy free-text type (sentence, word, etc.)
+            _LEGACY_ONLY = {"sentence", "word", "address", "phone", "url"}
+            if semantic or text_type not in _LEGACY_ONLY:
                 return self.realistic_text.generate(
                     column_name=column.name,
                     table_name=table_name,
                     size=size,
-                    semantic_type=semantic,
+                    semantic_type=semantic,  # None → _infer_semantic uses column name
                     table_data=table_data,
                 )
 
-            # For types not handled by RealisticTextGenerator (sentence, word,
-            # address, phone, url) fall back to the legacy pool sampler.
-            # Pool is at least 5× the request size to reduce visible repetition.
+            # Legacy pool sampler for free-text types (sentence, word, address, phone, url)
             _pool_size = min(max(size * 5, 200), self.TEXT_POOL_SIZE)
-            # Use locale-aware Faker for address and phone when available
             _lf = self._locale_faker
             _addr_fn = (_lf.address if _lf else None) or self.text_gen.full_address
             _phone_fn = (_lf.phone_number if _lf else None) or self.text_gen.phone_number

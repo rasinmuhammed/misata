@@ -53,6 +53,8 @@ class StoryParser:
 
     DOMAIN_KEYWORDS = {
         "saas": ["saas", "subscription", "mrr", "arr", "churn"],
+        # fooddelivery before ecommerce — "orders" and "courier" appear in both; food signals win
+        "fooddelivery": ["food delivery", "ubereats", "doordash", "grubhub", "restaurant delivery", "meal delivery", "takeout", "takeaway", "food app", "restaurants", "menu items"],
         "ecommerce": ["ecommerce", "e-commerce", "orders", "cart", "products", "shop", "store", "retail"],
         "pharma": ["pharma", "research", "timesheet", "clinical", "trials"],
         "fintech": ["fintech", "transactions", "payments", "wallet", "banking", "loans", "credit", "fraud"],
@@ -391,6 +393,8 @@ class StoryParser:
             schema = self._build_social_schema(story, default_rows)
         elif self.detected_domain == "realestate":
             schema = self._build_realestate_schema(story, default_rows)
+        elif self.detected_domain == "fooddelivery":
+            schema = self._build_fooddelivery_schema(story, default_rows)
         else:
             schema = self._build_generic_schema(story, default_rows)
 
@@ -565,11 +569,13 @@ class StoryParser:
     def _build_ecommerce_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build an E-commerce-specific schema."""
         num_customers = self.scale_params.get("users", default_rows)
+        num_products = max(50, num_customers // 5)
         num_orders = self.scale_params.get("orders", int(num_customers * 3))
 
         tables = [
             Table(name="customers", row_count=num_customers),
-            Table(name="orders", row_count=num_orders),
+            Table(name="products",  row_count=num_products),
+            Table(name="orders",    row_count=num_orders),
         ]
 
         columns = {
@@ -577,73 +583,55 @@ class StoryParser:
                 Column(name="customer_id", type="int", unique=True, distribution_params={"min": 1, "max": num_customers * 2}),
                 Column(name="email", type="text", unique=True, distribution_params={"text_type": "email"}),
                 Column(name="name", type="text", distribution_params={"text_type": "name"}),
-                Column(
-                    name="signup_date",
-                    type="date",
-                    distribution_params={"start": "2022-01-01", "end": "2024-12-31"},
-                ),
-                Column(
-                    name="country",
-                    type="categorical",
-                    distribution_params={
-                        "choices": ["United States", "United Kingdom", "Canada", "Germany",
-                                    "France", "Australia", "India", "Brazil", "Netherlands",
-                                    "Sweden", "Spain", "Japan", "Singapore", "Mexico", "Italy"],
-                        "probabilities": [0.32, 0.10, 0.07, 0.07, 0.06, 0.05, 0.07,
-                                          0.04, 0.03, 0.03, 0.03, 0.04, 0.03, 0.03, 0.03],
-                    },
-                ),
+                Column(name="signup_date", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="country", type="categorical", distribution_params={
+                    "choices": ["United States", "United Kingdom", "Canada", "Germany",
+                                "France", "Australia", "India", "Brazil", "Netherlands",
+                                "Sweden", "Spain", "Japan", "Singapore", "Mexico", "Italy"],
+                    "probabilities": [0.32, 0.10, 0.07, 0.07, 0.06, 0.05, 0.07,
+                                      0.04, 0.03, 0.03, 0.03, 0.04, 0.03, 0.03, 0.03],
+                }),
+            ],
+            "products": [
+                Column(name="product_id", type="int", unique=True, distribution_params={"min": 1, "max": num_products + 1}),
+                Column(name="name", type="text", distribution_params={"text_type": "product_name"}),
+                Column(name="category", type="categorical", distribution_params={
+                    "choices": ["electronics", "clothing", "home & garden", "sports", "books", "beauty"],
+                    "sampling": "zipf",
+                }),
+                Column(name="price", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 4.2, "sigma": 1.2, "min": 0.99, "max": 2000.0, "decimals": 2,
+                }),
+                Column(name="stock_count", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 4.0, "sigma": 1.0, "min": 0, "max": 5000, "decimals": 0,
+                }),
+                Column(name="rating", type="float", distribution_params={
+                    "distribution": "beta", "a": 6.0, "b": 2.0, "min": 1.0, "max": 5.0, "decimals": 1,
+                }),
             ],
             "orders": [
-                Column(name="order_id", type="int", unique=True, distribution_params={"min": 1, "max": num_orders * 2}),
-                Column(name="customer_id", type="foreign_key", distribution_params={}),
-                Column(
-                    name="order_date",
-                    type="date",
-                    distribution_params={"start": "2022-01-01", "end": "2024-12-31"},
-                ),
-                Column(
-                    name="amount",
-                    type="float",
-                    # Domain prior: lognormal (mu=4.4, sigma=0.9) → median ~$81, mean ~$120
-                    distribution_params={"min": 1.0, "decimals": 2},
-                ),
-                Column(
-                    name="category",
-                    type="categorical",
-                    distribution_params={
-                        # Zipf — electronics dominates, beauty trails off
-                        "choices": ["electronics", "clothing", "home & garden", "sports", "books", "beauty"],
-                        "sampling": "zipf",
-                    },
-                ),
-                Column(
-                    name="status",
-                    type="categorical",
-                    distribution_params={
-                        # Real return/cancel rates: ~8% returned, ~4% cancelled
-                        "choices": ["completed", "shipped", "pending", "returned", "cancelled"],
-                        "probabilities": [0.72, 0.12, 0.08, 0.05, 0.03],
-                    },
-                ),
-                Column(
-                    name="payment_method",
-                    type="categorical",
-                    distribution_params={
-                        "choices": ["credit_card", "debit_card", "paypal", "apple_pay", "bank_transfer"],
-                        "probabilities": [0.45, 0.25, 0.15, 0.10, 0.05],
-                    },
-                ),
+                Column(name="order_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_orders * 2}),
+                Column(name="customer_id", type="foreign_key"),
+                Column(name="product_id",  type="foreign_key"),
+                Column(name="quantity", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 0.5, "sigma": 0.6, "min": 1, "max": 20, "decimals": 0,
+                }),
+                Column(name="order_date", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="amount", type="float", distribution_params={"min": 1.0, "decimals": 2}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["completed", "shipped", "pending", "returned", "cancelled"],
+                    "probabilities": [0.72, 0.12, 0.08, 0.05, 0.03],
+                }),
+                Column(name="payment_method", type="categorical", distribution_params={
+                    "choices": ["credit_card", "debit_card", "paypal", "apple_pay", "bank_transfer"],
+                    "probabilities": [0.45, 0.25, 0.15, 0.10, 0.05],
+                }),
             ],
         }
 
         relationships = [
-            Relationship(
-                parent_table="customers",
-                child_table="orders",
-                parent_key="customer_id",
-                child_key="customer_id",
-            ),
+            Relationship(parent_table="customers", child_table="orders", parent_key="customer_id", child_key="customer_id"),
+            Relationship(parent_table="products",  child_table="orders", parent_key="product_id",  child_key="product_id"),
         ]
 
         outcome_curve = self._build_absolute_monthly_curve(
@@ -875,7 +863,7 @@ class StoryParser:
 
     def _build_marketplace_schema(self, story: str, default_rows: int) -> SchemaConfig:
         num_users = self.scale_params.get("users", default_rows)
-        num_sellers = max(10, num_users // 5)
+        num_sellers = self.scale_params.get("sellers", max(10, num_users // 5))
         num_listings = int(num_sellers * 8)
         num_orders = int(num_users * 4)
 
@@ -1005,7 +993,9 @@ class StoryParser:
                     "probabilities": [0.70, 0.15, 0.08, 0.04, 0.03],
                 }),
                 Column(name="shipped_at", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
-                Column(name="delivered_at", type="date", distribution_params={"start": "2022-01-01", "end": "2025-06-30"}),
+                Column(name="delivered_at", type="date", distribution_params={
+                    "after_column": "shipped_at", "min_delta_days": 1, "max_delta_days": 21,
+                }),
                 Column(name="cost", type="float", distribution_params={"distribution": "lognormal", "mu": 3.5, "sigma": 0.8, "min": 5.0, "decimals": 2}),
             ],
         }
@@ -1102,7 +1092,8 @@ class StoryParser:
                     "distribution": "beta", "a": 3.0, "b": 7.0, "min": 0.18, "max": 0.40, "decimals": 4,
                 }),
                 Column(name="net_pay", type="float", distribution_params={
-                    "distribution": "lognormal", "mu": 8.2, "sigma": 0.5, "min": 900.0, "decimals": 2,
+                    # Net = gross × (1 − tax_withheld); formula ensures row-level consistency
+                    "formula": "gross_pay * (1 - tax_withheld)", "decimals": 2,
                 }),
                 Column(name="pay_type", type="categorical", distribution_params={
                     "choices": ["regular", "overtime", "bonus", "commission"],
@@ -1183,7 +1174,13 @@ class StoryParser:
                     "distribution": "lognormal", "mu": 12.9, "sigma": 0.7, "min": 50000, "decimals": 0,
                 }),
                 Column(name="city", type="text", distribution_params={"text_type": "city"}),
-                Column(name="state", type="text", distribution_params={"text_type": "state"}),
+                Column(name="state", type="categorical", distribution_params={
+                    "choices": ["California", "Texas", "Florida", "New York", "Illinois",
+                                "Pennsylvania", "Ohio", "Georgia", "North Carolina", "Michigan",
+                                "New Jersey", "Virginia", "Washington", "Arizona", "Colorado"],
+                    "probabilities": [0.15, 0.12, 0.08, 0.08, 0.06, 0.06, 0.06, 0.06,
+                                      0.05, 0.05, 0.05, 0.04, 0.04, 0.03, 0.07],
+                }),
                 Column(name="listed_date", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
                 Column(name="status", type="categorical", distribution_params={
                     "choices": ["active", "pending", "sold", "withdrawn", "expired"],
@@ -1253,7 +1250,7 @@ class StoryParser:
                 Column(name="username",   type="text", distribution_params={"text_type": "username"}),
                 Column(name="display_name", type="text", distribution_params={"text_type": "name"}),
                 Column(name="email",      type="text", distribution_params={"text_type": "email"}),
-                Column(name="bio",        type="text", distribution_params={"text_type": "sentence"}),
+                Column(name="bio",        type="text", distribution_params={"text_type": "bio"}),
                 Column(name="account_type", type="categorical", distribution_params={
                     "choices": ["personal", "creator", "brand", "business"],
                     "probabilities": [0.70, 0.18, 0.07, 0.05],
@@ -1279,7 +1276,7 @@ class StoryParser:
                     "choices": ["photo", "video", "reel", "story", "text", "carousel"],
                     "probabilities": [0.35, 0.25, 0.18, 0.12, 0.06, 0.04],
                 }),
-                Column(name="caption",    type="text", distribution_params={"text_type": "sentence"}),
+                Column(name="caption",    type="text", distribution_params={"text_type": "description"}),
                 Column(name="like_count", type="int", distribution_params={
                     # Engagement follows a power-law relative to account size
                     "distribution": "lognormal", "mu": 3.8, "sigma": 2.0, "min": 0, "decimals": 0,
@@ -1325,7 +1322,7 @@ class StoryParser:
                 Column(name="comment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_comments + 1}),
                 Column(name="post_id",    type="foreign_key"),
                 Column(name="user_id",    type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
-                Column(name="body",       type="text", distribution_params={"text_type": "sentence"}),
+                Column(name="body",       type="text", distribution_params={"text_type": "description"}),
                 Column(name="like_count", type="int", distribution_params={
                     "distribution": "lognormal", "mu": 1.0, "sigma": 1.5, "min": 0, "decimals": 0,
                 }),
@@ -1347,6 +1344,110 @@ class StoryParser:
         return SchemaConfig(
             name="Social Media Dataset", description=f"Generated from story: {story}",
             domain="social", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_fooddelivery_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_restaurants = max(20, self.scale_params.get("restaurants", max(50, default_rows // 20)))
+        num_customers   = self.scale_params.get("users", default_rows)
+        num_couriers    = max(10, num_restaurants // 2)
+        num_orders      = self.scale_params.get("orders", default_rows)
+        num_items       = int(num_orders * 2.5)
+
+        tables = [
+            Table(name="restaurants",  row_count=num_restaurants),
+            Table(name="customers",    row_count=num_customers),
+            Table(name="couriers",     row_count=num_couriers),
+            Table(name="orders",       row_count=num_orders),
+            Table(name="order_items",  row_count=num_items),
+        ]
+        columns = {
+            "restaurants": [
+                Column(name="restaurant_id", type="int", unique=True, distribution_params={"min": 1, "max": num_restaurants + 1}),
+                Column(name="name",          type="text", distribution_params={"text_type": "company"}),
+                Column(name="cuisine_type",  type="categorical", distribution_params={
+                    "choices": ["italian", "chinese", "indian", "mexican", "american", "japanese", "thai", "mediterranean", "korean", "pizza"],
+                    "probabilities": [0.13, 0.12, 0.11, 0.10, 0.12, 0.10, 0.09, 0.08, 0.08, 0.07],
+                }),
+                Column(name="city",          type="text", distribution_params={"text_type": "city"}),
+                Column(name="rating",        type="float", distribution_params={"distribution": "beta", "a": 6.0, "b": 2.0, "min": 1.0, "max": 5.0, "decimals": 1}),
+                Column(name="delivery_fee",  type="float", distribution_params={"distribution": "lognormal", "mu": 1.5, "sigma": 0.5, "min": 0.99, "max": 9.99, "decimals": 2}),
+                Column(name="min_order",     type="float", distribution_params={"distribution": "lognormal", "mu": 2.5, "sigma": 0.4, "min": 5.0, "max": 50.0, "decimals": 2}),
+                Column(name="avg_prep_minutes", type="int", distribution_params={"distribution": "normal", "mean": 22, "std": 8, "min": 8, "max": 60}),
+                Column(name="is_active",     type="boolean", distribution_params={"probability": 0.90}),
+                Column(name="joined_date",   type="date", distribution_params={"start": "2019-01-01", "end": "2024-06-30"}),
+            ],
+            "customers": [
+                Column(name="customer_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_customers + 1}),
+                Column(name="first_name",    type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",     type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",         type="text", distribution_params={"text_type": "email"}),
+                Column(name="city",          type="text", distribution_params={"text_type": "city"}),
+                Column(name="signup_date",   type="date", distribution_params={"start": "2020-01-01", "end": "2024-12-31"}),
+                Column(name="total_orders",  type="int", distribution_params={"distribution": "lognormal", "mu": 2.5, "sigma": 1.2, "min": 1, "max": 500, "decimals": 0}),
+                Column(name="is_premium",    type="boolean", distribution_params={"probability": 0.18}),
+            ],
+            "couriers": [
+                Column(name="courier_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_couriers + 1}),
+                Column(name="first_name",    type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",     type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="vehicle_type",  type="categorical", distribution_params={
+                    "choices": ["bicycle", "scooter", "motorcycle", "car"],
+                    "probabilities": [0.25, 0.35, 0.25, 0.15],
+                }),
+                Column(name="rating",        type="float", distribution_params={"distribution": "beta", "a": 7.0, "b": 1.5, "min": 1.0, "max": 5.0, "decimals": 2}),
+                Column(name="total_deliveries", type="int", distribution_params={"distribution": "lognormal", "mu": 5.5, "sigma": 1.5, "min": 1, "max": 10000, "decimals": 0}),
+                Column(name="status",        type="categorical", distribution_params={
+                    "choices": ["available", "on_delivery", "offline"],
+                    "probabilities": [0.40, 0.45, 0.15],
+                }),
+                Column(name="joined_date",   type="date", distribution_params={"start": "2020-01-01", "end": "2024-12-31"}),
+            ],
+            "orders": [
+                Column(name="order_id",      type="int", unique=True, distribution_params={"min": 1, "max": num_orders + 1}),
+                Column(name="customer_id",   type="foreign_key"),
+                Column(name="restaurant_id", type="foreign_key"),
+                Column(name="courier_id",    type="foreign_key"),
+                Column(name="status",        type="categorical", distribution_params={
+                    "choices": ["delivered", "in_transit", "preparing", "cancelled", "refunded"],
+                    "probabilities": [0.72, 0.12, 0.08, 0.05, 0.03],
+                }),
+                Column(name="subtotal",      type="float", distribution_params={"distribution": "lognormal", "mu": 3.2, "sigma": 0.7, "min": 5.0, "max": 300.0, "decimals": 2}),
+                Column(name="delivery_fee",  type="float", distribution_params={"distribution": "lognormal", "mu": 1.5, "sigma": 0.5, "min": 0.99, "max": 9.99, "decimals": 2}),
+                Column(name="tip_amount",    type="float", distribution_params={"distribution": "lognormal", "mu": 1.2, "sigma": 0.8, "min": 0.0, "max": 30.0, "decimals": 2}),
+                Column(name="payment_method", type="categorical", distribution_params={
+                    "choices": ["credit_card", "debit_card", "paypal", "apple_pay", "google_pay", "cash"],
+                    "probabilities": [0.38, 0.25, 0.14, 0.10, 0.09, 0.04],
+                }),
+                Column(name="placed_at",     type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="delivered_at",  type="date", distribution_params={
+                    "after_column": "placed_at", "min_delta_days": 0, "max_delta_days": 1,
+                }),
+                Column(name="delivery_minutes", type="int", distribution_params={"distribution": "normal", "mean": 38, "std": 12, "min": 15, "max": 120}),
+                Column(name="customer_rating", type="float", distribution_params={"distribution": "beta", "a": 5.0, "b": 1.5, "min": 1.0, "max": 5.0, "decimals": 1}),
+            ],
+            "order_items": [
+                Column(name="item_id",       type="int", unique=True, distribution_params={"min": 1, "max": num_items + 1}),
+                Column(name="order_id",      type="foreign_key"),
+                Column(name="item_name",     type="text", distribution_params={"text_type": "product_name"}),
+                Column(name="category",      type="categorical", distribution_params={
+                    "choices": ["main", "side", "drink", "dessert", "starter", "combo"],
+                    "probabilities": [0.40, 0.20, 0.18, 0.10, 0.07, 0.05],
+                }),
+                Column(name="quantity",      type="int", distribution_params={"distribution": "lognormal", "mu": 0.4, "sigma": 0.6, "min": 1, "max": 10, "decimals": 0}),
+                Column(name="unit_price",    type="float", distribution_params={"distribution": "lognormal", "mu": 2.3, "sigma": 0.6, "min": 1.5, "max": 60.0, "decimals": 2}),
+                Column(name="special_instructions", type="boolean", distribution_params={"probability": 0.15}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="customers",   child_table="orders",      parent_key="customer_id",   child_key="customer_id"),
+            Relationship(parent_table="restaurants", child_table="orders",      parent_key="restaurant_id", child_key="restaurant_id"),
+            Relationship(parent_table="couriers",    child_table="orders",      parent_key="courier_id",    child_key="courier_id"),
+            Relationship(parent_table="orders",      child_table="order_items", parent_key="order_id",      child_key="order_id"),
+        ]
+        return SchemaConfig(
+            name="Food Delivery Dataset", description=f"Generated from story: {story}",
+            domain="fooddelivery", tables=tables, columns=columns,
             relationships=relationships, events=[],
         )
 

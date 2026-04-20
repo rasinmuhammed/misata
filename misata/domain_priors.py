@@ -161,13 +161,13 @@ _PRIORS: Dict[str, Dict[str, Dict[str, Any]]] = {
     # ── Fintech / Payments ───────────────────────────────────────────────────
     "fintech": {
         "transaction_amount": {
-            # Payments: very wide range; power-law tail for large transfers
-            "distribution": "lognormal", "mu": 4.0, "sigma": 1.8,
-            "min": 0.01, "decimals": 2,
+            # Retail payments: median ~$55, 99th pct ~$5k, hard cap at $15k
+            "distribution": "lognormal", "mu": 4.0, "sigma": 1.3,
+            "min": 0.01, "max": 15000.0, "decimals": 2,
         },
         "amount": {
-            "distribution": "lognormal", "mu": 4.0, "sigma": 1.8,
-            "min": 0.01, "decimals": 2,
+            "distribution": "lognormal", "mu": 4.0, "sigma": 1.3,
+            "min": 0.01, "max": 15000.0, "decimals": 2,
         },
         "balance": {
             "distribution": "lognormal", "mu": 7.5, "sigma": 1.5,
