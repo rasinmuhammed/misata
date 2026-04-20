@@ -1,0 +1,94 @@
+site_name: Misata
+site_description: Realistic multi-table synthetic data from plain English, YAML, or your own database.
+site_url: https://rasinmuhammed.github.io/misata
+repo_url: https://github.com/rasinmuhammed/misata
+repo_name: rasinmuhammed/misata
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.indexes
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+extra_css:
+  - assets/custom.css
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - Generation:
+    - generation/index.md
+    - Plain English: generation/story.md
+    - YAML Schema: generation/yaml.md
+    - From a Database: generation/database.md
+    - Python Dict: generation/dict.md
+    - LLM-Assisted: generation/llm.md
+    - Incremental: generation/incremental.md
+  - Localisation: localisation.md
+  - Time Series: timeseries.md
+  - Domains: domains.md
+  - Constraints: constraints.md
+  - Export: export.md
+  - Validate: validate.md
+  - CLI Reference: cli.md
+  - Guides:
+    - guides/index.md
+    - Faker vs SDV vs Misata: guides/faker-vs-sdv-vs-misata.md
+    - Multi-table Synthetic Data: guides/multi-table-synthetic-data.md
+    - Database Seeding in Python: guides/database-seeding-python.md
+    - Synthetic Data for BI Demos: guides/synthetic-data-for-bi-demos.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/rasinmuhammed/misata
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/misata/
+
+copyright: "Built by <a href='https://github.com/rasinmuhammed'>Muhammed Rasin</a>"

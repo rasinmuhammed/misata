@@ -1451,5 +1451,69 @@ def studio(port: int, host: str, no_browser: bool) -> None:
         console.print("Install with: [cyan]pip install misata[studio][/cyan]")
 
 
+@main.command("validate")
+@click.argument("csv_file", type=click.Path(exists=True))
+@click.option("--schema",  "-s", type=click.Path(exists=True), default=None,
+              help="misata.yaml (or JSON) schema to check conformance against.")
+@click.option("--story",   type=str, default=None,
+              help="Plain-English story — parsed to a schema for conformance checking.")
+@click.option("--table",   type=str, default=None,
+              help="Table name to look up in the schema (defaults to filename stem).")
+def validate_cmd(csv_file: str, schema: Optional[str], story: Optional[str], table: Optional[str]) -> None:
+    """Profile a CSV file and optionally check it against a schema.
+
+    Examples:
+
+        misata validate customers.csv
+
+        misata validate orders.csv --schema misata.yaml
+
+        misata validate orders.csv --story "A SaaS company with orders table"
+    """
+    print_banner()
+    from pathlib import Path
+    from misata.validation import validate_csv
+
+    console.print(f"[bold]Validating:[/bold] [cyan]{csv_file}[/cyan]")
+
+    schema_config = None
+    if schema:
+        try:
+            schema_config = load_yaml_schema(schema)
+            console.print(f"[dim]Schema loaded from {schema}[/dim]")
+        except Exception as e:
+            console.print(f"[yellow]Warning: could not load schema: {e}[/yellow]")
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
+        progress.add_task("Profiling …", total=None)
+        report = validate_csv(csv_file, schema=schema_config, story=story, table_name=table)
+
+    # Print rich table
+    tbl = RichTable(show_header=True, header_style="bold cyan", box=None, padding=(0, 1))
+    tbl.add_column("Column",        style="bold", min_width=20)
+    tbl.add_column("Type",          style="dim")
+    tbl.add_column("Nulls",         justify="right")
+    tbl.add_column("Range / Values")
+    tbl.add_column("Notes",         style="dim")
+
+    for c in report.columns:
+        tbl.add_row(c["name"], c["type"], c["nulls"], c["range"], c["notes"])
+
+    console.print()
+    console.print(tbl)
+    console.print()
+
+    colour = "green" if report.score >= 90 else "yellow" if report.score >= 70 else "red"
+    console.print(f"  Quality score: [{colour}]{report.score}/100[/{colour}]")
+
+    if report.issues:
+        console.print(f"  [yellow]{len(report.issues)} issue(s):[/yellow]")
+        for issue in report.issues:
+            console.print(f"    [yellow]·[/yellow] {issue}")
+    else:
+        console.print("  [green]No issues found.[/green]")
+    console.print()
+
+
 if __name__ == "__main__":
     main()

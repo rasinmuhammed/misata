@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 680" width="680" height="680" role="img">
+  <title>Misata — motion logo</title>
+  <desc>Particles drift as noise, then crystallize into a radial form with six arms, each branching symmetrically, pulsing at the center — evoking synthetic data emerging from randomness.</desc>
+
+  <defs>
+    <style>
+      @keyframes drift {
+        0%   { transform: translate(0,0); opacity: 0; }
+        20%  { opacity: 0.55; }
+        80%  { opacity: 0.55; }
+        100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+      }
+      @keyframes armGrow {
+        0%   { stroke-dashoffset: 180; opacity: 0; }
+        100% { stroke-dashoffset: 0;   opacity: 1; }
+      }
+      @keyframes branchGrow {
+        0%   { stroke-dashoffset: 70; opacity: 0; }
+        100% { stroke-dashoffset: 0;  opacity: 1; }
+      }
+      @keyframes nodeAppear {
+        0%   { r: 0; opacity: 0; }
+        60%  { r: 5.5; opacity: 1; }
+        100% { r: 4.5; opacity: 1; }
+      }
+      @keyframes centerPulse {
+        0%, 100% { r: 9;  opacity: 1; }
+        50%       { r: 13; opacity: 0.6; }
+      }
+      @keyframes ringExpand {
+        0%   { r: 10; opacity: 0.6; stroke-width: 2; }
+        100% { r: 80; opacity: 0;   stroke-width: 0.5; }
+      }
+      @keyframes ringExpand2 {
+        0%   { r: 10; opacity: 0.4; stroke-width: 1.5; }
+        100% { r: 120; opacity: 0;  stroke-width: 0.3; }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+
+      .p  { animation: drift 2.8s ease-in-out infinite; }
+      .p1  { --dx: 12px;  --dy: -18px; animation-delay: 0s;    animation-duration: 2.4s; }
+      .p2  { --dx: -20px; --dy: 8px;   animation-delay: 0.3s;  animation-duration: 2.9s; }
+      .p3  { --dx: 8px;   --dy: 22px;  animation-delay: 0.6s;  animation-duration: 2.6s; }
+      .p4  { --dx: -14px; --dy: -20px; animation-delay: 0.9s;  animation-duration: 3.1s; }
+      .p5  { --dx: 22px;  --dy: 6px;   animation-delay: 1.1s;  animation-duration: 2.7s; }
+      .p6  { --dx: -8px;  --dy: 18px;  animation-delay: 1.4s;  animation-duration: 2.5s; }
+      .p7  { --dx: 16px;  --dy: -8px;  animation-delay: 0.2s;  animation-duration: 3.0s; }
+      .p8  { --dx: -18px; --dy: -12px; animation-delay: 0.7s;  animation-duration: 2.8s; }
+      .p9  { --dx: 6px;   --dy: 20px;  animation-delay: 1.6s;  animation-duration: 2.6s; }
+      .p10 { --dx: -22px; --dy: 4px;   animation-delay: 0.4s;  animation-duration: 3.2s; }
+      .p11 { --dx: 18px;  --dy: 14px;  animation-delay: 1.0s;  animation-duration: 2.4s; }
+      .p12 { --dx: -10px; --dy: -22px; animation-delay: 1.8s;  animation-duration: 2.9s; }
+      .p13 { --dx: 24px;  --dy: -4px;  animation-delay: 0.5s;  animation-duration: 3.1s; }
+      .p14 { --dx: -6px;  --dy: 24px;  animation-delay: 1.3s;  animation-duration: 2.5s; }
+      .p15 { --dx: 14px;  --dy: -24px; animation-delay: 0.8s;  animation-duration: 2.7s; }
+      .p16 { --dx: -26px; --dy: 10px;  animation-delay: 1.5s;  animation-duration: 3.0s; }
+
+      .arm {
+        stroke-dasharray: 180;
+        animation: armGrow 0.9s cubic-bezier(0.22,1,0.36,1) both;
+        fill: none;
+      }
+      .branch {
+        stroke-dasharray: 70;
+        animation: branchGrow 0.6s cubic-bezier(0.22,1,0.36,1) both;
+        fill: none;
+      }
+      .end-node { animation: nodeAppear 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+      .mid-node { animation: nodeAppear 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+      .a1-arm { animation-delay: 0.35s; } .a1-br { animation-delay: 0.90s; } .a1-nd { animation-delay: 1.10s; }
+      .a2-arm { animation-delay: 0.45s; } .a2-br { animation-delay: 1.00s; } .a2-nd { animation-delay: 1.20s; }
+      .a3-arm { animation-delay: 0.55s; } .a3-br { animation-delay: 1.10s; } .a3-nd { animation-delay: 1.30s; }
+      .a4-arm { animation-delay: 0.65s; } .a4-br { animation-delay: 1.20s; } .a4-nd { animation-delay: 1.40s; }
+      .a5-arm { animation-delay: 0.75s; } .a5-br { animation-delay: 1.30s; } .a5-nd { animation-delay: 1.50s; }
+      .a6-arm { animation-delay: 0.85s; } .a6-br { animation-delay: 1.40s; } .a6-nd { animation-delay: 1.60s; }
+
+      .hub-pulse { animation: centerPulse 2.4s ease-in-out infinite 1.8s; }
+      .ring1     { animation: ringExpand  1.2s ease-out both 0.3s; fill: none; }
+      .ring2     { animation: ringExpand2 1.6s ease-out both 0.1s; fill: none; }
+      .crystal   { animation: fadeIn 0.2s ease-out both 0.3s; }
+    </style>
+  </defs>
+
+  <!-- background: transparent so the logo works on any page colour -->
+
+  <!-- NOISE PARTICLES -->
+  <g opacity="0.7">
+    <circle class="p p1"  cx="310" cy="270" r="2.5" fill="#E89030"/>
+    <circle class="p p2"  cx="380" cy="300" r="2"   fill="#2B4B82"/>
+    <circle class="p p3"  cx="290" cy="380" r="3"   fill="#E89030"/>
+    <circle class="p p4"  cx="420" cy="260" r="2"   fill="#2B4B82"/>
+    <circle class="p p5"  cx="260" cy="310" r="2.5" fill="#E89030"/>
+    <circle class="p p6"  cx="400" cy="410" r="2"   fill="#2B4B82"/>
+    <circle class="p p7"  cx="350" cy="240" r="1.8" fill="#E89030"/>
+    <circle class="p p8"  cx="440" cy="350" r="2.2" fill="#2B4B82"/>
+    <circle class="p p9"  cx="270" cy="430" r="2"   fill="#E89030"/>
+    <circle class="p p10" cx="480" cy="300" r="1.8" fill="#2B4B82"/>
+    <circle class="p p11" cx="230" cy="360" r="2.5" fill="#E89030"/>
+    <circle class="p p12" cx="390" cy="460" r="2"   fill="#2B4B82"/>
+    <circle class="p p13" cx="320" cy="450" r="1.8" fill="#E89030"/>
+    <circle class="p p14" cx="460" cy="240" r="2.2" fill="#2B4B82"/>
+    <circle class="p p15" cx="250" cy="250" r="2"   fill="#E89030"/>
+    <circle class="p p16" cx="430" cy="430" r="2.5" fill="#2B4B82"/>
+  </g>
+
+  <!-- SHOCKWAVE RINGS -->
+  <circle class="ring2" cx="340" cy="340" stroke="#E89030" stroke-width="1.5"/>
+  <circle class="ring1" cx="340" cy="340" stroke="#E89030" stroke-width="2"/>
+
+  <!-- CRYSTAL STRUCTURE -->
+  <g class="crystal">
+
+    <!-- ARM 1: up -->
+    <line class="arm a1-arm" x1="340" y1="340" x2="340" y2="175" stroke="#E89030" stroke-width="2"/>
+    <line class="branch a1-br" x1="340" y1="248" x2="305" y2="213" stroke="#E89030" stroke-width="1.4"/>
+    <line class="branch a1-br" x1="340" y1="248" x2="375" y2="213" stroke="#E89030" stroke-width="1.4"/>
+    <circle class="end-node a1-nd" cx="340" cy="175" r="4.5" fill="#E89030"/>
+    <circle class="end-node a1-nd" cx="305" cy="213" r="3.5" fill="#E89030"/>
+    <circle class="end-node a1-nd" cx="375" cy="213" r="3.5" fill="#E89030"/>
+    <circle class="mid-node a1-arm" cx="340" cy="248" r="3" fill="#E89030" opacity="0.7"/>
+
+    <!-- ARM 2: upper-right -->
+    <line class="arm a2-arm" x1="340" y1="340" x2="483" y2="257" stroke="#2B4B82" stroke-width="2"/>
+    <line class="branch a2-br" x1="418" y1="296" x2="436" y2="262" stroke="#2B4B82" stroke-width="1.4"/>
+    <line class="branch a2-br" x1="418" y1="296" x2="453" y2="313" stroke="#2B4B82" stroke-width="1.4"/>
+    <circle class="end-node a2-nd" cx="483" cy="257" r="4.5" fill="#2B4B82"/>
+    <circle class="end-node a2-nd" cx="436" cy="262" r="3.5" fill="#2B4B82"/>
+    <circle class="end-node a2-nd" cx="453" cy="313" r="3.5" fill="#2B4B82"/>
+    <circle class="mid-node a2-arm" cx="418" cy="296" r="3" fill="#2B4B82" opacity="0.7"/>
+
+    <!-- ARM 3: lower-right -->
+    <line class="arm a3-arm" x1="340" y1="340" x2="483" y2="423" stroke="#2B4B82" stroke-width="2"/>
+    <line class="branch a3-br" x1="418" y1="384" x2="453" y2="367" stroke="#2B4B82" stroke-width="1.4"/>
+    <line class="branch a3-br" x1="418" y1="384" x2="436" y2="418" stroke="#2B4B82" stroke-width="1.4"/>
+    <circle class="end-node a3-nd" cx="483" cy="423" r="4.5" fill="#2B4B82"/>
+    <circle class="end-node a3-nd" cx="453" cy="367" r="3.5" fill="#2B4B82"/>
+    <circle class="end-node a3-nd" cx="436" cy="418" r="3.5" fill="#2B4B82"/>
+    <circle class="mid-node a3-arm" cx="418" cy="384" r="3" fill="#2B4B82" opacity="0.7"/>
+
+    <!-- ARM 4: down -->
+    <line class="arm a4-arm" x1="340" y1="340" x2="340" y2="505" stroke="#E89030" stroke-width="2"/>
+    <line class="branch a4-br" x1="340" y1="432" x2="305" y2="467" stroke="#E89030" stroke-width="1.4"/>
+    <line class="branch a4-br" x1="340" y1="432" x2="375" y2="467" stroke="#E89030" stroke-width="1.4"/>
+    <circle class="end-node a4-nd" cx="340" cy="505" r="4.5" fill="#E89030"/>
+    <circle class="end-node a4-nd" cx="305" cy="467" r="3.5" fill="#E89030"/>
+    <circle class="end-node a4-nd" cx="375" cy="467" r="3.5" fill="#E89030"/>
+    <circle class="mid-node a4-arm" cx="340" cy="432" r="3" fill="#E89030" opacity="0.7"/>
+
+    <!-- ARM 5: lower-left -->
+    <line class="arm a5-arm" x1="340" y1="340" x2="197" y2="423" stroke="#E89030" stroke-width="2"/>
+    <line class="branch a5-br" x1="262" y1="384" x2="227" y2="367" stroke="#E89030" stroke-width="1.4"/>
+    <line class="branch a5-br" x1="262" y1="384" x2="244" y2="418" stroke="#E89030" stroke-width="1.4"/>
+    <circle class="end-node a5-nd" cx="197" cy="423" r="4.5" fill="#E89030"/>
+    <circle class="end-node a5-nd" cx="227" cy="367" r="3.5" fill="#E89030"/>
+    <circle class="end-node a5-nd" cx="244" cy="418" r="3.5" fill="#E89030"/>
+    <circle class="mid-node a5-arm" cx="262" cy="384" r="3" fill="#E89030" opacity="0.7"/>
+
+    <!-- ARM 6: upper-left -->
+    <line class="arm a6-arm" x1="340" y1="340" x2="197" y2="257" stroke="#2B4B82" stroke-width="2"/>
+    <line class="branch a6-br" x1="262" y1="296" x2="244" y2="262" stroke="#2B4B82" stroke-width="1.4"/>
+    <line class="branch a6-br" x1="262" y1="296" x2="227" y2="313" stroke="#2B4B82" stroke-width="1.4"/>
+    <circle class="end-node a6-nd" cx="197" cy="257" r="4.5" fill="#2B4B82"/>
+    <circle class="end-node a6-nd" cx="244" cy="262" r="3.5" fill="#2B4B82"/>
+    <circle class="end-node a6-nd" cx="227" cy="313" r="3.5" fill="#2B4B82"/>
+    <circle class="mid-node a6-arm" cx="262" cy="296" r="3" fill="#2B4B82" opacity="0.7"/>
+
+    <!-- CENTER HUB -->
+    <circle cx="340" cy="340" r="15" fill="#0B0F1A" stroke="#E89030" stroke-width="2.5"/>
+    <circle class="hub-pulse" cx="340" cy="340" r="9" fill="#E89030"/>
+  </g>
+</svg>

@@ -220,7 +220,15 @@ from misata.schema import (
 from misata.simulator import DataSimulator, GenerationResult
 from misata.story_parser import StoryParser
 from misata.llm_parser import LLMSchemaGenerator
-from misata.validation import SchemaValidationError, validate_schema, validate_data
+from misata.validation import SchemaValidationError, validate_schema, validate_data, validate_csv, CsvValidationReport
+from misata.timeseries import (
+    generate_timeseries,
+    TimeSeriesConfig,
+    TimeSeriesGenerator,
+    Trend,
+    Seasonality,
+    Anomaly,
+)
 from misata.engines import FactEngine
 from misata.generators import TextGenerator
 from misata.generators.base import (
@@ -346,6 +354,15 @@ __all__ = [
     "SchemaValidationError",
     "validate_schema",
     "validate_data",
+    "validate_csv",
+    "CsvValidationReport",
+    # Time-series
+    "generate_timeseries",
+    "TimeSeriesConfig",
+    "TimeSeriesGenerator",
+    "Trend",
+    "Seasonality",
+    "Anomaly",
     # Generators
     "TextGenerator",
     "BaseGenerator",

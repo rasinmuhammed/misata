@@ -557,6 +557,195 @@ class DataValidator:
         return 2
 
 
+def validate_csv(
+    path_or_df,
+    schema=None,
+    story: Optional[str] = None,
+    table_name: Optional[str] = None,
+) -> "CsvValidationReport":
+    """Profile a CSV file (or DataFrame) and optionally check it against a schema.
+
+    Args:
+        path_or_df:  Path to a CSV file or an existing ``pd.DataFrame``.
+        schema:      Optional ``SchemaConfig`` to check the CSV against.
+                     If not provided, Misata will infer types and report stats only.
+        story:       Optional plain-English story — parsed to a schema and used
+                     to check the CSV (alternative to passing ``schema`` directly).
+        table_name:  Name to use when looking up columns in ``schema``.
+                     Defaults to the CSV filename stem.
+
+    Returns:
+        ``CsvValidationReport`` with per-column stats, issues, and a quality score.
+
+    Example::
+
+        report = misata.validate_csv("customers.csv")
+        print(report)
+
+        # With a schema
+        schema = misata.load_yaml_schema("misata.yaml")
+        report = misata.validate_csv("customers.csv", schema=schema)
+        print(report.score)
+    """
+    import pandas as pd
+
+    if isinstance(path_or_df, (str,)) or hasattr(path_or_df, "__fspath__"):
+        from pathlib import Path
+        p = Path(path_or_df)
+        df = pd.read_csv(p)
+        name = table_name or p.stem
+    else:
+        df = path_or_df
+        name = table_name or "data"
+
+    if story and schema is None:
+        from misata.story_parser import StoryParser
+        schema = StoryParser().parse(story, default_rows=len(df))
+
+    return CsvValidationReport.from_dataframe(df, name=name, schema=schema)
+
+
+class CsvValidationReport:
+    """Per-column profile of a CSV/DataFrame with optional schema conformance check."""
+
+    def __init__(self, name: str, rows: int, columns: list, issues: list, score: int):
+        self.name = name
+        self.rows = rows
+        self.columns = columns  # list of dicts
+        self.issues = issues    # list of str
+        self.score = score      # 0–100
+
+    @classmethod
+    def from_dataframe(cls, df: "pd.DataFrame", name: str, schema=None) -> "CsvValidationReport":
+        import pandas as pd
+
+        cols = []
+        issues = []
+        deductions = 0
+
+        schema_col_map: dict = {}
+        if schema is not None:
+            try:
+                sc_cols = schema.get_columns(name)
+                schema_col_map = {c.name: c for c in sc_cols}
+            except Exception:
+                pass
+
+        for col in df.columns:
+            series = df[col]
+            null_pct = series.isna().mean()
+            n_unique = series.nunique()
+            dtype = str(series.dtype)
+
+            # Infer semantic type
+            if pd.api.types.is_bool_dtype(series):
+                sem = "boolean"
+            elif pd.api.types.is_integer_dtype(series):
+                sem = "int"
+            elif pd.api.types.is_float_dtype(series):
+                sem = "float"
+            else:
+                try:
+                    pd.to_datetime(series.dropna().iloc[:20])
+                    sem = "date"
+                except Exception:
+                    sem = "categorical" if n_unique / max(len(df), 1) < 0.2 else "text"
+
+            range_str = ""
+            if sem in ("int", "float"):
+                lo, hi = series.min(), series.max()
+                range_str = f"{lo:g} → {hi:g}"
+            elif sem == "categorical":
+                vals = series.dropna().unique()[:4]
+                range_str = ", ".join(str(v) for v in vals)
+                if series.nunique() > 4:
+                    range_str += f" (+{series.nunique()-4} more)"
+            elif sem == "text":
+                range_str = f"{n_unique} unique"
+            elif sem == "date":
+                try:
+                    dt = pd.to_datetime(series.dropna())
+                    range_str = f"{dt.min().date()} → {dt.max().date()}"
+                except Exception:
+                    pass
+
+            notes = []
+            # Uniqueness
+            if n_unique == len(df) and len(df) > 1:
+                notes.append("unique")
+            elif n_unique == 1:
+                notes.append("constant")
+                issues.append(f"{col}: all values are identical")
+                deductions += 5
+
+            # Nulls
+            if null_pct > 0.5:
+                issues.append(f"{col}: {null_pct:.0%} nulls — column may be mostly empty")
+                deductions += 10
+            elif null_pct > 0.0:
+                notes.append(f"{null_pct:.1%} nulls")
+
+            # Schema conformance
+            if col in schema_col_map:
+                sc = schema_col_map[col]
+                expected = sc.type
+                type_ok = (
+                    (expected == "int"   and sem in ("int",)) or
+                    (expected == "float" and sem in ("int", "float")) or
+                    (expected == "text"  and sem in ("text", "categorical", "date")) or
+                    (expected == "categorical" and sem == "categorical") or
+                    (expected == "boolean" and sem in ("boolean", "int")) or
+                    (expected == "date"  and sem == "date")
+                )
+                if not type_ok:
+                    issues.append(f"{col}: schema expects {expected!r} but found {sem!r}")
+                    deductions += 8
+                else:
+                    notes.append(f"schema ✓")
+
+                if sc.unique and n_unique < len(df):
+                    dup = len(df) - n_unique
+                    issues.append(f"{col}: {dup} duplicate values (schema expects unique)")
+                    deductions += 5
+
+            cols.append({
+                "name": col,
+                "type": sem,
+                "dtype": dtype,
+                "nulls": f"{null_pct:.1%}",
+                "range": range_str,
+                "notes": " · ".join(notes),
+            })
+
+        score = max(0, 100 - deductions)
+        return cls(name=name, rows=len(df), columns=cols, issues=issues, score=score)
+
+    def __str__(self) -> str:
+        lines = [
+            f"\nValidating {self.name!r} — {self.rows:,} rows × {len(self.columns)} columns",
+            "─" * 74,
+            f"  {'Column':<22} {'Type':<12} {'Nulls':>6}  {'Range / Values':<28}  Notes",
+            "  " + "─" * 70,
+        ]
+        for c in self.columns:
+            lines.append(
+                f"  {c['name']:<22} {c['type']:<12} {c['nulls']:>6}  {c['range']:<28}  {c['notes']}"
+            )
+        lines.append("  " + "─" * 70)
+        lines.append(f"\n  Quality score: {self.score}/100")
+        if self.issues:
+            lines.append(f"  {len(self.issues)} issue(s) found:")
+            for issue in self.issues:
+                lines.append(f"    · {issue}")
+        else:
+            lines.append("  No issues found.")
+        lines.append("")
+        return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return f"CsvValidationReport(name={self.name!r}, rows={self.rows}, score={self.score})"
+
+
 def validate_data(
     tables: Dict[str, pd.DataFrame],
     schema_config: Optional[Any] = None,

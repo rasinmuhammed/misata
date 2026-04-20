@@ -57,9 +57,11 @@ class StoryParser:
         "pharma": ["pharma", "research", "timesheet", "clinical", "trials"],
         "fintech": ["fintech", "transactions", "payments", "wallet", "banking", "loans", "credit", "fraud"],
         "healthcare": ["healthcare", "health", "patients", "doctors", "hospital", "clinic", "appointments", "medical"],
+        # social before marketplace — "platform" alone is too generic; social signals are distinct
+        "social": ["social media", "instagram", "tiktok", "twitter", "feed", "followers", "likes", "influencer", "content creator", "creator economy", "reels", "social network"],
         # realestate before marketplace — both have "listings" and "agents" as keywords
         "realestate": ["real estate", "realty", "housing", "mortgage", "homes for sale", "property listing"],
-        "marketplace": ["marketplace", "gig", "freelance", "platform", "sellers", "buyers", "listings"],
+        "marketplace": ["marketplace", "gig", "freelance", "sellers", "buyers", "listings"],
         "logistics": ["logistics", "shipping", "delivery", "fleet", "warehouse", "supply chain", "routes", "drivers"],
         "hr": ["hr", "human resources", "employees", "payroll", "workforce", "hiring", "headcount", "salaries", "onboarding"],
     }
@@ -385,6 +387,8 @@ class StoryParser:
             schema = self._build_logistics_schema(story, default_rows)
         elif self.detected_domain == "hr":
             schema = self._build_hr_schema(story, default_rows)
+        elif self.detected_domain == "social":
+            schema = self._build_social_schema(story, default_rows)
         elif self.detected_domain == "realestate":
             schema = self._build_realestate_schema(story, default_rows)
         else:
@@ -1216,6 +1220,130 @@ class StoryParser:
             domain="realestate", tables=tables, columns=columns,
             relationships=relationships, events=[],
             outcome_curves=[outcome_curve] if outcome_curve else [],
+        )
+
+    def _build_social_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        """Build a social media / creator-economy schema.
+
+        Tables: users, posts, follows, reactions, comments.
+        Follower counts follow a power-law (Pareto) — a small number of
+        accounts capture most of the reach, matching real platform data.
+        """
+        num_users    = self.scale_params.get("users", default_rows)
+        # Posts: ~3-5 per active user; reactions: ~20 per post; comments: ~4 per post
+        num_posts     = int(num_users * 4)
+        num_follows   = int(num_users * 15)   # avg 15 follow edges per account
+        num_reactions = int(num_posts * 20)
+        num_comments  = int(num_posts * 4)
+
+        tables = [
+            Table(name="users",     row_count=num_users),
+            Table(name="posts",     row_count=num_posts),
+            Table(name="follows",   row_count=num_follows),
+            Table(name="reactions", row_count=num_reactions),
+            Table(name="comments",  row_count=num_comments),
+        ]
+        columns = {
+            "users": [
+                Column(name="user_id",    type="int",  unique=True, distribution_params={"min": 1, "max": num_users + 1}),
+                Column(name="username",   type="text", distribution_params={"text_type": "username"}),
+                Column(name="display_name", type="text", distribution_params={"text_type": "name"}),
+                Column(name="email",      type="text", distribution_params={"text_type": "email"}),
+                Column(name="bio",        type="text", distribution_params={"text_type": "sentence"}),
+                Column(name="account_type", type="categorical", distribution_params={
+                    "choices": ["personal", "creator", "brand", "business"],
+                    "probabilities": [0.70, 0.18, 0.07, 0.05],
+                }),
+                Column(name="follower_count", type="int", distribution_params={
+                    # Power-law: most accounts have <1k followers, a few have millions
+                    "distribution": "pareto", "scale": 100, "shape": 1.5, "max": 10_000_000, "decimals": 0,
+                }),
+                Column(name="following_count", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 5.5, "sigma": 1.2, "min": 0, "max": 5000, "decimals": 0,
+                }),
+                Column(name="post_count", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 3.5, "sigma": 1.5, "min": 0, "max": 50_000, "decimals": 0,
+                }),
+                Column(name="verified", type="boolean", distribution_params={"probability": 0.03}),
+                Column(name="joined_date", type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+                Column(name="is_active", type="boolean", distribution_params={"probability": 0.78}),
+            ],
+            "posts": [
+                Column(name="post_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_posts + 1}),
+                Column(name="user_id",    type="foreign_key"),
+                Column(name="content_type", type="categorical", distribution_params={
+                    "choices": ["photo", "video", "reel", "story", "text", "carousel"],
+                    "probabilities": [0.35, 0.25, 0.18, 0.12, 0.06, 0.04],
+                }),
+                Column(name="caption",    type="text", distribution_params={"text_type": "sentence"}),
+                Column(name="like_count", type="int", distribution_params={
+                    # Engagement follows a power-law relative to account size
+                    "distribution": "lognormal", "mu": 3.8, "sigma": 2.0, "min": 0, "decimals": 0,
+                }),
+                Column(name="comment_count", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 2.0, "sigma": 1.8, "min": 0, "decimals": 0,
+                }),
+                Column(name="share_count", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 1.2, "sigma": 1.6, "min": 0, "decimals": 0,
+                }),
+                Column(name="view_count", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 5.5, "sigma": 2.2, "min": 0, "decimals": 0,
+                }),
+                Column(name="engagement_rate", type="float", distribution_params={
+                    # Real average engagement: 1-5% for most creators
+                    "distribution": "beta", "a": 1.5, "b": 20.0, "min": 0.001, "max": 0.30, "decimals": 4,
+                }),
+                Column(name="hashtag_count", type="int", distribution_params={
+                    "choices": [0, 1, 2, 3, 5, 8, 10, 15, 20, 30],
+                    "probabilities": [0.10, 0.08, 0.10, 0.12, 0.15, 0.15, 0.12, 0.10, 0.05, 0.03],
+                }),
+                Column(name="posted_at",  type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="is_sponsored", type="boolean", distribution_params={"probability": 0.06}),
+            ],
+            "follows": [
+                Column(name="follow_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_follows + 1}),
+                Column(name="follower_id", type="foreign_key"),
+                Column(name="followee_id", type="int", distribution_params={"min": 1, "max": num_users}),
+                Column(name="followed_at", type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+                Column(name="is_mutual",   type="boolean", distribution_params={"probability": 0.42}),
+            ],
+            "reactions": [
+                Column(name="reaction_id", type="int", unique=True, distribution_params={"min": 1, "max": num_reactions + 1}),
+                Column(name="post_id",     type="foreign_key"),
+                Column(name="user_id",     type="int", distribution_params={"min": 1, "max": num_users}),
+                Column(name="reaction_type", type="categorical", distribution_params={
+                    "choices": ["like", "love", "haha", "wow", "sad", "angry"],
+                    "probabilities": [0.65, 0.18, 0.07, 0.05, 0.03, 0.02],
+                }),
+                Column(name="reacted_at",  type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+            ],
+            "comments": [
+                Column(name="comment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_comments + 1}),
+                Column(name="post_id",    type="foreign_key"),
+                Column(name="user_id",    type="int", distribution_params={"min": 1, "max": num_users}),
+                Column(name="body",       type="text", distribution_params={"text_type": "sentence"}),
+                Column(name="like_count", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 1.0, "sigma": 1.5, "min": 0, "decimals": 0,
+                }),
+                Column(name="is_reply",   type="boolean", distribution_params={"probability": 0.35}),
+                Column(name="parent_comment_id", type="int", distribution_params={"min": 1, "max": num_comments}),
+                Column(name="commented_at", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="users", child_table="posts",
+                         parent_key="user_id", child_key="user_id"),
+            Relationship(parent_table="users", child_table="follows",
+                         parent_key="user_id", child_key="follower_id"),
+            Relationship(parent_table="posts", child_table="reactions",
+                         parent_key="post_id", child_key="post_id"),
+            Relationship(parent_table="posts", child_table="comments",
+                         parent_key="post_id", child_key="post_id"),
+        ]
+        return SchemaConfig(
+            name="Social Media Dataset", description=f"Generated from story: {story}",
+            domain="social", tables=tables, columns=columns,
+            relationships=relationships, events=[],
         )
 
     def _build_generic_schema(self, story: str, default_rows: int) -> SchemaConfig:

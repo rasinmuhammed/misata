@@ -105,6 +105,9 @@ advanced = [
 documents = [
     "weasyprint>=60.0",       # HTML → PDF conversion
 ]
+docs = [
+    "mkdocs-material>=9.5.0",
+]
 all = [
     "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents]",
 ]
