@@ -1276,7 +1276,7 @@ class StoryParser:
                     "choices": ["photo", "video", "reel", "story", "text", "carousel"],
                     "probabilities": [0.35, 0.25, 0.18, 0.12, 0.06, 0.04],
                 }),
-                Column(name="caption",    type="text", distribution_params={"text_type": "description"}),
+                Column(name="caption",    type="text", distribution_params={"text_type": "caption"}),
                 Column(name="like_count", type="int", distribution_params={
                     # Engagement follows a power-law relative to account size
                     "distribution": "lognormal", "mu": 3.8, "sigma": 2.0, "min": 0, "decimals": 0,
