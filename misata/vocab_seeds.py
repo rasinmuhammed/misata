@@ -377,6 +377,134 @@ STATES_BY_COUNTRY: Dict[str, List[str]] = {
 # SaaS-specific vocabulary
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Food delivery — restaurants and menu items
+# ---------------------------------------------------------------------------
+
+RESTAURANT_NAMES: List[str] = [
+    # American / Casual
+    "The Rusty Fork", "Ember & Ash", "Corner Table", "The Griddle House",
+    "Blue Smoke Kitchen", "Oak & Barrel", "The Smokehouse", "Copper Pot",
+    "The Kitchen Sink", "Pinewood Grill", "Salt & Cedar", "The Foundry",
+    # Italian
+    "Trattoria Bella", "Pasta Roma", "La Cucina", "Olive & Vine",
+    "Piedmont Kitchen", "Casa Napoli", "Al Forno", "Nonna's Table",
+    # Asian
+    "Golden Wok", "Sakura Garden", "Pho & Co.", "Dragon Palace",
+    "Umami House", "Lantern Kitchen", "Jade Spoon", "Bamboo Bistro",
+    "Ramen Republic", "Lotus Bowl", "Seoul Kitchen", "Miso & More",
+    # Mexican / Latin
+    "La Cantina", "Taqueria El Sol", "Casa Fuego", "Verde Kitchen",
+    "Señor Cactus", "Aztec Grill", "Barrio Eats", "El Patio",
+    # Middle Eastern / Mediterranean
+    "The Olive Branch", "Mezze House", "Falafel & Friends", "Cedar Grill",
+    "Saffron Kitchen", "The Levant", "Byblos Bistro", "Anatolia",
+    # Indian
+    "Spice Route", "The Curry Leaf", "Mumbai Masala", "Tandoor House",
+    "Saffron Palace", "Chai & Spice", "Delhi Darbar", "The Maharaja",
+    # Burgers / Fast Casual
+    "Stack'd", "The Patty Lab", "Bun & Done", "Smash Bros. Burgers",
+    "Burnside Burgers", "The Melt Factory", "Juicy Lucy's", "Stack House",
+    # Pizza
+    "Fire & Dough", "Slice of Heaven", "The Pizza Lab", "Crust & Craft",
+    "Stone Deck Pizza", "Woodfire & Co.", "Circle Pie", "The Pie Hole",
+    # Healthy / Bowls
+    "Greens & Grains", "The Nourish Bowl", "Clean Plate", "Harvest Table",
+    "Roots Kitchen", "The Green Fork", "Vitality Bowls", "Fresh Assembly",
+    # Breakfast / Brunch
+    "Sunrise Plate", "The Crack of Dawn", "Morning Glory Café", "Yolk & Folk",
+    "The Brunch Club", "Sunny Side Up", "Maple & Butter", "The Early Bird",
+]
+
+MENU_ITEMS_BY_CATEGORY: Dict[str, List[str]] = {
+    "main": [
+        "Grilled Chicken Sandwich", "BBQ Beef Burger", "Margherita Pizza 12\"",
+        "Butter Chicken with Naan", "Pad Thai with Shrimp", "Beef Tacos (3-pack)",
+        "Spaghetti Bolognese", "Salmon Teriyaki Bowl", "Veggie Burrito Bowl",
+        "Crispy Fish & Chips", "Pulled Pork Sandwich", "Chicken Tikka Masala",
+        "Pho Bo (Beef Noodle Soup)", "Bibimbap with Tofu", "Lamb Shawarma Wrap",
+        "Mushroom Risotto", "Pepperoni Calzone", "General Tso's Chicken",
+        "Falafel Plate with Hummus", "Club Sandwich", "Ramen Tonkotsu",
+        "Shrimp Tacos (2-pack)", "Eggplant Parmesan", "Beef Banh Mi",
+        "Chicken Caesar Wrap", "Steak Burrito", "Paneer Tikka",
+    ],
+    "side": [
+        "Seasoned French Fries", "Sweet Potato Fries", "Garlic Bread (4-piece)",
+        "Side Salad", "Coleslaw", "Onion Rings", "Mashed Potatoes",
+        "Steamed Broccoli", "Mac & Cheese", "Roasted Vegetables",
+        "Corn on the Cob", "Rice (Steamed)", "Naan Bread (2-piece)",
+        "Edamame", "Spring Rolls (2-piece)", "Soup of the Day",
+        "Kimchi", "Pita Bread with Tzatziki", "Chips & Guacamole",
+    ],
+    "drink": [
+        "Coca-Cola (16oz)", "Diet Coke (16oz)", "Lemonade (16oz)",
+        "Iced Tea (16oz)", "Orange Juice", "Sparkling Water",
+        "Mango Lassi", "Thai Iced Tea", "Horchata",
+        "Strawberry Lemonade", "Apple Juice", "Green Smoothie",
+        "Chai Latte", "Watermelon Juice", "Coconut Water",
+        "Kombucha Original", "Root Beer (16oz)", "Passion Fruit Drink",
+    ],
+    "dessert": [
+        "Chocolate Lava Cake", "Tiramisu", "Mango Sorbet",
+        "New York Cheesecake", "Crème Brûlée", "Gulab Jamun (2-piece)",
+        "Churros with Dipping Sauce", "Mochi Ice Cream (3-piece)",
+        "Apple Pie Slice", "Brownie Sundae", "Tres Leches Cake",
+        "Cannoli (2-piece)", "Baklava", "Panna Cotta",
+        "Matcha Cheesecake", "Fried Plantains with Ice Cream",
+    ],
+    "starter": [
+        "Buffalo Wings (6-piece)", "Soup & Salad Combo",
+        "Spinach Artichoke Dip", "Bruschetta (3-piece)", "Samosa (2-piece)",
+        "Dumplings (6-piece)", "Nachos Supreme", "Hummus with Pita",
+        "Calamari Fritti", "Charcuterie Board (small)", "Edamame (salted)",
+        "Chicken Satay (4-piece)", "Ceviche Cup", "Stuffed Mushrooms",
+    ],
+    "combo": [
+        "Burger + Fries + Drink", "2 Tacos + Rice + Drink",
+        "Pizza Slice + Side Salad + Drink", "Pasta + Garlic Bread + Drink",
+        "Wrap + Fries + Drink", "Bowl + Side + Drink",
+        "Family Meal (4 mains + 2 sides)", "Lunch Special (main + drink)",
+        "Date Night Set (2 mains + dessert)", "Kids Meal + Drink + Dessert",
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Research / pharma project names
+# ---------------------------------------------------------------------------
+
+RESEARCH_PROJECT_NAMES: List[str] = [
+    "Project Aurora", "Initiative Helix", "Study Olympus", "Trial Meridian",
+    "Protocol Vanguard", "Program Apex", "Study Horizon", "Initiative Sigma",
+    "Project Catalyst", "Protocol Zenith", "Trial Vertex", "Program Solstice",
+    "Project Lynx", "Study Polaris", "Initiative Titan", "Protocol Atlas",
+    "Program Orion", "Trial Phoenix", "Project Crest", "Study Prism",
+    "Initiative Forge", "Protocol Strata", "Program Nexus", "Project Delta-7",
+    "Study GEN-402", "Trial RX-09", "Protocol CL-21", "Initiative MED-5",
+]
+
+# ---------------------------------------------------------------------------
+# Social / comment short text
+# ---------------------------------------------------------------------------
+
+COMMENT_BODIES: List[str] = [
+    "This is amazing!", "Love this so much 🔥", "Totally agree!",
+    "Can't stop laughing 😂", "This made my day", "Omg yes!",
+    "So true", "Incredible work", "Goals 🙌", "Need this in my life",
+    "How did you do that?", "Obsessed with this", "Tag your bestie!",
+    "Saving this for later", "The best content on here",
+    "This deserves more likes", "I'm crying 😭", "Literally me every day",
+    "Where is this??", "You never miss 🎯", "Legend",
+    "Not me watching this 10 times", "Okay but this is fire 🔥",
+    "Why does this have so few views?", "This hits different",
+    "Living for this energy ✨", "Can you do a tutorial?",
+    "Sending this to everyone I know", "Underrated post right here",
+    "This should be trending", "Valid 💯", "Period.",
+]
+
+# ---------------------------------------------------------------------------
+# SaaS-specific vocabulary
+# ---------------------------------------------------------------------------
+
 PLAN_NAMES: List[str] = [
     "Free", "Starter", "Basic", "Growth", "Pro", "Professional",
     "Business", "Team", "Scale", "Enterprise", "Ultimate", "Premium",

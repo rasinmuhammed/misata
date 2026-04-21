@@ -665,8 +665,8 @@ class StoryParser:
 
         columns = {
             "research_projects": [
-                Column(name="project_id", type="int", distribution_params={"min": 1, "max": num_projects}),
-                Column(name="project_name", type="text", distribution_params={"text_type": "company"}),
+                Column(name="project_id", type="int", unique=True, distribution_params={"min": 1, "max": num_projects + 1}),
+                Column(name="project_name", type="text", distribution_params={"text_type": "research_project_name"}),
                 Column(
                     name="start_date",
                     type="date",
@@ -682,7 +682,7 @@ class StoryParser:
                 ),
             ],
             "timesheets": [
-                Column(name="entry_id", type="int", distribution_params={"min": 1, "max": num_timesheets}),
+                Column(name="entry_id", type="int", unique=True, distribution_params={"min": 1, "max": num_timesheets + 1}),
                 Column(name="project_id", type="foreign_key", distribution_params={}),
                 Column(name="employee_name", type="text", distribution_params={"text_type": "name"}),
                 Column(
@@ -1322,7 +1322,7 @@ class StoryParser:
                 Column(name="comment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_comments + 1}),
                 Column(name="post_id",    type="foreign_key"),
                 Column(name="user_id",    type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
-                Column(name="body",       type="text", distribution_params={"text_type": "description"}),
+                Column(name="body",       type="text", distribution_params={"text_type": "comment_body"}),
                 Column(name="like_count", type="int", distribution_params={
                     "distribution": "lognormal", "mu": 1.0, "sigma": 1.5, "min": 0, "decimals": 0,
                 }),
@@ -1364,7 +1364,7 @@ class StoryParser:
         columns = {
             "restaurants": [
                 Column(name="restaurant_id", type="int", unique=True, distribution_params={"min": 1, "max": num_restaurants + 1}),
-                Column(name="name",          type="text", distribution_params={"text_type": "company"}),
+                Column(name="name",          type="text", distribution_params={"text_type": "restaurant_name"}),
                 Column(name="cuisine_type",  type="categorical", distribution_params={
                     "choices": ["italian", "chinese", "indian", "mexican", "american", "japanese", "thai", "mediterranean", "korean", "pizza"],
                     "probabilities": [0.13, 0.12, 0.11, 0.10, 0.12, 0.10, 0.09, 0.08, 0.08, 0.07],
@@ -1429,7 +1429,7 @@ class StoryParser:
             "order_items": [
                 Column(name="item_id",       type="int", unique=True, distribution_params={"min": 1, "max": num_items + 1}),
                 Column(name="order_id",      type="foreign_key"),
-                Column(name="item_name",     type="text", distribution_params={"text_type": "product_name"}),
+                Column(name="item_name",     type="text", distribution_params={"text_type": "menu_item"}),
                 Column(name="category",      type="categorical", distribution_params={
                     "choices": ["main", "side", "drink", "dessert", "starter", "combo"],
                     "probabilities": [0.40, 0.20, 0.18, 0.10, 0.07, 0.05],

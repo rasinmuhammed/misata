@@ -231,6 +231,14 @@ class RealisticTextGenerator:
             return self._generate_bio(size=size)
         if semantic == "caption":
             return self._generate_caption(size=size, table_data=table_data)
+        if semantic == "comment_body":
+            return self._generate_comment_body(size=size)
+        if semantic == "restaurant_name":
+            return self._generate_restaurant_name(size=size)
+        if semantic == "menu_item":
+            return self._generate_menu_item(size=size, table_data=table_data)
+        if semantic == "research_project_name":
+            return self._generate_research_project_name(size=size)
 
         return np.array([
             self.rng.choice(self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES))
@@ -258,6 +266,16 @@ class RealisticTextGenerator:
             return "state"
         if "city" in name:
             return "city"
+        if "restaurant" in table and name == "name":
+            return "restaurant_name"
+        if "restaurant" in table or ("item" in table and "order" in table):
+            if name in ("item_name", "dish", "menu_item"):
+                return "menu_item"
+        if "research" in table or "project" in table:
+            if name in ("project_name", "study_name", "trial_name"):
+                return "research_project_name"
+        if "comment" in table and name == "body":
+            return "comment_body"
         if "product" in table or "item" in table or "listing" in table:
             return "product_name"
         if name == "name":
@@ -316,6 +334,32 @@ class RealisticTextGenerator:
         vibes = self.rng.choice(_VIBES, size=size)
         extras = self.rng.choice(_EXTRAS, size=size)
         return np.array([f"{r.capitalize()} | {v}{e}" for r, v, e in zip(roles, vibes, extras)])
+
+    def _generate_restaurant_name(self, *, size: int) -> np.ndarray:
+        from misata.vocab_seeds import RESTAURANT_NAMES
+        pool = self._vocabulary("restaurant_name", RESTAURANT_NAMES)
+        return np.array([self.rng.choice(pool) for _ in range(size)])
+
+    def _generate_menu_item(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:
+        from misata.vocab_seeds import MENU_ITEMS_BY_CATEGORY
+        categories = self._series_from_table(table_data, "category", size)
+        result = []
+        fallback = MENU_ITEMS_BY_CATEGORY["main"]
+        for cat in categories:
+            pool = MENU_ITEMS_BY_CATEGORY.get(str(cat).lower(), fallback)
+            pool = self._vocabulary(f"menu_item_{cat}", pool)
+            result.append(self.rng.choice(pool))
+        return np.array(result)
+
+    def _generate_comment_body(self, *, size: int) -> np.ndarray:
+        from misata.vocab_seeds import COMMENT_BODIES
+        pool = self._vocabulary("comment_body", COMMENT_BODIES)
+        return np.array([self.rng.choice(pool) for _ in range(size)])
+
+    def _generate_research_project_name(self, *, size: int) -> np.ndarray:
+        from misata.vocab_seeds import RESEARCH_PROJECT_NAMES
+        pool = self._vocabulary("research_project_name", RESEARCH_PROJECT_NAMES)
+        return np.array([self.rng.choice(pool) for _ in range(size)])
 
     def _generate_product_text(
         self,
