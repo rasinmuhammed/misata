@@ -27,11 +27,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e ".[dev]"
+          pip install pytest-cov
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          pytest tests/ -q --tb=short
+          pytest tests/ -q --tb=short --cov=misata --cov-report=xml --cov-report=term-missing
 
       - name: Run scale test
         run: |
           pytest tests/test_integration_scale.py -v -m slow --tb=short
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: false

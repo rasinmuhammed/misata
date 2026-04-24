@@ -66,6 +66,8 @@ class StoryParser:
         "marketplace": ["marketplace", "gig", "freelance", "sellers", "buyers", "listings"],
         "logistics": ["logistics", "shipping", "delivery", "fleet", "warehouse", "supply chain", "routes", "drivers"],
         "hr": ["hr", "human resources", "employees", "payroll", "workforce", "hiring", "headcount", "salaries", "onboarding"],
+        "edtech": ["edtech", "e-learning", "lms", "courses", "students", "instructors", "lessons", "enrollments", "quizzes", "learning platform", "online learning"],
+        "gaming": ["gaming", "game", "players", "leaderboard", "achievements", "quests", "guilds", "matches", "sessions", "levels", "esports", "rpg"],
     }
 
     MONTHS = {
@@ -395,6 +397,10 @@ class StoryParser:
             schema = self._build_realestate_schema(story, default_rows)
         elif self.detected_domain == "fooddelivery":
             schema = self._build_fooddelivery_schema(story, default_rows)
+        elif self.detected_domain == "edtech":
+            schema = self._build_edtech_schema(story, default_rows)
+        elif self.detected_domain == "gaming":
+            schema = self._build_gaming_schema(story, default_rows)
         else:
             schema = self._build_generic_schema(story, default_rows)
 
@@ -995,6 +1001,7 @@ class StoryParser:
                 Column(name="shipped_at", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
                 Column(name="delivered_at", type="date", distribution_params={
                     "after_column": "shipped_at", "min_delta_days": 1, "max_delta_days": 21,
+                    "null_if": {"column": "status", "values": ["pending", "in_transit", "failed", "returned"]},
                 }),
                 Column(name="cost", type="float", distribution_params={"distribution": "lognormal", "mu": 3.5, "sigma": 0.8, "min": 5.0, "decimals": 2}),
             ],
@@ -1422,6 +1429,7 @@ class StoryParser:
                 Column(name="placed_at",     type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
                 Column(name="delivered_at",  type="date", distribution_params={
                     "after_column": "placed_at", "min_delta_days": 0, "max_delta_days": 1,
+                    "null_if": {"column": "status", "values": ["cancelled", "refunded"]},
                 }),
                 Column(name="delivery_minutes", type="int", distribution_params={"distribution": "normal", "mean": 38, "std": 12, "min": 15, "max": 120}),
                 Column(name="customer_rating", type="float", distribution_params={"distribution": "beta", "a": 5.0, "b": 1.5, "min": 1.0, "max": 5.0, "decimals": 1}),
@@ -1448,6 +1456,202 @@ class StoryParser:
         return SchemaConfig(
             name="Food Delivery Dataset", description=f"Generated from story: {story}",
             domain="fooddelivery", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_edtech_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_instructors = max(10, self.scale_params.get("instructors", max(20, default_rows // 30)))
+        num_courses     = max(20, self.scale_params.get("courses", max(50, default_rows // 10)))
+        num_students    = self.scale_params.get("users", default_rows)
+        num_enrollments = self.scale_params.get("orders", int(num_students * 2.5))
+        num_attempts    = int(num_enrollments * 3)
+
+        tables = [
+            Table(name="instructors",  row_count=num_instructors),
+            Table(name="courses",      row_count=num_courses),
+            Table(name="students",     row_count=num_students),
+            Table(name="enrollments",  row_count=num_enrollments),
+            Table(name="quiz_attempts", row_count=num_attempts),
+        ]
+        columns = {
+            "instructors": [
+                Column(name="instructor_id", type="int", unique=True, distribution_params={"min": 1, "max": num_instructors + 1}),
+                Column(name="first_name",    type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",     type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",         type="text", distribution_params={"text_type": "email"}),
+                Column(name="expertise",     type="categorical", distribution_params={
+                    "choices": ["programming", "data_science", "design", "business", "marketing", "photography", "music", "language", "finance", "health"],
+                    "probabilities": [0.22, 0.18, 0.12, 0.11, 0.10, 0.07, 0.07, 0.06, 0.05, 0.02],
+                }),
+                Column(name="rating",        type="float", distribution_params={"distribution": "beta", "a": 7.0, "b": 2.0, "min": 1.0, "max": 5.0, "decimals": 2}),
+                Column(name="total_courses",  type="int", distribution_params={"distribution": "lognormal", "mu": 1.8, "sigma": 0.9, "min": 1, "max": 50, "decimals": 0}),
+                Column(name="joined_date",    type="date", distribution_params={"start": "2018-01-01", "end": "2023-12-31"}),
+            ],
+            "courses": [
+                Column(name="course_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_courses + 1}),
+                Column(name="instructor_id", type="foreign_key"),
+                Column(name="title",         type="text", distribution_params={"text_type": "product_name"}),
+                Column(name="category",      type="categorical", distribution_params={
+                    "choices": ["programming", "data_science", "design", "business", "marketing", "photography", "music", "language", "finance", "health"],
+                    "probabilities": [0.22, 0.18, 0.12, 0.11, 0.10, 0.07, 0.07, 0.06, 0.05, 0.02],
+                }),
+                Column(name="level",         type="categorical", distribution_params={
+                    "choices": ["beginner", "intermediate", "advanced", "all_levels"],
+                    "probabilities": [0.35, 0.38, 0.18, 0.09],
+                }),
+                Column(name="price",         type="float", distribution_params={"distribution": "lognormal", "mu": 3.5, "sigma": 0.7, "min": 0.0, "max": 199.99, "decimals": 2}),
+                Column(name="duration_hours", type="float", distribution_params={"distribution": "lognormal", "mu": 2.8, "sigma": 0.8, "min": 0.5, "max": 80.0, "decimals": 1}),
+                Column(name="num_lessons",    type="int", distribution_params={"distribution": "lognormal", "mu": 2.5, "sigma": 0.7, "min": 3, "max": 200, "decimals": 0}),
+                Column(name="rating",         type="float", distribution_params={"distribution": "beta", "a": 6.0, "b": 2.0, "min": 1.0, "max": 5.0, "decimals": 2}),
+                Column(name="enrolled_count", type="int", distribution_params={"distribution": "lognormal", "mu": 6.5, "sigma": 2.0, "min": 0, "max": 500_000, "decimals": 0}),
+                Column(name="is_free",        type="boolean", distribution_params={"probability": 0.12}),
+                Column(name="published_at",   type="date", distribution_params={"start": "2019-01-01", "end": "2024-12-31"}),
+            ],
+            "students": [
+                Column(name="student_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_students + 1}),
+                Column(name="first_name",    type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",     type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",         type="text", distribution_params={"text_type": "email"}),
+                Column(name="country",       type="text", distribution_params={"text_type": "country"}),
+                Column(name="signup_date",   type="date", distribution_params={"start": "2019-01-01", "end": "2024-12-31"}),
+                Column(name="is_premium",    type="boolean", distribution_params={"probability": 0.22}),
+                Column(name="total_courses_enrolled", type="int", distribution_params={"distribution": "lognormal", "mu": 1.5, "sigma": 1.2, "min": 1, "max": 200, "decimals": 0}),
+            ],
+            "enrollments": [
+                Column(name="enrollment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_enrollments + 1}),
+                Column(name="student_id",    type="foreign_key"),
+                Column(name="course_id",     type="foreign_key"),
+                Column(name="enrolled_at",   type="date", distribution_params={"start": "2020-01-01", "end": "2024-12-31"}),
+                Column(name="status",        type="categorical", distribution_params={
+                    "choices": ["active", "completed", "dropped", "paused"],
+                    "probabilities": [0.38, 0.42, 0.12, 0.08],
+                }),
+                Column(name="progress_pct",  type="float", distribution_params={"distribution": "beta", "a": 1.5, "b": 1.2, "min": 0.0, "max": 100.0, "decimals": 1}),
+                Column(name="completed_at",  type="date", distribution_params={
+                    "after_column": "enrolled_at", "min_delta_days": 7, "max_delta_days": 365,
+                    "null_if": {"column": "status", "values": ["active", "dropped", "paused"]},
+                }),
+                Column(name="certificate_issued", type="boolean", distribution_params={"probability": 0.38}),
+                Column(name="rating_given",  type="float", distribution_params={
+                    "distribution": "beta", "a": 5.0, "b": 1.5, "min": 1.0, "max": 5.0, "decimals": 1,
+                    "null_if": {"column": "status", "values": ["active", "dropped", "paused"]},
+                }),
+            ],
+            "quiz_attempts": [
+                Column(name="attempt_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_attempts + 1}),
+                Column(name="enrollment_id", type="foreign_key"),
+                Column(name="quiz_number",   type="int", distribution_params={"distribution": "uniform", "min": 1, "max": 10}),
+                Column(name="score_pct",     type="float", distribution_params={"distribution": "beta", "a": 4.0, "b": 2.0, "min": 0.0, "max": 100.0, "decimals": 1}),
+                Column(name="passed",        type="boolean", distribution_params={"probability": 0.72}),
+                Column(name="time_taken_minutes", type="int", distribution_params={"distribution": "normal", "mean": 18, "std": 8, "min": 2, "max": 90}),
+                Column(name="attempted_at",  type="date", distribution_params={"start": "2020-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="instructors", child_table="courses",      parent_key="instructor_id", child_key="instructor_id"),
+            Relationship(parent_table="students",    child_table="enrollments",  parent_key="student_id",    child_key="student_id"),
+            Relationship(parent_table="courses",     child_table="enrollments",  parent_key="course_id",     child_key="course_id"),
+            Relationship(parent_table="enrollments", child_table="quiz_attempts", parent_key="enrollment_id", child_key="enrollment_id"),
+        ]
+        return SchemaConfig(
+            name="EdTech Dataset", description=f"Generated from story: {story}",
+            domain="edtech", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_gaming_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_players   = self.scale_params.get("users", default_rows)
+        num_matches   = self.scale_params.get("orders", int(num_players * 5))
+        num_sessions  = int(num_players * 8)
+        num_achievements = int(num_players * 4)
+
+        tables = [
+            Table(name="players",      row_count=num_players),
+            Table(name="matches",      row_count=num_matches),
+            Table(name="sessions",     row_count=num_sessions),
+            Table(name="achievements", row_count=num_achievements),
+        ]
+        columns = {
+            "players": [
+                Column(name="player_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_players + 1}),
+                Column(name="username",     type="text", distribution_params={"text_type": "username"}),
+                Column(name="email",        type="text", distribution_params={"text_type": "email"}),
+                Column(name="country",      type="text", distribution_params={"text_type": "country"}),
+                Column(name="level",        type="int", distribution_params={"distribution": "lognormal", "mu": 3.2, "sigma": 1.1, "min": 1, "max": 100, "decimals": 0}),
+                Column(name="rank",         type="categorical", distribution_params={
+                    "choices": ["bronze", "silver", "gold", "platinum", "diamond", "master", "grandmaster"],
+                    "probabilities": [0.30, 0.25, 0.20, 0.12, 0.07, 0.04, 0.02],
+                }),
+                Column(name="total_matches",   type="int", distribution_params={"distribution": "lognormal", "mu": 5.5, "sigma": 1.5, "min": 1, "max": 50000, "decimals": 0}),
+                Column(name="win_rate",        type="float", distribution_params={"distribution": "beta", "a": 5.0, "b": 5.0, "min": 0.0, "max": 1.0, "decimals": 3}),
+                Column(name="total_hours_played", type="float", distribution_params={"distribution": "lognormal", "mu": 5.8, "sigma": 1.6, "min": 0.5, "max": 10000.0, "decimals": 1}),
+                Column(name="account_type",    type="categorical", distribution_params={
+                    "choices": ["free", "premium", "vip"],
+                    "probabilities": [0.60, 0.30, 0.10],
+                }),
+                Column(name="is_banned",       type="boolean", distribution_params={"probability": 0.02}),
+                Column(name="registered_at",   type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+            ],
+            "matches": [
+                Column(name="match_id",     type="int", unique=True, distribution_params={"min": 1, "max": num_matches + 1}),
+                Column(name="player_id",    type="foreign_key"),
+                Column(name="game_mode",    type="categorical", distribution_params={
+                    "choices": ["ranked", "casual", "tournament", "co-op", "custom"],
+                    "probabilities": [0.38, 0.32, 0.12, 0.12, 0.06],
+                }),
+                Column(name="result",       type="categorical", distribution_params={
+                    "choices": ["win", "loss", "draw", "abandoned"],
+                    "probabilities": [0.46, 0.46, 0.05, 0.03],
+                }),
+                Column(name="duration_minutes", type="int", distribution_params={"distribution": "normal", "mean": 28, "std": 12, "min": 3, "max": 120}),
+                Column(name="kills",        type="int", distribution_params={"distribution": "lognormal", "mu": 2.0, "sigma": 0.9, "min": 0, "max": 50, "decimals": 0}),
+                Column(name="deaths",       type="int", distribution_params={"distribution": "lognormal", "mu": 1.8, "sigma": 0.9, "min": 0, "max": 40, "decimals": 0}),
+                Column(name="assists",      type="int", distribution_params={"distribution": "lognormal", "mu": 1.5, "sigma": 1.0, "min": 0, "max": 30, "decimals": 0}),
+                Column(name="score",        type="int", distribution_params={"distribution": "lognormal", "mu": 8.0, "sigma": 1.2, "min": 0, "max": 50000, "decimals": 0}),
+                Column(name="xp_earned",    type="int", distribution_params={"distribution": "lognormal", "mu": 5.5, "sigma": 0.8, "min": 10, "max": 5000, "decimals": 0}),
+                Column(name="played_at",    type="date", distribution_params={"start": "2021-01-01", "end": "2024-12-31"}),
+            ],
+            "sessions": [
+                Column(name="session_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_sessions + 1}),
+                Column(name="player_id",    type="foreign_key"),
+                Column(name="started_at",   type="date", distribution_params={"start": "2021-01-01", "end": "2024-12-31"}),
+                Column(name="duration_minutes", type="int", distribution_params={"distribution": "lognormal", "mu": 4.2, "sigma": 1.0, "min": 1, "max": 600, "decimals": 0}),
+                Column(name="device",       type="categorical", distribution_params={
+                    "choices": ["pc", "console", "mobile", "cloud"],
+                    "probabilities": [0.52, 0.28, 0.15, 0.05],
+                }),
+                Column(name="region",       type="categorical", distribution_params={
+                    "choices": ["NA", "EU", "APAC", "LATAM", "ME"],
+                    "probabilities": [0.35, 0.28, 0.22, 0.10, 0.05],
+                }),
+            ],
+            "achievements": [
+                Column(name="achievement_id", type="int", unique=True, distribution_params={"min": 1, "max": num_achievements + 1}),
+                Column(name="player_id",    type="foreign_key"),
+                Column(name="achievement_name", type="categorical", distribution_params={
+                    "choices": [
+                        "First Blood", "Hat Trick", "Unstoppable", "Sharpshooter",
+                        "Team Player", "Speed Demon", "Survivor", "Legend",
+                        "Top Fragger", "Flawless Victory", "Weekend Warrior", "Veteran",
+                    ],
+                    "probabilities": [0.15, 0.12, 0.10, 0.10, 0.09, 0.09, 0.09, 0.07, 0.07, 0.05, 0.04, 0.03],
+                }),
+                Column(name="rarity",       type="categorical", distribution_params={
+                    "choices": ["common", "rare", "epic", "legendary"],
+                    "probabilities": [0.55, 0.28, 0.12, 0.05],
+                }),
+                Column(name="xp_reward",    type="int", distribution_params={"distribution": "lognormal", "mu": 4.5, "sigma": 1.2, "min": 10, "max": 5000, "decimals": 0}),
+                Column(name="unlocked_at",  type="date", distribution_params={"start": "2021-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="players", child_table="matches",      parent_key="player_id", child_key="player_id"),
+            Relationship(parent_table="players", child_table="sessions",     parent_key="player_id", child_key="player_id"),
+            Relationship(parent_table="players", child_table="achievements", parent_key="player_id", child_key="player_id"),
+        ]
+        return SchemaConfig(
+            name="Gaming Dataset", description=f"Generated from story: {story}",
+            domain="gaming", tables=tables, columns=columns,
             relationships=relationships, events=[],
         )
 

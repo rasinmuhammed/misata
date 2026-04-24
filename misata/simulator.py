@@ -1347,6 +1347,9 @@ class DataSimulator:
             # Apply formulas
             df_batch = self._apply_formula_columns(df_batch, table_name)
 
+            # Apply conditional nulls (null_if)
+            df_batch = self._apply_null_if(df_batch, table_name)
+
             # Post-process
             df_batch = self._fix_correlated_columns(df_batch, table_name)
 
@@ -1681,6 +1684,27 @@ class DataSimulator:
                     lambda x: x.clip(lower=constraint.value)
                 )
 
+        return df
+
+    def _apply_null_if(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Set column to NaN/NaT where a sibling column matches a trigger value.
+
+        Reads ``null_if`` from each column's distribution_params:
+            null_if: {"column": "status", "values": ["cancelled", "refunded"]}
+        or the shorthand single-value form:
+            null_if: {"column": "status", "value": "cancelled"}
+        """
+        columns = self.config.columns.get(table_name, [])
+        for col in columns:
+            spec = col.distribution_params.get("null_if")
+            if not spec:
+                continue
+            ref_col = spec.get("column")
+            trigger_values = spec.get("values") or ([spec["value"]] if "value" in spec else [])
+            if not ref_col or not trigger_values or ref_col not in df.columns or col.name not in df.columns:
+                continue
+            mask = df[ref_col].isin(trigger_values)
+            df.loc[mask, col.name] = np.nan
         return df
 
     def _apply_formula_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:

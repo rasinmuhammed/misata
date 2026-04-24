@@ -68,6 +68,7 @@ Changelog = "https://github.com/rasinmuhammed/misata/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.0",
+    "pytest-cov>=4.0.0",
     "pytest-benchmark>=4.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
@@ -123,6 +124,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["misata*"]
 exclude = ["web*", "tests*"]
+
+[tool.setuptools.package-data]
+misata = ["py.typed"]
 
 [tool.black]
 line-length = 100
