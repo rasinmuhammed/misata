@@ -100,6 +100,13 @@ class Table(BaseModel):
     constraints: List["Constraint"] = Field(default_factory=list)
     workflow_preset: Optional[str] = None
     workflow_config: Optional[Dict[str, Any]] = None
+    correlations: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Pairwise Pearson correlations to enforce between numeric columns after generation. "
+            "Each entry: {col_a: str, col_b: str, r: float}  where r ∈ [-1, 1]."
+        ),
+    )
 
 
 

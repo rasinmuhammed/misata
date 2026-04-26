@@ -239,6 +239,18 @@ class RealisticTextGenerator:
             return self._generate_menu_item(size=size, table_data=table_data)
         if semantic == "research_project_name":
             return self._generate_research_project_name(size=size)
+        if semantic == "latitude":
+            return self._generate_latitude(size=size)
+        if semantic == "longitude":
+            return self._generate_longitude(size=size)
+        if semantic == "postal_code":
+            return self._generate_postal_code(size=size)
+        if semantic == "review":
+            return self._generate_review(size=size, table_data=table_data)
+        if semantic == "support_ticket":
+            return self._generate_support_ticket(size=size)
+        if semantic == "email_body":
+            return self._generate_email_body(size=size)
 
         return np.array([
             self.rng.choice(self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES))
@@ -266,6 +278,22 @@ class RealisticTextGenerator:
             return "state"
         if "city" in name:
             return "city"
+        if name in ("lat", "latitude"):
+            return "latitude"
+        if name in ("lon", "lng", "longitude"):
+            return "longitude"
+        if name in ("zip", "zip_code", "postal", "postal_code", "postcode"):
+            return "postal_code"
+        if name in ("review", "review_text", "review_body"):
+            return "review"
+        if name in ("ticket_body", "issue_body", "support_ticket", "description") and (
+            "ticket" in table or "issue" in table or "support" in table
+        ):
+            return "support_ticket"
+        if name in ("email_body", "message_body", "message", "body") and (
+            "email" in table or "message" in table or "inbox" in table
+        ):
+            return "email_body"
         if "restaurant" in table and name == "name":
             return "restaurant_name"
         if "restaurant" in table or ("item" in table and "order" in table):
@@ -334,6 +362,134 @@ class RealisticTextGenerator:
         vibes = self.rng.choice(_VIBES, size=size)
         extras = self.rng.choice(_EXTRAS, size=size)
         return np.array([f"{r.capitalize()} | {v}{e}" for r, v, e in zip(roles, vibes, extras)])
+
+    def _generate_latitude(self, *, size: int) -> np.ndarray:
+        from misata.vocab_seeds import CITY_GEODATA
+        cities = self.rng.choice(len(CITY_GEODATA), size=size)
+        lats = np.array([CITY_GEODATA[i][1] for i in cities])
+        # Small Gaussian jitter within ~50 km
+        lats += self.rng.normal(0, 0.25, size=size)
+        return np.round(lats, 6)
+
+    def _generate_longitude(self, *, size: int) -> np.ndarray:
+        from misata.vocab_seeds import CITY_GEODATA
+        cities = self.rng.choice(len(CITY_GEODATA), size=size)
+        lngs = np.array([CITY_GEODATA[i][2] for i in cities])
+        lngs += self.rng.normal(0, 0.35, size=size)
+        return np.round(lngs, 6)
+
+    def _generate_postal_code(self, *, size: int) -> np.ndarray:
+        from misata.vocab_seeds import CITY_GEODATA
+        cities = self.rng.choice(len(CITY_GEODATA), size=size)
+        codes = []
+        for i in cities:
+            prefix = CITY_GEODATA[i][3]
+            suffix = "".join(str(self.rng.integers(0, 10)) for _ in range(5 - len(prefix)))
+            codes.append(f"{prefix}{suffix}")
+        return np.array(codes)
+
+    def _generate_review(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:  # noqa: ARG002
+        _POS = [
+            "Absolutely loved it! {detail} Will definitely come back.",
+            "Great experience overall. {detail} Highly recommend.",
+            "{detail} Five stars from me — exceeded expectations.",
+            "Really impressed. {detail} Could not ask for more.",
+            "Solid product. {detail} Does exactly what it promises.",
+            "One of the best I've tried. {detail} Worth every penny.",
+        ]
+        _NEU = [
+            "Decent, but nothing special. {detail} Might try again.",
+            "It was okay. {detail} Has potential but needs work.",
+            "Mixed feelings. {detail} Some good, some not so good.",
+            "Average experience. {detail} Room for improvement.",
+        ]
+        _NEG = [
+            "Disappointing. {detail} Expected much better.",
+            "Would not recommend. {detail} Fell short of expectations.",
+            "Had some issues. {detail} Needs significant improvement.",
+            "Not what I was hoping for. {detail} Pretty underwhelming.",
+        ]
+        _DETAILS = [
+            "The quality was noticeable from the start.",
+            "Delivery was fast and packaging was great.",
+            "Customer service was responsive and helpful.",
+            "The interface is intuitive and easy to use.",
+            "Setup took only a few minutes.",
+            "Works exactly as described.",
+            "Had a minor issue at first but it resolved quickly.",
+            "The build quality feels premium.",
+            "Instructions could be clearer.",
+            "Pricing is fair for what you get.",
+        ]
+        sentiments = self.rng.choice(["pos", "neu", "neg"], size=size, p=[0.65, 0.22, 0.13])
+        result = []
+        for s in sentiments:
+            pool = _POS if s == "pos" else (_NEU if s == "neu" else _NEG)
+            template = str(self.rng.choice(pool))
+            detail = str(self.rng.choice(_DETAILS))
+            result.append(template.format(detail=detail))
+        return np.array(result)
+
+    def _generate_support_ticket(self, *, size: int) -> np.ndarray:
+        _ISSUES = [
+            "I'm unable to log into my account after the recent update.",
+            "The payment keeps failing at checkout — tried three different cards.",
+            "My order shows as delivered but I haven't received anything.",
+            "The app crashes every time I try to open the settings page.",
+            "I was charged twice for the same transaction.",
+            "My subscription was cancelled but I'm still being billed.",
+            "I can't upload files larger than 5 MB — getting an error.",
+            "The export feature produces an empty CSV file.",
+            "Two-factor authentication isn't sending the verification code.",
+            "The dashboard isn't loading any data since this morning.",
+            "I need to update my billing address but the form won't save.",
+            "My API key stopped working after I regenerated it.",
+            "The integration with Slack stopped sending notifications.",
+            "I deleted data by mistake — is there a way to recover it?",
+            "The mobile app is showing stale data that won't refresh.",
+        ]
+        _CONTEXT = [
+            "This started happening around 2 days ago.",
+            "I've tried clearing cache and it didn't help.",
+            "This is blocking my team from completing their work.",
+            "I've already tried restarting the app with no success.",
+            "It works fine on desktop but not on mobile.",
+            "I'm on the Pro plan, account ID in my profile.",
+            "Please escalate — this is urgent.",
+            "",
+            "",
+            "",
+        ]
+        issues  = self.rng.choice(_ISSUES,   size=size)
+        context = self.rng.choice(_CONTEXT,  size=size)
+        return np.array([
+            f"{i} {c}".strip() for i, c in zip(issues, context)
+        ])
+
+    def _generate_email_body(self, *, size: int) -> np.ndarray:
+        _GREETINGS = ["Hi", "Hello", "Hey", "Dear team", "Hi there", "Good morning"]
+        _BODIES = [
+            "I wanted to follow up on our conversation from last week. Could you share an update?",
+            "Please find the requested report attached. Let me know if you have any questions.",
+            "Just a quick reminder that the deadline is approaching. Please confirm your status.",
+            "Thank you for your response. I've reviewed the proposal and have a few comments.",
+            "I'd like to schedule a call to discuss the project scope. Are you free this week?",
+            "Following up on the invoice sent last month — could you confirm receipt?",
+            "I've noticed a discrepancy in the report. Can we sync to go over the numbers?",
+            "Happy to connect whenever you're available. Looking forward to working together.",
+            "The documents have been reviewed and approved. You're good to proceed.",
+            "We're running behind schedule. I'll send a revised timeline by end of day.",
+        ]
+        _CLOSINGS = [
+            "Best regards,", "Thanks,", "Cheers,", "Kind regards,",
+            "Looking forward to hearing from you,", "Best,", "Warm regards,",
+        ]
+        greetings = self.rng.choice(_GREETINGS, size=size)
+        bodies    = self.rng.choice(_BODIES,    size=size)
+        closings  = self.rng.choice(_CLOSINGS,  size=size)
+        return np.array([
+            f"{g},\n\n{b}\n\n{c}" for g, b, c in zip(greetings, bodies, closings)
+        ])
 
     def _generate_restaurant_name(self, *, size: int) -> np.ndarray:
         from misata.vocab_seeds import RESTAURANT_NAMES

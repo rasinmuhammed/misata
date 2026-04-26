@@ -21,7 +21,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.7.1"
+__version__ = "0.8.0"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -325,6 +325,7 @@ from misata.generators.base import (
     CONDITIONAL_LOOKUPS,
     create_conditional_generator,
 )
+from misata.profiler import mimic, DataProfiler
 
 __all__ = [
     # One-liners
@@ -332,6 +333,8 @@ __all__ = [
     "generate",
     "generate_from_schema",
     "generate_more",
+    "mimic",
+    "DataProfiler",
     "from_dict_schema",
     "verify_integrity",
     "IntegrityReport",

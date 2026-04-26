@@ -85,6 +85,13 @@ nav:
     - Database Seeding in Python: guides/database-seeding-python.md
     - Synthetic Data for BI Demos: guides/synthetic-data-for-bi-demos.md
     - Python Synthetic Data Generator: python-synthetic-data-generator.md
+    - Mimic Mode: guides/mimic.md
+    - Geospatial Realism: guides/geospatial.md
+    - Long-Form Text: guides/long-form-text.md
+    - Column Correlations: guides/correlations.md
+    - Anomaly Injection: guides/anomaly-injection.md
+    - Jupyter Magic: guides/jupyter.md
+    - REST API: guides/rest-api.md
 
 extra:
   social:

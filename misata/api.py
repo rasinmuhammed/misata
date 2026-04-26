@@ -124,6 +124,79 @@ async def health_check():
 
 
 # ============================================================================
+# Simple generate endpoint — story → JSON data (no LLM required)
+# ============================================================================
+
+class SimpleGenerateRequest(BaseModel):
+    """One-shot story → data request."""
+    story: str
+    rows: int = 1_000
+    seed: Optional[int] = None
+    format: str = "records"   # "records" | "columns"
+
+
+@app.post("/generate")
+async def simple_generate(request: SimpleGenerateRequest):
+    """
+    Generate synthetic data from a plain-English story. No API key required.
+
+    Returns a JSON object where each key is a table name and the value is
+    the table data in the requested format.
+
+    **Example request:**
+    ```json
+    {
+        "story": "SaaS company with users and subscriptions",
+        "rows": 500
+    }
+    ```
+
+    **Example response:**
+    ```json
+    {
+        "tables": {
+            "users":         [{"user_id": 1, "email": "...", ...}, ...],
+            "subscriptions": [{"sub_id": 1, "user_id": 1, ...}, ...]
+        },
+        "meta": {
+            "domain": "saas",
+            "row_counts": {"users": 500, "subscriptions": 1500}
+        }
+    }
+    ```
+    """
+    import misata as _misata
+    from misata.story_parser import StoryParser
+
+    parser = StoryParser()
+    schema = parser.parse(request.story, default_rows=request.rows)
+
+    from misata.simulator import DataSimulator
+    sim = DataSimulator(schema)
+    if request.seed is not None:
+        import numpy as np
+        sim.rng = np.random.default_rng(request.seed)
+
+    tables: Dict[str, Any] = {}
+    row_counts: Dict[str, int] = {}
+    for table_name, df in sim.generate_all():
+        if request.format == "columns":
+            tables[table_name] = df.to_dict(orient="list")
+        else:
+            tables[table_name] = df.to_dict(orient="records")
+        row_counts[table_name] = len(df)
+
+    return {
+        "tables": tables,
+        "meta": {
+            "domain": parser.detected_domain,
+            "story": request.story,
+            "row_counts": row_counts,
+        },
+    }
+
+
+# ============================================================================
 # Schema Generation Endpoints
 # ============================================================================
 

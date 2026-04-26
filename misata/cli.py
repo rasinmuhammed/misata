@@ -1037,6 +1037,51 @@ def serve(port: int, host: str) -> None:
 
 
 @main.command()
+@click.argument("source", type=click.Path(exists=True))
+@click.option("--rows", "-n", type=int, default=None,
+              help="Rows to generate (default: same as source file)")
+@click.option("--output", "-o", type=click.Path(), default="./synthetic",
+              help="Output directory for CSV files (default: ./synthetic)")
+@click.option("--seed", type=int, default=None, help="Random seed")
+def mimic(source: str, rows: Optional[int], output: str, seed: Optional[int]) -> None:
+    """
+    Generate a privacy-safe synthetic twin of a CSV file.
+
+    Misata profiles every column's distribution, cardinality, and semantic
+    type, then produces a fresh dataset that matches the structure without
+    reusing any real values.
+
+    \b
+    Examples:
+
+        misata mimic customers.csv
+        misata mimic orders.csv --rows 100000 --output ./synthetic
+        misata mimic data.csv --seed 42
+    """
+    print_banner()
+    from misata.profiler import mimic as _mimic
+
+    console.print(f"\n[bold]Profiling:[/bold] [cyan]{source}[/cyan]")
+    import pandas as pd
+    df = pd.read_csv(source)
+    console.print(f"   Source: {len(df):,} rows × {len(df.columns)} columns")
+
+    with console.status("Fitting distributions and generating synthetic twin..."):
+        from pathlib import Path as _Path
+        table_name = _Path(source).stem
+        tables = _mimic(df, rows=rows, seed=seed, table_name=table_name)
+
+    out_dir = Path(output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, tdf in tables.items():
+        out_path = out_dir / f"{name}.csv"
+        tdf.to_csv(out_path, index=False)
+        console.print(f"   [green]✓[/green] {name}: {len(tdf):,} rows → {out_path}")
+
+    console.print(f"\n[green]Done.[/green] Synthetic data written to [cyan]{output}[/cyan]")
+
+
+@main.command()
 def examples() -> None:
     """
     Show example stories and usage patterns.

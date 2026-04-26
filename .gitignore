@@ -59,3 +59,9 @@ htmlcov/
 .venv_build/
 demo_ecommerce.db
 demo_schema.py
+
+# Documentation
+site/
+
+# Cursor/Claude specific config
+.claude/

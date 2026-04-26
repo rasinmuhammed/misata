@@ -890,6 +890,12 @@ class DataSimulator:
                 "menu_item":              "menu_item",
                 "comment_body":           "comment_body",
                 "research_project_name":  "research_project_name",
+                "latitude":               "latitude",
+                "longitude":              "longitude",
+                "postal_code":            "postal_code",
+                "review":                 "review",
+                "support_ticket":         "support_ticket",
+                "email_body":             "email_body",
             }
             semantic = text_strategy or _REALISTIC_TYPE_MAP.get(text_type)
             # Route to RealisticTextGenerator for known types OR any unrecognised
@@ -1350,6 +1356,9 @@ class DataSimulator:
             # Apply conditional nulls (null_if)
             df_batch = self._apply_null_if(df_batch, table_name)
 
+            # Apply column correlations (Iman-Conover)
+            df_batch = self._apply_correlations(df_batch, table_name)
+
             # Post-process
             df_batch = self._fix_correlated_columns(df_batch, table_name)
 
@@ -1361,6 +1370,9 @@ class DataSimulator:
             # Apply business rule constraints
             df_batch = self.apply_constraints(df_batch, table)
             
+            # Apply per-column anomaly injection
+            df_batch = self._apply_anomalies(df_batch, table_name)
+
             # Apply outcome curves (Trends/Seasonality)
             df_batch = self.apply_outcome_curves(df_batch, table_name)
 
@@ -1683,6 +1695,99 @@ class DataSimulator:
                 df[constraint.column] = df.groupby(constraint.group_by)[constraint.column].transform(
                     lambda x: x.clip(lower=constraint.value)
                 )
+
+        return df
+
+    def _apply_anomalies(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Inject statistical outliers into columns that declare ``anomaly_rate``.
+
+        For numeric columns: injects values 3–6 standard deviations from the
+        column mean, randomly positive or negative direction.
+        For categorical columns: replaces values with an ``"__anomaly__"``
+        sentinel that downstream systems can detect and handle.
+
+        Usage in schema::
+
+            Column(name="price", type="float", distribution_params={
+                "distribution": "lognormal", "mu": 4.0, "sigma": 0.8,
+                "anomaly_rate": 0.02,   # 2 % of rows get outlier values
+            })
+        """
+        columns = self.config.columns.get(table_name, [])
+        for col in columns:
+            rate = col.distribution_params.get("anomaly_rate", 0.0)
+            if rate <= 0 or col.name not in df.columns:
+                continue
+            n = len(df)
+            mask = self.rng.random(n) < rate
+            if not mask.any():
+                continue
+            series = df[col.name]
+            if pd.api.types.is_numeric_dtype(series):
+                mean = float(series.mean())
+                std  = float(series.std()) or 1.0
+                magnitude = self.rng.uniform(3.0, 6.0, size=mask.sum())
+                direction = self.rng.choice([-1, 1], size=mask.sum())
+                df.loc[mask, col.name] = mean + direction * magnitude * std
+            else:
+                df.loc[mask, col.name] = "__anomaly__"
+        return df
+
+    def _apply_correlations(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Re-rank numeric columns to achieve declared Pearson correlations.
+
+        Uses the Iman-Conover method: generate a correlated normal copula,
+        then re-order each column's *existing* values to match the target
+        rank structure.  This preserves marginal distributions exactly while
+        imposing the requested correlation structure.
+
+        Declared via ``Table.correlations``:
+            correlations=[{"col_a": "age", "col_b": "salary", "r": 0.65}]
+        """
+        table_obj = next((t for t in self.config.tables if t.name == table_name), None)
+        if table_obj is None or not table_obj.correlations:
+            return df
+
+        # Collect all unique numeric columns involved in correlation specs
+        involved: set[str] = set()
+        for spec in table_obj.correlations:
+            involved.add(spec["col_a"])
+            involved.add(spec["col_b"])
+        involved = {c for c in involved if c in df.columns and pd.api.types.is_numeric_dtype(df[c])}
+        if len(involved) < 2:
+            return df
+
+        cols = sorted(involved)
+        n = len(df)
+
+        # Build target correlation matrix
+        idx = {c: i for i, c in enumerate(cols)}
+        k = len(cols)
+        target_corr = np.eye(k)
+        for spec in table_obj.correlations:
+            a, b, r = spec["col_a"], spec["col_b"], float(spec["r"])
+            if a in idx and b in idx:
+                i, j = idx[a], idx[b]
+                target_corr[i, j] = r
+                target_corr[j, i] = r
+
+        # Cholesky decomposition of target correlation matrix
+        try:
+            L = np.linalg.cholesky(target_corr)
+        except np.linalg.LinAlgError:
+            # Matrix not positive-definite — skip silently
+            return df
+
+        # Generate correlated standard normals
+        Z = self.rng.standard_normal((k, n))
+        correlated = (L @ Z).T  # shape (n, k)
+
+        # Iman-Conover: re-order each column's values to match the rank of the correlated normals
+        for i, col in enumerate(cols):
+            original = df[col].values.copy()
+            target_ranks = np.argsort(np.argsort(correlated[:, i]))
+            sorted_original = np.sort(original)
+            df[col] = sorted_original[target_ranks]
 
         return df
 

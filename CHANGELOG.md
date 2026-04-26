@@ -5,6 +5,61 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-04-26
+
+### Added
+
+#### Mimic mode — privacy-safe synthetic twins from real CSVs
+- `misata/profiler.py` — `DataProfiler` class that analyzes every column: distribution fitting (lognormal/normal/uniform), cardinality detection, date range capture, semantic type inference
+- `misata.mimic(source, rows, seed)` — one-liner public API; accepts CSV path, DataFrame, or list of either for multi-table mimicry
+- `misata mimic <file.csv>` CLI command with `--rows`, `--output`, `--seed` flags
+- Detects email, name, city, country, latitude, URL, phone, and more automatically
+
+#### Geospatial realism
+- `CITY_GEODATA` in `vocab_seeds.py` — 60+ cities across 20 countries with real centroid coordinates and postal prefixes
+- `_generate_latitude`, `_generate_longitude` — coordinates cluster around real city centroids with natural Gaussian scatter (~20–35 km)
+- `_generate_postal_code` — format-correct codes using per-country prefix patterns
+- `text_type: "latitude"`, `"longitude"`, `"postal_code"` — auto-detected from column names `lat`, `lng`, `zip`, `postal_code`, etc.
+
+#### Long-form text generators
+- `_generate_review` — multi-sentence product reviews, sentiment-weighted 65/22/13% positive/neutral/negative
+- `_generate_support_ticket` — realistic issue descriptions with context sentences
+- `_generate_email_body` — greeting + business body + closing format
+- All three auto-detected from column names and table context
+
+#### Correlation engine (Iman-Conover)
+- `Table.correlations` field — declare pairwise Pearson correlations: `[{"col_a": "age", "col_b": "salary", "r": 0.65}]`
+- `DataSimulator._apply_correlations` — Cholesky decomposition → correlated normal scores → rank re-ordering; preserves marginal distributions exactly
+- Supports multiple pairs simultaneously; silently skips if correlation matrix is not positive-definite
+
+#### Anomaly injection
+- `anomaly_rate` param on any `Column` — e.g. `"anomaly_rate": 0.02` injects outliers into 2% of rows
+- Numeric: values at 3–6 standard deviations from the mean
+- Categorical/text: sentinel `"__anomaly__"` value for downstream detection
+- Applies after null_if and formulas, before outcome curves
+
+#### Jupyter magic
+- `misata/magic.py` — `%load_ext misata.magic` registers `%%misata` cell magic
+- Options: `rows=N seed=N` on the magic line
+- Injects `_misata` dict and per-table `<name>_df` variables into notebook namespace
+- Renders HTML summary table with row counts and column previews
+
+#### REST API — `POST /generate`
+- New endpoint on the existing `misata serve` server
+- Body: `{story, rows, seed, format}` — no API key required, uses rule-based StoryParser
+- Response: `{tables: {...}, meta: {domain, row_counts}}`
+- `format: "columns"` returns dict-of-arrays instead of list-of-records
+
+#### Documentation
+- `docs/guides/mimic.md` — full mimic mode reference
+- `docs/guides/geospatial.md` — coordinate generation and postal codes
+- `docs/guides/long-form-text.md` — reviews, tickets, email bodies, captions
+- `docs/guides/correlations.md` — Iman-Conover engine with domain examples
+- `docs/guides/anomaly-injection.md` — outlier injection with fraud detection example
+- `docs/guides/jupyter.md` — magic setup and workflow
+- `docs/guides/rest-api.md` — HTTP API reference with curl, JS, and Go examples
+- All 7 pages added to `mkdocs.yml` navigation
+
 ## [0.7.2] - 2026-04-20
 
 ### Added
