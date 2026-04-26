@@ -6,17 +6,17 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Generate realistic multi-sentence text for product reviews, customer support tickets, and email messages — not Lorem Ipsum.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/generation/incremental/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/long-form-text/">
       
       
-        <link rel="prev" href="../llm/">
+        <link rel="prev" href="../geospatial/">
       
       
-        <link rel="next" href="../../localisation/">
+        <link rel="next" href="../correlations/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Incremental - Misata</title>
+        <title>Long-Form Text — Reviews, Support Tickets, and Email Bodies - Misata</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#incremental-generation" class="md-skip">
+        <a href="#long-form-text" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Incremental
+              Long-Form Text — Reviews, Support Tickets, and Email Bodies
             
           </span>
         </div>
@@ -262,13 +262,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../generation/" class="md-tabs__link">
           
   
   
@@ -419,11 +417,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../guides/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -539,8 +539,6 @@
       
   
   
-    
-  
   
   
     
@@ -566,23 +564,20 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../generation/" class="md-nav__link ">
               
   
   
@@ -600,13 +595,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -626,7 +621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../story/" class="md-nav__link">
+      <a href="../../generation/story/" class="md-nav__link">
         
   
   
@@ -654,7 +649,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../yaml/" class="md-nav__link">
+      <a href="../../generation/yaml/" class="md-nav__link">
         
   
   
@@ -682,7 +677,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../database/" class="md-nav__link">
+      <a href="../../generation/database/" class="md-nav__link">
         
   
   
@@ -710,7 +705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dict/" class="md-nav__link">
+      <a href="../../generation/dict/" class="md-nav__link">
         
   
   
@@ -738,7 +733,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm/" class="md-nav__link">
+      <a href="../../generation/llm/" class="md-nav__link">
         
   
   
@@ -763,37 +758,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Incremental
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../generation/incremental/" class="md-nav__link">
         
   
   
@@ -809,48 +777,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#how-ids-are-handled" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How IDs are handled
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#use-cases" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Use cases
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1056,6 +982,8 @@
       
   
   
+    
+  
   
   
     
@@ -1093,20 +1021,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../guides/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1124,13 +1055,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1150,7 +1081,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/faker-vs-sdv-vs-misata/" class="md-nav__link">
+      <a href="../faker-vs-sdv-vs-misata/" class="md-nav__link">
         
   
   
@@ -1178,7 +1109,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/multi-table-synthetic-data/" class="md-nav__link">
+      <a href="../multi-table-synthetic-data/" class="md-nav__link">
         
   
   
@@ -1206,7 +1137,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/database-seeding-python/" class="md-nav__link">
+      <a href="../database-seeding-python/" class="md-nav__link">
         
   
   
@@ -1234,7 +1165,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/synthetic-data-for-bi-demos/" class="md-nav__link">
+      <a href="../synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -1290,7 +1221,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/mimic/" class="md-nav__link">
+      <a href="../mimic/" class="md-nav__link">
         
   
   
@@ -1318,7 +1249,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/geospatial/" class="md-nav__link">
+      <a href="../geospatial/" class="md-nav__link">
         
   
   
@@ -1343,10 +1274,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../guides/long-form-text/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Long-Form Text
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1362,6 +1320,103 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-text-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported text types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reviews" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviews
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support-tickets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Support tickets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#email-bodies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Email bodies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#social-captions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Social captions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bios
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-example-review-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full example: review dataset
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1374,7 +1429,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/correlations/" class="md-nav__link">
+      <a href="../correlations/" class="md-nav__link">
         
   
   
@@ -1402,7 +1457,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/anomaly-injection/" class="md-nav__link">
+      <a href="../anomaly-injection/" class="md-nav__link">
         
   
   
@@ -1430,7 +1485,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/jupyter/" class="md-nav__link">
+      <a href="../jupyter/" class="md-nav__link">
         
   
   
@@ -1458,7 +1513,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/rest-api/" class="md-nav__link">
+      <a href="../rest-api/" class="md-nav__link">
         
   
   
@@ -1513,10 +1568,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-ids-are-handled" class="md-nav__link">
+  <a href="#supported-text-types" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How IDs are handled
+        Supported text types
       
     </span>
   </a>
@@ -1524,10 +1579,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#use-cases" class="md-nav__link">
+  <a href="#reviews" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Use cases
+        Reviews
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support-tickets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Support tickets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#email-bodies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Email bodies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#social-captions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Social captions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bios
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-example-review-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full example: review dataset
       
     </span>
   </a>
@@ -1554,40 +1664,148 @@
   
 
 
-<h1 id="incremental-generation">Incremental Generation</h1>
-<p>Grow an existing dataset without regenerating from scratch. IDs auto-offset, FK integrity is maintained across both batches.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Initial seed</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;A fintech company with 1000 customers&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;customers&quot;</span><span class="p">]))</span>  <span class="c1"># 1000</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Add 1000 more rows later</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_more</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;customers&quot;</span><span class="p">]))</span>  <span class="c1"># 2000</span>
+<h1 id="long-form-text">Long-Form Text</h1>
+<p>Misata generates realistic multi-sentence text for content that needs to feel human — product reviews, support tickets, email bodies, social captions, and bios. None of it is Lorem Ipsum.</p>
+<h2 id="supported-text-types">Supported text types</h2>
+<table>
+<thead>
+<tr>
+<th><code>text_type</code></th>
+<th>Format</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>review</code></td>
+<td>1–2 sentences, sentiment-weighted</td>
+<td>Product/service review columns</td>
+</tr>
+<tr>
+<td><code>support_ticket</code></td>
+<td>Issue description + context</td>
+<td>Helpdesk, CRM, support systems</td>
+</tr>
+<tr>
+<td><code>email_body</code></td>
+<td>Greeting + body + closing</td>
+<td>Email datasets, inbox simulations</td>
+</tr>
+<tr>
+<td><code>caption</code></td>
+<td>Emoji + hashtag style</td>
+<td>Social media posts</td>
+</tr>
+<tr>
+<td><code>bio</code></td>
+<td>Role | vibe | optional emoji</td>
+<td>Social media user profiles</td>
+</tr>
+<tr>
+<td><code>comment_body</code></td>
+<td>Short reaction</td>
+<td>Social comments, forum replies</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>Product feature sentence</td>
+<td>E-commerce, catalog data</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reviews">Reviews</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;review_text&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;review&quot;</span><span class="p">})</span>
 </code></pre></div>
-<h2 id="how-ids-are-handled">How IDs are handled</h2>
-<p><code>generate_more</code> offsets integer <code>id</code> columns in the new batch so they don't collide with existing rows:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">existing_max_id</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;customers&quot;</span><span class="p">][</span><span class="s2">&quot;id&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>   <span class="c1"># e.g. 1000</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># New batch IDs start from 1001 automatically</span>
+<p>Reviews are sentiment-weighted: 65% positive, 22% neutral, 13% negative — matching real platform distributions.</p>
+<p>Sample output:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Great experience overall. Instructions could be clearer. Highly recommend.
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Disappointing. Had a minor issue at first but it resolved quickly. Expected much better.
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Absolutely loved it! The build quality feels premium. Will definitely come back.
+</code></pre></div></p>
+<p>Reviews are automatically detected for columns named <code>review</code>, <code>review_text</code>, or <code>review_body</code>.</p>
+<h2 id="support-tickets">Support tickets</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;issue_body&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;support_ticket&quot;</span><span class="p">})</span>
 </code></pre></div>
-<h2 id="use-cases">Use cases</h2>
-<ul>
-<li><strong>Streaming test fixtures</strong> — generate a baseline, then add rows as tests progress</li>
-<li><strong>Dataset growth simulation</strong> — model a platform growing from 1k → 100k users over time</li>
-<li><strong>Append-only seeding</strong> — add rows to a live dev database without truncating</li>
-</ul>
-<div class="admonition warning">
-<p class="admonition-title">Seed independence</p>
-<p>Each call to <code>generate_more</code> uses a different seed (<code>schema.seed + 1</code> by default). Pass an explicit <code>seed</code> for full reproducibility across calls.</p>
-</div>
+<p>Sample output:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>I&#39;m unable to log into my account after the recent update. I&#39;ve tried clearing cache and it didn&#39;t help.
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>The payment keeps failing at checkout — tried three different cards. This is blocking my team from completing their work.
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>My order shows as delivered but I haven&#39;t received anything. Please escalate — this is urgent.
+</code></pre></div></p>
+<p>Auto-detected for columns named <code>ticket_body</code>, <code>issue_body</code>, or <code>description</code> in tables named <code>tickets</code>, <code>issues</code>, or <code>support_*</code>.</p>
+<h2 id="email-bodies">Email bodies</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;message_body&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;email_body&quot;</span><span class="p">})</span>
+</code></pre></div>
+<p>Sample output:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Hi,
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>I wanted to follow up on our conversation from last week. Could you share an update?
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>Best regards,
+</code></pre></div></p>
+<p>Auto-detected for columns named <code>email_body</code>, <code>message_body</code>, or <code>body</code> in tables named <code>emails</code>, <code>messages</code>, or <code>inbox</code>.</p>
+<h2 id="social-captions">Social captions</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;caption&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;caption&quot;</span><span class="p">})</span>
+</code></pre></div>
+<p>Sample output:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>loving every moment of this golden journey ✨ #instagood #travel #lifestyle #authentic
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>no filter needed when the hustle is this good 🌿 #daily #instagood #love
+</code></pre></div></p>
+<h2 id="bios">Bios</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;bio&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;bio&quot;</span><span class="p">})</span>
+</code></pre></div>
+<p>Sample output:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Developer | building in public 🚀
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Writer | sharing what I love
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>Photographer | exploring the world 🌍
+</code></pre></div></p>
+<h2 id="full-example-review-dataset">Full example: review dataset</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">Table</span><span class="p">,</span> <span class="n">Column</span><span class="p">,</span> <span class="n">Relationship</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">SchemaConfig</span><span class="p">(</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Product Reviews&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">tables</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="n">Table</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;products&quot;</span><span class="p">,</span> <span class="n">row_count</span><span class="o">=</span><span class="mi">100</span><span class="p">),</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>        <span class="n">Table</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;reviews&quot;</span><span class="p">,</span>  <span class="n">row_count</span><span class="o">=</span><span class="mi">2000</span><span class="p">),</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="p">],</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>        <span class="s2">&quot;products&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;product_id&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mi">101</span><span class="p">}),</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;name&quot;</span><span class="p">,</span>       <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;product_name&quot;</span><span class="p">}),</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;category&quot;</span><span class="p">,</span>   <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;categorical&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>                <span class="s2">&quot;choices&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;electronics&quot;</span><span class="p">,</span> <span class="s2">&quot;clothing&quot;</span><span class="p">,</span> <span class="s2">&quot;home&quot;</span><span class="p">,</span> <span class="s2">&quot;sports&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>                <span class="s2">&quot;probabilities&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.35</span><span class="p">,</span> <span class="mf">0.30</span><span class="p">,</span> <span class="mf">0.20</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">],</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>            <span class="p">}),</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>        <span class="p">],</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>        <span class="s2">&quot;reviews&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;review_id&quot;</span><span class="p">,</span>   <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mi">2001</span><span class="p">}),</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;product_id&quot;</span><span class="p">,</span>  <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;foreign_key&quot;</span><span class="p">),</span>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;rating&quot;</span><span class="p">,</span>      <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;float&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>                <span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;beta&quot;</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mf">4.0</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="mf">1.5</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;decimals&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>            <span class="p">}),</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;review_text&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;review&quot;</span><span class="p">}),</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;verified&quot;</span><span class="p">,</span>    <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;boolean&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;probability&quot;</span><span class="p">:</span> <span class="mf">0.78</span><span class="p">}),</span>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>            <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span>  <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2022-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-12-31&quot;</span><span class="p">}),</span>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>        <span class="p">],</span>
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>    <span class="p">},</span>
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a>    <span class="n">relationships</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a>        <span class="n">Relationship</span><span class="p">(</span><span class="n">parent_table</span><span class="o">=</span><span class="s2">&quot;products&quot;</span><span class="p">,</span> <span class="n">child_table</span><span class="o">=</span><span class="s2">&quot;reviews&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>                     <span class="n">parent_key</span><span class="o">=</span><span class="s2">&quot;product_id&quot;</span><span class="p">,</span> <span class="n">child_key</span><span class="o">=</span><span class="s2">&quot;product_id&quot;</span><span class="p">),</span>
+<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a>    <span class="p">],</span>
+<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a><span class="p">)</span>
+<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a>
+<a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-10-36" name="__codelineno-10-36" href="#__codelineno-10-36"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+<a id="__codelineno-10-37" name="__codelineno-10-37" href="#__codelineno-10-37"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;reviews&quot;</span><span class="p">][[</span><span class="s2">&quot;rating&quot;</span><span class="p">,</span> <span class="s2">&quot;review_text&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span>
+</code></pre></div>
 
 
 
 
 
 
+
+  
+  
 
 
 

@@ -6,35 +6,35 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Analyze any CSV and generate a statistically matching synthetic dataset without retaining real values. Perfect for GDPR compliance, ML training data, and staging environments.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/mimic/">
       
       
-        <link rel="prev" href="../cli/">
+        <link rel="prev" href="../../python-synthetic-data-generator/">
       
       
-        <link rel="next" href="faker-vs-sdv-vs-misata/">
+        <link rel="next" href="../geospatial/">
       
       
         
       
       
-      <link rel="icon" href="../assets/logo.svg">
+      <link rel="icon" href="../../assets/logo.svg">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Guides - Misata</title>
+        <title>Mimic Mode — Privacy-Safe Synthetic Twins from Real CSV Files - Misata</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="../assets/custom.css">
+      <link rel="stylesheet" href="../../assets/custom.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#guides" class="md-skip">
+        <a href="#mimic-mode" class="md-skip">
           Skip to content
         </a>
       
@@ -94,9 +94,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Guides
+              Mimic Mode — Privacy-Safe Synthetic Twins from Real CSV Files
             
           </span>
         </div>
@@ -226,7 +226,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -245,7 +245,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
+      <a href="../../quickstart/" class="md-tabs__link">
         
   
   
@@ -266,7 +266,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../generation/" class="md-tabs__link">
+        <a href="../../generation/" class="md-tabs__link">
           
   
   
@@ -286,7 +286,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../localisation/" class="md-tabs__link">
+      <a href="../../localisation/" class="md-tabs__link">
         
   
   
@@ -305,7 +305,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../timeseries/" class="md-tabs__link">
+      <a href="../../timeseries/" class="md-tabs__link">
         
   
   
@@ -324,7 +324,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../domains/" class="md-tabs__link">
+      <a href="../../domains/" class="md-tabs__link">
         
   
   
@@ -343,7 +343,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../constraints/" class="md-tabs__link">
+      <a href="../../constraints/" class="md-tabs__link">
         
   
   
@@ -362,7 +362,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../export/" class="md-tabs__link">
+      <a href="../../export/" class="md-tabs__link">
         
   
   
@@ -381,7 +381,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../validate/" class="md-tabs__link">
+      <a href="../../validate/" class="md-tabs__link">
         
   
   
@@ -400,7 +400,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../cli/" class="md-tabs__link">
+      <a href="../../cli/" class="md-tabs__link">
         
   
   
@@ -423,7 +423,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -459,9 +459,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     Misata
@@ -488,7 +488,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -515,7 +515,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -577,7 +577,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../generation/" class="md-nav__link ">
+            <a href="../../generation/" class="md-nav__link ">
               
   
   
@@ -621,7 +621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/story/" class="md-nav__link">
+      <a href="../../generation/story/" class="md-nav__link">
         
   
   
@@ -649,7 +649,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/yaml/" class="md-nav__link">
+      <a href="../../generation/yaml/" class="md-nav__link">
         
   
   
@@ -677,7 +677,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/database/" class="md-nav__link">
+      <a href="../../generation/database/" class="md-nav__link">
         
   
   
@@ -705,7 +705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/dict/" class="md-nav__link">
+      <a href="../../generation/dict/" class="md-nav__link">
         
   
   
@@ -733,7 +733,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/llm/" class="md-nav__link">
+      <a href="../../generation/llm/" class="md-nav__link">
         
   
   
@@ -761,7 +761,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/incremental/" class="md-nav__link">
+      <a href="../../generation/incremental/" class="md-nav__link">
         
   
   
@@ -796,7 +796,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../localisation/" class="md-nav__link">
+      <a href="../../localisation/" class="md-nav__link">
         
   
   
@@ -823,7 +823,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../timeseries/" class="md-nav__link">
+      <a href="../../timeseries/" class="md-nav__link">
         
   
   
@@ -850,7 +850,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/" class="md-nav__link">
+      <a href="../../domains/" class="md-nav__link">
         
   
   
@@ -877,7 +877,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../constraints/" class="md-nav__link">
+      <a href="../../constraints/" class="md-nav__link">
         
   
   
@@ -904,7 +904,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../export/" class="md-nav__link">
+      <a href="../../export/" class="md-nav__link">
         
   
   
@@ -931,7 +931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../validate/" class="md-nav__link">
+      <a href="../../validate/" class="md-nav__link">
         
   
   
@@ -958,7 +958,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
+      <a href="../../cli/" class="md-nav__link">
         
   
   
@@ -1037,7 +1037,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="./" class="md-nav__link md-nav__link--active">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1055,7 +1055,7 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
@@ -1081,7 +1081,7 @@
   
   
     <li class="md-nav__item">
-      <a href="faker-vs-sdv-vs-misata/" class="md-nav__link">
+      <a href="../faker-vs-sdv-vs-misata/" class="md-nav__link">
         
   
   
@@ -1109,7 +1109,7 @@
   
   
     <li class="md-nav__item">
-      <a href="multi-table-synthetic-data/" class="md-nav__link">
+      <a href="../multi-table-synthetic-data/" class="md-nav__link">
         
   
   
@@ -1137,7 +1137,7 @@
   
   
     <li class="md-nav__item">
-      <a href="database-seeding-python/" class="md-nav__link">
+      <a href="../database-seeding-python/" class="md-nav__link">
         
   
   
@@ -1165,7 +1165,7 @@
   
   
     <li class="md-nav__item">
-      <a href="synthetic-data-for-bi-demos/" class="md-nav__link">
+      <a href="../synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -1193,7 +1193,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../python-synthetic-data-generator/" class="md-nav__link">
+      <a href="../../python-synthetic-data-generator/" class="md-nav__link">
         
   
   
@@ -1218,10 +1218,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="mimic/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mimic Mode
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1237,6 +1264,125 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-table
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distribution-fitting-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution fitting logic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-column-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported column types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-mimic-vs-generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use mimic vs. generate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1249,7 +1395,7 @@
   
   
     <li class="md-nav__item">
-      <a href="geospatial/" class="md-nav__link">
+      <a href="../geospatial/" class="md-nav__link">
         
   
   
@@ -1277,7 +1423,7 @@
   
   
     <li class="md-nav__item">
-      <a href="long-form-text/" class="md-nav__link">
+      <a href="../long-form-text/" class="md-nav__link">
         
   
   
@@ -1305,7 +1451,7 @@
   
   
     <li class="md-nav__item">
-      <a href="correlations/" class="md-nav__link">
+      <a href="../correlations/" class="md-nav__link">
         
   
   
@@ -1333,7 +1479,7 @@
   
   
     <li class="md-nav__item">
-      <a href="anomaly-injection/" class="md-nav__link">
+      <a href="../anomaly-injection/" class="md-nav__link">
         
   
   
@@ -1361,7 +1507,7 @@
   
   
     <li class="md-nav__item">
-      <a href="jupyter/" class="md-nav__link">
+      <a href="../jupyter/" class="md-nav__link">
         
   
   
@@ -1389,7 +1535,7 @@
   
   
     <li class="md-nav__item">
-      <a href="rest-api/" class="md-nav__link">
+      <a href="../rest-api/" class="md-nav__link">
         
   
   
@@ -1437,6 +1583,113 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-table
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distribution-fitting-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution fitting logic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-column-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported column types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-mimic-vs-generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use mimic vs. generate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1455,20 +1708,174 @@
   
 
 
-<h1 id="guides">Guides</h1>
-<p>Deep-dive articles on specific use cases and comparisons.</p>
-<ul>
-<li><a href="faker-vs-sdv-vs-misata/">Faker vs SDV vs Misata</a></li>
-<li><a href="multi-table-synthetic-data/">Multi-table synthetic data</a></li>
-<li><a href="database-seeding-python/">Database seeding in Python</a></li>
-<li><a href="synthetic-data-for-bi-demos/">Synthetic data for BI demos</a></li>
-</ul>
+<h1 id="mimic-mode">Mimic Mode</h1>
+<p>Mimic mode takes a real CSV file (or DataFrame), analyzes every column's statistical fingerprint, and produces a fresh synthetic dataset that matches the original's structure — without reusing a single real value.</p>
+<p>It's the fastest path from <em>"I have sensitive production data"</em> to <em>"I have safe, shareable synthetic data"</em>.</p>
+<h2 id="quickstart">Quickstart</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># From a CSV file</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Scale to a different size</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100_000</span><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># From a DataFrame you already have</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;orders.csv&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">synthetic</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">50_000</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="cli">CLI</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Same number of rows as the source</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>misata<span class="w"> </span>mimic<span class="w"> </span>customers.csv
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Scale up to 100 k rows, write to ./synthetic/</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>misata<span class="w"> </span>mimic<span class="w"> </span>orders.csv<span class="w"> </span>--rows<span class="w"> </span><span class="m">100000</span><span class="w"> </span>--output<span class="w"> </span>./synthetic
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Reproducible output</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>misata<span class="w"> </span>mimic<span class="w"> </span>data.csv<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span>
+</code></pre></div>
+<h2 id="multi-table">Multi-table</h2>
+<p>Pass a list of files. Each becomes its own synthetic table, named after the file stem:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">mimic</span><span class="p">([</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;orders.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;products.csv&quot;</span><span class="p">])</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># tables[&quot;customers&quot;], tables[&quot;orders&quot;], tables[&quot;products&quot;]</span>
+</code></pre></div>
+<h2 id="how-it-works">How it works</h2>
+<p>For each column, Misata's <code>DataProfiler</code> runs a five-step analysis:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Type detection</strong></td>
+<td>Identifies boolean, date, integer, float, or text</td>
+</tr>
+<tr>
+<td><strong>Distribution fitting</strong></td>
+<td>Fits lognormal (right-skewed), normal, or uniform — whichever matches the data</td>
+</tr>
+<tr>
+<td><strong>Cardinality check</strong></td>
+<td>Low-cardinality columns become categoricals with real frequency weights</td>
+</tr>
+<tr>
+<td><strong>Semantic inference</strong></td>
+<td>Detects email, name, city, country, latitude, URL, phone, etc.</td>
+</tr>
+<tr>
+<td><strong>Range capture</strong></td>
+<td>Records min/max for numerics, start/end for dates</td>
+</tr>
+</tbody>
+</table>
+<p>None of the original values are stored or emitted. The profiler only retains statistical parameters.</p>
+<h2 id="distribution-fitting-logic">Distribution fitting logic</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>if all values &gt; 0 AND skew &gt; 1.0:
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    → lognormal (mu, sigma from log-space moments)
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>elif cardinality &lt; 5% of rows AND unique values &lt; 200:
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    → categorical with observed frequencies
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>else:
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    → normal (mean, std)
+</code></pre></div>
+<h2 id="supported-column-types">Supported column types</h2>
+<table>
+<thead>
+<tr>
+<th>Source column</th>
+<th>What Misata generates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>email</code></td>
+<td>Realistic email addresses (never real ones)</td>
+</tr>
+<tr>
+<td><code>first_name</code> / <code>last_name</code></td>
+<td>Diverse synthetic names</td>
+</tr>
+<tr>
+<td><code>city</code>, <code>country</code>, <code>state</code></td>
+<td>Real place names from vocab</td>
+</tr>
+<tr>
+<td><code>latitude</code> / <code>longitude</code></td>
+<td>Coordinates clustered around real cities</td>
+</tr>
+<tr>
+<td><code>postal_code</code> / <code>zip</code></td>
+<td>Format-correct postal codes</td>
+</tr>
+<tr>
+<td>Dates</td>
+<td>Dates within the observed range</td>
+</tr>
+<tr>
+<td>Booleans</td>
+<td>Same true/false ratio</td>
+</tr>
+<tr>
+<td>Low-cardinality text</td>
+<td>Category distribution preserved</td>
+</tr>
+<tr>
+<td>High-cardinality text</td>
+<td>Semantic type inferred and regenerated</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reproducibility">Reproducibility</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Same seed → identical output every run</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="when-to-use-mimic-vs-generate">When to use mimic vs. <code>generate</code></h2>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>You have a real schema to copy</td>
+<td><code>mimic()</code></td>
+</tr>
+<tr>
+<td>You want to describe a dataset from scratch</td>
+<td><code>generate()</code></td>
+</tr>
+<tr>
+<td>You need relational FK integrity across tables</td>
+<td><code>generate()</code> with relationships</td>
+</tr>
+<tr>
+<td>You need to match an existing DB's distributions</td>
+<td><code>mimic()</code> with multiple CSVs</td>
+</tr>
+</tbody>
+</table>
+<h2 id="api-reference">API reference</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">mimic</span><span class="p">(</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">source</span><span class="p">,</span>          <span class="c1"># str | Path | pd.DataFrame | list of those</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">rows</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>       <span class="c1"># int — defaults to same count as source</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>       <span class="c1"># int — for reproducibility</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;table&quot;</span><span class="p">,</span>  <span class="c1"># str — used when source is a DataFrame</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">]</span>
+</code></pre></div>
 
 
 
 
 
 
+
+  
+  
 
 
 
@@ -1551,10 +1958,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

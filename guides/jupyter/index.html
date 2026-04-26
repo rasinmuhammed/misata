@@ -6,35 +6,35 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Load the %%misata cell magic to generate multi-table synthetic datasets directly inside Jupyter notebooks with zero boilerplate.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/jupyter/">
       
       
-        <link rel="prev" href="../cli/">
+        <link rel="prev" href="../anomaly-injection/">
       
       
-        <link rel="next" href="faker-vs-sdv-vs-misata/">
+        <link rel="next" href="../rest-api/">
       
       
         
       
       
-      <link rel="icon" href="../assets/logo.svg">
+      <link rel="icon" href="../../assets/logo.svg">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Guides - Misata</title>
+        <title>Jupyter Magic — Generate Synthetic Data Inline in Notebooks - Misata</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="../assets/custom.css">
+      <link rel="stylesheet" href="../../assets/custom.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#guides" class="md-skip">
+        <a href="#jupyter-magic" class="md-skip">
           Skip to content
         </a>
       
@@ -94,9 +94,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Guides
+              Jupyter Magic — Generate Synthetic Data Inline in Notebooks
             
           </span>
         </div>
@@ -226,7 +226,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -245,7 +245,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
+      <a href="../../quickstart/" class="md-tabs__link">
         
   
   
@@ -266,7 +266,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../generation/" class="md-tabs__link">
+        <a href="../../generation/" class="md-tabs__link">
           
   
   
@@ -286,7 +286,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../localisation/" class="md-tabs__link">
+      <a href="../../localisation/" class="md-tabs__link">
         
   
   
@@ -305,7 +305,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../timeseries/" class="md-tabs__link">
+      <a href="../../timeseries/" class="md-tabs__link">
         
   
   
@@ -324,7 +324,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../domains/" class="md-tabs__link">
+      <a href="../../domains/" class="md-tabs__link">
         
   
   
@@ -343,7 +343,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../constraints/" class="md-tabs__link">
+      <a href="../../constraints/" class="md-tabs__link">
         
   
   
@@ -362,7 +362,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../export/" class="md-tabs__link">
+      <a href="../../export/" class="md-tabs__link">
         
   
   
@@ -381,7 +381,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../validate/" class="md-tabs__link">
+      <a href="../../validate/" class="md-tabs__link">
         
   
   
@@ -400,7 +400,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../cli/" class="md-tabs__link">
+      <a href="../../cli/" class="md-tabs__link">
         
   
   
@@ -423,7 +423,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -459,9 +459,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     Misata
@@ -488,7 +488,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -515,7 +515,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -577,7 +577,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../generation/" class="md-nav__link ">
+            <a href="../../generation/" class="md-nav__link ">
               
   
   
@@ -621,7 +621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/story/" class="md-nav__link">
+      <a href="../../generation/story/" class="md-nav__link">
         
   
   
@@ -649,7 +649,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/yaml/" class="md-nav__link">
+      <a href="../../generation/yaml/" class="md-nav__link">
         
   
   
@@ -677,7 +677,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/database/" class="md-nav__link">
+      <a href="../../generation/database/" class="md-nav__link">
         
   
   
@@ -705,7 +705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/dict/" class="md-nav__link">
+      <a href="../../generation/dict/" class="md-nav__link">
         
   
   
@@ -733,7 +733,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/llm/" class="md-nav__link">
+      <a href="../../generation/llm/" class="md-nav__link">
         
   
   
@@ -761,7 +761,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/incremental/" class="md-nav__link">
+      <a href="../../generation/incremental/" class="md-nav__link">
         
   
   
@@ -796,7 +796,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../localisation/" class="md-nav__link">
+      <a href="../../localisation/" class="md-nav__link">
         
   
   
@@ -823,7 +823,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../timeseries/" class="md-nav__link">
+      <a href="../../timeseries/" class="md-nav__link">
         
   
   
@@ -850,7 +850,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/" class="md-nav__link">
+      <a href="../../domains/" class="md-nav__link">
         
   
   
@@ -877,7 +877,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../constraints/" class="md-nav__link">
+      <a href="../../constraints/" class="md-nav__link">
         
   
   
@@ -904,7 +904,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../export/" class="md-nav__link">
+      <a href="../../export/" class="md-nav__link">
         
   
   
@@ -931,7 +931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../validate/" class="md-nav__link">
+      <a href="../../validate/" class="md-nav__link">
         
   
   
@@ -958,7 +958,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
+      <a href="../../cli/" class="md-nav__link">
         
   
   
@@ -1037,7 +1037,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="./" class="md-nav__link md-nav__link--active">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1055,7 +1055,7 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
@@ -1081,7 +1081,7 @@
   
   
     <li class="md-nav__item">
-      <a href="faker-vs-sdv-vs-misata/" class="md-nav__link">
+      <a href="../faker-vs-sdv-vs-misata/" class="md-nav__link">
         
   
   
@@ -1109,7 +1109,7 @@
   
   
     <li class="md-nav__item">
-      <a href="multi-table-synthetic-data/" class="md-nav__link">
+      <a href="../multi-table-synthetic-data/" class="md-nav__link">
         
   
   
@@ -1137,7 +1137,7 @@
   
   
     <li class="md-nav__item">
-      <a href="database-seeding-python/" class="md-nav__link">
+      <a href="../database-seeding-python/" class="md-nav__link">
         
   
   
@@ -1165,7 +1165,7 @@
   
   
     <li class="md-nav__item">
-      <a href="synthetic-data-for-bi-demos/" class="md-nav__link">
+      <a href="../synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -1193,7 +1193,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../python-synthetic-data-generator/" class="md-nav__link">
+      <a href="../../python-synthetic-data-generator/" class="md-nav__link">
         
   
   
@@ -1221,7 +1221,7 @@
   
   
     <li class="md-nav__item">
-      <a href="mimic/" class="md-nav__link">
+      <a href="../mimic/" class="md-nav__link">
         
   
   
@@ -1249,7 +1249,7 @@
   
   
     <li class="md-nav__item">
-      <a href="geospatial/" class="md-nav__link">
+      <a href="../geospatial/" class="md-nav__link">
         
   
   
@@ -1277,7 +1277,7 @@
   
   
     <li class="md-nav__item">
-      <a href="long-form-text/" class="md-nav__link">
+      <a href="../long-form-text/" class="md-nav__link">
         
   
   
@@ -1305,7 +1305,7 @@
   
   
     <li class="md-nav__item">
-      <a href="correlations/" class="md-nav__link">
+      <a href="../correlations/" class="md-nav__link">
         
   
   
@@ -1333,7 +1333,7 @@
   
   
     <li class="md-nav__item">
-      <a href="anomaly-injection/" class="md-nav__link">
+      <a href="../anomaly-injection/" class="md-nav__link">
         
   
   
@@ -1358,10 +1358,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="jupyter/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jupyter Magic
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1377,6 +1404,114 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#basic-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rich-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rich output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#accessing-the-full-dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accessing the full dict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1389,7 +1524,7 @@
   
   
     <li class="md-nav__item">
-      <a href="rest-api/" class="md-nav__link">
+      <a href="../rest-api/" class="md-nav__link">
         
   
   
@@ -1437,6 +1572,102 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#basic-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rich-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rich output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#accessing-the-full-dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accessing the full dict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1455,20 +1686,96 @@
   
 
 
-<h1 id="guides">Guides</h1>
-<p>Deep-dive articles on specific use cases and comparisons.</p>
+<h1 id="jupyter-magic">Jupyter Magic</h1>
+<p>The <code>%%misata</code> cell magic lets you generate synthetic datasets from a plain-English story directly inside a Jupyter notebook — no imports, no schema objects, no boilerplate.</p>
+<h2 id="setup">Setup</h2>
+<p>Load the extension once per session (put it in your first cell):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">%</span><span class="n">load_ext</span> <span class="n">misata</span><span class="o">.</span><span class="n">magic</span>
+</code></pre></div>
+<p>To load automatically on every notebook startup, add it to your IPython profile:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># ~/.ipython/profile_default/ipython_config.py</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">c</span><span class="o">.</span><span class="n">InteractiveShellApp</span><span class="o">.</span><span class="n">extensions</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;misata.magic&quot;</span><span class="p">]</span>
+</code></pre></div>
+<h2 id="basic-usage">Basic usage</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>%%misata
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SaaS company with users, subscriptions, and monthly payments
+</code></pre></div>
+<p>After running, the following variables appear in your namespace:</p>
 <ul>
-<li><a href="faker-vs-sdv-vs-misata/">Faker vs SDV vs Misata</a></li>
-<li><a href="multi-table-synthetic-data/">Multi-table synthetic data</a></li>
-<li><a href="database-seeding-python/">Database seeding in Python</a></li>
-<li><a href="synthetic-data-for-bi-demos/">Synthetic data for BI demos</a></li>
+<li><code>_misata</code> — dict of all DataFrames</li>
+<li><code>users_df</code>, <code>subscriptions_df</code>, <code>payments_df</code> — one variable per table</li>
 </ul>
+<h2 id="options">Options</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>%%misata rows=5000 seed=42
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>fintech app with transactions, wallets, and fraud flags
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rows</code></td>
+<td><code>1000</code></td>
+<td>Number of rows for the primary table</td>
+</tr>
+<tr>
+<td><code>seed</code></td>
+<td><code>None</code></td>
+<td>Random seed for reproducibility</td>
+</tr>
+</tbody>
+</table>
+<h2 id="example-workflow">Example workflow</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>%%misata rows=2000 seed=123
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>food delivery app with restaurants, customers, couriers, and orders
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Immediately available in the next cell:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">orders_df</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">orders_df</span><span class="p">[</span><span class="s2">&quot;customer_rating&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">bins</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Order Rating Distribution&quot;</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Check delivery time vs rating correlation</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">orders_df</span><span class="p">[[</span><span class="s2">&quot;delivery_minutes&quot;</span><span class="p">,</span> <span class="s2">&quot;customer_rating&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">corr</span><span class="p">()</span>
+</code></pre></div>
+<h2 id="rich-output">Rich output</h2>
+<p>The magic prints a summary table after generation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[misata] Generating: &quot;food delivery app with restaurants, customers...&quot;  rows=2000
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  → restaurants_df  (100 rows × 10 cols)
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>  → customers_df    (2000 rows × 8 cols)
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>  → couriers_df     (50 rows × 8 cols)
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>  → orders_df       (2000 rows × 13 cols)
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>  → order_items_df  (5000 rows × 7 cols)
+</code></pre></div>
+<p>Followed by an HTML table in Jupyter with table names, row counts, and column previews.</p>
+<h2 id="accessing-the-full-dict">Accessing the full dict</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># All tables in one place</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">_misata</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">df</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="reproducibility">Reproducibility</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>%%misata rows=500 seed=42
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>ecommerce store with products and orders
+</code></pre></div>
+<p>Same seed → identical output every time. Useful for notebook demos that need consistent results.</p>
+<h2 id="supported-domains">Supported domains</h2>
+<p>All 12 built-in domains work with the magic: <code>saas</code>, <code>ecommerce</code>, <code>fintech</code>, <code>healthcare</code>, <code>marketplace</code>, <code>logistics</code>, <code>hr</code>, <code>social</code>, <code>realestate</code>, <code>fooddelivery</code>, <code>edtech</code>, <code>gaming</code>.</p>
+<p>For open-ended stories, add <code>GROQ_API_KEY</code> to your environment and the magic will automatically use LLM-powered schema generation.</p>
 
 
 
 
 
 
+
+  
+  
 
 
 
@@ -1551,10 +1858,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

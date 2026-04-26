@@ -6,17 +6,17 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Create compelling BI demo datasets with realistic trends, seasonality, and growth curves using Misata. Perfect for Tableau, Power BI, Looker, and Metabase demos.">
+        <meta name="description" content="Enforce Pearson correlations between numeric columns using the Iman-Conover method. Preserves marginal distributions while imposing realistic statistical relationships.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/synthetic-data-for-bi-demos/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/correlations/">
       
       
-        <link rel="prev" href="../database-seeding-python/">
+        <link rel="prev" href="../long-form-text/">
       
       
-        <link rel="next" href="../../python-synthetic-data-generator/">
+        <link rel="next" href="../anomaly-injection/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Synthetic Data for BI Demos — Realistic Dashboard Datasets in Python - Misata</title>
+        <title>Column Correlations — Make Age Correlate with Salary, Experience with Level - Misata</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#synthetic-data-for-bi-demos" class="md-skip">
+        <a href="#column-correlations" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Synthetic Data for BI Demos — Realistic Dashboard Datasets in Python
+              Column Correlations — Make Age Correlate with Salary, Experience with Level
             
           </span>
         </div>
@@ -1162,37 +1162,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Synthetic Data for BI Demos
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -1208,136 +1181,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-problem-with-generic-fake-data-in-bi" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The problem with generic fake data in BI
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exact-monthly-targets" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exact monthly targets
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#demo-output" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Demo output
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#realistic-distributions-not-uniform" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Realistic distributions (not uniform)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#healthcare-dashboard-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Healthcare dashboard data
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ecommerce-seasonal-curve" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Ecommerce seasonal curve
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fraud-rate-calibration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fraud rate calibration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#connecting-to-bi-tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Connecting to BI tools
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#running-the-examples" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Running the examples
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1459,10 +1302,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../correlations/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Column Correlations
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1478,6 +1348,131 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-declare-correlations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to declare correlations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-r-parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The r parameter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works-iman-conover-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works (Iman-Conover method)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#negative-correlations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Negative correlations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiple-correlations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple correlations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-correlation-patterns-by-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common correlation patterns by domain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common correlation patterns by domain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#e-commerce" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E-commerce
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SaaS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gaming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gaming
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1601,10 +1596,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-problem-with-generic-fake-data-in-bi" class="md-nav__link">
+  <a href="#how-to-declare-correlations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The problem with generic fake data in BI
+        How to declare correlations
       
     </span>
   </a>
@@ -1612,10 +1607,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exact-monthly-targets" class="md-nav__link">
+  <a href="#the-r-parameter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exact monthly targets
+        The r parameter
       
     </span>
   </a>
@@ -1623,10 +1618,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#demo-output" class="md-nav__link">
+  <a href="#how-it-works-iman-conover-method" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Demo output
+        How it works (Iman-Conover method)
       
     </span>
   </a>
@@ -1634,10 +1629,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#realistic-distributions-not-uniform" class="md-nav__link">
+  <a href="#negative-correlations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Realistic distributions (not uniform)
+        Negative correlations
       
     </span>
   </a>
@@ -1645,10 +1640,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#healthcare-dashboard-data" class="md-nav__link">
+  <a href="#multiple-correlations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Healthcare dashboard data
+        Multiple correlations
       
     </span>
   </a>
@@ -1656,57 +1651,52 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#ecommerce-seasonal-curve" class="md-nav__link">
+  <a href="#common-correlation-patterns-by-domain" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Ecommerce seasonal curve
+        Common correlation patterns by domain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common correlation patterns by domain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#e-commerce" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E-commerce
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#fraud-rate-calibration" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#saas" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Fraud rate calibration
+        SaaS
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#connecting-to-bi-tools" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#gaming" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Connecting to BI tools
+        Gaming
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#running-the-examples" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Running the examples
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1730,130 +1720,122 @@
   
 
 
-<h1 id="synthetic-data-for-bi-demos">Synthetic Data for BI Demos</h1>
-<p>BI dashboards live or die by their data story. A chart that shows flat revenue or
-perfectly uniform distributions looks fake in a demo. Misata lets you specify the
-story — "revenue grows through the year, dips in September, peaks in December" — and
-generates rows that actually sum to those targets.</p>
-<h2 id="the-problem-with-generic-fake-data-in-bi">The problem with generic fake data in BI</h2>
-<p>Most synthetic data tools generate rows independently. If you ask for 6,000 sales
-rows in 2024, you get uniform random amounts spread evenly across all 12 months.
-That does not look like any real business.</p>
-<p>Misata works top-down: define the aggregate shape, then generate rows that fill it.</p>
-<h2 id="exact-monthly-targets">Exact monthly targets</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<h1 id="column-correlations">Column Correlations</h1>
+<p>Real-world data has structure: older employees tend to earn more, high-traffic pages tend to have more conversions, longer delivery times tend to lower customer ratings. Misata's correlation engine lets you declare these relationships explicitly — and enforces them without distorting the marginal distributions you already configured.</p>
+<h2 id="how-to-declare-correlations">How to declare correlations</h2>
+<p>Add a <code>correlations</code> list to any <code>Table</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">Table</span><span class="p">,</span> <span class="n">Column</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;A SaaS company with 1000 users. &quot;</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s2">&quot;MRR rises from $50k in January to $200k in December with a dip in September.&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">subscriptions</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscriptions&quot;</span><span class="p">]</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">monthly</span> <span class="o">=</span> <span class="n">subscriptions</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">monthly</span><span class="p">[</span><span class="s2">&quot;month&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">monthly</span><span class="p">[</span><span class="s2">&quot;start_date&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">month</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">monthly_mrr</span> <span class="o">=</span> <span class="n">monthly</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;month&quot;</span><span class="p">)[</span><span class="s2">&quot;mrr&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># Jan: $50,000  ✓</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># Sep: dip      ✓</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># Dec: $200,000 ✓</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># All 12 months hit their targets to the cent</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">SchemaConfig</span><span class="p">(</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;HR Dataset&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tables</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="n">Table</span><span class="p">(</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;employees&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>            <span class="n">row_count</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            <span class="n">correlations</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;age&quot;</span><span class="p">,</span>        <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;salary&quot;</span><span class="p">,</span>          <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.65</span><span class="p">},</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;tenure&quot;</span><span class="p">,</span>     <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;salary&quot;</span><span class="p">,</span>          <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.55</span><span class="p">},</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>                <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;age&quot;</span><span class="p">,</span>        <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;tenure&quot;</span><span class="p">,</span>          <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.70</span><span class="p">},</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;performance&quot;</span><span class="p">,</span><span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;bonus_multiplier&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.80</span><span class="p">},</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>            <span class="p">],</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="p">)</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="p">],</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;employees&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>        <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;age&quot;</span><span class="p">,</span>              <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;int&quot;</span><span class="p">,</span>   <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;normal&quot;</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span> <span class="mi">38</span><span class="p">,</span> <span class="s2">&quot;std&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">22</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mi">65</span><span class="p">}),</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>        <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;salary&quot;</span><span class="p">,</span>           <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;float&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;lognormal&quot;</span><span class="p">,</span> <span class="s2">&quot;mu&quot;</span><span class="p">:</span> <span class="mf">11.0</span><span class="p">,</span> <span class="s2">&quot;sigma&quot;</span><span class="p">:</span> <span class="mf">0.4</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">35000</span><span class="p">,</span> <span class="s2">&quot;decimals&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}),</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;tenure&quot;</span><span class="p">,</span>           <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;float&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;exponential&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span> <span class="mf">4.0</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mf">30.0</span><span class="p">,</span> <span class="s2">&quot;decimals&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}),</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;performance&quot;</span><span class="p">,</span>      <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;float&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;beta&quot;</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s2">&quot;decimals&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}),</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>        <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;bonus_multiplier&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;float&quot;</span><span class="p">,</span> <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;distribution&quot;</span><span class="p">:</span> <span class="s2">&quot;beta&quot;</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mf">3.0</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mf">3.0</span><span class="p">,</span> <span class="s2">&quot;decimals&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}),</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="p">]},</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="n">relationships</span><span class="o">=</span><span class="p">[],</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="p">)</span>
 </code></pre></div>
-<h2 id="demo-output">Demo output</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Month   Target MRR    Actual MRR   Match
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>─────  ────────────  ────────────  ─────
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Jan    $     50,000  $     50,000      ✓
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Feb    $     68,182  $     68,182      ✓
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>Mar    $     86,364  $     86,364      ✓
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>Apr    $    104,545  $    104,545      ✓
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>May    $    122,727  $    122,727      ✓
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>Jun    $    140,909  $    140,909      ✓
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>Jul    $    159,091  $    159,091      ✓
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>Aug    $    177,273  $    177,273      ✓
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>Sep    $    100,000  $    100,000      ✓  ← dip
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>Oct    $    163,636  $    163,636      ✓
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>Nov    $    181,818  $    181,818      ✓
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>Dec    $    200,000  $    200,000      ✓
+<h2 id="the-r-parameter">The <code>r</code> parameter</h2>
+<p><code>r</code> is the target Pearson correlation coefficient, ranging from -1.0 to 1.0:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1.0</code></td>
+<td>Perfect positive correlation</td>
+</tr>
+<tr>
+<td><code>0.7</code></td>
+<td>Strong positive correlation</td>
+</tr>
+<tr>
+<td><code>0.4</code></td>
+<td>Moderate positive correlation</td>
+</tr>
+<tr>
+<td><code>0.0</code></td>
+<td>No correlation (independent)</td>
+</tr>
+<tr>
+<td><code>-0.4</code></td>
+<td>Moderate negative correlation</td>
+</tr>
+<tr>
+<td><code>-0.7</code></td>
+<td>Strong negative correlation</td>
+</tr>
+<tr>
+<td><code>-1.0</code></td>
+<td>Perfect negative correlation</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What you get in practice:</strong> Misata uses the Iman-Conover rank correlation method, which achieves the target correlation within ±0.03–0.05 of the declared value.</p>
+<h2 id="how-it-works-iman-conover-method">How it works (Iman-Conover method)</h2>
+<p>Declaring correlations does <strong>not</strong> change your marginal distributions. The per-column <code>distribution</code> params are respected exactly. Instead, Misata:</p>
+<ol>
+<li>Generates all columns independently (their distributions are preserved)</li>
+<li>Builds a target correlation matrix from your declarations</li>
+<li>Decomposes it with Cholesky factorization to generate correlated normal scores</li>
+<li>Re-ranks each column's values to match the target rank structure</li>
+</ol>
+<p>The result: <code>age</code> still follows your normal distribution, <code>salary</code> still follows your lognormal — but their <em>joint distribution</em> now reflects the declared correlation.</p>
+<h2 id="negative-correlations">Negative correlations</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">Table</span><span class="p">(</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;products&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">row_count</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">correlations</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;price&quot;</span><span class="p">,</span>         <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;return_rate&quot;</span><span class="p">,</span>   <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.45</span><span class="p">},</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;review_score&quot;</span><span class="p">,</span>  <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;support_tickets&quot;</span><span class="p">,</span><span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.60</span><span class="p">},</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="p">],</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">)</span>
 </code></pre></div>
-<p>All 12 monthly targets hit exactly.</p>
-<h2 id="realistic-distributions-not-uniform">Realistic distributions (not uniform)</h2>
-<p>Real business data is never uniform. Misata applies domain-specific distributions
-automatically:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Fintech — credit score matches real FICO statistics</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A fintech company with 2000 customers.&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">cs</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;customers&quot;</span><span class="p">][</span><span class="s2">&quot;credit_score&quot;</span><span class="p">]</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mean: </span><span class="si">{</span><span class="n">cs</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>   <span class="c1"># ~680–720 (real FICO range)</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Std:  </span><span class="si">{</span><span class="n">cs</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>    <span class="c1"># ~70–90   (real FICO range)</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># Transaction types follow Zipf&#39;s law (one type dominates naturally)</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">txn_types</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;transactions&quot;</span><span class="p">][</span><span class="s2">&quot;transaction_type&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># purchase    42%</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># transfer    28%</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="c1"># withdrawal  18%</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># deposit     12%</span>
+<p>Higher-priced products tend to have fewer returns. Better-reviewed products generate fewer support tickets.</p>
+<h2 id="multiple-correlations">Multiple correlations</h2>
+<p>You can declare as many pairs as you like. Misata builds a joint correlation matrix and enforces all of them simultaneously. The only constraint: the full matrix must be positive semi-definite (i.e. your correlations can't be logically contradictory — if A↑→B↑ and B↑→C↓, then A↑→C↓ must be consistent).</p>
+<p>If the matrix is not positive-definite (contradictory spec), Misata skips correlation enforcement silently and generates independent columns.</p>
+<h2 id="common-correlation-patterns-by-domain">Common correlation patterns by domain</h2>
+<h3 id="e-commerce">E-commerce</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">correlations</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;price&quot;</span><span class="p">,</span>        <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;rating&quot;</span><span class="p">,</span>        <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.35</span><span class="p">},</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;price&quot;</span><span class="p">,</span>        <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;return_rate&quot;</span><span class="p">,</span>   <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.40</span><span class="p">},</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;rating&quot;</span><span class="p">,</span>       <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;review_count&quot;</span><span class="p">,</span>  <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.60</span><span class="p">},</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">]</span>
 </code></pre></div>
-<h2 id="healthcare-dashboard-data">Healthcare dashboard data</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A hospital with 500 patients and doctors.&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">patients</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;patients&quot;</span><span class="p">]</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Blood type distribution matches real ABO/Rh frequencies</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">bt</span> <span class="o">=</span> <span class="n">patients</span><span class="p">[</span><span class="s2">&quot;blood_type&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># O+   38%  (real: 38%)</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># A+   34%  (real: 34%)</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># B+    9%  (real:  9%)</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># ...</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># Age distribution: normal, centred on chronic-care population (mean ≈ 45)</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">patients</span><span class="p">[</span><span class="s2">&quot;age&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>   <span class="c1"># ≈ 44.7</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">patients</span><span class="p">[</span><span class="s2">&quot;age&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">std</span><span class="p">())</span>    <span class="c1"># ≈ 18.0</span>
+<h3 id="saas">SaaS</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">correlations</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;mrr&quot;</span><span class="p">,</span>          <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;seats&quot;</span><span class="p">,</span>         <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.85</span><span class="p">},</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;tenure_months&quot;</span><span class="p">,</span><span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;health_score&quot;</span><span class="p">,</span>  <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.45</span><span class="p">},</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;health_score&quot;</span><span class="p">,</span> <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;churn_risk&quot;</span><span class="p">,</span>    <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.75</span><span class="p">},</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">]</span>
 </code></pre></div>
-<h2 id="ecommerce-seasonal-curve">Ecommerce seasonal curve</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="s2">&quot;An ecommerce store with 5000 customers and orders. &quot;</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="s2">&quot;Revenue grows from $100k in January to $300k in November &quot;</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="s2">&quot;then $350k in December.&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># Nov: $300,000 (Black Friday)  ✓</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Dec: $350,000 (Holiday peak)  ✓</span>
+<h3 id="gaming">Gaming</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">correlations</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;total_hours&quot;</span><span class="p">,</span>  <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;level&quot;</span><span class="p">,</span>         <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.80</span><span class="p">},</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;level&quot;</span><span class="p">,</span>        <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;win_rate&quot;</span><span class="p">,</span>      <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.55</span><span class="p">},</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="p">{</span><span class="s2">&quot;col_a&quot;</span><span class="p">:</span> <span class="s2">&quot;total_hours&quot;</span><span class="p">,</span>  <span class="s2">&quot;col_b&quot;</span><span class="p">:</span> <span class="s2">&quot;spend&quot;</span><span class="p">,</span>         <span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="mf">0.65</span><span class="p">},</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">]</span>
 </code></pre></div>
-<h2 id="fraud-rate-calibration">Fraud rate calibration</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="s2">&quot;A fintech company with 2000 customers and banking transactions.&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="p">)</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">transactions</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;transactions&quot;</span><span class="p">]</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">fraud_rate</span> <span class="o">=</span> <span class="n">transactions</span><span class="p">[</span><span class="s2">&quot;is_fraud&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">*</span> <span class="mi">100</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Fraud rate: </span><span class="si">{</span><span class="n">fraud_rate</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>  <span class="c1"># 2.00% — calibrated, not random</span>
-</code></pre></div>
-<h2 id="connecting-to-bi-tools">Connecting to BI tools</h2>
-<p>Generated DataFrames can be written directly to any database your BI tool connects to:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">seed_database</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A SaaS company with 5000 users.&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">seed_database</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;postgresql://user:pass@localhost/bi_demo&quot;</span><span class="p">,</span> <span class="n">create</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</code></pre></div>
-<p>Then point Tableau, Metabase, Looker, or Power BI at <code>postgresql://localhost/bi_demo</code>.
-The data has a coherent story, realistic distributions, and proper FK relationships —
-ready to demo without disclaimers.</p>
-<h2 id="running-the-examples">Running the examples</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span>misata
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>python<span class="w"> </span>examples/saas_revenue_curve.py
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>python<span class="w"> </span>examples/fintech_fraud_detection.py
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>python<span class="w"> </span>examples/healthcare_multi_table.py
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>python<span class="w"> </span>examples/ecommerce_seasonal.py
-</code></pre></div>
-<h2 id="related">Related</h2>
-<ul>
-<li><a href="python-synthetic-data-generator.md">Python synthetic data generator</a></li>
-<li><a href="../multi-table-synthetic-data/">Multi-table synthetic data</a></li>
-<li><a href="../database-seeding-python/">Database seeding with Python</a></li>
-</ul>
 
 
 

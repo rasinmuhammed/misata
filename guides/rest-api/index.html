@@ -6,17 +6,15 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Use misata serve to expose a POST /generate endpoint. Send a story, get JSON tables back. Works with any language — JavaScript, Go, Ruby, curl.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/generation/yaml/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/rest-api/">
       
       
-        <link rel="prev" href="../story/">
+        <link rel="prev" href="../jupyter/">
       
-      
-        <link rel="next" href="../database/">
       
       
         
@@ -27,7 +25,7 @@
     
     
       
-        <title>YAML Schema - Misata</title>
+        <title>REST API — Generate Synthetic Data Over HTTP - Misata</title>
       
     
     
@@ -80,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#yaml-schema" class="md-skip">
+        <a href="#rest-api" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +111,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              YAML Schema
+              REST API — Generate Synthetic Data Over HTTP
             
           </span>
         </div>
@@ -262,13 +260,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../generation/" class="md-tabs__link">
           
   
   
@@ -419,11 +415,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../guides/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -539,8 +537,6 @@
       
   
   
-    
-  
   
   
     
@@ -566,23 +562,20 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../generation/" class="md-nav__link ">
               
   
   
@@ -600,13 +593,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -626,7 +619,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../story/" class="md-nav__link">
+      <a href="../../generation/story/" class="md-nav__link">
         
   
   
@@ -651,37 +644,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    YAML Schema
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../generation/yaml/" class="md-nav__link">
         
   
   
@@ -697,81 +663,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#scaffold" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Scaffold
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#schema-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Schema structure
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generate" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Generate
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#round-trip" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Round-trip
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#column-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Column types
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -784,7 +675,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../database/" class="md-nav__link">
+      <a href="../../generation/database/" class="md-nav__link">
         
   
   
@@ -812,7 +703,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dict/" class="md-nav__link">
+      <a href="../../generation/dict/" class="md-nav__link">
         
   
   
@@ -840,7 +731,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm/" class="md-nav__link">
+      <a href="../../generation/llm/" class="md-nav__link">
         
   
   
@@ -868,7 +759,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../incremental/" class="md-nav__link">
+      <a href="../../generation/incremental/" class="md-nav__link">
         
   
   
@@ -1089,6 +980,8 @@
       
   
   
+    
+  
   
   
     
@@ -1126,20 +1019,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../guides/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1157,13 +1053,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1183,7 +1079,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/faker-vs-sdv-vs-misata/" class="md-nav__link">
+      <a href="../faker-vs-sdv-vs-misata/" class="md-nav__link">
         
   
   
@@ -1211,7 +1107,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/multi-table-synthetic-data/" class="md-nav__link">
+      <a href="../multi-table-synthetic-data/" class="md-nav__link">
         
   
   
@@ -1239,7 +1135,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/database-seeding-python/" class="md-nav__link">
+      <a href="../database-seeding-python/" class="md-nav__link">
         
   
   
@@ -1267,7 +1163,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/synthetic-data-for-bi-demos/" class="md-nav__link">
+      <a href="../synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -1323,7 +1219,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/mimic/" class="md-nav__link">
+      <a href="../mimic/" class="md-nav__link">
         
   
   
@@ -1351,7 +1247,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/geospatial/" class="md-nav__link">
+      <a href="../geospatial/" class="md-nav__link">
         
   
   
@@ -1379,7 +1275,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/long-form-text/" class="md-nav__link">
+      <a href="../long-form-text/" class="md-nav__link">
         
   
   
@@ -1407,7 +1303,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/correlations/" class="md-nav__link">
+      <a href="../correlations/" class="md-nav__link">
         
   
   
@@ -1435,7 +1331,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/anomaly-injection/" class="md-nav__link">
+      <a href="../anomaly-injection/" class="md-nav__link">
         
   
   
@@ -1463,7 +1359,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/jupyter/" class="md-nav__link">
+      <a href="../jupyter/" class="md-nav__link">
         
   
   
@@ -1488,10 +1384,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../guides/rest-api/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1507,6 +1430,136 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#start-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start the server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /generate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Request schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#column-oriented-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column-oriented format
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#javascript-fetch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JavaScript / fetch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Go
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#health-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive docs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-available-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All available endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1546,10 +1599,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#scaffold" class="md-nav__link">
+  <a href="#start-the-server" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Scaffold
+        Start the server
       
     </span>
   </a>
@@ -1557,10 +1610,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#schema-structure" class="md-nav__link">
+  <a href="#post-generate" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Schema structure
+        POST /generate
       
     </span>
   </a>
@@ -1568,10 +1621,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#generate" class="md-nav__link">
+  <a href="#request-schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Generate
+        Request schema
       
     </span>
   </a>
@@ -1579,10 +1632,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#round-trip" class="md-nav__link">
+  <a href="#column-oriented-format" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Round-trip
+        Column-oriented format
       
     </span>
   </a>
@@ -1590,10 +1643,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#column-types" class="md-nav__link">
+  <a href="#javascript-fetch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Column types
+        JavaScript / fetch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Go
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#health-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive docs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-available-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All available endpoints
       
     </span>
   </a>
@@ -1620,105 +1728,174 @@
   
 
 
-<h1 id="yaml-schema">YAML Schema</h1>
-<p>Define your schema in a file, commit it to git, and reproduce the same dataset anywhere — no LLM required.</p>
-<h2 id="scaffold">Scaffold</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>misata<span class="w"> </span>init<span class="w">                                     </span><span class="c1"># writes misata.yaml template</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>misata<span class="w"> </span>init<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A marketplace&quot;</span><span class="w">             </span><span class="c1"># parses a story into YAML</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>misata<span class="w"> </span>init<span class="w"> </span>--db<span class="w"> </span>postgresql://localhost/myapp<span class="w">   </span><span class="c1"># introspects a real database</span>
+<h1 id="rest-api">REST API</h1>
+<p><code>misata serve</code> exposes a lightweight HTTP API that accepts a plain-English story and returns synthetic data as JSON. Any language that can make an HTTP request can use Misata — no Python required.</p>
+<h2 id="start-the-server">Start the server</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>misata<span class="w"> </span>serve
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># Listening on http://0.0.0.0:8000</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># API docs: http://localhost:8000/docs</span>
 </code></pre></div>
-<h2 id="schema-structure">Schema structure</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-app</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nt">tables</span><span class="p">:</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">users</span><span class="p">:</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">columns</span><span class="p">:</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">user_id</span><span class="p">:</span><span class="w">  </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">,</span><span class="nt"> unique</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">email</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">text</span><span class="p p-Indicator">,</span><span class="nt"> text_type</span><span class="p">:</span><span class="w"> </span><span class="nv">email</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">plan</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">categorical</span><span class="p p-Indicator">,</span><span class="nt"> choices</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">free</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pro</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">enterprise</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">mrr</span><span class="p">:</span><span class="w">      </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">float</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="nt"> max</span><span class="p">:</span><span class="w"> </span><span class="nv">2400</span><span class="p p-Indicator">,</span><span class="nt"> distribution</span><span class="p">:</span><span class="w"> </span><span class="nv">lognormal</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="nt">signed_up</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">date</span><span class="p p-Indicator">,</span><span class="nt"> start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2022-01-01&quot;</span><span class="p p-Indicator">,</span><span class="nt"> end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-12-31&quot;</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="nt">rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nt">columns</span><span class="p">:</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">      </span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">,</span><span class="nt"> unique</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">      </span><span class="nt">user_id</span><span class="p">:</span><span class="w">  </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">foreign_key</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">      </span><span class="nt">amount</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">float</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">5.0</span><span class="p p-Indicator">,</span><span class="nt"> max</span><span class="p">:</span><span class="w"> </span><span class="nv">500.0</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">      </span><span class="nt">cost</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">float</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">2.0</span><span class="p p-Indicator">,</span><span class="nt"> max</span><span class="p">:</span><span class="w"> </span><span class="nv">200.0</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="nt">relationships</span><span class="p">:</span>
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;users.user_id</span><span class="nv"> </span><span class="s">→</span><span class="nv"> </span><span class="s">orders.user_id&quot;</span>
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="nt">constraints</span><span class="p">:</span>
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">profit_margin</span>
-<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">    </span><span class="nt">table</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders</span>
-<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inequality</span>
-<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">    </span><span class="nt">column_a</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">amount</span>
-<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">    </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;&quot;</span>
-<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">    </span><span class="nt">column_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cost</span>
+<p>Custom host/port:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>misata<span class="w"> </span>serve<span class="w"> </span>--port<span class="w"> </span><span class="m">3001</span><span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1
 </code></pre></div>
-<h2 id="generate">Generate</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">load_yaml_schema</span><span class="p">(</span><span class="s2">&quot;misata.yaml&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+<h2 id="post-generate">POST /generate</h2>
+<p>The primary endpoint. Send a story, get tables back.</p>
+<p><strong>Request:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/generate<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="s1">    &quot;story&quot;: &quot;SaaS company with users and subscriptions&quot;,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="s1">    &quot;rows&quot;: 500</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="s1">  }&#39;</span>
 </code></pre></div>
-<p>Or from the CLI — auto-detected if <code>misata.yaml</code> exists in the current directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>misata<span class="w"> </span>generate
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>misata<span class="w"> </span>generate<span class="w"> </span>--output-dir<span class="w"> </span>data/
+<p><strong>Response:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;tables&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">&quot;users&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;user_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;email&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;wei.smith@gmail.com&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;plan&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pro&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">},</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;user_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;email&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;priya.jones@outlook.com&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;plan&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;free&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">}</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">],</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nt">&quot;subscriptions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;sub_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;user_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;mrr&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">149.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;active&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">}</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span><span class="nt">&quot;meta&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="nt">&quot;domain&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;saas&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="nt">&quot;story&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;SaaS company with users and subscriptions&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="nt">&quot;row_counts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;users&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">500</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;subscriptions&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1500</span><span class="p">}</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="p">}</span>
 </code></pre></div>
-<h2 id="round-trip">Round-trip</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Inspect a programmatically built schema, then save it</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;A healthcare company with 500 patients&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">misata</span><span class="o">.</span><span class="n">save_yaml_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="s2">&quot;healthcare.yaml&quot;</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="column-types">Column types</h2>
+<h2 id="request-schema">Request schema</h2>
 <table>
 <thead>
 <tr>
-<th style="text-align: left;"><code>type</code></th>
-<th style="text-align: left;">Description</th>
-<th style="text-align: left;">Key params</th>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><code>int</code></td>
-<td style="text-align: left;">Integer</td>
-<td style="text-align: left;"><code>min</code>, <code>max</code>, <code>unique</code>, <code>distribution</code></td>
+<td><code>story</code></td>
+<td>string</td>
+<td>required</td>
+<td>Plain-English dataset description</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>float</code></td>
-<td style="text-align: left;">Floating point</td>
-<td style="text-align: left;"><code>min</code>, <code>max</code>, <code>decimals</code>, <code>distribution</code></td>
+<td><code>rows</code></td>
+<td>int</td>
+<td><code>1000</code></td>
+<td>Row count for the primary table</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>text</code></td>
-<td style="text-align: left;">String / semantic</td>
-<td style="text-align: left;"><code>text_type</code> (name, email, city, …)</td>
+<td><code>seed</code></td>
+<td>int</td>
+<td><code>null</code></td>
+<td>Random seed for reproducible output</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>categorical</code></td>
-<td style="text-align: left;">Enum / factor</td>
-<td style="text-align: left;"><code>choices</code>, <code>probabilities</code>, <code>sampling</code></td>
+<td><code>format</code></td>
+<td>string</td>
+<td><code>"records"</code></td>
+<td><code>"records"</code> (list of objects) or <code>"columns"</code> (dict of arrays)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="column-oriented-format">Column-oriented format</h2>
+<p>Useful for charting libraries that expect arrays:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/generate<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;story&quot;: &quot;gaming leaderboard&quot;, &quot;rows&quot;: 100, &quot;format&quot;: &quot;columns&quot;}&#39;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;tables&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="nt">&quot;players&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">      </span><span class="nt">&quot;player_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">],</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">      </span><span class="nt">&quot;username&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">[</span><span class="s2">&quot;shadow_42&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;nova_x&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">],</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="w">     </span><span class="p">[</span><span class="mi">34</span><span class="p">,</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="mi">67</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">]</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">}</span>
+</code></pre></div>
+<h2 id="javascript-fetch">JavaScript / fetch</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">fetch</span><span class="p">(</span><span class="s2">&quot;http://localhost:8000/generate&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;POST&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s2">&quot;Content-Type&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nx">story</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;food delivery app with restaurants and orders&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nx">rows</span><span class="o">:</span><span class="w"> </span><span class="mf">200</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="p">}),</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">});</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">tables</span><span class="p">,</span><span class="w"> </span><span class="nx">meta</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="sb">`Generated </span><span class="si">${</span><span class="nx">meta</span><span class="p">.</span><span class="nx">row_counts</span><span class="p">.</span><span class="nx">orders</span><span class="si">}</span><span class="sb"> orders`</span><span class="p">);</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">tables</span><span class="p">.</span><span class="nx">orders</span><span class="p">[</span><span class="mf">0</span><span class="p">]);</span>
+</code></pre></div>
+<h2 id="go">Go</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="s">&quot;bytes&quot;</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="s">&quot;encoding/json&quot;</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="s">&quot;net/http&quot;</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">json</span><span class="p">.</span><span class="nx">Marshal</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">{</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="s">&quot;story&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ecommerce store with 500 products&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="s">&quot;rows&quot;</span><span class="p">:</span><span class="w">  </span><span class="mi">500</span><span class="p">,</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="p">})</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="nx">resp</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nx">Post</span><span class="p">(</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span><span class="s">&quot;http://localhost:8000/generate&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">    </span><span class="s">&quot;application/json&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">    </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">NewBuffer</span><span class="p">(</span><span class="nx">body</span><span class="p">),</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="p">)</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="c1">// decode resp.Body as JSON</span>
+</code></pre></div>
+<h2 id="reproducibility">Reproducibility</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/generate<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;story&quot;: &quot;fintech transactions&quot;, &quot;rows&quot;: 1000, &quot;seed&quot;: 42}&#39;</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># Same seed → same data every call</span>
+</code></pre></div>
+<h2 id="health-check">Health check</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>http://localhost:8000/api/health
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># {&quot;status&quot;: &quot;healthy&quot;, &quot;groq_configured&quot;: false, ...}</span>
+</code></pre></div>
+<h2 id="interactive-docs">Interactive docs</h2>
+<p>When the server is running, visit <code>http://localhost:8000/docs</code> for a full Swagger UI where you can try all endpoints interactively.</p>
+<h2 id="all-available-endpoints">All available endpoints</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/generate</code></td>
+<td>Story → JSON data (no API key)</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>boolean</code></td>
-<td style="text-align: left;">True/False</td>
-<td style="text-align: left;"><code>probability</code></td>
+<td><code>GET</code></td>
+<td><code>/api/health</code></td>
+<td>Health check</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>date</code></td>
-<td style="text-align: left;">Date column</td>
-<td style="text-align: left;"><code>start</code>, <code>end</code>, <code>format</code></td>
+<td><code>POST</code></td>
+<td><code>/api/generate-schema</code></td>
+<td>Story → schema JSON (LLM)</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>foreign_key</code></td>
-<td style="text-align: left;">FK reference</td>
-<td style="text-align: left;">resolved from <code>relationships</code></td>
+<td><code>POST</code></td>
+<td><code>/api/generate-data</code></td>
+<td>Schema JSON → data</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/docs</code></td>
+<td>Swagger UI</td>
 </tr>
 </tbody>
 </table>
@@ -1728,6 +1905,9 @@
 
 
 
+
+  
+  
 
 
 
