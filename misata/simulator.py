@@ -783,6 +783,16 @@ class DataSimulator:
             random_ints = self.rng.integers(start_int, end_int, size=size)
             values = pd.to_datetime(random_ints)
 
+            # Auto-add realistic time-of-day for timestamp columns
+            col_name = column.name.lower()
+            is_timestamp = (
+                col_name.endswith("_at") or col_name.endswith("_time")
+                or "timestamp" in col_name or "datetime" in col_name
+                or params.get("include_time", False)
+            )
+            if is_timestamp:
+                values = self._add_realistic_time(values, table_name, size)
+
             return values
 
         # FOREIGN KEY
@@ -1697,6 +1707,44 @@ class DataSimulator:
                 )
 
         return df
+
+    def _add_realistic_time(self, dates: pd.DatetimeIndex, table_name: str, size: int) -> pd.DatetimeIndex:  # noqa: ARG002
+        """Add domain-appropriate time-of-day to date-only timestamps.
+
+        Hour distributions match real platform behaviour:
+        - ecommerce/food: peaks lunch + evening
+        - fintech/hr: business hours 9-5
+        - gaming/social: evening + night heavy
+        - default: mild daytime bias
+        """
+        domain = (self.config.domain or "").lower()
+
+        if domain in ("ecommerce", "fooddelivery", "marketplace"):
+            # Peaks: 11am-2pm lunch, 7pm-10pm evening
+            hour_weights = [1,1,1,1,1,1,2,3,5,7,9,12,13,12,10,8,7,10,14,15,12,8,4,2]
+        elif domain in ("fintech", "hr", "healthcare", "realestate"):
+            # Business hours 8am-6pm
+            hour_weights = [1,1,1,1,1,2,4,8,14,16,16,15,13,15,16,14,12,8,5,3,2,2,1,1]
+        elif domain in ("gaming", "social"):
+            # Evening/night heavy: 6pm-2am
+            hour_weights = [8,6,4,3,2,1,1,1,2,3,4,5,6,6,6,6,8,10,14,16,18,18,16,12]
+        elif domain in ("saas", "edtech"):
+            # Workday with morning/afternoon bias
+            hour_weights = [1,1,1,1,1,2,4,9,14,16,15,13,12,14,15,13,11,8,5,4,3,2,2,1]
+        else:
+            # Generic mild daytime bias
+            hour_weights = [1,1,1,1,1,2,4,7,10,12,12,11,11,12,12,11,10,9,7,6,4,3,2,1]
+
+        hw = np.array(hour_weights, dtype=float)
+        hw /= hw.sum()
+        hours   = self.rng.choice(24, size=size, p=hw)
+        minutes = self.rng.integers(0, 60, size=size)
+        seconds = self.rng.integers(0, 60, size=size)
+
+        offsets = pd.to_timedelta(hours * 3600 + minutes * 60 + seconds, unit="s")
+        # Strip existing sub-day component then add realistic time
+        day_only = dates.normalize()
+        return day_only + offsets
 
     def _apply_anomalies(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Inject statistical outliers into columns that declare ``anomaly_rate``.

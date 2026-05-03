@@ -57,6 +57,8 @@ class StoryParser:
         "fooddelivery": ["food delivery", "ubereats", "doordash", "grubhub", "restaurant delivery", "meal delivery", "takeout", "takeaway", "food app", "restaurants", "menu items"],
         "ecommerce": ["ecommerce", "e-commerce", "orders", "cart", "products", "shop", "store", "retail"],
         "pharma": ["pharma", "research", "timesheet", "clinical", "trials"],
+        # crypto before fintech — both have "wallet"; crypto signals are more specific
+        "crypto": ["crypto", "blockchain", "web3", "defi", "nft", "ethereum", "bitcoin", "solana", "smart contract", "dex", "dao", "crypto exchange", "token sale", "on-chain"],
         "fintech": ["fintech", "transactions", "payments", "wallet", "banking", "loans", "credit", "fraud"],
         "healthcare": ["healthcare", "health", "patients", "doctors", "hospital", "clinic", "appointments", "medical"],
         # social before marketplace — "platform" alone is too generic; social signals are distinct
@@ -68,6 +70,9 @@ class StoryParser:
         "hr": ["hr", "human resources", "employees", "payroll", "workforce", "hiring", "headcount", "salaries", "onboarding"],
         "edtech": ["edtech", "e-learning", "lms", "courses", "students", "instructors", "lessons", "enrollments", "quizzes", "learning platform", "online learning"],
         "gaming": ["gaming", "game", "players", "leaderboard", "achievements", "quests", "guilds", "matches", "sessions", "levels", "esports", "rpg"],
+        # crm before marketplace — "deals" and "contacts" are CRM-specific
+        "crm": ["crm", "salesforce", "hubspot", "contacts", "deals", "pipeline", "leads", "opportunities", "sales pipeline", "account management"],
+        "insurance": ["insurance", "policy", "claim", "premium", "coverage", "underwriting", "actuary", "insurer", "policyholder", "risk assessment"],
     }
 
     MONTHS = {
@@ -401,6 +406,12 @@ class StoryParser:
             schema = self._build_edtech_schema(story, default_rows)
         elif self.detected_domain == "gaming":
             schema = self._build_gaming_schema(story, default_rows)
+        elif self.detected_domain == "crm":
+            schema = self._build_crm_schema(story, default_rows)
+        elif self.detected_domain == "crypto":
+            schema = self._build_crypto_schema(story, default_rows)
+        elif self.detected_domain == "insurance":
+            schema = self._build_insurance_schema(story, default_rows)
         else:
             schema = self._build_generic_schema(story, default_rows)
 
@@ -1052,7 +1063,8 @@ class StoryParser:
                 Column(name="employee_id", type="int", unique=True, distribution_params={"min": 1, "max": num_employees + 1}),
                 Column(name="first_name", type="text", distribution_params={"text_type": "first_name"}),
                 Column(name="last_name",  type="text", distribution_params={"text_type": "last_name"}),
-                Column(name="email",      type="text", distribution_params={"text_type": "email"}),
+                Column(name="email",          type="text", distribution_params={"text_type": "email"}),
+                Column(name="date_of_birth", type="date", distribution_params={"start": "1960-01-01", "end": "2000-12-31"}),
                 Column(name="department_id", type="foreign_key"),
                 Column(name="role", type="categorical", distribution_params={
                     "choices": ["Individual Contributor", "Senior IC", "Staff", "Manager", "Director", "VP", "C-Level"],
@@ -1073,7 +1085,9 @@ class StoryParser:
                     "default": {"distribution": "lognormal", "mu": 11.2, "sigma": 0.30},
                     "decimals": 0,
                 }),
-                Column(name="hire_date", type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+                Column(name="hire_date", type="date", distribution_params={
+                    "after_column": "date_of_birth", "min_delta_days": 6570, "max_delta_days": 18250,
+                }),
                 Column(name="tenure_years", type="float", distribution_params={
                     "distribution": "exponential", "scale": 3.2, "min": 0.0, "max": 20.0, "decimals": 1,
                 }),
@@ -1652,6 +1666,331 @@ class StoryParser:
         return SchemaConfig(
             name="Gaming Dataset", description=f"Generated from story: {story}",
             domain="gaming", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_crm_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_companies  = max(20, self.scale_params.get("companies", max(50, default_rows // 10)))
+        num_contacts   = self.scale_params.get("users", default_rows)
+        num_deals      = self.scale_params.get("orders", int(num_contacts * 1.5))
+        num_activities = int(num_deals * 4)
+
+        tables = [
+            Table(name="companies",  row_count=num_companies),
+            Table(name="contacts",   row_count=num_contacts),
+            Table(name="deals",      row_count=num_deals),
+            Table(name="activities", row_count=num_activities),
+        ]
+        columns = {
+            "companies": [
+                Column(name="company_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_companies + 1}),
+                Column(name="name",         type="text", distribution_params={"text_type": "company"}),
+                Column(name="industry",     type="categorical", distribution_params={
+                    "choices": ["technology", "finance", "healthcare", "retail", "manufacturing", "media", "education", "real_estate", "consulting", "other"],
+                    "probabilities": [0.22, 0.14, 0.12, 0.11, 0.10, 0.08, 0.08, 0.07, 0.06, 0.02],
+                }),
+                Column(name="size",         type="categorical", distribution_params={
+                    "choices": ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"],
+                    "probabilities": [0.25, 0.28, 0.22, 0.13, 0.07, 0.05],
+                }),
+                Column(name="country",      type="text", distribution_params={"text_type": "country"}),
+                Column(name="website",      type="text", distribution_params={"text_type": "url"}),
+                Column(name="annual_revenue", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 13.5, "sigma": 2.0, "min": 50000, "decimals": 0,
+                }),
+                Column(name="created_at",   type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+            ],
+            "contacts": [
+                Column(name="contact_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_contacts + 1}),
+                Column(name="company_id",   type="foreign_key"),
+                Column(name="first_name",   type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",    type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",        type="text", distribution_params={"text_type": "email"}),
+                Column(name="job_title",    type="text", distribution_params={"text_type": "job"}),
+                Column(name="phone",        type="text", distribution_params={"text_type": "phone"}),
+                Column(name="lead_source",  type="categorical", distribution_params={
+                    "choices": ["organic_search", "paid_search", "referral", "social", "email", "event", "direct", "partner"],
+                    "probabilities": [0.22, 0.18, 0.16, 0.14, 0.12, 0.08, 0.06, 0.04],
+                }),
+                Column(name="lifecycle_stage", type="categorical", distribution_params={
+                    "choices": ["subscriber", "lead", "mql", "sql", "opportunity", "customer", "evangelist"],
+                    "probabilities": [0.20, 0.22, 0.18, 0.14, 0.10, 0.12, 0.04],
+                }),
+                Column(name="created_at",   type="date", distribution_params={"start": "2019-01-01", "end": "2024-12-31"}),
+                Column(name="last_activity_at", type="date", distribution_params={"start": "2023-01-01", "end": "2024-12-31"}),
+            ],
+            "deals": [
+                Column(name="deal_id",      type="int", unique=True, distribution_params={"min": 1, "max": num_deals + 1}),
+                Column(name="contact_id",   type="foreign_key"),
+                Column(name="company_id",   type="foreign_key"),
+                Column(name="name",         type="text", distribution_params={"text_type": "company"}),
+                Column(name="stage",        type="categorical", distribution_params={
+                    "choices": ["prospecting", "qualification", "proposal", "negotiation", "closed_won", "closed_lost"],
+                    "probabilities": [0.22, 0.18, 0.15, 0.12, 0.20, 0.13],
+                }),
+                Column(name="amount",       type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 9.5, "sigma": 1.8, "min": 500, "decimals": 0,
+                }),
+                Column(name="probability",  type="float", distribution_params={
+                    "distribution": "beta", "a": 2.0, "b": 2.0, "min": 0.0, "max": 1.0, "decimals": 2,
+                }),
+                Column(name="close_date",   type="date", distribution_params={"start": "2023-01-01", "end": "2025-12-31"}),
+                Column(name="created_at",   type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="owner",        type="text", distribution_params={"text_type": "name"}),
+            ],
+            "activities": [
+                Column(name="activity_id",  type="int", unique=True, distribution_params={"min": 1, "max": num_activities + 1}),
+                Column(name="deal_id",      type="foreign_key"),
+                Column(name="type",         type="categorical", distribution_params={
+                    "choices": ["call", "email", "meeting", "demo", "proposal_sent", "follow_up", "note"],
+                    "probabilities": [0.22, 0.28, 0.16, 0.12, 0.08, 0.10, 0.04],
+                }),
+                Column(name="outcome",      type="categorical", distribution_params={
+                    "choices": ["positive", "neutral", "negative", "no_response"],
+                    "probabilities": [0.38, 0.30, 0.12, 0.20],
+                }),
+                Column(name="duration_minutes", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 3.0, "sigma": 0.8, "min": 5, "max": 180, "decimals": 0,
+                }),
+                Column(name="notes",        type="text", distribution_params={"text_type": "support_ticket"}),
+                Column(name="occurred_at",  type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="companies", child_table="contacts",   parent_key="company_id", child_key="company_id"),
+            Relationship(parent_table="contacts",  child_table="deals",      parent_key="contact_id", child_key="contact_id"),
+            Relationship(parent_table="companies", child_table="deals",      parent_key="company_id", child_key="company_id"),
+            Relationship(parent_table="deals",     child_table="activities", parent_key="deal_id",    child_key="deal_id"),
+        ]
+        return SchemaConfig(
+            name="CRM Dataset", description=f"Generated from story: {story}",
+            domain="crm", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_crypto_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_wallets   = self.scale_params.get("users", default_rows)
+        num_tokens    = max(10, self.scale_params.get("tokens", 20))
+        num_txns      = self.scale_params.get("orders", int(num_wallets * 8))
+        num_prices    = int(num_tokens * 365)
+
+        tables = [
+            Table(name="wallets",     row_count=num_wallets),
+            Table(name="tokens",      row_count=num_tokens),
+            Table(name="transactions", row_count=num_txns),
+            Table(name="token_prices", row_count=num_prices),
+        ]
+        columns = {
+            "wallets": [
+                Column(name="wallet_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_wallets + 1}),
+                Column(name="address",      type="text", distribution_params={"text_type": "username"}),
+                Column(name="chain",        type="categorical", distribution_params={
+                    "choices": ["ethereum", "solana", "polygon", "bnb_chain", "avalanche", "arbitrum", "optimism"],
+                    "probabilities": [0.35, 0.20, 0.15, 0.12, 0.08, 0.06, 0.04],
+                }),
+                Column(name="wallet_type",  type="categorical", distribution_params={
+                    "choices": ["eoa", "multisig", "smart_contract", "exchange"],
+                    "probabilities": [0.65, 0.15, 0.12, 0.08],
+                }),
+                Column(name="eth_balance",  type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 0.5, "sigma": 2.5, "min": 0.0, "max": 50000.0, "decimals": 6,
+                }),
+                Column(name="usd_balance",  type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 7.0, "sigma": 2.5, "min": 0.0, "max": 10_000_000.0, "decimals": 2,
+                }),
+                Column(name="is_defi_active", type="boolean", distribution_params={"probability": 0.38}),
+                Column(name="created_at",   type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+            ],
+            "tokens": [
+                Column(name="token_id",     type="int", unique=True, distribution_params={"min": 1, "max": num_tokens + 1}),
+                Column(name="symbol",       type="categorical", distribution_params={
+                    "choices": ["ETH", "BTC", "SOL", "USDC", "USDT", "BNB", "MATIC", "AVAX", "ARB", "OP",
+                                "LINK", "UNI", "AAVE", "CRV", "SNX", "MKR", "COMP", "YFI", "SUSHI", "BAL"],
+                }),
+                Column(name="name",         type="categorical", distribution_params={
+                    "choices": ["Ethereum", "Bitcoin", "Solana", "USD Coin", "Tether", "BNB", "Polygon", "Avalanche",
+                                "Arbitrum", "Optimism", "Chainlink", "Uniswap", "Aave", "Curve", "Synthetix",
+                                "Maker", "Compound", "yearn.finance", "SushiSwap", "Balancer"],
+                }),
+                Column(name="category",     type="categorical", distribution_params={
+                    "choices": ["layer1", "layer2", "stablecoin", "defi", "governance"],
+                    "probabilities": [0.25, 0.20, 0.15, 0.25, 0.15],
+                }),
+                Column(name="market_cap",   type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 20.0, "sigma": 3.0, "min": 1_000_000.0, "decimals": 0,
+                }),
+                Column(name="listed_at",    type="date", distribution_params={"start": "2015-01-01", "end": "2023-12-31"}),
+            ],
+            "transactions": [
+                Column(name="txn_id",       type="int", unique=True, distribution_params={"min": 1, "max": num_txns + 1}),
+                Column(name="from_wallet",  type="foreign_key"),
+                Column(name="token_id",     type="foreign_key"),
+                Column(name="txn_type",     type="categorical", distribution_params={
+                    "choices": ["transfer", "swap", "stake", "unstake", "bridge", "mint", "burn", "claim"],
+                    "probabilities": [0.35, 0.28, 0.12, 0.08, 0.07, 0.04, 0.04, 0.02],
+                }),
+                Column(name="amount",       type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 4.0, "sigma": 2.5, "min": 0.000001, "decimals": 6,
+                }),
+                Column(name="usd_value",    type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 6.5, "sigma": 2.8, "min": 0.01, "decimals": 2,
+                }),
+                Column(name="gas_fee_usd",  type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 1.5, "sigma": 1.2, "min": 0.001, "max": 500.0, "decimals": 4,
+                }),
+                Column(name="status",       type="categorical", distribution_params={
+                    "choices": ["confirmed", "pending", "failed"],
+                    "probabilities": [0.92, 0.05, 0.03],
+                }),
+                Column(name="block_number", type="int", distribution_params={
+                    "distribution": "uniform", "min": 17_000_000, "max": 21_000_000,
+                }),
+                Column(name="txn_at",       type="date", distribution_params={"start": "2021-01-01", "end": "2024-12-31"}),
+            ],
+            "token_prices": [
+                Column(name="price_id",     type="int", unique=True, distribution_params={"min": 1, "max": num_prices + 1}),
+                Column(name="token_id",     type="foreign_key"),
+                Column(name="price_usd",    type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 4.0, "sigma": 3.5, "min": 0.000001, "decimals": 6,
+                }),
+                Column(name="volume_24h",   type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 18.0, "sigma": 2.5, "min": 0.0, "decimals": 0,
+                }),
+                Column(name="market_cap",   type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 20.0, "sigma": 3.0, "min": 0.0, "decimals": 0,
+                }),
+                Column(name="pct_change_24h", type="float", distribution_params={
+                    "distribution": "normal", "mean": 0.0, "std": 5.0, "min": -50.0, "max": 100.0, "decimals": 2,
+                }),
+                Column(name="recorded_at",  type="date", distribution_params={"start": "2021-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="wallets", child_table="transactions", parent_key="wallet_id", child_key="from_wallet"),
+            Relationship(parent_table="tokens",  child_table="transactions", parent_key="token_id",  child_key="token_id"),
+            Relationship(parent_table="tokens",  child_table="token_prices", parent_key="token_id",  child_key="token_id"),
+        ]
+        return SchemaConfig(
+            name="Crypto/Web3 Dataset", description=f"Generated from story: {story}",
+            domain="crypto", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_insurance_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_customers = self.scale_params.get("users", default_rows)
+        num_policies  = int(num_customers * 1.3)
+        num_claims    = int(num_policies * 0.18)
+        num_payments  = int(num_policies * 12)
+
+        tables = [
+            Table(name="customers", row_count=num_customers),
+            Table(name="policies",  row_count=num_policies),
+            Table(name="claims",    row_count=num_claims),
+            Table(name="payments",  row_count=num_payments),
+        ]
+        columns = {
+            "customers": [
+                Column(name="customer_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_customers + 1}),
+                Column(name="first_name",    type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",     type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",         type="text", distribution_params={"text_type": "email"}),
+                Column(name="date_of_birth", type="date", distribution_params={"start": "1950-01-01", "end": "2000-12-31"}),
+                Column(name="gender",        type="categorical", distribution_params={
+                    "choices": ["male", "female", "non_binary", "prefer_not_to_say"],
+                    "probabilities": [0.48, 0.48, 0.02, 0.02],
+                }),
+                Column(name="credit_score",  type="int", distribution_params={
+                    "distribution": "normal", "mean": 680, "std": 80, "min": 300, "max": 850,
+                }),
+                Column(name="state",         type="categorical", distribution_params={
+                    "choices": ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA", "NC", "MI",
+                                "NJ", "VA", "WA", "AZ", "MA", "TN", "IN", "MO", "MD", "WI"],
+                    "probabilities": [0.12, 0.10, 0.08, 0.08, 0.05, 0.05, 0.04, 0.04, 0.04, 0.04,
+                                      0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.03, 0.03, 0.02],
+                }),
+                Column(name="customer_since", type="date", distribution_params={
+                    "after_column": "date_of_birth", "min_delta_days": 6570, "max_delta_days": 27375,
+                }),
+            ],
+            "policies": [
+                Column(name="policy_id",     type="int", unique=True, distribution_params={"min": 1, "max": num_policies + 1}),
+                Column(name="customer_id",   type="foreign_key"),
+                Column(name="policy_type",   type="categorical", distribution_params={
+                    "choices": ["auto", "home", "life", "health", "renters", "umbrella", "business"],
+                    "probabilities": [0.32, 0.25, 0.18, 0.12, 0.07, 0.04, 0.02],
+                }),
+                Column(name="status",        type="categorical", distribution_params={
+                    "choices": ["active", "expired", "cancelled", "pending", "suspended"],
+                    "probabilities": [0.65, 0.18, 0.09, 0.05, 0.03],
+                }),
+                Column(name="premium_monthly", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 5.2, "sigma": 0.8, "min": 20.0, "max": 2000.0, "decimals": 2,
+                }),
+                Column(name="coverage_amount", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 12.5, "sigma": 1.5, "min": 10_000.0, "decimals": 0,
+                }),
+                Column(name="deductible",    type="categorical", distribution_params={
+                    "choices": [250, 500, 1000, 2000, 2500, 5000],
+                    "probabilities": [0.08, 0.30, 0.35, 0.14, 0.08, 0.05],
+                }),
+                Column(name="risk_score",    type="float", distribution_params={
+                    "distribution": "beta", "a": 2.0, "b": 5.0, "min": 0.0, "max": 1.0, "decimals": 4,
+                }),
+                Column(name="start_date",    type="date", distribution_params={"start": "2015-01-01", "end": "2024-12-31"}),
+                Column(name="end_date",      type="date", distribution_params={
+                    "after_column": "start_date", "min_delta_days": 365, "max_delta_days": 1825,
+                }),
+            ],
+            "claims": [
+                Column(name="claim_id",      type="int", unique=True, distribution_params={"min": 1, "max": num_claims + 1}),
+                Column(name="policy_id",     type="foreign_key"),
+                Column(name="claim_type",    type="categorical", distribution_params={
+                    "choices": ["collision", "theft", "water_damage", "fire", "medical", "liability", "natural_disaster", "other"],
+                    "probabilities": [0.28, 0.12, 0.18, 0.08, 0.14, 0.10, 0.06, 0.04],
+                }),
+                Column(name="status",        type="categorical", distribution_params={
+                    "choices": ["approved", "under_review", "denied", "settled", "withdrawn"],
+                    "probabilities": [0.52, 0.18, 0.12, 0.14, 0.04],
+                }),
+                Column(name="amount_claimed", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 8.5, "sigma": 1.8, "min": 100.0, "decimals": 2,
+                }),
+                Column(name="amount_paid",   type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 8.2, "sigma": 1.8, "min": 0.0, "decimals": 2,
+                    "null_if": {"column": "status", "values": ["under_review", "denied", "withdrawn"]},
+                }),
+                Column(name="is_fraudulent", type="boolean", distribution_params={"probability": 0.04}),
+                Column(name="filed_at",      type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+                Column(name="resolved_at",   type="date", distribution_params={
+                    "after_column": "filed_at", "min_delta_days": 7, "max_delta_days": 180,
+                    "null_if": {"column": "status", "values": ["under_review", "withdrawn"]},
+                }),
+            ],
+            "payments": [
+                Column(name="payment_id",    type="int", unique=True, distribution_params={"min": 1, "max": num_payments + 1}),
+                Column(name="policy_id",     type="foreign_key"),
+                Column(name="amount",        type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 5.2, "sigma": 0.8, "min": 20.0, "max": 2000.0, "decimals": 2,
+                }),
+                Column(name="method",        type="categorical", distribution_params={
+                    "choices": ["ach", "credit_card", "check", "wire"],
+                    "probabilities": [0.52, 0.30, 0.12, 0.06],
+                }),
+                Column(name="status",        type="categorical", distribution_params={
+                    "choices": ["paid", "failed", "pending", "refunded"],
+                    "probabilities": [0.88, 0.06, 0.04, 0.02],
+                }),
+                Column(name="paid_at",       type="date", distribution_params={"start": "2015-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="customers", child_table="policies",  parent_key="customer_id", child_key="customer_id"),
+            Relationship(parent_table="policies",  child_table="claims",    parent_key="policy_id",   child_key="policy_id"),
+            Relationship(parent_table="policies",  child_table="payments",  parent_key="policy_id",   child_key="policy_id"),
+        ]
+        return SchemaConfig(
+            name="Insurance Dataset", description=f"Generated from story: {story}",
+            domain="insurance", tables=tables, columns=columns,
             relationships=relationships, events=[],
         )
 

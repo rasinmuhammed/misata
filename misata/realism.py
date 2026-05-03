@@ -119,21 +119,34 @@ class RealisticTextGenerator:
             last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
             return np.array([f"{f} {l}" for f, l in zip(first, last)])
         if semantic == "email":
-            if faker and not _has_capsule_vocab("first_name"):
+            # Use names already generated in this row when available
+            _PROVIDERS = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com", "hotmail.com"]
+            _PWEIGHTS  = [0.42, 0.20, 0.14, 0.10, 0.08, 0.06]
+            if table_data is not None and "first_name" in table_data.columns:
+                first = table_data["first_name"].astype(str).values[:size]
+                last  = table_data["last_name"].astype(str).values[:size] if "last_name" in table_data.columns else np.array([""] * size)
+            elif faker and not _has_capsule_vocab("first_name"):
                 return np.array([faker.email() for _ in range(size)])
-            first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
-            last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
-            separators = self.rng.choice([".", "_", ""], size=size, p=[0.5, 0.2, 0.3])
-            domains = self.rng.choice(
-                ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com"],
-                size=size,
-            )
-            return np.array(
-                [
-                    f"{re.sub(r'[^a-z]', '', f.lower())}{sep}{re.sub(r'[^a-z]', '', l.lower())}@{domain}"
-                    for f, sep, l, domain in zip(first, separators, last, domains)
-                ]
-            )
+            else:
+                first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+                last  = self.rng.choice(self._vocabulary("last_name",  LAST_NAMES),  size=size)
+            separators = self.rng.choice([".", "_", ""], size=size, p=[0.50, 0.20, 0.30])
+            domains    = self.rng.choice(_PROVIDERS, size=size, p=_PWEIGHTS)
+            patterns   = self.rng.integers(0, 4, size=size)
+            result = []
+            for fn, ln, sep, dom, pat in zip(first, last, separators, domains, patterns):
+                f = re.sub(r"[^a-z]", "", fn.lower())
+                l = re.sub(r"[^a-z]", "", ln.lower())
+                if pat == 0:
+                    local = f"{f}{sep}{l}" if l else f
+                elif pat == 1:
+                    local = f"{f[0]}{l}" if l else f
+                elif pat == 2:
+                    local = f"{f}{self.rng.integers(1, 999)}"
+                else:
+                    local = f"{f}{sep}{l[:3]}" if l else f
+                result.append(f"{local or f or 'user'}@{dom}")
+            return np.array(result)
         if semantic == "company_name":
             if faker:
                 try:
