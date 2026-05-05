@@ -671,6 +671,17 @@ class DataSimulator:
 
         # FLOAT
         elif column.type == "float":
+            # Derive float from days between a date column and today (e.g. tenure_years)
+            if "date_diff_to" in params and table_data is not None:
+                ref_col = params["date_diff_to"]
+                if ref_col in table_data.columns:
+                    ref_dates = pd.to_datetime(table_data[ref_col], errors="coerce")
+                    today = pd.Timestamp.now().normalize()
+                    diff_years = (today - ref_dates).dt.days / 365.25
+                    decimals = params.get("decimals", 1)
+                    max_val = float(params.get("max", 50.0))
+                    return np.round(diff_years.clip(0, max_val).values, decimals)
+
             distribution = params.get("distribution", "normal")
 
             if distribution == "categorical" or "choices" in params:
@@ -738,6 +749,9 @@ class DataSimulator:
                     deltas = self.rng.integers(min_delta, max_delta + 1, size=size)
                     base_dates = pd.to_datetime(table_data[base_col], errors="coerce")
                     dates = base_dates + pd.to_timedelta(deltas, unit="D")
+                    if params.get("max_date") == "today":
+                        today = pd.Timestamp.now().normalize()
+                        dates = dates.clip(upper=today)
                     return pd.to_datetime(dates).values
 
             # Parent-Relative Date Generation (Time Travel Fix)
@@ -904,8 +918,11 @@ class DataSimulator:
                 "longitude":              "longitude",
                 "postal_code":            "postal_code",
                 "review":                 "review",
+                "short_review_title":     "short_review_title",
                 "support_ticket":         "support_ticket",
                 "email_body":             "email_body",
+                "phone":                  "phone_number",
+                "phone_number":           "phone_number",
             }
             semantic = text_strategy or _REALISTIC_TYPE_MAP.get(text_type)
             # Route to RealisticTextGenerator for known types OR any unrecognised

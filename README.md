@@ -320,14 +320,28 @@ print(bundle.privacy_report.pii_risk)    # column-level PII exposure analysis
 
 ## Supported domains
 
+18 built-in domain schemas — each generates a fully relational, multi-table dataset with realistic distributions, FK integrity, and domain-appropriate column semantics.
+
 | Domain | Trigger keywords | Tables generated |
 |:--|:--|:--|
-| SaaS | saas, subscription, mrr, churn | users, subscriptions |
-| Ecommerce | ecommerce, orders, store, retail | customers, orders |
+| SaaS | saas, subscription, mrr, churn | users, subscriptions, invoices |
+| Ecommerce | ecommerce, orders, store, retail | customers, products, orders, order_items |
 | Fintech | fintech, payments, banking, fraud | customers, accounts, transactions |
 | Healthcare | healthcare, patients, doctors, clinic | doctors, patients, appointments |
 | Marketplace | marketplace, sellers, buyers, listings | sellers, buyers, listings, orders |
 | Logistics | logistics, shipping, drivers, routes | drivers, vehicles, routes, shipments |
+| HR | hr, employees, payroll, workforce | departments, employees, payroll |
+| Social | social media, instagram, feed, followers | users, posts, follows, reactions |
+| Real Estate | real estate, housing, mortgage | agents, properties, transactions |
+| Pharma | pharma, clinical, trials | researchers, projects, trials, timesheets |
+| Food Delivery | food delivery, restaurant, takeout | restaurants, customers, couriers, orders, order_items |
+| EdTech | edtech, courses, students, enrollments | instructors, courses, students, enrollments, quiz_attempts |
+| Gaming | gaming, players, leaderboard, esports | players, matches, sessions, achievements |
+| CRM | crm, salesforce, deals, pipeline | companies, contacts, deals, activities |
+| Crypto / Web3 | crypto, blockchain, ethereum, defi | wallets, tokens, transactions, token_prices |
+| Insurance | insurance, policy, claims, premium | customers, policies, claims, payments |
+| Travel | travel, hotel, flights, bookings | users, hotels, flights, bookings, reviews |
+| Streaming | streaming, netflix, subscribers, watch history | subscribers, content, watch_history, ratings |
 
 No keyword match → generic single-table schema with smart column inference.
 
@@ -370,6 +384,11 @@ story / YAML / dict / DB introspection
 |:--|:--:|:--:|:--:|:--:|:--:|
 | No config, one line to multi-table data | — | — | — | — | **Yes** |
 | Story auto-detects locale + country stats | — | — | — | — | **Yes** |
+| 18 built-in domain schemas (SaaS → streaming) | — | — | — | — | **Yes** |
+| Mimic mode — clone distributions from a CSV | — | — | — | **Yes** | **Yes** |
+| Pairwise correlation enforcement (Iman-Conover) | — | — | — | **Yes** | **Yes** |
+| Geospatial columns (lat, lng, postal_code) | — | — | — | — | **Yes** |
+| Anomaly injection (per-column outlier rate) | — | — | — | — | **Yes** |
 | YAML schema committed to git | — | **Yes** | **Yes** | — | **Yes** |
 | DB introspection → generate → re-seed | — | **Yes** | — | Limited | **Yes** |
 | Direct DB seeding (Postgres / MySQL / SQLite) | — | — | — | — | **Yes** |

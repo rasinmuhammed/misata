@@ -228,10 +228,7 @@ class RealisticTextGenerator:
             suffixes = self.rng.choice(["St", "Ave", "Blvd", "Ln", "Rd"], size=size)
             return np.array([f"{n} {street} {suffix}" for n, street, suffix in zip(numbers, streets, suffixes)])
         if semantic == "phone_number":
-            areas = self.rng.integers(200, 999, size=size)
-            prefixes = self.rng.integers(200, 999, size=size)
-            lines = self.rng.integers(1000, 9999, size=size)
-            return np.array([f"({a}) {p}-{l}" for a, p, l in zip(areas, prefixes, lines)])
+            return self._generate_phone_number(size=size)
         if semantic == "url":
             slugs = self._slugify(self.generate(column_name, table_name, size, "company_name"))
             return np.array([f"https://www.{slug}.com" for slug in slugs])
@@ -258,6 +255,8 @@ class RealisticTextGenerator:
             return self._generate_longitude(size=size)
         if semantic == "postal_code":
             return self._generate_postal_code(size=size)
+        if semantic == "short_review_title":
+            return self._generate_short_review_title(size=size)
         if semantic == "review":
             return self._generate_review(size=size, table_data=table_data)
         if semantic == "support_ticket":
@@ -297,6 +296,8 @@ class RealisticTextGenerator:
             return "longitude"
         if name in ("zip", "zip_code", "postal", "postal_code", "postcode"):
             return "postal_code"
+        if "phone" in name or "mobile" in name or "tel" in name:
+            return "phone_number"
         if name in ("review", "review_text", "review_body"):
             return "review"
         if name in ("ticket_body", "issue_body", "support_ticket", "description") and (
@@ -400,6 +401,23 @@ class RealisticTextGenerator:
             suffix = "".join(str(self.rng.integers(0, 10)) for _ in range(5 - len(prefix)))
             codes.append(f"{prefix}{suffix}")
         return np.array(codes)
+
+    def _generate_short_review_title(self, *, size: int) -> np.ndarray:
+        _TITLES = [
+            "Amazing experience!", "Exceeded all expectations", "Not worth the price",
+            "Would definitely recommend", "Decent but could be better", "Absolutely loved it",
+            "Disappointing — expected more", "Great value for money", "Hidden gem!",
+            "Perfect getaway", "Good but not great", "Will come back for sure",
+            "Highly recommend!", "Average at best", "Unforgettable trip",
+            "A little overrated", "Fantastic service", "Nothing special",
+            "Best booking I've made", "Smooth experience from start to finish",
+            "Had some issues but resolved quickly", "Exactly as described",
+            "Beautiful property, great staff", "Comfortable and convenient",
+            "Good location, mediocre service", "Way better than expected",
+            "Solid choice for the price", "Great views, small rooms",
+            "Friendly staff, dated rooms", "Outstanding in every way",
+        ]
+        return np.array([self.rng.choice(_TITLES) for _ in range(size)])
 
     def _generate_review(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:  # noqa: ARG002
         _POS = [
@@ -529,6 +547,52 @@ class RealisticTextGenerator:
         from misata.vocab_seeds import RESEARCH_PROJECT_NAMES
         pool = self._vocabulary("research_project_name", RESEARCH_PROJECT_NAMES)
         return np.array([self.rng.choice(pool) for _ in range(size)])
+
+    def _generate_phone_number(self, *, size: int) -> np.ndarray:
+        try:
+            from misata.locales.registry import LocaleRegistry
+            pack = LocaleRegistry.global_instance().get_pack(self.locale)
+            prefix = pack.phone_prefix  # e.g. "+1", "+44", "+49"
+        except Exception:
+            prefix = "+1"
+
+        results = []
+        cc = prefix.lstrip("+")
+
+        for _ in range(size):
+            if cc == "1":  # North America: +1 (NXX) NXX-XXXX
+                area = self.rng.integers(200, 999)
+                exch = self.rng.integers(200, 999)
+                line = self.rng.integers(1000, 9999)
+                results.append(f"+1 ({area}) {exch}-{line}")
+            elif cc == "44":  # UK: +44 7XXX XXXXXX (mobile) or +44 XX XXXX XXXX
+                if self.rng.random() < 0.6:
+                    mid = self.rng.integers(7000, 7999)
+                    tail = self.rng.integers(100000, 999999)
+                    results.append(f"+44 {mid} {tail}")
+                else:
+                    area = self.rng.integers(20, 99)
+                    mid = self.rng.integers(1000, 9999)
+                    tail = self.rng.integers(1000, 9999)
+                    results.append(f"+44 {area} {mid} {tail}")
+            elif cc == "91":  # India: +91 XXXXX XXXXX
+                first = self.rng.integers(70000, 99999)
+                last = self.rng.integers(10000, 99999)
+                results.append(f"+91 {first} {last}")
+            elif cc in ("49", "33", "34", "39", "31", "48", "90"):  # Europe: +CC XXX XXXXXXX
+                area = self.rng.integers(100, 999)
+                body = self.rng.integers(1000000, 9999999)
+                results.append(f"{prefix} {area} {body}")
+            elif cc in ("81", "82", "86"):  # East Asia: +CC XX XXXX XXXX
+                area = self.rng.integers(10, 99)
+                mid = self.rng.integers(1000, 9999)
+                tail = self.rng.integers(1000, 9999)
+                results.append(f"{prefix} {area} {mid} {tail}")
+            else:  # Generic international: +CC XXXXXXXXXX
+                body = self.rng.integers(1000000000, 9999999999)
+                results.append(f"{prefix} {body}")
+
+        return np.array(results)
 
     def _generate_product_text(
         self,

@@ -73,6 +73,8 @@ class StoryParser:
         # crm before marketplace — "deals" and "contacts" are CRM-specific
         "crm": ["crm", "salesforce", "hubspot", "contacts", "deals", "pipeline", "leads", "opportunities", "sales pipeline", "account management"],
         "insurance": ["insurance", "policy", "claim", "premium", "coverage", "underwriting", "actuary", "insurer", "policyholder", "risk assessment"],
+        "travel": ["travel", "hotel", "flights", "bookings", "airline", "airbnb", "booking.com", "expedia", "hospitality", "reservations", "trips", "itinerary", "tourism"],
+        "streaming": ["streaming", "netflix", "spotify", "watch history", "content library", "subscribers", "watchlist", "episodes", "series", "vod", "ott", "media platform"],
     }
 
     MONTHS = {
@@ -412,6 +414,10 @@ class StoryParser:
             schema = self._build_crypto_schema(story, default_rows)
         elif self.detected_domain == "insurance":
             schema = self._build_insurance_schema(story, default_rows)
+        elif self.detected_domain == "travel":
+            schema = self._build_travel_schema(story, default_rows)
+        elif self.detected_domain == "streaming":
+            schema = self._build_streaming_schema(story, default_rows)
         else:
             schema = self._build_generic_schema(story, default_rows)
 
@@ -1087,9 +1093,10 @@ class StoryParser:
                 }),
                 Column(name="hire_date", type="date", distribution_params={
                     "after_column": "date_of_birth", "min_delta_days": 6570, "max_delta_days": 18250,
+                    "max_date": "today",
                 }),
                 Column(name="tenure_years", type="float", distribution_params={
-                    "distribution": "exponential", "scale": 3.2, "min": 0.0, "max": 20.0, "decimals": 1,
+                    "date_diff_to": "hire_date", "decimals": 1, "max": 40.0,
                 }),
                 Column(name="status", type="categorical", distribution_params={
                     "choices": ["active", "on_leave", "terminated"],
@@ -1991,6 +1998,251 @@ class StoryParser:
         return SchemaConfig(
             name="Insurance Dataset", description=f"Generated from story: {story}",
             domain="insurance", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_travel_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_users     = self.scale_params.get("users", default_rows)
+        num_hotels    = max(50, num_users // 20)
+        num_flights   = max(200, num_users // 5)
+        num_bookings  = int(num_users * 2.5)
+        num_reviews   = int(num_bookings * 0.45)
+
+        tables = [
+            Table(name="users",    row_count=num_users),
+            Table(name="hotels",   row_count=num_hotels),
+            Table(name="flights",  row_count=num_flights),
+            Table(name="bookings", row_count=num_bookings),
+            Table(name="reviews",  row_count=num_reviews),
+        ]
+        columns = {
+            "users": [
+                Column(name="user_id",       type="int",  unique=True, distribution_params={"min": 1, "max": num_users + 1}),
+                Column(name="first_name",    type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",     type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",         type="text", distribution_params={"text_type": "email"}),
+                Column(name="phone",         type="text", distribution_params={"text_type": "phone_number"}),
+                Column(name="country",       type="categorical", distribution_params={
+                    "choices": ["US", "GB", "DE", "FR", "IN", "AU", "CA", "JP", "BR", "SG", "AE", "NL"],
+                    "probabilities": [0.28, 0.10, 0.08, 0.07, 0.08, 0.06, 0.07, 0.05, 0.05, 0.04, 0.04, 0.08],
+                }),
+                Column(name="loyalty_tier",  type="categorical", distribution_params={
+                    "choices": ["bronze", "silver", "gold", "platinum"],
+                    "probabilities": [0.55, 0.28, 0.12, 0.05],
+                }),
+                Column(name="points_balance", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 7.5, "sigma": 1.5, "min": 0, "decimals": 0,
+                }),
+                Column(name="signup_at",     type="date", distribution_params={"start": "2016-01-01", "end": "2024-12-31"}),
+            ],
+            "hotels": [
+                Column(name="hotel_id",        type="int",  unique=True, distribution_params={"min": 1, "max": num_hotels + 1}),
+                Column(name="name",            type="text", distribution_params={"text_type": "company_name"}),
+                Column(name="city",            type="text", distribution_params={"text_type": "city"}),
+                Column(name="country",         type="categorical", distribution_params={
+                    "choices": ["US", "FR", "ES", "IT", "TH", "JP", "AE", "GB", "MX", "GR", "TR", "ID"],
+                    "sampling": "zipf",
+                }),
+                Column(name="star_rating",     type="categorical", distribution_params={
+                    "choices": [1, 2, 3, 4, 5],
+                    "probabilities": [0.03, 0.07, 0.25, 0.40, 0.25],
+                }),
+                Column(name="price_per_night", type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 4.8, "sigma": 0.9, "min": 30.0, "decimals": 2,
+                }),
+                Column(name="review_score",    type="float", distribution_params={
+                    "distribution": "beta", "a": 8.0, "b": 2.0, "min": 1.0, "max": 10.0, "decimals": 1,
+                }),
+                Column(name="total_rooms",     type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 4.5, "sigma": 0.8, "min": 10, "decimals": 0,
+                }),
+            ],
+            "flights": [
+                Column(name="flight_id",       type="int",  unique=True, distribution_params={"min": 1, "max": num_flights + 1}),
+                Column(name="origin",          type="categorical", distribution_params={
+                    "choices": ["JFK", "LAX", "LHR", "CDG", "DXB", "SIN", "HND", "SYD", "ORD", "FRA", "AMS", "BOM"],
+                    "sampling": "zipf",
+                }),
+                Column(name="destination",     type="categorical", distribution_params={
+                    "choices": ["JFK", "LAX", "LHR", "CDG", "DXB", "SIN", "HND", "SYD", "ORD", "FRA", "AMS", "BOM"],
+                    "sampling": "uniform",
+                }),
+                Column(name="airline",         type="categorical", distribution_params={
+                    "choices": ["Delta", "United", "American", "British Airways", "Lufthansa", "Emirates", "Singapore Airlines", "Qantas", "Air France", "KLM"],
+                    "sampling": "zipf",
+                }),
+                Column(name="cabin",           type="categorical", distribution_params={
+                    "choices": ["economy", "premium_economy", "business", "first"],
+                    "probabilities": [0.72, 0.14, 0.11, 0.03],
+                }),
+                Column(name="price",           type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 5.8, "sigma": 0.9, "min": 49.0, "decimals": 2,
+                }),
+                Column(name="duration_minutes", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 5.0, "sigma": 0.7, "min": 60, "max": 900, "decimals": 0,
+                }),
+                Column(name="departure_at",    type="date", distribution_params={"start": "2023-01-01", "end": "2025-12-31"}),
+                Column(name="seats_total",     type="int", distribution_params={
+                    "choices": [150, 180, 220, 300, 350, 400], "probabilities": [0.15, 0.20, 0.25, 0.20, 0.12, 0.08],
+                }),
+                Column(name="seats_booked",    type="int", distribution_params={
+                    "distribution": "normal", "mean": 170, "std": 50, "min": 10, "max": 400, "decimals": 0,
+                }),
+            ],
+            "bookings": [
+                Column(name="booking_id",      type="int",  unique=True, distribution_params={"min": 1, "max": num_bookings + 1}),
+                Column(name="user_id",         type="foreign_key"),
+                Column(name="booking_type",    type="categorical", distribution_params={
+                    "choices": ["hotel", "flight", "package"],
+                    "probabilities": [0.42, 0.38, 0.20],
+                }),
+                Column(name="status",          type="categorical", distribution_params={
+                    "choices": ["confirmed", "pending", "cancelled", "completed", "refunded"],
+                    "probabilities": [0.55, 0.10, 0.15, 0.18, 0.02],
+                }),
+                Column(name="total_price",     type="float", distribution_params={
+                    "distribution": "lognormal", "mu": 6.2, "sigma": 1.0, "min": 49.0, "decimals": 2,
+                }),
+                Column(name="currency",        type="categorical", distribution_params={
+                    "choices": ["USD", "EUR", "GBP", "AUD", "SGD", "JPY", "INR"],
+                    "probabilities": [0.40, 0.25, 0.12, 0.08, 0.05, 0.05, 0.05],
+                }),
+                Column(name="num_travelers",   type="int", distribution_params={
+                    "choices": [1, 2, 3, 4, 5, 6], "probabilities": [0.35, 0.38, 0.12, 0.08, 0.04, 0.03],
+                }),
+                Column(name="booked_at",       type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+                Column(name="travel_date",     type="date", distribution_params={
+                    "after_column": "booked_at", "min_delta_days": 1, "max_delta_days": 365,
+                }),
+                Column(name="cancellation_reason", type="categorical", distribution_params={
+                    "choices": ["change_of_plans", "better_price", "emergency", "weather", "airline_issue", None],
+                    "probabilities": [0.30, 0.20, 0.15, 0.15, 0.10, 0.10],
+                    "null_if": {"column": "status", "values": ["confirmed", "pending", "completed"]},
+                }),
+            ],
+            "reviews": [
+                Column(name="review_id",       type="int",  unique=True, distribution_params={"min": 1, "max": num_reviews + 1}),
+                Column(name="booking_id",      type="foreign_key"),
+                Column(name="rating",          type="int", distribution_params={
+                    "choices": [1, 2, 3, 4, 5], "probabilities": [0.04, 0.06, 0.13, 0.35, 0.42],
+                }),
+                Column(name="title",           type="text", distribution_params={"text_type": "short_review_title"}),
+                Column(name="body",            type="text", distribution_params={"text_type": "review"}),
+                Column(name="helpful_votes",   type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 1.5, "sigma": 1.2, "min": 0, "decimals": 0,
+                }),
+                Column(name="posted_at",       type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="users",    child_table="bookings", parent_key="user_id",    child_key="user_id"),
+            Relationship(parent_table="bookings", child_table="reviews",  parent_key="booking_id", child_key="booking_id"),
+        ]
+        return SchemaConfig(
+            name="Travel Dataset", description=f"Generated from story: {story}",
+            domain="travel", tables=tables, columns=columns,
+            relationships=relationships, events=[],
+        )
+
+    def _build_streaming_schema(self, story: str, default_rows: int) -> SchemaConfig:
+        num_subscribers  = self.scale_params.get("users", default_rows)
+        num_content      = max(500, num_subscribers // 10)
+        num_history      = int(num_subscribers * 15)
+        num_ratings      = int(num_subscribers * 4)
+
+        tables = [
+            Table(name="subscribers",  row_count=num_subscribers),
+            Table(name="content",      row_count=num_content),
+            Table(name="watch_history", row_count=num_history),
+            Table(name="ratings",      row_count=num_ratings),
+        ]
+        columns = {
+            "subscribers": [
+                Column(name="subscriber_id",  type="int",  unique=True, distribution_params={"min": 1, "max": num_subscribers + 1}),
+                Column(name="first_name",     type="text", distribution_params={"text_type": "first_name"}),
+                Column(name="last_name",      type="text", distribution_params={"text_type": "last_name"}),
+                Column(name="email",          type="text", distribution_params={"text_type": "email"}),
+                Column(name="plan",           type="categorical", distribution_params={
+                    "choices": ["basic", "standard", "premium", "family"],
+                    "probabilities": [0.22, 0.38, 0.30, 0.10],
+                }),
+                Column(name="country",        type="categorical", distribution_params={
+                    "choices": ["US", "GB", "DE", "IN", "BR", "CA", "FR", "AU", "MX", "JP", "ES", "KR"],
+                    "probabilities": [0.30, 0.08, 0.07, 0.08, 0.07, 0.06, 0.06, 0.05, 0.05, 0.04, 0.04, 0.10],
+                }),
+                Column(name="signup_at",      type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+                Column(name="last_active_at", type="date", distribution_params={
+                    "after_column": "signup_at", "min_delta_days": 0, "max_delta_days": 730,
+                }),
+                Column(name="is_churned",     type="boolean", distribution_params={"probability": 0.18}),
+                Column(name="churned_at",     type="date", distribution_params={
+                    "after_column": "signup_at", "min_delta_days": 30, "max_delta_days": 1825,
+                    "null_if": {"column": "is_churned", "values": [False]},
+                }),
+            ],
+            "content": [
+                Column(name="content_id",     type="int",  unique=True, distribution_params={"min": 1, "max": num_content + 1}),
+                Column(name="title",          type="text", distribution_params={"text_type": "product_name"}),
+                Column(name="type",           type="categorical", distribution_params={
+                    "choices": ["movie", "series", "documentary", "short", "special"],
+                    "probabilities": [0.40, 0.35, 0.12, 0.08, 0.05],
+                }),
+                Column(name="genre",          type="categorical", distribution_params={
+                    "choices": ["drama", "comedy", "thriller", "action", "romance", "sci-fi", "horror", "documentary", "animation", "crime"],
+                    "probabilities": [0.20, 0.16, 0.14, 0.13, 0.10, 0.09, 0.07, 0.05, 0.04, 0.02],
+                }),
+                Column(name="language",       type="categorical", distribution_params={
+                    "choices": ["en", "es", "fr", "de", "hi", "pt", "ko", "ja", "zh", "ar"],
+                    "probabilities": [0.45, 0.12, 0.08, 0.07, 0.06, 0.06, 0.05, 0.04, 0.04, 0.03],
+                }),
+                Column(name="release_year",   type="int", distribution_params={
+                    "distribution": "normal", "mean": 2018, "std": 6, "min": 1990, "max": 2024, "decimals": 0,
+                }),
+                Column(name="duration_minutes", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 4.5, "sigma": 0.6, "min": 5, "max": 240, "decimals": 0,
+                }),
+                Column(name="rating_mpaa",    type="categorical", distribution_params={
+                    "choices": ["G", "PG", "PG-13", "R", "NC-17", "TV-MA", "TV-14"],
+                    "probabilities": [0.05, 0.12, 0.28, 0.30, 0.02, 0.15, 0.08],
+                }),
+                Column(name="imdb_score",     type="float", distribution_params={
+                    "distribution": "beta", "a": 5.0, "b": 2.0, "min": 1.0, "max": 10.0, "decimals": 1,
+                }),
+                Column(name="added_at",       type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
+            ],
+            "watch_history": [
+                Column(name="history_id",     type="int",  unique=True, distribution_params={"min": 1, "max": num_history + 1}),
+                Column(name="subscriber_id",  type="foreign_key"),
+                Column(name="content_id",     type="foreign_key"),
+                Column(name="started_at",     type="date", distribution_params={"start": "2019-01-01", "end": "2024-12-31"}),
+                Column(name="watch_duration_minutes", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 3.8, "sigma": 0.9, "min": 1, "decimals": 0,
+                }),
+                Column(name="completed",      type="boolean", distribution_params={"probability": 0.62}),
+                Column(name="device",         type="categorical", distribution_params={
+                    "choices": ["smart_tv", "mobile", "desktop", "tablet", "console"],
+                    "probabilities": [0.38, 0.28, 0.18, 0.10, 0.06],
+                }),
+            ],
+            "ratings": [
+                Column(name="rating_id",      type="int",  unique=True, distribution_params={"min": 1, "max": num_ratings + 1}),
+                Column(name="subscriber_id",  type="foreign_key"),
+                Column(name="content_id",     type="foreign_key"),
+                Column(name="stars",          type="int", distribution_params={
+                    "choices": [1, 2, 3, 4, 5], "probabilities": [0.05, 0.08, 0.16, 0.36, 0.35],
+                }),
+                Column(name="rated_at",       type="date", distribution_params={"start": "2019-01-01", "end": "2024-12-31"}),
+            ],
+        }
+        relationships = [
+            Relationship(parent_table="subscribers",  child_table="watch_history", parent_key="subscriber_id", child_key="subscriber_id"),
+            Relationship(parent_table="content",      child_table="watch_history", parent_key="content_id",    child_key="content_id"),
+            Relationship(parent_table="subscribers",  child_table="ratings",       parent_key="subscriber_id", child_key="subscriber_id"),
+            Relationship(parent_table="content",      child_table="ratings",       parent_key="content_id",    child_key="content_id"),
+        ]
+        return SchemaConfig(
+            name="Streaming Dataset", description=f"Generated from story: {story}",
+            domain="streaming", tables=tables, columns=columns,
             relationships=relationships, events=[],
         )
 
