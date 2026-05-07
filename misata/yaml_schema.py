@@ -52,6 +52,7 @@ from misata.schema import (
 # ---------------------------------------------------------------------------
 
 MISATA_YAML_TEMPLATE = """\
+# yaml-language-server: $schema=https://raw.githubusercontent.com/rasinmuhammed/misata/main/schema/misata.schema.json
 # misata.yaml — synthetic data schema
 # Run `misata generate` to produce data from this file.
 # Commit this file to git so your whole team can regenerate the same dataset.
@@ -517,3 +518,49 @@ def _constraint_to_dict(c: Constraint) -> Dict[str, Any]:
     if c.high_column:
         d["high_column"] = c.high_column
     return d
+
+
+# ---------------------------------------------------------------------------
+# JSON Schema (for IDE autocomplete + inline validation of misata.yaml)
+# ---------------------------------------------------------------------------
+
+JSON_SCHEMA_URL = (
+    "https://raw.githubusercontent.com/rasinmuhammed/misata/"
+    "main/schema/misata.schema.json"
+)
+
+
+def json_schema() -> Dict[str, Any]:
+    """Return the JSON Schema for ``misata.yaml`` as a Python dict.
+
+    Use this to wire IDE autocomplete in editors that don't read the
+    inline ``# yaml-language-server`` comment, or to embed the schema in
+    custom tooling.
+
+    Example::
+
+        import json, misata
+        print(json.dumps(misata.json_schema(), indent=2))
+    """
+    import json as _json
+
+    # Prefer the packaged copy (works from a wheel install)
+    try:
+        from importlib import resources
+
+        with resources.files("misata._schemas").joinpath(
+            "misata.schema.json"
+        ).open("r", encoding="utf-8") as fh:
+            return _json.load(fh)
+    except Exception:
+        pass
+
+    # Fall back to the repo copy for editable installs
+    repo_path = Path(__file__).parent.parent / "schema" / "misata.schema.json"
+    if repo_path.exists():
+        return _json.loads(repo_path.read_text(encoding="utf-8"))
+
+    raise FileNotFoundError(
+        "misata.schema.json not found. Reinstall misata or fetch it from "
+        f"{JSON_SCHEMA_URL}"
+    )

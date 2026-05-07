@@ -89,9 +89,16 @@ def validate_schema(schema: Any) -> None:
     for t in schema.tables:
         for col in schema.get_columns(t.name):
             if col.type == "foreign_key" and (t.name, col.name) not in rel_child_keys:
+                # Suggest a likely parent: column name minus '_id', or a table sharing the column
+                hint_parent = col.name[:-3] if col.name.endswith("_id") else "<parent_table>"
+                if hint_parent not in table_names:
+                    candidates = [tn for tn in table_names if tn != t.name and col.name in column_map[tn]]
+                    hint_parent = candidates[0] if candidates else "<parent_table>"
                 issues.append(
-                    f"Column '{t.name}.{col.name}' is type 'foreign_key' but has no "
-                    f"matching Relationship with child_table='{t.name}', child_key='{col.name}'"
+                    f"Column '{t.name}.{col.name}' is type 'foreign_key' but has no matching "
+                    f"Relationship.\n      Fix: add Relationship(parent_table='{hint_parent}', "
+                    f"child_table='{t.name}', parent_key='{col.name}', child_key='{col.name}') "
+                    f"to schema.relationships"
                 )
 
     # 4. Categorical probabilities must sum to ~1.0
@@ -102,52 +109,73 @@ def validate_schema(schema: Any) -> None:
             if probs is not None and choices is not None:
                 total = sum(probs)
                 if abs(total - 1.0) > 0.02:
+                    factor = 1.0 / total if total > 0 else 1.0
+                    diff = total - 1.0
+                    direction = "scale all values down" if diff > 0 else "scale all values up"
                     issues.append(
                         f"Column '{t.name}.{col.name}' probabilities sum to {total:.4f} "
-                        f"(expected 1.0 ± 0.02)"
+                        f"(expected 1.0 ± 0.02).\n      Fix: {direction} by ×{factor:.4f}, "
+                        f"or adjust one value by {-diff:+.4f}"
                     )
                 if len(probs) != len(choices):
+                    short, long = (probs, choices) if len(probs) < len(choices) else (choices, probs)
+                    short_name = "probabilities" if short is probs else "choices"
                     issues.append(
                         f"Column '{t.name}.{col.name}' has {len(choices)} choices but "
-                        f"{len(probs)} probabilities — lengths must match"
+                        f"{len(probs)} probabilities — lengths must match.\n      "
+                        f"Fix: add {len(long) - len(short)} more {short_name} entries"
                     )
 
     # 5. Outcome curves must reference existing tables and columns
     _date_types = {"date", "datetime"}
     for curve in getattr(schema, "outcome_curves", []):
         if curve.table not in table_names:
+            available = ", ".join(sorted(table_names)) or "<none>"
             issues.append(
-                f"OutcomeCurve references unknown table '{curve.table}'"
+                f"OutcomeCurve references unknown table '{curve.table}'.\n      "
+                f"Fix: known tables are: {available}"
             )
             continue
         cols = column_map[curve.table]
         col_types = {c.name: c.type for c in schema.get_columns(curve.table)}
         if curve.column not in cols:
+            available = ", ".join(sorted(cols)) or "<none>"
             issues.append(
-                f"OutcomeCurve references unknown column '{curve.table}.{curve.column}'"
+                f"OutcomeCurve references unknown column '{curve.table}.{curve.column}'."
+                f"\n      Fix: columns in '{curve.table}': {available}"
             )
         if curve.time_column:
             if curve.time_column not in cols:
+                date_cols = [n for n, ty in col_types.items() if ty in _date_types]
+                hint = ", ".join(date_cols) if date_cols else "<add a date or datetime column>"
                 issues.append(
-                    f"OutcomeCurve references unknown time_column '{curve.table}.{curve.time_column}'"
+                    f"OutcomeCurve references unknown time_column "
+                    f"'{curve.table}.{curve.time_column}'.\n      "
+                    f"Fix: date/datetime columns in '{curve.table}': {hint}"
                 )
             elif col_types.get(curve.time_column) not in _date_types:
                 issues.append(
                     f"OutcomeCurve time_column '{curve.table}.{curve.time_column}' has type "
-                    f"'{col_types.get(curve.time_column)}' — must be 'date' or 'datetime'"
+                    f"'{col_types.get(curve.time_column)}' — must be 'date' or 'datetime'.\n      "
+                    f"Fix: change column type to 'date' or 'datetime', or pick a different time_column"
                 )
 
     # 6. Events must reference existing tables and columns
     for event in getattr(schema, "events", []):
+        ev_name = getattr(event, "name", "?")
         if event.table not in table_names:
+            available = ", ".join(sorted(table_names)) or "<none>"
             issues.append(
-                f"ScenarioEvent '{getattr(event, 'name', '?')}' references unknown table '{event.table}'"
+                f"ScenarioEvent '{ev_name}' references unknown table '{event.table}'.\n      "
+                f"Fix: known tables are: {available}"
             )
             continue
         if event.column not in column_map[event.table]:
+            available = ", ".join(sorted(column_map[event.table])) or "<none>"
             issues.append(
-                f"ScenarioEvent '{getattr(event, 'name', '?')}' references unknown column "
-                f"'{event.table}.{event.column}'"
+                f"ScenarioEvent '{ev_name}' references unknown column "
+                f"'{event.table}.{event.column}'.\n      "
+                f"Fix: columns in '{event.table}': {available}"
             )
 
     # 7. Detect cycles in the relationship graph (topological sort check)
@@ -158,25 +186,28 @@ def validate_schema(schema: Any) -> None:
             adj[r.parent_table].append(r.child_table)
 
     visited: set = set()
-    in_stack: set = set()
+    cycle_path: List[str] = []
 
-    def _has_cycle(node: str) -> bool:
+    def _find_cycle(node: str, stack: List[str]) -> bool:
         visited.add(node)
-        in_stack.add(node)
+        stack.append(node)
         for neighbour in adj.get(node, []):
-            if neighbour not in visited:
-                if _has_cycle(neighbour):
-                    return True
-            elif neighbour in in_stack:
+            if neighbour in stack:
+                cycle_path.extend(stack[stack.index(neighbour):] + [neighbour])
                 return True
-        in_stack.discard(node)
+            if neighbour not in visited and _find_cycle(neighbour, stack):
+                return True
+        stack.pop()
         return False
 
     for table_name in list(adj.keys()):
         if table_name not in visited:
-            if _has_cycle(table_name):
+            if _find_cycle(table_name, []):
+                cycle_str = " → ".join(cycle_path) if cycle_path else "(unknown)"
                 issues.append(
-                    "Circular relationship detected in schema — topological sort will fail during generation"
+                    f"Circular relationship detected: {cycle_str}.\n      "
+                    f"Fix: remove one relationship in the cycle, or convert one of "
+                    f"the tables to a reference table (is_reference=True)"
                 )
                 break  # one message is enough
 

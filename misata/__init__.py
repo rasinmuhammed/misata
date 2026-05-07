@@ -218,7 +218,7 @@ from misata.schema import (
     Table,
 )
 from misata.simulator import DataSimulator, GenerationResult
-from misata.story_parser import StoryParser
+from misata.story_parser import StoryParser, DetectionReport
 from misata.llm_parser import LLMSchemaGenerator
 from misata.validation import SchemaValidationError, validate_schema, validate_data, validate_csv, CsvValidationReport
 from misata.timeseries import (
@@ -276,6 +276,7 @@ from misata.profiles import (
 )
 from misata.recipes import RecipeSpec, RunManifest, load_recipe
 from misata.reporting import (
+    build_oracle_report,
     DataCard,
     FidelityChecker,
     FidelityReport,
@@ -309,6 +310,8 @@ from misata.yaml_schema import (
     load_yaml_schema,
     save_yaml_schema,
     MISATA_YAML_TEMPLATE,
+    json_schema,
+    JSON_SCHEMA_URL,
 )
 from misata.constraints import InequalityConstraint, ColumnRangeConstraint
 from misata.workflows import WORKFLOW_PRESETS, WorkflowEngine
@@ -352,6 +355,7 @@ __all__ = [
     "FactEngine",
     # Parsers
     "StoryParser",
+    "DetectionReport",
     "LLMSchemaGenerator",
     # Validation
     "SchemaValidationError",
@@ -414,6 +418,7 @@ __all__ = [
     "DataCard",
     "GenerationReportBundle",
     "analyze_generation",
+    "build_oracle_report",
     "WorkflowEngine",
     "WORKFLOW_PRESETS",
     "AssetStore",
@@ -432,6 +437,8 @@ __all__ = [
     "load_yaml_schema",
     "save_yaml_schema",
     "MISATA_YAML_TEMPLATE",
+    "json_schema",
+    "JSON_SCHEMA_URL",
     # Constraints
     "InequalityConstraint",
     "ColumnRangeConstraint",

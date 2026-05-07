@@ -9,12 +9,99 @@ This module provides rule-based pattern matching to extract:
 """
 
 import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from misata.schema import Column, OutcomeCurve, Relationship, ScenarioEvent, SchemaConfig, Table
+
+
+@dataclass
+class DetectionReport:
+    """Structured account of what the StoryParser understood from a story.
+
+    Returned by :meth:`StoryParser.detection_report` after :meth:`StoryParser.parse`.
+    Use this to show a confirmation/preview step before generating data — the
+    no-code studio surfaces it as a "did we understand you correctly?" panel,
+    and the CLI prints it before any rows are written.
+
+    Attributes:
+        domain: Detected domain code (e.g. "saas") or None if no domain matched.
+        domain_confidence: ``"high"`` (multiple keywords matched in the same domain),
+            ``"low"`` (single keyword), or ``"none"`` (no domain detected).
+        matched_keywords: Keywords from the detected domain that appeared in the story.
+        near_misses: ``{domain: [keywords]}`` for *other* domains whose keywords also
+            appeared. Useful for ambiguous stories ("a fintech with crypto wallets"
+            could match both fintech and crypto).
+        scale_params: Parsed scale signals (``{"users": 5000, "orders": 10000, ...}``).
+        temporal_events: Detected events (``[{type, value}, ...]``).
+        locale: Auto-detected locale code (e.g. "de_DE") or None.
+        table_preview: ``[{name, rows, columns}]`` for every table that will be generated.
+        total_rows: Sum of all ``table_preview`` row counts.
+        warnings: Human-readable warnings (fallback to generic, ambiguous domain, etc.).
+    """
+
+    domain: Optional[str] = None
+    domain_confidence: str = "none"
+    matched_keywords: List[str] = field(default_factory=list)
+    near_misses: Dict[str, List[str]] = field(default_factory=dict)
+    scale_params: Dict[str, int] = field(default_factory=dict)
+    temporal_events: List[Dict[str, Any]] = field(default_factory=list)
+    locale: Optional[str] = None
+    table_preview: List[Dict[str, Any]] = field(default_factory=list)
+    total_rows: int = 0
+    warnings: List[str] = field(default_factory=list)
+
+    def summary(self) -> str:
+        """Render a concise multi-line summary suitable for CLI / notebook output."""
+        lines: List[str] = []
+        if self.domain:
+            confidence_marker = {"high": "✓", "low": "?", "none": "✗"}.get(
+                self.domain_confidence, "?"
+            )
+            kw_str = ", ".join(self.matched_keywords[:3])
+            if len(self.matched_keywords) > 3:
+                kw_str += f" (+{len(self.matched_keywords) - 3})"
+            lines.append(
+                f"{confidence_marker} Domain: {self.domain}  [{self.domain_confidence}]"
+                + (f"  matched: {kw_str}" if kw_str else "")
+            )
+        else:
+            lines.append("✗ Domain: not detected (using generic single-table fallback)")
+
+        if self.near_misses:
+            other = ", ".join(
+                f"{d}({', '.join(kws[:2])})" for d, kws in self.near_misses.items()
+            )
+            lines.append(f"  Other matches considered: {other}")
+
+        if self.locale:
+            lines.append(f"✓ Locale: {self.locale}")
+
+        if self.scale_params:
+            scale_str = ", ".join(f"{k}={v:,}" for k, v in self.scale_params.items())
+            lines.append(f"✓ Scale: {scale_str}")
+
+        if self.temporal_events:
+            lines.append(f"✓ Events: {len(self.temporal_events)} detected")
+
+        if self.table_preview:
+            lines.append("")
+            lines.append(f"  Will generate {len(self.table_preview)} table(s), "
+                         f"{self.total_rows:,} total rows:")
+            col_w = max(len(t["name"]) for t in self.table_preview) + 2
+            for t in self.table_preview:
+                lines.append(
+                    f"    {t['name']:<{col_w}} {t['rows']:>10,} rows  "
+                    f"({t['columns']} columns)"
+                )
+
+        for w in self.warnings:
+            lines.append(f"⚠ {w}")
+
+        return "\n".join(lines)
 
 
 class StoryParser:
@@ -108,6 +195,12 @@ class StoryParser:
         self.detected_domain: Optional[str] = None
         self.scale_params: Dict[str, int] = {}
         self.temporal_events: List[Tuple[str, Any]] = []
+        # Populated by parse() — exposed via detection_report()
+        self._matched_keywords: List[str] = []
+        self._near_misses: Dict[str, List[str]] = {}
+        self._detection_warnings: List[str] = []
+        self._last_schema: Optional[SchemaConfig] = None
+        self.detected_locale: Optional[str] = None
 
     def _parse_number(self, num_str: str) -> int:
         """Parse number strings like '50K', '1.5M' to integers."""
@@ -139,15 +232,32 @@ class StoryParser:
         return float(cleaned) * multiplier
 
     def _detect_domain(self, story: str) -> Optional[str]:
-        """Detect business domain from story text."""
+        """Detect business domain from story text.
+
+        Records every domain that matched (not just the first) into
+        ``self._matched_keywords`` (winning domain) and ``self._near_misses``
+        (every other domain with at least one keyword hit). The winner is
+        always the first domain in DOMAIN_KEYWORDS that has any match — order
+        encodes precedence (e.g. crypto before fintech).
+        """
         story_lower = story.lower()
+        all_matches: Dict[str, List[str]] = {}
 
         for domain, keywords in self.DOMAIN_KEYWORDS.items():
-            for keyword in keywords:
-                if keyword in story_lower:
-                    return domain
+            hits = [kw for kw in keywords if kw in story_lower]
+            if hits:
+                all_matches[domain] = hits
 
-        return None
+        if not all_matches:
+            self._matched_keywords = []
+            self._near_misses = {}
+            return None
+
+        # Winner is the first matched domain in DOMAIN_KEYWORDS order
+        winner = next(d for d in self.DOMAIN_KEYWORDS if d in all_matches)
+        self._matched_keywords = all_matches[winner]
+        self._near_misses = {d: kws for d, kws in all_matches.items() if d != winner}
+        return winner
 
     def _extract_scale(self, story: str) -> Dict[str, int]:
         """Extract scale parameters (number of records) from story."""
@@ -428,7 +538,76 @@ class StoryParser:
                 object.__setattr__(schema, "realism", RealismConfig())
             object.__setattr__(schema.realism, "locale", self.detected_locale)
 
+        # Build detection warnings (consumed by detection_report())
+        self._detection_warnings = []
+        if self.detected_domain is None:
+            self._detection_warnings.append(
+                "No domain detected. Falling back to a generic single-table schema. "
+                "Add a domain keyword (e.g. 'saas', 'fintech', 'ecommerce') for a richer schema."
+            )
+        if self._near_misses:
+            other_domains = ", ".join(self._near_misses.keys())
+            self._detection_warnings.append(
+                f"Story also matched: {other_domains}. The first domain in detection order won; "
+                "rephrase your story if you wanted a different domain."
+            )
+
+        # Cache the produced schema so detection_report() can preview tables
+        self._last_schema = schema
         return schema
+
+    def detection_report(self) -> "DetectionReport":
+        """Return a structured account of what was detected by the most recent ``parse()``.
+
+        Call this *after* :meth:`parse` to preview detected domain, scale, locale,
+        and the tables that will be generated — useful for confirmation flows in
+        no-code UIs and for explaining ambiguous stories.
+
+        Example::
+
+            >>> parser = StoryParser()
+            >>> parser.parse("A fintech with crypto wallets and 5k users")
+            >>> print(parser.detection_report().summary())
+
+        Returns:
+            DetectionReport (dataclass) with domain, confidence, near misses,
+            scale, events, locale, table preview, and warnings.
+        """
+        confidence = "none"
+        if self.detected_domain:
+            confidence = "high" if len(self._matched_keywords) >= 2 else "low"
+
+        events = [
+            {"type": ev_type, "value": value}
+            for ev_type, value in self.temporal_events
+        ]
+
+        table_preview: List[Dict[str, Any]] = []
+        total_rows = 0
+        if self._last_schema is not None:
+            for tbl in self._last_schema.tables:
+                rows = tbl.row_count or 0
+                total_rows += rows
+                table_preview.append(
+                    {
+                        "name": tbl.name,
+                        "rows": rows,
+                        "columns": len(self._last_schema.get_columns(tbl.name)),
+                    }
+                )
+
+        return DetectionReport(
+            domain=self.detected_domain,
+            domain_confidence=confidence,
+            matched_keywords=list(self._matched_keywords),
+            near_misses={d: list(kws) for d, kws in self._near_misses.items()},
+            scale_params=dict(self.scale_params),
+            temporal_events=events,
+            locale=self.detected_locale,
+            table_preview=table_preview,
+            total_rows=total_rows,
+            warnings=list(self._detection_warnings),
+        )
 
     def _build_saas_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a SaaS-specific schema."""
@@ -810,6 +989,11 @@ class StoryParser:
             Relationship(parent_table="customers", child_table="accounts", parent_key="customer_id", child_key="customer_id"),
             Relationship(parent_table="accounts", child_table="transactions", parent_key="account_id", child_key="account_id"),
         ]
+        if re.search(r"\b(cpf|aadhaar|ssn|national id|national_id|kyc)\b", story, re.IGNORECASE):
+            columns["customers"].insert(
+                4,
+                Column(name="national_id", type="text", distribution_params={"text_type": "national_id"}),
+            )
         outcome_curve = self._build_absolute_monthly_curve(
             story, table="transactions", column="amount", time_column="transaction_date", avg_transaction_value=250.0,
         )
@@ -1150,7 +1334,7 @@ class StoryParser:
         num_properties   = self.scale_params.get("properties", self.scale_params.get("users", default_rows))
         # Each agent handles ~15-25 listings; cap agents at a sensible number
         num_agents       = self.scale_params.get("agents", min(max(10, num_properties // 20), 500))
-        num_transactions = int(num_properties * 0.6)  # ~60% of listings close
+        num_transactions = max(1, int(num_properties * 0.6))  # ~60% of listings close
 
         tables = [
             Table(name="agents",       row_count=num_agents),
@@ -1332,14 +1516,14 @@ class StoryParser:
             "follows": [
                 Column(name="follow_id",   type="int", unique=True, distribution_params={"min": 1, "max": num_follows + 1}),
                 Column(name="follower_id", type="foreign_key"),
-                Column(name="followee_id", type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
+                Column(name="followee_id", type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users + 1}),
                 Column(name="followed_at", type="date", distribution_params={"start": "2018-01-01", "end": "2024-12-31"}),
                 Column(name="is_mutual",   type="boolean", distribution_params={"probability": 0.42}),
             ],
             "reactions": [
                 Column(name="reaction_id", type="int", unique=True, distribution_params={"min": 1, "max": num_reactions + 1}),
                 Column(name="post_id",     type="foreign_key"),
-                Column(name="user_id",     type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
+                Column(name="user_id",     type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users + 1}),
                 Column(name="reaction_type", type="categorical", distribution_params={
                     "choices": ["like", "love", "haha", "wow", "sad", "angry"],
                     "probabilities": [0.65, 0.18, 0.07, 0.05, 0.03, 0.02],
@@ -1349,13 +1533,13 @@ class StoryParser:
             "comments": [
                 Column(name="comment_id", type="int", unique=True, distribution_params={"min": 1, "max": num_comments + 1}),
                 Column(name="post_id",    type="foreign_key"),
-                Column(name="user_id",    type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users}),
+                Column(name="user_id",    type="int", distribution_params={"distribution": "uniform", "min": 1, "max": num_users + 1}),
                 Column(name="body",       type="text", distribution_params={"text_type": "comment_body"}),
                 Column(name="like_count", type="int", distribution_params={
                     "distribution": "lognormal", "mu": 1.0, "sigma": 1.5, "min": 0, "decimals": 0,
                 }),
                 Column(name="is_reply",   type="boolean", distribution_params={"probability": 0.35}),
-                Column(name="parent_comment_id", type="int", distribution_params={"min": 1, "max": num_comments}),
+                Column(name="parent_comment_id", type="int", distribution_params={"min": 1, "max": num_comments + 1}),
                 Column(name="commented_at", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
             ],
         }
@@ -1885,9 +2069,9 @@ class StoryParser:
 
     def _build_insurance_schema(self, story: str, default_rows: int) -> SchemaConfig:
         num_customers = self.scale_params.get("users", default_rows)
-        num_policies  = int(num_customers * 1.3)
-        num_claims    = int(num_policies * 0.18)
-        num_payments  = int(num_policies * 12)
+        num_policies  = max(1, int(num_customers * 1.3))
+        num_claims    = max(1, int(num_policies * 0.18))
+        num_payments  = max(1, int(num_policies * 12))
 
         tables = [
             Table(name="customers", row_count=num_customers),
@@ -2005,8 +2189,8 @@ class StoryParser:
         num_users     = self.scale_params.get("users", default_rows)
         num_hotels    = max(50, num_users // 20)
         num_flights   = max(200, num_users // 5)
-        num_bookings  = int(num_users * 2.5)
-        num_reviews   = int(num_bookings * 0.45)
+        num_bookings  = max(1, int(num_users * 2.5))
+        num_reviews   = max(1, int(num_bookings * 0.45))
 
         tables = [
             Table(name="users",    row_count=num_users),

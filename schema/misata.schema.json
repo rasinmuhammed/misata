@@ -1,0 +1,530 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/rasinmuhammed/misata/main/schema/misata.schema.json",
+  "title": "Misata Schema",
+  "description": "Declarative synthetic-data schema. Run `misata generate` to produce data from this file. https://github.com/rasinmuhammed/misata",
+  "type": "object",
+  "required": ["name", "tables"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable name for this dataset."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional description of what this data represents."
+    },
+    "domain": {
+      "type": "string",
+      "description": "Business domain hint. Drives realistic priors (salary distributions, fraud rates, etc.).",
+      "enum": [
+        "generic",
+        "saas",
+        "ecommerce",
+        "fintech",
+        "healthcare",
+        "marketplace",
+        "logistics",
+        "hr",
+        "social",
+        "realestate",
+        "pharma",
+        "fooddelivery",
+        "edtech",
+        "gaming",
+        "crm",
+        "crypto",
+        "insurance",
+        "travel",
+        "streaming"
+      ]
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Random seed for reproducibility. The same seed produces the same data."
+    },
+    "rows": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Default row count for tables that do not specify their own."
+    },
+    "locale": {
+      "type": "string",
+      "description": "Locale for names, addresses, currencies (e.g. en_US, de_DE, hi_IN, ja_JP).",
+      "pattern": "^[a-z]{2}_[A-Z]{2}$"
+    },
+    "tables": {
+      "type": "object",
+      "description": "Tables to generate, keyed by table name.",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/table" }
+    },
+    "relationships": {
+      "type": "array",
+      "description": "Foreign-key relationships between tables.",
+      "items": { "$ref": "#/$defs/relationship" }
+    },
+    "constraints": {
+      "type": "array",
+      "description": "Business-rule constraints enforced at generation time.",
+      "items": { "$ref": "#/$defs/constraint" }
+    },
+    "events": {
+      "type": "array",
+      "description": "Scenario events that modify data conditionally (e.g. a Q3 revenue dip).",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "outcome_curves": {
+      "type": "array",
+      "description": "Aggregate target curves (e.g. monthly MRR shape) the generator must hit.",
+      "items": { "$ref": "#/$defs/outcome_curve" }
+    },
+    "noise": {
+      "$ref": "#/$defs/noise_config",
+      "description": "Optional noise injection rules for ML-realistic imperfections."
+    },
+    "realism": {
+      "$ref": "#/$defs/realism_config",
+      "description": "Advanced realism planning and reporting options."
+    }
+  },
+  "$defs": {
+    "table": {
+      "type": "object",
+      "required": ["columns"],
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of rows to generate for this table."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable purpose of the table."
+        },
+        "is_reference": {
+          "type": "boolean",
+          "description": "True for small lookup tables that should not be mass-generated."
+        },
+        "inline_data": {
+          "type": "array",
+          "description": "Inline rows for reference tables (each item is an object).",
+          "items": { "type": "object" }
+        },
+        "columns": {
+          "type": "object",
+          "description": "Column definitions, keyed by column name.",
+          "minProperties": 1,
+          "additionalProperties": { "$ref": "#/$defs/column" }
+        },
+        "correlations": {
+          "type": "array",
+          "description": "Pairwise Pearson correlations to enforce between numeric columns.",
+          "items": {
+            "type": "object",
+            "required": ["col_a", "col_b", "r"],
+            "properties": {
+              "col_a": { "type": "string" },
+              "col_b": { "type": "string" },
+              "r": { "type": "number", "minimum": -1, "maximum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Column data type.",
+          "enum": [
+            "int",
+            "integer",
+            "float",
+            "number",
+            "date",
+            "datetime",
+            "time",
+            "categorical",
+            "string",
+            "text",
+            "boolean",
+            "bool",
+            "foreign_key",
+            "email",
+            "uuid",
+            "json"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional column description used by LLM enrichment."
+        },
+        "unique": {
+          "type": "boolean",
+          "description": "If true, every value must be distinct."
+        },
+        "nullable": {
+          "type": "boolean",
+          "description": "If true, the column may contain NULL values."
+        },
+        "primary_key": {
+          "type": "boolean",
+          "description": "Marker for the primary key column (informational)."
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum value (for int/float/date columns)."
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum value (for int/float/date columns)."
+        },
+        "decimals": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Decimal places to round to (for float columns)."
+        },
+        "distribution": {
+          "type": "string",
+          "description": "Statistical distribution used to generate values.",
+          "enum": [
+            "uniform",
+            "normal",
+            "lognormal",
+            "log_normal",
+            "exponential",
+            "beta",
+            "power_law",
+            "pareto",
+            "categorical"
+          ]
+        },
+        "mean": { "type": "number", "description": "Mean for normal distribution." },
+        "std": { "type": "number", "description": "Standard deviation for normal distribution." },
+        "mu": { "type": "number", "description": "Log-mean for lognormal distribution." },
+        "sigma": { "type": "number", "description": "Log-std for lognormal distribution." },
+        "scale": { "type": "number", "description": "Scale parameter (exponential, pareto)." },
+        "alpha": { "type": "number", "description": "Alpha parameter (power_law/pareto)." },
+        "a": { "type": "number", "description": "Beta distribution alpha parameter." },
+        "b": { "type": "number", "description": "Beta distribution beta parameter." },
+        "choices": {
+          "type": "array",
+          "description": "Categorical values to sample from.",
+          "items": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        },
+        "probabilities": {
+          "type": "array",
+          "description": "Sampling weights for `choices`. Must sum to 1.0 (±0.02). Length must match `choices`.",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "sampling": {
+          "type": "string",
+          "description": "Sampling strategy when probabilities are not given.",
+          "enum": ["uniform", "zipf"]
+        },
+        "text_type": {
+          "type": "string",
+          "description": "Semantic text family. Drives the realism engine and locale-aware Faker fallback.",
+          "enum": [
+            "name",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "phone_number",
+            "company",
+            "company_name",
+            "job",
+            "job_title",
+            "username",
+            "address",
+            "city",
+            "state",
+            "country",
+            "url",
+            "uuid",
+            "product_name",
+            "description",
+            "bio",
+            "caption",
+            "review",
+            "short_review_title",
+            "support_ticket",
+            "email_body",
+            "comment_body",
+            "restaurant_name",
+            "menu_item",
+            "research_project_name",
+            "national_id",
+            "latitude",
+            "longitude",
+            "postal_code",
+            "sentence",
+            "word"
+          ]
+        },
+        "start": {
+          "type": "string",
+          "description": "Earliest date for date/datetime columns (YYYY-MM-DD).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}"
+        },
+        "end": {
+          "type": "string",
+          "description": "Latest date for date/datetime columns (YYYY-MM-DD).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}"
+        },
+        "after_column": {
+          "type": "string",
+          "description": "Same-row date dependency: this column must be after the named column."
+        },
+        "min_delta_days": {
+          "type": "integer",
+          "description": "Minimum days after `after_column` (when set)."
+        },
+        "max_delta_days": {
+          "type": "integer",
+          "description": "Maximum days after `after_column` (when set)."
+        },
+        "max_date": {
+          "type": "string",
+          "description": "Cap for after_column dates. Use 'today' to clamp at the current date.",
+          "enum": ["today"]
+        },
+        "relative_to": {
+          "type": "string",
+          "description": "Parent-relative date in the form 'parent_table.column'."
+        },
+        "depends_on": {
+          "type": "string",
+          "description": "Conditional generation: another column this column's value depends on."
+        },
+        "mapping": {
+          "type": "object",
+          "description": "Per-bucket distribution overrides keyed by `depends_on` value."
+        },
+        "default": {
+          "description": "Default distribution used when no `mapping` entry matches."
+        },
+        "anomaly_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "description": "Fraction of rows to inject as 3-6σ outliers (numeric) or '__anomaly__' (categorical)."
+        },
+        "null_if": {
+          "type": "object",
+          "description": "Conditional NULL: set this column to NULL when a sibling matches.",
+          "required": ["column", "values"],
+          "properties": {
+            "column": {
+              "type": "string",
+              "description": "Sibling column to inspect."
+            },
+            "values": {
+              "type": "array",
+              "description": "Set this column to NULL where the sibling equals any of these values.",
+              "items": {}
+            }
+          }
+        },
+        "date_diff_to": {
+          "type": "string",
+          "description": "Derive a float column from days between a date column and today (e.g. tenure_years from hire_date)."
+        },
+        "formula": {
+          "type": "string",
+          "description": "Expression to compute this column from others (e.g. `quantity * price`)."
+        }
+      }
+    },
+    "relationship": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Shorthand: 'parent_table.parent_col → child_table.child_col'.",
+          "pattern": ".+\\.[^\\s]+\\s*(→|->)\\s*.+\\.[^\\s]+"
+        },
+        {
+          "type": "object",
+          "required": ["parent", "child"],
+          "additionalProperties": false,
+          "properties": {
+            "parent": { "type": "string" },
+            "child": { "type": "string" },
+            "parent_col": { "type": "string", "description": "Defaults to 'id'." },
+            "child_col": { "type": "string", "description": "Defaults to '<parent>_id'." },
+            "temporal": { "type": "boolean", "description": "Force child events after parent events." }
+          }
+        }
+      ]
+    },
+    "constraint": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "max_per_group",
+            "min_per_group",
+            "sum_limit",
+            "unique_combination",
+            "inequality",
+            "col_range"
+          ]
+        },
+        "group_by": { "type": "array", "items": { "type": "string" } },
+        "column": { "type": "string" },
+        "value": { "type": "number" },
+        "action": {
+          "type": "string",
+          "enum": ["cap", "redistribute", "drop", "error"],
+          "description": "What to do when the constraint is violated."
+        },
+        "column_a": { "type": "string", "description": "LHS for inequality constraints." },
+        "operator": { "type": "string", "enum": [">", ">=", "<", "<="] },
+        "column_b": { "type": "string", "description": "RHS for inequality constraints." },
+        "low_column": { "type": "string", "description": "Lower bound for col_range constraints." },
+        "high_column": { "type": "string", "description": "Upper bound for col_range constraints." }
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": ["name", "table", "column", "condition", "modifier_type", "modifier_value"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "table": { "type": "string" },
+        "column": { "type": "string" },
+        "condition": {
+          "type": "string",
+          "description": "Pandas query expression evaluated on the DataFrame (e.g. `placed_at >= '2024-11-01'`)."
+        },
+        "modifier_type": {
+          "type": "string",
+          "enum": ["multiply", "add", "set", "function"]
+        },
+        "modifier_value": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" }
+          ]
+        },
+        "description": { "type": "string" },
+        "propagate_to": {
+          "type": "object",
+          "description": "Cascade: child_table -> {column: value} to apply to matched children.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "outcome_curve": {
+      "type": "object",
+      "required": ["table", "column", "curve_points"],
+      "properties": {
+        "table": { "type": "string" },
+        "column": { "type": "string" },
+        "time_column": { "type": "string", "description": "Date/datetime column to bucket by. Defaults to 'date'." },
+        "time_unit": {
+          "type": "string",
+          "enum": ["day", "week", "month"],
+          "description": "Bucket size. Defaults to 'month'."
+        },
+        "pattern_type": {
+          "type": "string",
+          "description": "Free-form label (seasonal, growth, decline, custom)."
+        },
+        "value_mode": {
+          "type": "string",
+          "enum": ["auto", "relative", "absolute"]
+        },
+        "intra_period_pattern": {
+          "type": "string",
+          "enum": ["uniform", "weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy"]
+        },
+        "avg_transaction_value": { "type": "number" },
+        "min_transactions_per_period": { "type": "integer", "minimum": 1 },
+        "max_transactions_per_period": { "type": "integer", "minimum": 1 },
+        "concentration": { "type": "number" },
+        "start_date": { "type": "string" },
+        "description": { "type": "string" },
+        "curve_points": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["period", "value"],
+            "properties": {
+              "period": {
+                "type": "string",
+                "description": "Period label (e.g. '2024-01' for monthly buckets)."
+              },
+              "value": {
+                "type": "number",
+                "description": "Target value at this period (relative or absolute, see `value_mode`)."
+              }
+            }
+          }
+        }
+      }
+    },
+    "noise_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["off", "ml_training", "analytics_safe", "custom"]
+        },
+        "null_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "outlier_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "typo_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "duplicate_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "null_columns": { "type": "array", "items": { "type": "string" } },
+        "outlier_columns": { "type": "array", "items": { "type": "string" } },
+        "typo_columns": { "type": "array", "items": { "type": "string" } },
+        "protected_columns": { "type": "array", "items": { "type": "string" } },
+        "exact_duplicates": { "type": "boolean" }
+      }
+    },
+    "realism_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "row_planning": { "type": "string", "enum": ["off", "heuristic", "custom"] },
+        "row_planning_base_rows": { "type": "integer", "minimum": 1 },
+        "row_count_overrides": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        },
+        "relationship_multipliers": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "coherence": { "type": "string", "enum": ["off", "standard", "strict"] },
+        "workflow_mode": { "type": "string", "enum": ["off", "preset", "custom"] },
+        "reports": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["privacy", "fidelity", "data_card"] }
+        },
+        "text_mode": { "type": "string", "enum": ["default", "realistic_catalog"] },
+        "domain_hint": { "type": "string" },
+        "locale": { "type": "string" },
+        "era": { "type": "string" },
+        "asset_store_dir": { "type": "string" }
+      }
+    }
+  }
+}
