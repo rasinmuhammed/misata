@@ -52,6 +52,36 @@ def parse(story: str, rows: int = 10_000) -> "SchemaConfig":
     return StoryParser().parse(story, default_rows=rows)
 
 
+def preview(story: str, rows: int = 10_000) -> "DetectionReport":
+    """Inspect what Misata would generate from a story — without generating any rows.
+
+    Returns a :class:`DetectionReport` describing the detected domain, locale,
+    scale, near misses, table preview, and warnings. Useful for confirmation
+    flows in UIs and notebooks: show the user *what was understood* before
+    committing to generation.
+
+    Args:
+        story: Plain-English description of the dataset.
+        rows:  Default row count (affects the table preview only — no rows are
+               actually generated).
+
+    Returns:
+        :class:`DetectionReport` (a dataclass with a ``.summary()`` method).
+
+    Example::
+
+        report = misata.preview("A fintech with crypto wallets and 5k users")
+        print(report.summary())
+
+        if report.domain != "fintech":
+            print("Refine the story:", report.warnings)
+    """
+    from misata.story_parser import StoryParser
+    parser = StoryParser()
+    parser.parse(story, default_rows=rows)
+    return parser.detection_report()
+
+
 def generate(
     story: str,
     rows: int = 10_000,
@@ -333,6 +363,7 @@ from misata.profiler import mimic, DataProfiler
 __all__ = [
     # One-liners
     "parse",
+    "preview",
     "generate",
     "generate_from_schema",
     "generate_more",

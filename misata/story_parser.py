@@ -234,27 +234,45 @@ class StoryParser:
     def _detect_domain(self, story: str) -> Optional[str]:
         """Detect business domain from story text.
 
-        Records every domain that matched (not just the first) into
-        ``self._matched_keywords`` (winning domain) and ``self._near_misses``
-        (every other domain with at least one keyword hit). The winner is
-        always the first domain in DOMAIN_KEYWORDS that has any match — order
-        encodes precedence (e.g. crypto before fintech).
+        Scoring (highest score wins; dict order is the tiebreaker):
+          • +5  if the literal domain name appears in the story
+                ("fintech" → fintech, "crypto" → crypto). This is the
+                user's strongest explicit signal and beats any generic
+                keyword hit.
+          • +1  per matched keyword.
+
+        Records every domain that matched into ``self._matched_keywords``
+        (winning domain) and ``self._near_misses`` (every other domain
+        with at least one keyword hit) for the DetectionReport.
         """
         story_lower = story.lower()
         all_matches: Dict[str, List[str]] = {}
+        scores: Dict[str, int] = {}
 
         for domain, keywords in self.DOMAIN_KEYWORDS.items():
             hits = [kw for kw in keywords if kw in story_lower]
-            if hits:
-                all_matches[domain] = hits
+            if not hits:
+                continue
+            score = len(hits)
+            # Literal domain name (e.g. "fintech") is the strongest signal —
+            # explicit user intent beats incidental keyword matches like
+            # "churn" appearing in a fintech-but-mentions-subscriptions story.
+            if domain in story_lower:
+                score += 5
+            all_matches[domain] = hits
+            scores[domain] = score
 
         if not all_matches:
             self._matched_keywords = []
             self._near_misses = {}
             return None
 
-        # Winner is the first matched domain in DOMAIN_KEYWORDS order
-        winner = next(d for d in self.DOMAIN_KEYWORDS if d in all_matches)
+        # Highest score wins; ties broken by DOMAIN_KEYWORDS order (precedence).
+        domain_order = list(self.DOMAIN_KEYWORDS.keys())
+        winner = max(
+            all_matches,
+            key=lambda d: (scores[d], -domain_order.index(d)),
+        )
         self._matched_keywords = all_matches[winner]
         self._near_misses = {d: kws for d, kws in all_matches.items() if d != winner}
         return winner
@@ -315,10 +333,23 @@ class StoryParser:
             re.IGNORECASE,
         )
 
-        for match in list(value_then_month) + list(month_then_value):
+        # Process month-then-value first, then value-then-month — so the more
+        # explicit "$50k in Jan" form overwrites the looser "Jan 50k" form when
+        # both match the same month.
+        for match in list(month_then_value) + list(value_then_month):
             month_token = match.group("month").lower()
             month_number = self.MONTHS.get(month_token[:3], self.MONTHS.get(month_token))
             if month_number is None:
+                continue
+            raw_value = match.group("value").strip().lower()
+            # Skip "January 2023" — when the value is a bare 4-digit number in
+            # the year range, it's a calendar year, not a target value.
+            cleaned = raw_value.replace("$", "").replace(",", "").strip()
+            if (
+                cleaned.isdigit()
+                and len(cleaned) == 4
+                and 1900 <= int(cleaned) <= 2100
+            ):
                 continue
             anchors[month_number] = self._parse_numeric_value(match.group("value"))
 
@@ -548,8 +579,8 @@ class StoryParser:
         if self._near_misses:
             other_domains = ", ".join(self._near_misses.keys())
             self._detection_warnings.append(
-                f"Story also matched: {other_domains}. The first domain in detection order won; "
-                "rephrase your story if you wanted a different domain."
+                f"Story also matched: {other_domains}. The highest-scoring domain won; "
+                "name the desired domain literally (e.g. 'fintech') if you want a different one."
             )
 
         # Cache the produced schema so detection_report() can preview tables

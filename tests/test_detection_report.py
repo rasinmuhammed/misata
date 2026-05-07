@@ -99,3 +99,45 @@ def test_summary_renders_without_error():
 def test_detection_report_exported_from_top_level():
     """misata.DetectionReport must be importable for downstream tooling."""
     assert misata.DetectionReport is DetectionReport
+
+
+# ---------------------------------------------------------------------------
+# Disambiguation — literal domain name beats incidental keyword matches
+# ---------------------------------------------------------------------------
+
+
+def test_literal_domain_name_beats_generic_keyword():
+    """'A fintech with crypto wallets and churn' must resolve to fintech.
+
+    Without scoring, 'churn' (a SaaS keyword) would win because SaaS is
+    listed before fintech in DOMAIN_KEYWORDS. The +5 literal-name bonus
+    overrides that — when the user explicitly says 'fintech', they mean
+    fintech, even if other domains' keywords also appear.
+    """
+    parser = StoryParser()
+    parser.parse("A fintech with crypto wallets, 50k transactions, churn in Q3")
+    report = parser.detection_report()
+    assert report.domain == "fintech", (
+        f"Expected fintech (literal name); got {report.domain}"
+    )
+
+
+def test_score_prefers_more_keyword_matches():
+    """When literal names tie, more keyword hits wins."""
+    parser = StoryParser()
+    # "ecommerce" (literal) + 3 ecommerce keywords vs "fintech" (literal) + 1 fintech kw
+    parser.parse("An ecommerce store with orders, products, retail and one fintech detail")
+    report = parser.detection_report()
+    assert report.domain == "ecommerce"
+
+
+def test_dict_order_breaks_score_ties():
+    """When two domains have the exact same score, declaration order wins.
+
+    'fooddelivery' is declared before 'ecommerce' precisely because both
+    can match 'orders'; this guarantee must hold for tie scores.
+    """
+    parser = StoryParser()
+    parser.parse("food delivery with restaurants and orders")
+    report = parser.detection_report()
+    assert report.domain == "fooddelivery"
