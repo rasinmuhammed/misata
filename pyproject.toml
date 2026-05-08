@@ -109,13 +109,18 @@ documents = [
 docs = [
     "mkdocs-material>=9.5.0",
 ]
+mcp = [
+    "mcp>=1.0.0",             # Model Context Protocol — exposes Misata to AI agents
+    "jsonschema>=4.0.0",      # YAML validation tool
+]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp]",
 ]
 
 [project.scripts]
 misata = "misata.cli:main"
 misata-studio = "misata.studio:launch"
+misata-mcp = "misata.mcp.server:main"
 
 [build-system]
 requires = ["setuptools>=68.0.0", "wheel"]
