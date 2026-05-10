@@ -93,6 +93,7 @@ nav:
     - Research Benchmarks: guides/research-benchmarks.md
     - Jupyter Magic: guides/jupyter.md
     - REST API: guides/rest-api.md
+    - Narrative Patterns: guides/narrative-patterns.md
     - MCP Server (AI agents): guides/mcp.md
 
 extra:

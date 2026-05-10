@@ -269,3 +269,37 @@ class TestEndToEnd:
         schema = parser.parse("A SaaS company with 1000 users", default_rows=100)
         locale = getattr(getattr(schema, "realism", None), "locale", None)
         assert locale is None
+
+    def test_brazilian_fintech_keeps_identity_fields_brazilian(self):
+        import misata
+
+        tables = misata.generate(
+            "Brazilian fintech with R$ payments, CPF verification, 100 users",
+            rows=100,
+            seed=42,
+        )
+
+        customers = tables["customers"]
+        assert customers["country"].eq("Brazil").all()
+        assert customers["national_id"].astype(str).str.match(r"^\d{3}\.\d{3}\.\d{3}-\d{2}$").all()
+        assert customers["first_name"].astype(str).str.len().gt(0).all()
+        assert customers["last_name"].astype(str).str.len().gt(0).all()
+
+    @pytest.mark.parametrize(
+        ("locale", "story", "expected_country"),
+        [
+            ("hi_IN", "Indian fintech in Bangalore with Aadhaar KYC and 50 users", "India"),
+            ("de_DE", "German SaaS company in Berlin with 50 users", "Germany"),
+            ("en_US", "US SaaS company in New York with 50 users", None),
+        ],
+    )
+    def test_locale_country_coherence_for_hero_locales(self, locale, story, expected_country):
+        import misata
+
+        schema = misata.parse(story, rows=50)
+        assert getattr(schema.realism, "locale", None) == locale
+        tables = misata.generate_from_schema(schema)
+
+        first_table = next(iter(tables.values()))
+        if expected_country and "country" in first_table:
+            assert first_table["country"].eq(expected_country).all()

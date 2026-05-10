@@ -102,6 +102,13 @@ class TestCLIGenerate:
             
             # Should complete (might fail if story parser doesn't match, but shouldn't crash)
             assert 'Error' not in result.output or result.exit_code == 0 or 'users' in result.output.lower()
+            if result.exit_code == 0:
+                oracle_path = os.path.join(tmpdir, "oracle_report.json")
+                assert os.path.exists(oracle_path)
+                with open(oracle_path, "r", encoding="utf-8") as f:
+                    oracle = json.load(f)
+                assert oracle["misata_report"] == "oracle"
+                assert "guarantees" in oracle
 
     def test_generate_with_db_url_sqlite(self, runner):
         """Test generate with db-url seeds SQLite."""
@@ -112,6 +119,7 @@ class TestCLIGenerate:
             result = runner.invoke(generate, [
                 '--story', 'Simple company with 10 users',
                 '--rows', '10',
+                '--output-dir', tmpdir,
                 '--db-url', db_url,
                 '--db-create',
                 '--db-truncate',
@@ -119,6 +127,7 @@ class TestCLIGenerate:
 
             assert result.exit_code == 0
             assert "Seeded" in result.output
+            assert os.path.exists(os.path.join(tmpdir, "oracle_report.json"))
 
             conn = sqlite3.connect(db_path)
             cur = conn.cursor()
@@ -197,6 +206,7 @@ class TestCLIGenerate:
             assert os.path.exists(manifest_path)
             assert os.path.exists(os.path.join(output_dir, "validation_report.json"))
             assert os.path.exists(os.path.join(output_dir, "quality_report.json"))
+            assert os.path.exists(os.path.join(output_dir, "oracle_report.json"))
             assert os.path.exists(os.path.join(output_dir, "audit_report.json"))
 
             with open(manifest_path, "r", encoding="utf-8") as f:
@@ -205,6 +215,7 @@ class TestCLIGenerate:
             assert manifest["status"] == "success"
             assert manifest["recipe_name"] == "story_recipe"
             assert manifest["total_rows"] > 0
+            assert "oracle_report" in manifest["artifacts"]
 
     def test_recipe_run_with_schema_config(self, runner):
         """Test recipe run from embedded schema config."""
