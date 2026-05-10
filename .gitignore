@@ -1,3 +1,7 @@
+# MCP registry submission (local only)
+server.json
+RELEASE_NOTES_v0.8.0.md
+
 # Environment files
 .env
 .env.local
