@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Profile any CSV file with Misata's validate command. Get per-column statistics, null rates, type inference, and a 0-100 quality score. Optionally check against a schema.">
+        <meta name="description" content="Profile CSV files for quality issues, inspect story detection results before generating, and validate misata.yaml schemas against the built-in JSON Schema. All three are zero-generation operations.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Validate CSV — Data Quality Profiling with Misata - Misata</title>
+        <title>Validate & Preview — Data Quality Profiling and Story Inspection with Misata - Misata</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#validate" class="md-skip">
+        <a href="#validate-preview" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Validate CSV — Data Quality Profiling with Misata
+              Validate & Preview — Data Quality Profiling and Story Inspection with Misata
             
           </span>
         </div>
@@ -991,6 +991,51 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#preview-inspect-story-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preview() — Inspect story detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="preview() — Inspect story detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#detectionreport-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DetectionReport reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interpreting-confidence-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting confidence levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-preview-then-generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow: preview then generate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#cli" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1000,8 +1045,36 @@
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
+  <a href="#validate_csv-csv-quality-profiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_csv() — CSV quality profiling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="validate_csv() — CSV quality profiling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#python-api" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1011,12 +1084,89 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#report-attributes" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#validationreport-attributes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Report attributes
+        ValidationReport attributes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validate_schema-yaml-schema-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_schema() — YAML schema validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="validate_schema() — YAML schema validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-api_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#editor-auto-complete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editor auto-complete
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-schema-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the schema checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-narrative-curves" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting narrative curves
       
     </span>
   </a>
@@ -1069,6 +1219,8 @@
       
         
           
+        
+      
         
       
         
@@ -1524,6 +1676,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/narrative-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Narrative Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/mcp/" class="md-nav__link">
         
   
@@ -1579,6 +1759,51 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#preview-inspect-story-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preview() — Inspect story detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="preview() — Inspect story detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#detectionreport-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DetectionReport reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interpreting-confidence-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting confidence levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-preview-then-generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow: preview then generate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#cli" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1588,8 +1813,36 @@
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
+  <a href="#validate_csv-csv-quality-profiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_csv() — CSV quality profiling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="validate_csv() — CSV quality profiling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#python-api" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1599,12 +1852,89 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#report-attributes" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#validationreport-attributes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Report attributes
+        ValidationReport attributes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validate_schema-yaml-schema-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_schema() — YAML schema validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="validate_schema() — YAML schema validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-api_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#editor-auto-complete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editor auto-complete
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-schema-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the schema checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-narrative-curves" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting narrative curves
       
     </span>
   </a>
@@ -1631,56 +1961,214 @@
   
 
 
-<h1 id="validate">Validate</h1>
-<p>Profile any CSV file and optionally check it against a Misata schema. Useful for verifying that real data matches your expectations, or for auditing generated data before seeding.</p>
-<h2 id="cli">CLI</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Profile a CSV — type inference, null rates, range stats</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>misata<span class="w"> </span>validate<span class="w"> </span>customers.csv
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Check against a YAML schema</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--schema<span class="w"> </span>misata.yaml
+<h1 id="validate-preview">Validate &amp; Preview</h1>
+<p>Misata provides three separate inspection tools — all of which produce no synthetic data:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Tool</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>preview()</code></td>
+<td style="text-align: left;">Inspect what a plain-English story would generate before committing</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>validate_csv()</code></td>
+<td style="text-align: left;">Profile a CSV for quality issues and null rates</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>validate_schema()</code></td>
+<td style="text-align: left;">Check a <code>misata.yaml</code> against the JSON Schema</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="preview-inspect-story-detection">preview() — Inspect story detection</h2>
+<p><code>preview()</code> parses a plain-English story and returns everything Misata understood: domain, scale, locale, and the table layout — without generating a single row. Use it before any large <code>generate()</code> call to catch ambiguity or misconfiguration early.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;A SaaS company with 5k users, MRR from $50k in Jan to $200k in Dec&quot;</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Parse a story into a schema and check against it</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with an orders table&quot;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span>             <span class="c1"># &quot;saas&quot;</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span><span class="p">)</span>  <span class="c1"># &quot;high&quot;</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">matched_keywords</span><span class="p">)</span>   <span class="c1"># [&quot;saas&quot;, &quot;mrr&quot;]</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">scale_params</span><span class="p">)</span>       <span class="c1"># {&quot;users&quot;: 5000}</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">locale</span><span class="p">)</span>             <span class="c1"># None</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">table_preview</span><span class="p">)</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># [{&quot;name&quot;: &quot;users&quot;,         &quot;rows&quot;: 5000,  &quot;columns&quot;: 12},</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1">#  {&quot;name&quot;: &quot;subscriptions&quot;, &quot;rows&quot;: 5000,  &quot;columns&quot;: 8},</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1">#  {&quot;name&quot;: &quot;invoices&quot;,      &quot;rows&quot;: 20000, &quot;columns&quot;: 6}]</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">temporal_events</span><span class="p">)</span>    <span class="c1"># [{&quot;type&quot;: &quot;growth&quot;, &quot;value&quot;: null}]</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span>           <span class="c1"># []</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1"># ✓ Domain: saas  [high]  matched: saas, mrr</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="c1"># ✓ Scale: users=5,000</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="c1"># ✓ Events: 2 detected</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="c1">#</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="c1">#   Will generate 3 table(s), 30,000 total rows:</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="c1">#     users          5,000 rows  (12 columns)</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="c1">#     subscriptions  5,000 rows  (8 columns)</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="c1">#     invoices      20,000 rows  (6 columns)</span>
 </code></pre></div>
-<p>Example output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Validating &#39;customers&#39; — 5,000 rows × 8 columns
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>──────────────────────────────────────────────────────────────────────
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  Column                 Type          Nulls  Range / Values              Notes
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  ────────────────────────────────────────────────────────────────────
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  customer_id            int            0.0%  1 → 5000                    unique · schema ✓
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  email                  text           0.2%  4989 unique                 0.2% nulls · schema ✓
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  plan                   categorical    0.0%  free, pro, enterprise       schema ✓
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  mrr                    float          0.0%  0.0 → 2399.8               schema ✓
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  signup_date            date           0.0%  2022-01-03 → 2024-12-29    unique
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  credit_score           int            1.1%  582 → 848                   1.1% nulls
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  is_active              boolean        0.0%
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  country                text           0.0%  94 unique
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>  ────────────────────────────────────────────────────────────────────
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>  Quality score: 94/100
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>  1 issue(s) found:
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    · credit_score: 1.1% nulls — column may be mostly empty
+<h3 id="detectionreport-reference">DetectionReport reference</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>domain</code></td>
+<td style="text-align: left;"><code>str \| None</code></td>
+<td style="text-align: left;">Detected domain code (<code>"saas"</code>, <code>"fintech"</code>, …) or <code>None</code> if no domain matched</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>domain_confidence</code></td>
+<td style="text-align: left;"><code>str</code></td>
+<td style="text-align: left;"><code>"high"</code> if ≥2 keywords matched, <code>"low"</code> if 1 keyword, <code>"none"</code> if nothing matched</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>matched_keywords</code></td>
+<td style="text-align: left;"><code>list[str]</code></td>
+<td style="text-align: left;">The specific keywords that fired for the winning domain</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>near_misses</code></td>
+<td style="text-align: left;"><code>dict[str, list[str]]</code></td>
+<td style="text-align: left;">Other domains whose keywords also appeared — useful for diagnosing ambiguity</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scale_params</code></td>
+<td style="text-align: left;"><code>dict[str, int]</code></td>
+<td style="text-align: left;">Parsed numeric scale signals (e.g. <code>{"users": 5000}</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>temporal_events</code></td>
+<td style="text-align: left;"><code>list[dict]</code></td>
+<td style="text-align: left;">Growth, churn, crash events detected (used to build outcome curves)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>locale</code></td>
+<td style="text-align: left;"><code>str \| None</code></td>
+<td style="text-align: left;">Auto-detected locale code (<code>"de_DE"</code>, <code>"pt_BR"</code>, …), or <code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>table_preview</code></td>
+<td style="text-align: left;"><code>list[dict]</code></td>
+<td style="text-align: left;"><code>[{name, rows, columns}]</code> for each table that would be generated</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>total_rows</code></td>
+<td style="text-align: left;"><code>int</code></td>
+<td style="text-align: left;">Sum of row counts across all tables</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>warnings</code></td>
+<td style="text-align: left;"><code>list[str]</code></td>
+<td style="text-align: left;">Fallback and ambiguity warnings</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interpreting-confidence-levels">Interpreting confidence levels</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="s2">&quot;A platform with crypto wallets and subscription payments&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span><span class="p">)</span>  <span class="c1"># &quot;low&quot; — ambiguous</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">near_misses</span><span class="p">)</span>        <span class="c1"># {&quot;crypto&quot;: [&quot;crypto&quot;, &quot;wallet&quot;], &quot;saas&quot;: [&quot;subscription&quot;]}</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># [&quot;Domain &#39;fintech&#39; matched on 1 keyword — consider naming the domain explicitly&quot;]</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># Fix: name the domain so it earns the +5 literal bonus</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">report2</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="s2">&quot;A fintech platform with crypto wallets and subscription payments&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">report2</span><span class="o">.</span><span class="n">domain_confidence</span><span class="p">)</span>  <span class="c1"># &quot;high&quot;</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">report2</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span>             <span class="c1"># &quot;fintech&quot;</span>
 </code></pre></div>
-<h2 id="python-api">Python API</h2>
+<p><strong>Detection scoring:</strong>
+- <strong>+5</strong> if the literal domain name appears in the story
+- <strong>+1</strong> per matched keyword</p>
+<p>The highest-scoring domain wins. Naming the domain explicitly (<code>"fintech"</code>, <code>"saas"</code>, etc.) always produces a <code>"high"</code> confidence result.</p>
+<h3 id="workflow-preview-then-generate">Workflow: preview then generate</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Profile only</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">validate_csv</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">score</span><span class="p">)</span>         <span class="c1"># 0–100</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">issues</span><span class="p">)</span>        <span class="c1"># list of strings</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="p">)</span>               <span class="c1"># formatted table</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1"># With a schema</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">load_yaml_schema</span><span class="p">(</span><span class="s2">&quot;misata.yaml&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">validate_csv</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;customers&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># From a DataFrame directly</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">validate_csv</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;customers&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">story</span> <span class="o">=</span> <span class="s2">&quot;A fintech with 5k customers, Black Friday spike&quot;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Step 1 — inspect for free</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="n">story</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">if</span> <span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No domain detected:&quot;</span><span class="p">,</span> <span class="n">report</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">exit</span><span class="p">()</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># Step 2 — optional: inspect full schema (tables, columns, FK relationships)</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">story</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="c1"># Step 3 — generate</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
 </code></pre></div>
-<h2 id="report-attributes">Report attributes</h2>
+<h3 id="cli">CLI</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>misata<span class="w"> </span>preview<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with 5k users, Q4 spike&quot;</span>
+</code></pre></div>
+<hr />
+<h2 id="validate_csv-csv-quality-profiling">validate_csv() — CSV quality profiling</h2>
+<p>Profile any CSV file for null rates, type inference, range statistics, and uniqueness violations. Returns a <code>ValidationReport</code> with a 0–100 quality score.</p>
+<h3 id="cli_1">CLI</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Profile a CSV — type inference, null rates, range stats</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>misata<span class="w"> </span>validate<span class="w"> </span>customers.csv
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Check against a YAML schema</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--schema<span class="w"> </span>misata.yaml
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Parse a story and validate the CSV against it</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with an orders table&quot;</span>
+</code></pre></div>
+<p>Example output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Validating &#39;customers&#39; — 5,000 rows × 8 columns
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>──────────────────────────────────────────────────────────────────────────
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  Column                 Type          Nulls  Range / Values               Notes
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  ──────────────────────────────────────────────────────────────────────────
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  customer_id            int            0.0%  1 → 5000                     unique · schema ✓
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  email                  text           0.2%  4,989 unique                 0.2% nulls · schema ✓
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  plan                   categorical    0.0%  free, pro, enterprise        schema ✓
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>  mrr                    float          0.0%  0.0 → 2,399.8               schema ✓
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>  signup_date            date           0.0%  2022-01-03 → 2024-12-29     unique
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>  credit_score           int            1.1%  582 → 848                    1.1% nulls
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>  is_active              boolean        0.0%
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>  country                text           0.0%  94 unique
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>  ──────────────────────────────────────────────────────────────────────────
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>  Quality score: 94/100
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>  1 issue(s) found:
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    · credit_score: 1.1% nulls — column may be mostly empty
+</code></pre></div>
+<h3 id="python-api">Python API</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Profile only</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">validate_csv</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">score</span><span class="p">)</span>         <span class="c1"># 0–100</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">issues</span><span class="p">)</span>        <span class="c1"># list of strings</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="p">)</span>               <span class="c1"># formatted table</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># With a YAML schema — checks types, required columns, value constraints</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">load_yaml_schema</span><span class="p">(</span><span class="s2">&quot;misata.yaml&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">validate_csv</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;customers&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># From a DataFrame directly</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;customers.csv&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">validate_csv</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;customers&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="validationreport-attributes">ValidationReport attributes</h3>
 <table>
 <thead>
 <tr>
@@ -1698,12 +2186,12 @@
 <tr>
 <td style="text-align: left;"><code>rows</code></td>
 <td style="text-align: left;"><code>int</code></td>
-<td style="text-align: left;">Number of rows in the CSV</td>
+<td style="text-align: left;">Number of rows profiled</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>columns</code></td>
 <td style="text-align: left;"><code>list[dict]</code></td>
-<td style="text-align: left;">Per-column stats: name, type, nulls, range, notes</td>
+<td style="text-align: left;">Per-column stats: name, inferred type, null rate, range, notes</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>issues</code></td>
@@ -1712,6 +2200,116 @@
 </tr>
 </tbody>
 </table>
+<hr />
+<h2 id="validate_schema-yaml-schema-validation">validate_schema() — YAML schema validation</h2>
+<p>Misata ships a JSON Schema (<code>misata/_schemas/misata_schema.json</code>) that describes the full <code>misata.yaml</code> format. Running <code>validate_schema()</code> runs two layers of validation:</p>
+<ol>
+<li><strong>Structural</strong> — JSON Schema checks (required fields, types, allowed values)</li>
+<li><strong>Semantic</strong> — domain-aware checks (FK targets exist, distribution params are in range, formula columns reference existing columns)</li>
+</ol>
+<h3 id="cli_2">CLI</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Validate a misata.yaml file</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>misata<span class="w"> </span>validate-schema<span class="w"> </span>misata.yaml
+</code></pre></div>
+<h3 id="python-api_1">Python API</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">validate_schema</span><span class="p">(</span><span class="s2">&quot;misata.yaml&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Schema is valid&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Example errors:</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="c1"># tables[0].columns[2]: &#39;distribution&#39; must be one of: uniform, normal, lognormal, ...</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="c1"># tables[1].columns[0]: formula references column &#39;gross_pay&#39; which is not defined</span>
+</code></pre></div>
+<h3 id="editor-auto-complete">Editor auto-complete</h3>
+<p>Add the <code>$schema</code> pointer to your <code>misata.yaml</code> to get in-editor validation and auto-complete in VS Code, PyCharm, and any editor that supports JSON Schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># misata.yaml</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nt">$schema</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://rasinmuhammed.github.io/misata/schema/misata_schema.json&quot;</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nt">tables</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">users</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nt">rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nt">columns</span><span class="p">:</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user_id</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">        </span><span class="nt">unique</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">email</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">email</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plan</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">categorical</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">        </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">free</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pro</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">enterprise</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>VS Code will highlight unknown keys, warn on invalid distribution names, and auto-complete column type names as you type.</p>
+<h3 id="what-the-schema-checks">What the schema checks</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Check</th>
+<th style="text-align: left;">Example error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Required fields present</td>
+<td style="text-align: left;"><code>tables[0]: 'name' is required</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Column types valid</td>
+<td style="text-align: left;"><code>type must be one of: int, float, text, email, …</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Distribution names valid</td>
+<td style="text-align: left;"><code>distribution must be one of: uniform, normal, lognormal, …</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">FK targets exist</td>
+<td style="text-align: left;"><code>foreign_key 'orders.customer_id' references unknown table 'users'</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Formula columns reference existing columns</td>
+<td style="text-align: left;"><code>formula 'gross_pay * rate' references undefined column 'rate'</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Distribution params in range</td>
+<td style="text-align: left;"><code>normal mean must be a number</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="inspecting-narrative-curves">Inspecting narrative curves</h2>
+<p>When a story contains growth patterns, <code>parse()</code> returns <code>OutcomeCurve</code> objects that show the exact monthly targets that will shape generated data:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="s2">&quot;SaaS mrr from $50k in Jan to $200k in Dec, Q3 slump, Black Friday spike&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="k">for</span> <span class="n">oc</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">outcome_curves</span><span class="p">:</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Curve: </span><span class="si">{</span><span class="n">oc</span><span class="o">.</span><span class="n">table</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">oc</span><span class="o">.</span><span class="n">column</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="k">for</span> <span class="n">pt</span> <span class="ow">in</span> <span class="n">oc</span><span class="o">.</span><span class="n">curve_points</span><span class="p">:</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Month </span><span class="si">{</span><span class="n">pt</span><span class="p">[</span><span class="s1">&#39;month&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">2d</span><span class="si">}</span><span class="s2">: $</span><span class="si">{</span><span class="n">pt</span><span class="p">[</span><span class="s1">&#39;target_value&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Curve: subscriptions.mrr
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  Month  1: $50,000
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  Month  2: $63,636
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  Month  3: $77,273
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  Month  4: $90,909
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>  Month  5: $104,545
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>  Month  6: $118,182
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>  Month  7: $82,727    ← Q3 slump (×0.72)
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>  Month  8: $82,727    ← Q3 slump (×0.72)
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>  Month  9: $82,727    ← Q3 slump (×0.72)
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>  Month 10: $145,455
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>  Month 11: $163,636   ← Black Friday (×1.55 on interpolated value)
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>  Month 12: $200,000
+</code></pre></div>
+<p>This lets you verify the curve before generating 100k rows. <a href="../guides/narrative-patterns/">Full narrative patterns guide →</a></p>
 
 
 

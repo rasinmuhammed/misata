@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Generate realistic multi-table synthetic datasets from a single sentence. Misata's StoryParser detects domain, scale, locale, and growth patterns automatically — no config required.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Plain English - Misata</title>
+        <title>Plain-English Generation — Misata Synthetic Data Generator - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Plain English
+              Plain-English Generation — Misata Synthetic Data Generator
             
           </span>
         </div>
@@ -686,10 +686,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-it-works" class="md-nav__link">
+  <a href="#what-the-parser-extracts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How it works
+        What the parser extracts
       
     </span>
   </a>
@@ -697,10 +697,66 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#two-step-inspect-before-generating" class="md-nav__link">
+  <a href="#preview-before-generating" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two-step: inspect before generating
+        Preview before generating
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Preview before generating">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#detectionreport-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DetectionReport fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#domain-detection-how-it-scores" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domain detection — how it scores
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Domain detection — how it scores">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#disambiguation-tip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disambiguation tip
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scale-extraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scale extraction
       
     </span>
   </a>
@@ -708,10 +764,115 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#supported-domains" class="md-nav__link">
+  <a href="#narrative-growth-curves" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Supported domains
+        Narrative growth curves
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Narrative growth curves">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#monthly-anchors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monthly anchors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quarterly-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quarterly patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#named-seasonal-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Named seasonal events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relative-multipliers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relative multipliers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qualitative-month-modifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qualitative month modifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-tokens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trigger tokens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-18-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All 18 domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-by-step-inspect-then-generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step-by-step: inspect then generate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tips
       
     </span>
   </a>
@@ -1074,6 +1235,8 @@
       
         
           
+        
+      
         
       
         
@@ -1529,6 +1692,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/narrative-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Narrative Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/mcp/" class="md-nav__link">
         
   
@@ -1584,10 +1775,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-it-works" class="md-nav__link">
+  <a href="#what-the-parser-extracts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How it works
+        What the parser extracts
       
     </span>
   </a>
@@ -1595,10 +1786,66 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#two-step-inspect-before-generating" class="md-nav__link">
+  <a href="#preview-before-generating" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two-step: inspect before generating
+        Preview before generating
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Preview before generating">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#detectionreport-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DetectionReport fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#domain-detection-how-it-scores" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domain detection — how it scores
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Domain detection — how it scores">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#disambiguation-tip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disambiguation tip
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scale-extraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scale extraction
       
     </span>
   </a>
@@ -1606,10 +1853,115 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#supported-domains" class="md-nav__link">
+  <a href="#narrative-growth-curves" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Supported domains
+        Narrative growth curves
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Narrative growth curves">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#monthly-anchors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monthly anchors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quarterly-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quarterly patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#named-seasonal-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Named seasonal events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relative-multipliers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relative multipliers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qualitative-month-modifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qualitative month modifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trigger-tokens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trigger tokens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-18-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All 18 domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-by-step-inspect-then-generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step-by-step: inspect then generate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tips
       
     </span>
   </a>
@@ -1636,8 +1988,8 @@
   
 
 
-<h1 id="plain-english-generation">Plain English Generation</h1>
-<p>The fastest path: describe a dataset in plain English and get back a <code>dict</code> of DataFrames.</p>
+<h1 id="plain-english-generation">Plain-English Generation</h1>
+<p>The fastest path to multi-table synthetic data: write one sentence, get back a <code>dict</code> of DataFrames with referential integrity, realistic distributions, and locale-accurate values.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
@@ -1645,88 +1997,528 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Returns: {&quot;customers&quot;: DataFrame, &quot;accounts&quot;: DataFrame, &quot;transactions&quot;: DataFrame}</span>
 </code></pre></div>
-<h2 id="how-it-works">How it works</h2>
-<p>Misata's <code>StoryParser</code> reads the story and infers:</p>
+<hr />
+<h2 id="what-the-parser-extracts">What the parser extracts</h2>
+<p>Misata's <code>StoryParser</code> reads the story and infers four things before a single row is generated:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Signal</th>
+<th style="text-align: left;">Example phrase</th>
+<th style="text-align: left;">What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Domain</strong></td>
+<td style="text-align: left;"><code>"fintech"</code>, <code>"saas"</code>, <code>"ecommerce"</code></td>
+<td style="text-align: left;">Selects the domain schema (tables, columns, FK relationships)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Scale</strong></td>
+<td style="text-align: left;"><code>"10k customers"</code>, <code>"500 employees"</code></td>
+<td style="text-align: left;">Sets row counts; child tables scale proportionally</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Locale</strong></td>
+<td style="text-align: left;"><code>"German company"</code>, <code>"Brazilian fintech"</code></td>
+<td style="text-align: left;">Applies country-accurate names, salaries, national IDs, phone prefixes</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Growth curves</strong></td>
+<td style="text-align: left;"><code>"MRR from $50k in Jan to $200k in Dec"</code></td>
+<td style="text-align: left;">Shapes numeric distributions to match exact monthly targets</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="preview-before-generating">Preview before generating</h2>
+<p>Use <code>preview()</code> to confirm what Misata understood before committing to a large generation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="s2">&quot;A SaaS company with 5k users, MRR from $50k in Jan to $200k in Dec&quot;</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span>            <span class="c1"># &quot;saas&quot;</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span><span class="p">)</span> <span class="c1"># &quot;high&quot;</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">matched_keywords</span><span class="p">)</span>  <span class="c1"># [&quot;saas&quot;, &quot;mrr&quot;]</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">scale_params</span><span class="p">)</span>      <span class="c1"># {&quot;users&quot;: 5000}</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">locale</span><span class="p">)</span>            <span class="c1"># None (no locale detected)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">table_preview</span><span class="p">)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># [{&quot;name&quot;: &quot;users&quot;, &quot;rows&quot;: 5000, &quot;columns&quot;: 12},</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1">#  {&quot;name&quot;: &quot;subscriptions&quot;, &quot;rows&quot;: 5000, &quot;columns&quot;: 8}]</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span>          <span class="c1"># [] — clean detection</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1"># ✓ Domain: saas  [high]  matched: saas, mrr</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1"># ✓ Scale: users=5,000</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="c1"># ✓ Events: 2 detected</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="c1">#</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="c1">#   Will generate 2 table(s), 10,000 total rows:</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="c1">#     users          5,000 rows  (12 columns)</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="c1">#     subscriptions  5,000 rows  (8 columns)</span>
+</code></pre></div>
+<p><code>preview()</code> calls no generators and produces no data — it is pure inspection.</p>
+<h3 id="detectionreport-fields">DetectionReport fields</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>domain</code></td>
+<td style="text-align: left;"><code>str \| None</code></td>
+<td style="text-align: left;">Detected domain code or <code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>domain_confidence</code></td>
+<td style="text-align: left;"><code>str</code></td>
+<td style="text-align: left;"><code>"high"</code> (≥2 keywords), <code>"low"</code> (1 keyword), <code>"none"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>matched_keywords</code></td>
+<td style="text-align: left;"><code>list[str]</code></td>
+<td style="text-align: left;">Keywords from the winning domain that appeared in the story</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>near_misses</code></td>
+<td style="text-align: left;"><code>dict[str, list[str]]</code></td>
+<td style="text-align: left;">Other domains whose keywords also appeared</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scale_params</code></td>
+<td style="text-align: left;"><code>dict[str, int]</code></td>
+<td style="text-align: left;">Parsed numeric scale signals</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>temporal_events</code></td>
+<td style="text-align: left;"><code>list[dict]</code></td>
+<td style="text-align: left;">Growth, churn, crash events detected</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>locale</code></td>
+<td style="text-align: left;"><code>str \| None</code></td>
+<td style="text-align: left;">Auto-detected locale code (e.g. <code>"de_DE"</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>table_preview</code></td>
+<td style="text-align: left;"><code>list[dict]</code></td>
+<td style="text-align: left;"><code>[{name, rows, columns}]</code> for every table</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>total_rows</code></td>
+<td style="text-align: left;"><code>int</code></td>
+<td style="text-align: left;">Sum of all table row counts</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>warnings</code></td>
+<td style="text-align: left;"><code>list[str]</code></td>
+<td style="text-align: left;">Fallback / ambiguity warnings</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="domain-detection-how-it-scores">Domain detection — how it scores</h2>
+<p>Detection is scored, not first-match. For each domain:</p>
 <ul>
-<li><strong>Domain</strong> — fintech, SaaS, ecommerce, healthcare, HR, real estate, social media, logistics, marketplace</li>
-<li><strong>Scale</strong> — "10k customers" → 10 000 rows in the primary table; child tables scale proportionally</li>
-<li><strong>Locale</strong> — "German company in Berlin" → <code>de_DE</code> names, €45k salary median, German postcodes</li>
-<li><strong>Outcome curves</strong> — "MRR rises from $50k in Jan to $200k in Dec" → exact per-month targets</li>
+<li><strong>+5</strong> if the literal domain name appears in the story (e.g. <code>"fintech"</code> → fintech domain gets +5)</li>
+<li><strong>+1</strong> per matched keyword</li>
 </ul>
-<h2 id="two-step-inspect-before-generating">Two-step: inspect before generating</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;A SaaS company with 5k users and 20</span><span class="si">% c</span><span class="s2">hurn&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">5_000</span><span class="p">)</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>   <span class="c1"># tables, relationships, column types</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+<p>The highest-scoring domain wins. This means <code>"a fintech company with churn"</code> correctly detects as <strong>fintech</strong> even though <code>"churn"</code> is a SaaS keyword — <code>"fintech"</code> earns +5 and beats the single SaaS keyword hit.</p>
+<p>If two stories are ambiguous, the <code>near_misses</code> field tells you which other domains also matched.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="s2">&quot;A fintech company with crypto wallets and 5k users&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span>        <span class="c1"># &quot;fintech&quot;  (+5 for &quot;fintech&quot; literal)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">near_misses</span><span class="p">)</span>   <span class="c1"># {&quot;crypto&quot;: [&quot;crypto&quot;, &quot;wallet&quot;]}</span>
 </code></pre></div>
-<h2 id="supported-domains">Supported domains</h2>
+<h3 id="disambiguation-tip">Disambiguation tip</h3>
+<p>Name the domain explicitly and it always wins:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Ambiguous</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A platform with subscription payments and crypto wallets&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Unambiguous — fintech wins because the word &quot;fintech&quot; scores +5</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A fintech platform with subscription payments and crypto wallets&quot;</span><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h2 id="scale-extraction">Scale extraction</h2>
+<p>Any of these forms are recognised:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>1000 users       → users: 1000
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>5k users         → users: 5000
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>1.5M customers   → users: 1500000
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>200 employees    → users: 200
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>500 doctors      → users: 500
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>10k orders       → orders: 10000
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>50k transactions → transactions: 50000
+</code></pre></div>
+<p>Child tables scale proportionally based on the domain's FK cardinality ratios. A SaaS company with <code>5k users</code> automatically produces ~5k subscriptions and ~20k invoices (4× ratio).</p>
+<hr />
+<h2 id="narrative-growth-curves">Narrative growth curves</h2>
+<p>This is Misata's core differentiator: natural language maps to <strong>exact per-month targets</strong> that shape the generated data. Specify them in any order; Misata interpolates between control points.</p>
+<h3 id="monthly-anchors">Monthly anchors</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># From–to with interpolation</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS company — MRR from $50k in January to $200k in December&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Multiple control points</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS mrr $50k in Jan, $90k in June, $200k in December&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Mixed: anchors + qualitative modifiers</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS mrr $50k in Jan, peak in November, $200k in Dec&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="quarterly-patterns">Quarterly patterns</h3>
+<p>Quarter keywords expand to all three constituent months:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># &quot;Q4 spike&quot; → months 10, 11, 12 all boosted by 1.3×</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Ecommerce orders — Q4 spike, Q1 slump&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># &quot;strong Q4&quot; → months 10, 11, 12 lifted by 1.15×</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS revenue — strong Q4, flat Q2&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Quarter-level anchors</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS mrr — $100k in Q1, $150k in Q2, $200k in Q3, $250k in Q4&quot;</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Pattern</th>
+<th style="text-align: left;">Months affected</th>
+<th style="text-align: left;">Factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>Q1 dip / slump</code></td>
+<td style="text-align: left;">Jan, Feb, Mar</td>
+<td style="text-align: left;">0.7×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Q2 flat</code></td>
+<td style="text-align: left;">Apr, May, Jun</td>
+<td style="text-align: left;">1.0×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Q3 peak / spike</code></td>
+<td style="text-align: left;">Jul, Aug, Sep</td>
+<td style="text-align: left;">1.25–1.3×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Q4 push / strong</code></td>
+<td style="text-align: left;">Oct, Nov, Dec</td>
+<td style="text-align: left;">1.15–1.2×</td>
+</tr>
+</tbody>
+</table>
+<h3 id="named-seasonal-events">Named seasonal events</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Ecommerce orders — Black Friday spike, Christmas peak&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;EdTech enrollments — back to school surge&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS signups — New Year spike, summer slump&quot;</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Event phrase</th>
+<th style="text-align: left;">Month</th>
+<th style="text-align: left;">Factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>Black Friday</code></td>
+<td style="text-align: left;">November</td>
+<td style="text-align: left;">1.55×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Cyber Monday</code> / <code>Cyber Week</code></td>
+<td style="text-align: left;">November</td>
+<td style="text-align: left;">1.4–1.45×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Christmas</code> / <code>Xmas</code></td>
+<td style="text-align: left;">December</td>
+<td style="text-align: left;">1.4×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Holiday season</code> / <code>Festive season</code></td>
+<td style="text-align: left;">December</td>
+<td style="text-align: left;">1.3–1.35×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>New Year</code></td>
+<td style="text-align: left;">January</td>
+<td style="text-align: left;">1.25×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Valentine</code></td>
+<td style="text-align: left;">February</td>
+<td style="text-align: left;">1.2×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Tax season</code></td>
+<td style="text-align: left;">April</td>
+<td style="text-align: left;">1.2×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Back to school</code></td>
+<td style="text-align: left;">August</td>
+<td style="text-align: left;">1.2×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Summer slump</code> / <code>Slow summer</code></td>
+<td style="text-align: left;">July + August</td>
+<td style="text-align: left;">0.75× each</td>
+</tr>
+</tbody>
+</table>
+<h3 id="relative-multipliers">Relative multipliers</h3>
+<p>When you know the end-state but not the absolute numbers, use a multiplier:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Pure multiplier — Misata derives a sensible baseline and scales it</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS startup — MRR 10x growth over the year&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Fintech transaction volume doubled over the year&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Ecommerce GMV tripled in one year&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># Multiplier + one anchor — uses the anchor as the pivot</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Jan is pinned at $50k; Dec is derived as $100k (2× Jan)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS mrr $50k in January, doubled by December&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Halved (decline story)</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS revenue halved after the pivot&quot;</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Word form</th>
+<th style="text-align: left;">Factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>halved</code></td>
+<td style="text-align: left;">0.5×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>doubled</code> / <code>2x</code></td>
+<td style="text-align: left;">2×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tripled</code> / <code>3x</code></td>
+<td style="text-align: left;">3×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>quadrupled</code> / <code>4x</code></td>
+<td style="text-align: left;">4×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>5x</code> / <code>10x</code></td>
+<td style="text-align: left;">5× / 10×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>grew 300%</code></td>
+<td style="text-align: left;">4× (1 + 3.0)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="qualitative-month-modifiers">Qualitative month modifiers</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS mrr — dip in March, peak in November&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Ecommerce orders — slump in January, boom in December&quot;</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Keyword</th>
+<th style="text-align: left;">Factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>crash</code></td>
+<td style="text-align: left;">0.5×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dip</code> / <code>drop</code> / <code>slump</code></td>
+<td style="text-align: left;">0.7–0.72×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>decline</code></td>
+<td style="text-align: left;">0.75×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>slow</code> / <code>low</code></td>
+<td style="text-align: left;">0.8×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>flat</code></td>
+<td style="text-align: left;">1.0×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>strong</code> / <code>push</code></td>
+<td style="text-align: left;">1.15–1.2×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>high</code></td>
+<td style="text-align: left;">1.2×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>peak</code></td>
+<td style="text-align: left;">1.25×</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>boom</code> / <code>spike</code> / <code>surge</code></td>
+<td style="text-align: left;">1.3×</td>
+</tr>
+</tbody>
+</table>
+<h3 id="trigger-tokens">Trigger tokens</h3>
+<p>A curve is only built when the story contains at least one of these signal words:</p>
+<p><code>revenue</code>, <code>sales</code>, <code>mrr</code>, <code>arr</code>, <code>gmv</code>, <code>amount</code>, <code>orders</code>, <code>bookings</code>, <code>transactions</code>, <code>volume</code>, <code>churn</code>, <code>growth</code>, <code>peak</code>, <code>dip</code>, <code>spike</code>, <code>surge</code>, <code>drop</code>, <code>decline</code>, <code>slump</code>, <code>boom</code>, <code>doubled</code>, <code>tripled</code>, <code>halved</code>, <code>black friday</code>, <code>christmas</code>, <code>summer slump</code>, <code>q1</code>, <code>q2</code>, <code>q3</code>, <code>q4</code></p>
+<hr />
+<h2 id="all-18-domains">All 18 domains</h2>
 <table>
 <thead>
 <tr>
 <th style="text-align: left;">Domain</th>
-<th style="text-align: left;">Trigger words</th>
+<th style="text-align: left;">Trigger keywords</th>
 <th style="text-align: left;">Tables</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">SaaS</td>
-<td style="text-align: left;">saas, subscription, mrr, churn</td>
-<td style="text-align: left;">users, subscriptions</td>
+<td style="text-align: left;"><code>saas</code></td>
+<td style="text-align: left;">saas, subscription, mrr, arr, churn</td>
+<td style="text-align: left;">users, subscriptions, invoices</td>
 </tr>
 <tr>
-<td style="text-align: left;">Ecommerce</td>
-<td style="text-align: left;">ecommerce, orders, store, retail</td>
-<td style="text-align: left;">customers, orders</td>
+<td style="text-align: left;"><code>ecommerce</code></td>
+<td style="text-align: left;">ecommerce, orders, store, retail, cart</td>
+<td style="text-align: left;">customers, products, orders, order_items</td>
 </tr>
 <tr>
-<td style="text-align: left;">Fintech</td>
-<td style="text-align: left;">fintech, banking, payments, fraud</td>
+<td style="text-align: left;"><code>fintech</code></td>
+<td style="text-align: left;">fintech, payments, banking, fraud, wallet</td>
 <td style="text-align: left;">customers, accounts, transactions</td>
 </tr>
 <tr>
-<td style="text-align: left;">Healthcare</td>
-<td style="text-align: left;">healthcare, patients, doctors, clinic</td>
+<td style="text-align: left;"><code>healthcare</code></td>
+<td style="text-align: left;">healthcare, patients, doctors, clinic, hospital</td>
 <td style="text-align: left;">doctors, patients, appointments</td>
 </tr>
 <tr>
-<td style="text-align: left;">HR</td>
-<td style="text-align: left;">hr, employees, payroll, workforce</td>
-<td style="text-align: left;">departments, employees, payroll</td>
-</tr>
-<tr>
-<td style="text-align: left;">Real estate</td>
-<td style="text-align: left;">real estate, housing, mortgage</td>
-<td style="text-align: left;">agents, properties, transactions</td>
-</tr>
-<tr>
-<td style="text-align: left;">Social media</td>
-<td style="text-align: left;">social media, influencer, followers, posts</td>
-<td style="text-align: left;">users, posts, follows, reactions, comments</td>
-</tr>
-<tr>
-<td style="text-align: left;">Marketplace</td>
-<td style="text-align: left;">marketplace, sellers, buyers, listings</td>
+<td style="text-align: left;"><code>marketplace</code></td>
+<td style="text-align: left;">marketplace, sellers, buyers, listings, freelance</td>
 <td style="text-align: left;">sellers, buyers, listings, orders</td>
 </tr>
 <tr>
-<td style="text-align: left;">Logistics</td>
-<td style="text-align: left;">logistics, shipping, drivers, routes</td>
+<td style="text-align: left;"><code>logistics</code></td>
+<td style="text-align: left;">logistics, shipping, drivers, fleet, routes</td>
 <td style="text-align: left;">drivers, vehicles, routes, shipments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>hr</code></td>
+<td style="text-align: left;">hr, employees, payroll, workforce, headcount</td>
+<td style="text-align: left;">departments, employees, payroll</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>social</code></td>
+<td style="text-align: left;">social media, instagram, tiktok, followers, feed</td>
+<td style="text-align: left;">users, posts, follows, reactions, comments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>realestate</code></td>
+<td style="text-align: left;">real estate, housing, mortgage, listings</td>
+<td style="text-align: left;">agents, properties, transactions</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pharma</code></td>
+<td style="text-align: left;">pharma, clinical, trials, research</td>
+<td style="text-align: left;">researchers, projects, trials, timesheets</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>fooddelivery</code></td>
+<td style="text-align: left;">food delivery, restaurants, takeout, doordash</td>
+<td style="text-align: left;">restaurants, customers, couriers, orders, order_items</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>edtech</code></td>
+<td style="text-align: left;">edtech, courses, students, enrollments, lms</td>
+<td style="text-align: left;">instructors, courses, students, enrollments, quiz_attempts</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>gaming</code></td>
+<td style="text-align: left;">gaming, players, leaderboard, esports, matches</td>
+<td style="text-align: left;">players, matches, sessions, achievements</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>crm</code></td>
+<td style="text-align: left;">crm, contacts, deals, pipeline, salesforce</td>
+<td style="text-align: left;">companies, contacts, deals, activities</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>crypto</code></td>
+<td style="text-align: left;">crypto, blockchain, ethereum, defi, wallet</td>
+<td style="text-align: left;">wallets, tokens, transactions, token_prices</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>insurance</code></td>
+<td style="text-align: left;">insurance, policy, claims, premium</td>
+<td style="text-align: left;">customers, policies, claims, payments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>travel</code></td>
+<td style="text-align: left;">travel, hotel, flights, bookings, airbnb</td>
+<td style="text-align: left;">users, hotels, flights, bookings, reviews</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>streaming</code></td>
+<td style="text-align: left;">streaming, netflix, subscribers, watch history</td>
+<td style="text-align: left;">subscribers, content, watch_history, ratings</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition tip">
-<p class="admonition-title">No match → generic table</p>
-<p>If no domain keyword is detected, Misata falls back to a single generic table with inferred columns. Use an explicit domain keyword or switch to <code>LLMSchemaGenerator</code> for open-ended stories.</p>
-</div>
+<p><a href="../../domains/">Detailed domain reference with column listings →</a></p>
+<hr />
+<h2 id="step-by-step-inspect-then-generate">Step-by-step: inspect then generate</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># Step 1 — preview (zero rows generated)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="s2">&quot;A fintech with 5k customers, Black Friday spike&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="k">if</span> <span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;⚠ No domain detected&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># Step 2 — inspect full schema</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;A fintech with 5k customers, Black Friday spike&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="c1"># Tables: customers, accounts, transactions</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="c1"># Outcome curves: 1 (transactions.amount, monthly)</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="c1"># Step 3 — generate</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;transactions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+</code></pre></div>
+<hr />
+<h2 id="tips">Tips</h2>
+<p><strong>Be explicit about scale:</strong> <code>"5k users"</code> is always clearer than <code>"a medium-sized company"</code>.</p>
+<p><strong>Name the domain:</strong> <code>"A fintech company with..."</code> always wins over a story that only uses secondary keywords.</p>
+<p><strong>Combine anchors freely:</strong> Monthly anchors, quarter patterns, named events, and multipliers can all appear in the same story. Named events and quarter patterns stack multiplicatively.</p>
+<p><strong>Use <code>seed</code> for reproducibility:</strong> Same seed + same story = byte-identical output every time.</p>
+<p><strong>Switch to LLM for open-ended stories:</strong> If your story doesn't fit any of the 18 domains, <code>LLMSchemaGenerator</code> can interpret it using a large language model:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMSchemaGenerator</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">gen</span> <span class="o">=</span> <span class="n">LLMSchemaGenerator</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;groq&quot;</span><span class="p">)</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">gen</span><span class="o">.</span><span class="n">generate_from_story</span><span class="p">(</span><span class="s2">&quot;A B2B API platform with rate limits and invoicing&quot;</span><span class="p">)</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+</code></pre></div>
 
 
 
 
 
 
+
+  
+  
 
 
 

@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Get started with Misata in 5 minutes. Install, generate your first multi-table synthetic dataset from plain English, and export to CSV, Parquet, or your database.">
+        <meta name="description" content="Get started with Misata in 5 minutes. Install, generate multi-table synthetic datasets from plain English, shape data with narrative growth curves, and export to CSV, Parquet, or your database.">
       
       
       
@@ -597,10 +597,71 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#preview-before-generating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview before generating
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Preview before generating">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#detectionreport-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DetectionReport fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrative-growth-curves" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative growth curves
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-18-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All 18 domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inspect-the-schema-first" class="md-nav__link">
     <span class="md-ellipsis">
       
         Inspect the schema first
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#locale-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Locale support
       
     </span>
   </a>
@@ -630,10 +691,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#next" class="md-nav__link">
+  <a href="#use-from-an-ai-assistant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Next
+        Use from an AI assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
       
     </span>
   </a>
@@ -1132,6 +1204,8 @@
       
         
       
+        
+      
     
     
     
@@ -1557,6 +1631,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/narrative-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Narrative Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/mcp/" class="md-nav__link">
         
   
@@ -1634,10 +1736,71 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#preview-before-generating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview before generating
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Preview before generating">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#detectionreport-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DetectionReport fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrative-growth-curves" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative growth curves
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-18-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All 18 domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#inspect-the-schema-first" class="md-nav__link">
     <span class="md-ellipsis">
       
         Inspect the schema first
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#locale-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Locale support
       
     </span>
   </a>
@@ -1667,10 +1830,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#next" class="md-nav__link">
+  <a href="#use-from-an-ai-assistant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Next
+        Use from an AI assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
       
     </span>
   </a>
@@ -1702,12 +1876,14 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>misata
 </code></pre></div>
 <p>Optional extras:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[llm]&quot;</span><span class="w">        </span><span class="c1"># Groq / OpenAI / Claude / Gemini / Ollama schema generation</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[documents]&quot;</span><span class="w">  </span><span class="c1"># PDF output via weasyprint</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[advanced]&quot;</span><span class="w">   </span><span class="c1"># SDV/CTGAN statistical synthesis</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[mcp]&quot;</span><span class="w">        </span><span class="c1"># MCP server — use Misata from Claude / Cursor</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[llm]&quot;</span><span class="w">        </span><span class="c1"># Groq / OpenAI / Claude / Gemini / Ollama schema generation</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[documents]&quot;</span><span class="w">  </span><span class="c1"># PDF output via weasyprint</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[advanced]&quot;</span><span class="w">   </span><span class="c1"># SDV/CTGAN statistical synthesis</span>
 </code></pre></div>
 <hr />
 <h2 id="your-first-dataset">Your first dataset</h2>
+<p>Write one sentence. Get back a <code>dict[str, pd.DataFrame]</code> with referential integrity, realistic distributions, and locale-accurate values.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
@@ -1719,43 +1895,334 @@
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> rows&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="nb">print</span><span class="p">()</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="c1"># users:          5,000 rows</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># subscriptions:  5,000 rows</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="c1"># invoices:      20,000 rows</span>
 </code></pre></div>
-<p><code>generate()</code> returns a <code>dict[str, pd.DataFrame]</code> — one key per table, FK integrity guaranteed.</p>
+<hr />
+<h2 id="preview-before-generating">Preview before generating</h2>
+<p>Use <code>preview()</code> to confirm what Misata understood before committing to a large generation run. It calls no generators and produces no rows.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">&quot;A fintech startup with 10k customers, 3</span><span class="si">% f</span><span class="s2">raud rate, and IBAN accounts&quot;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span>             <span class="c1"># &quot;fintech&quot;</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span><span class="p">)</span>  <span class="c1"># &quot;high&quot;</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">matched_keywords</span><span class="p">)</span>   <span class="c1"># [&quot;fintech&quot;, &quot;fraud&quot;]</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">scale_params</span><span class="p">)</span>       <span class="c1"># {&quot;users&quot;: 10000}</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">locale</span><span class="p">)</span>             <span class="c1"># None</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">table_preview</span><span class="p">)</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="c1"># [{&quot;name&quot;: &quot;customers&quot;, &quot;rows&quot;: 10000, &quot;columns&quot;: 9},</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="c1">#  {&quot;name&quot;: &quot;accounts&quot;,  &quot;rows&quot;: 10000, &quot;columns&quot;: 6},</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="c1">#  {&quot;name&quot;: &quot;transactions&quot;, &quot;rows&quot;: 80000, &quot;columns&quot;: 8}]</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span>           <span class="c1"># [] — clean detection</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="c1"># ✓ Domain: fintech  [high]  matched: fintech, fraud</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="c1"># ✓ Scale: users=10,000</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="c1"># ✓ Events: 0 detected</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="c1">#</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="c1">#   Will generate 3 table(s), 100,000 total rows:</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="c1">#     customers      10,000 rows  (9 columns)</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="c1">#     accounts       10,000 rows  (6 columns)</span>
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a><span class="c1">#     transactions   80,000 rows  (8 columns)</span>
+</code></pre></div>
+<h3 id="detectionreport-fields">DetectionReport fields</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>domain</code></td>
+<td style="text-align: left;"><code>str \| None</code></td>
+<td style="text-align: left;">Detected domain code or <code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>domain_confidence</code></td>
+<td style="text-align: left;"><code>str</code></td>
+<td style="text-align: left;"><code>"high"</code> (≥2 keywords), <code>"low"</code> (1 keyword), <code>"none"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>matched_keywords</code></td>
+<td style="text-align: left;"><code>list[str]</code></td>
+<td style="text-align: left;">Keywords that fired for the winning domain</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>near_misses</code></td>
+<td style="text-align: left;"><code>dict[str, list[str]]</code></td>
+<td style="text-align: left;">Other domains whose keywords also appeared</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>scale_params</code></td>
+<td style="text-align: left;"><code>dict[str, int]</code></td>
+<td style="text-align: left;">Parsed numeric scale signals</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>temporal_events</code></td>
+<td style="text-align: left;"><code>list[dict]</code></td>
+<td style="text-align: left;">Growth, churn, crash events detected</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>locale</code></td>
+<td style="text-align: left;"><code>str \| None</code></td>
+<td style="text-align: left;">Auto-detected locale code (e.g. <code>"de_DE"</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>table_preview</code></td>
+<td style="text-align: left;"><code>list[dict]</code></td>
+<td style="text-align: left;"><code>[{name, rows, columns}]</code> for each table</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>total_rows</code></td>
+<td style="text-align: left;"><code>int</code></td>
+<td style="text-align: left;">Sum of all table row counts</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>warnings</code></td>
+<td style="text-align: left;"><code>list[str]</code></td>
+<td style="text-align: left;">Fallback and ambiguity warnings</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="narrative-growth-curves">Narrative growth curves</h2>
+<p>Describe a growth trajectory in plain English — Misata builds exact per-month targets and shapes generated data to match.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Ecommerce with seasonal story</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="s2">&quot;Ecommerce store with 10k customers — &quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="s2">&quot;revenue from $200k in Jan to $350k in Sep, &quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="s2">&quot;Black Friday spike, Christmas peak, Q1 slump after holidays&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># SaaS hockey-stick</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="s2">&quot;SaaS startup with 2k users — MRR $5k in January, 10x growth over the year, &quot;</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="s2">&quot;strong Q4 push&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">)</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="c1"># B2B with summer slump</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>    <span class="s2">&quot;B2B SaaS platform with 1k enterprise customers — &quot;</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>    <span class="s2">&quot;ARR $500k in Jan, doubled by December, summer slump&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="p">)</span>
+</code></pre></div>
+<p>All three pattern types compose freely:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Pattern type</th>
+<th style="text-align: left;">Example phrase</th>
+<th style="text-align: left;">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Monthly anchor</td>
+<td style="text-align: left;"><code>"MRR $50k in January"</code></td>
+<td style="text-align: left;">Pins exact value for that month</td>
+</tr>
+<tr>
+<td style="text-align: left;">Quarter modifier</td>
+<td style="text-align: left;"><code>"Q4 spike"</code></td>
+<td style="text-align: left;">Boosts Oct/Nov/Dec by 1.3×</td>
+</tr>
+<tr>
+<td style="text-align: left;">Named event</td>
+<td style="text-align: left;"><code>"Black Friday spike"</code></td>
+<td style="text-align: left;">November +1.55×</td>
+</tr>
+<tr>
+<td style="text-align: left;">Multiplier</td>
+<td style="text-align: left;"><code>"doubled by December"</code></td>
+<td style="text-align: left;">End value = 2× start</td>
+</tr>
+<tr>
+<td style="text-align: left;">From–to</td>
+<td style="text-align: left;"><code>"from $50k to $200k"</code></td>
+<td style="text-align: left;">Linear interpolation across the year</td>
+</tr>
+</tbody>
+</table>
+<p><a href="../guides/narrative-patterns/">Full narrative patterns reference →</a></p>
+<hr />
+<h2 id="all-18-domains">All 18 domains</h2>
+<p>Misata ships with schemas for 18 industry verticals:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Domain</th>
+<th style="text-align: left;">Trigger keywords</th>
+<th style="text-align: left;">Tables</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>saas</code></td>
+<td style="text-align: left;">saas, mrr, arr, churn</td>
+<td style="text-align: left;">users, subscriptions, invoices</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ecommerce</code></td>
+<td style="text-align: left;">ecommerce, orders, retail</td>
+<td style="text-align: left;">customers, products, orders, order_items</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>fintech</code></td>
+<td style="text-align: left;">fintech, payments, fraud</td>
+<td style="text-align: left;">customers, accounts, transactions</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>healthcare</code></td>
+<td style="text-align: left;">healthcare, patients, clinic</td>
+<td style="text-align: left;">doctors, patients, appointments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>marketplace</code></td>
+<td style="text-align: left;">marketplace, sellers, listings</td>
+<td style="text-align: left;">sellers, buyers, listings, orders</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>logistics</code></td>
+<td style="text-align: left;">logistics, shipping, fleet</td>
+<td style="text-align: left;">drivers, vehicles, routes, shipments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>hr</code></td>
+<td style="text-align: left;">hr, employees, payroll</td>
+<td style="text-align: left;">departments, employees, payroll</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>social</code></td>
+<td style="text-align: left;">social media, followers, feed</td>
+<td style="text-align: left;">users, posts, follows, reactions, comments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>realestate</code></td>
+<td style="text-align: left;">real estate, mortgage</td>
+<td style="text-align: left;">agents, properties, transactions</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pharma</code></td>
+<td style="text-align: left;">pharma, clinical, trials</td>
+<td style="text-align: left;">researchers, projects, trials, timesheets</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>fooddelivery</code></td>
+<td style="text-align: left;">food delivery, restaurants</td>
+<td style="text-align: left;">restaurants, customers, couriers, orders</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>edtech</code></td>
+<td style="text-align: left;">edtech, courses, students</td>
+<td style="text-align: left;">instructors, courses, students, enrollments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>gaming</code></td>
+<td style="text-align: left;">gaming, players, leaderboard</td>
+<td style="text-align: left;">players, matches, sessions, achievements</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>crm</code></td>
+<td style="text-align: left;">crm, contacts, deals</td>
+<td style="text-align: left;">companies, contacts, deals, activities</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>crypto</code></td>
+<td style="text-align: left;">crypto, blockchain, defi</td>
+<td style="text-align: left;">wallets, tokens, transactions, token_prices</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>insurance</code></td>
+<td style="text-align: left;">insurance, policy, claims</td>
+<td style="text-align: left;">customers, policies, claims, payments</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>travel</code></td>
+<td style="text-align: left;">travel, hotel, flights</td>
+<td style="text-align: left;">users, hotels, flights, bookings, reviews</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>streaming</code></td>
+<td style="text-align: left;">streaming, netflix, subscribers</td>
+<td style="text-align: left;">subscribers, content, watch_history, ratings</td>
+</tr>
+</tbody>
+</table>
+<p><a href="../domains/">Full domain reference with column listings →</a></p>
 <hr />
 <h2 id="inspect-the-schema-first">Inspect the schema first</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;A fintech company with 10k customers&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Tables: customers, accounts, transactions</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Relationships: customers → accounts → transactions</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Rows: 10000 / 25000 / 80000</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;A fintech company with 10k customers&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># Tables: customers, accounts, transactions</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Relationships: customers → accounts → transactions</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Rows: 10,000 / 25,000 / 80,000</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
 </code></pre></div>
 <hr />
+<h2 id="locale-support">Locale support</h2>
+<p>Add a country to get locale-accurate names, addresses, national IDs, phone prefixes, and currency-appropriate values:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># German names, IBAN accounts, European address format</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A German fintech with 5k customers&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Brazilian locale — CPF national IDs, BRL salaries</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A Brazilian HR system with 200 employees&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># UK healthcare — NHS numbers, British names</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A UK healthcare provider with 1k patients&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</code></pre></div>
+<p><a href="../localisation/">Localisation reference →</a></p>
+<hr />
 <h2 id="export">Export</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_parquet</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_duckdb</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/dataset.duckdb&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_jsonl</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_parquet</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_duckdb</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/dataset.duckdb&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_jsonl</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/&quot;</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="cli">CLI</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Generate from a story</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>misata<span class="w"> </span>generate<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A marketplace with 10k sellers&quot;</span><span class="w"> </span>--rows<span class="w"> </span><span class="m">10000</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Generate from YAML schema</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>misata<span class="w"> </span>init<span class="w">        </span><span class="c1"># scaffold misata.yaml</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>misata<span class="w"> </span>generate<span class="w">    </span><span class="c1"># reads misata.yaml automatically</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># Profile a CSV file</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>misata<span class="w"> </span>validate<span class="w"> </span>customers.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Generate from a story</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>misata<span class="w"> </span>generate<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A marketplace with 10k sellers&quot;</span><span class="w"> </span>--rows<span class="w"> </span><span class="m">10000</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Generate from YAML schema</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>misata<span class="w"> </span>init<span class="w">        </span><span class="c1"># scaffold misata.yaml</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>misata<span class="w"> </span>generate<span class="w">    </span><span class="c1"># reads misata.yaml automatically</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># Profile a CSV file</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>misata<span class="w"> </span>validate<span class="w"> </span>customers.csv
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="c1"># Preview what would be generated (no rows)</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>misata<span class="w"> </span>preview<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with 5k users&quot;</span>
 </code></pre></div>
 <hr />
-<h2 id="next">Next</h2>
+<h2 id="use-from-an-ai-assistant">Use from an AI assistant</h2>
+<p>If you have <code>misata[mcp]</code> installed, wire it into Claude Desktop, Cursor, or Windsurf and describe datasets in plain English:</p>
+<blockquote>
+<p>"Generate a fintech fraud dataset with 10k customers."</p>
+<p>"Build me SaaS subscription data with MRR growing from $50k to $200k over the year."</p>
+</blockquote>
+<p><a href="../guides/mcp/">MCP server setup →</a></p>
+<hr />
+<h2 id="next-steps">Next steps</h2>
 <ul>
-<li><a href="../generation/">All six generation methods →</a></li>
+<li><a href="../generation/">All generation methods →</a></li>
+<li><a href="../guides/narrative-patterns/">Narrative growth patterns →</a></li>
 <li><a href="../localisation/">Localisation (15 country packs) →</a></li>
-<li><a href="../timeseries/">Time-series generation →</a></li>
+<li><a href="../domains/">Domain reference (all 18 schemas) →</a></li>
 <li><a href="../cli/">CLI reference →</a></li>
+<li><a href="../guides/mcp/">MCP server for AI agents →</a></li>
 </ul>
 
 

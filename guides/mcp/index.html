@@ -6,14 +6,14 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Misata ships a built-in Model Context Protocol (MCP) server. Wire it into Claude Desktop, Cursor, Windsurf, or any MCP-compatible assistant and generate realistic synthetic data from natural language descriptions.">
       
       
       
         <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/mcp/">
       
       
-        <link rel="prev" href="../rest-api/">
+        <link rel="prev" href="../narrative-patterns/">
       
       
       
@@ -25,7 +25,7 @@
     
     
       
-        <title>MCP Server (AI agents) - Misata</title>
+        <title>MCP Server — Use Misata from Claude, Cursor, and AI Coding Assistants - Misata</title>
       
     
     
@@ -111,7 +111,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              MCP Server (AI agents)
+              MCP Server — Use Misata from Claude, Cursor, and AI Coding Assistants
             
           </span>
         </div>
@@ -1019,6 +1019,8 @@
       
         
       
+        
+      
     
     
     
@@ -1444,6 +1446,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../narrative-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Narrative Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1541,10 +1571,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#cursor-windsurf-zed-continue" class="md-nav__link">
+  <a href="#cursor" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cursor / Windsurf / Zed / Continue
+        Cursor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#windsurf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Windsurf
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#zed-continue-other-editors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Zed / Continue / other editors
       
     </span>
   </a>
@@ -1579,6 +1631,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#tool-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tool reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_domains
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview_story" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preview_story
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        inspect_schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate_dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        generate_dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validate_yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1590,10 +1725,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-it-standalone" class="md-nav__link">
+  <a href="#running-standalone-debugging" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running it standalone
+        Running standalone / debugging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discovery-smithery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovery — Smithery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security note
       
     </span>
   </a>
@@ -1677,10 +1834,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#cursor-windsurf-zed-continue" class="md-nav__link">
+  <a href="#cursor" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cursor / Windsurf / Zed / Continue
+        Cursor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#windsurf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Windsurf
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#zed-continue-other-editors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Zed / Continue / other editors
       
     </span>
   </a>
@@ -1715,6 +1894,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#tool-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tool reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_domains
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview_story" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preview_story
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        inspect_schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate_dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        generate_dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validate_yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1726,10 +1988,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-it-standalone" class="md-nav__link">
+  <a href="#running-standalone-debugging" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running it standalone
+        Running standalone / debugging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discovery-smithery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovery — Smithery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security note
       
     </span>
   </a>
@@ -1757,36 +2041,51 @@
 
 
 <h1 id="mcp-server">MCP Server</h1>
-<p>Misata ships a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a>
-server. Once installed, AI assistants — Claude Desktop, Cursor, Windsurf,
-Zed, Continue — can generate realistic synthetic data from natural-language
-descriptions on the user's behalf.</p>
+<p>Misata ships a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a> (MCP) server. Once wired in, AI assistants — Claude Desktop, Cursor, Windsurf, Zed, Continue — can generate realistic synthetic datasets on your behalf without you writing a single line of Python.</p>
 <blockquote>
-<p><strong>TL;DR</strong>: a developer types <em>"give me a fintech fraud dataset for testing"</em>
-in Claude, and Claude calls Misata to generate it.</p>
+<p><strong>TL;DR</strong>: type <em>"generate a fintech fraud dataset with 10k customers"</em> in Claude, and Claude calls Misata, writes the CSVs to disk, and shows you a preview.</p>
 </blockquote>
+<hr />
 <h2 id="install">Install</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[mcp]&quot;</span>
 </code></pre></div>
-<p>This pulls in the <a href="https://pypi.org/project/mcp/"><code>mcp</code></a> Python SDK and <code>jsonschema</code>
-for the YAML validation tool.</p>
+<p>This pulls in the <a href="https://pypi.org/project/mcp/"><code>mcp</code></a> Python SDK and <code>jsonschema</code> for the YAML validation tool. The server binary is registered as a console script:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>which<span class="w"> </span>misata-mcp<span class="w">   </span><span class="c1"># → /path/to/venv/bin/misata-mcp</span>
+</code></pre></div>
+<hr />
 <h2 id="wire-it-into-your-ai-assistant">Wire it into your AI assistant</h2>
 <h3 id="claude-desktop">Claude Desktop</h3>
-<p>Edit <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>
-(macOS) or the equivalent on your platform:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">&quot;misata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;misata-mcp&quot;</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">}</span>
+<p>Edit <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> on macOS, or <code>%APPDATA%\Claude\claude_desktop_config.json</code> on Windows:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">&quot;misata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;misata-mcp&quot;</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">}</span>
 </code></pre></div>
-<p>Restart Claude Desktop. You should see Misata appear in the tools list.</p>
-<h3 id="cursor-windsurf-zed-continue">Cursor / Windsurf / Zed / Continue</h3>
-<p>Each editor has its own MCP config — usually a JSON or TOML file. The
-command is always <code>misata-mcp</code> (a console script installed by the <code>mcp</code>
-extra). Refer to your editor's MCP documentation for the exact file path.</p>
+<p>Restart Claude Desktop. Misata will appear in the tools list — look for the plug icon in the input area.</p>
+<h3 id="cursor">Cursor</h3>
+<p>Open <strong>Settings → MCP</strong> (or <code>.cursor/mcp.json</code>) and add:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;misata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;misata-mcp&quot;</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="windsurf">Windsurf</h3>
+<p>Add to <code>~/.codeium/windsurf/mcp_config.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">&quot;misata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;misata-mcp&quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="zed-continue-other-editors">Zed / Continue / other editors</h3>
+<p>The command is always <code>misata-mcp</code>. Refer to your editor's MCP documentation for the exact config file path. The pattern is identical across all clients.</p>
+<hr />
 <h2 id="what-the-agent-can-do">What the agent can do</h2>
 <p>The server exposes five tools:</p>
 <table>
@@ -1799,67 +2098,228 @@ extra). Refer to your editor's MCP documentation for the exact file path.</p>
 <tbody>
 <tr>
 <td style="text-align: left;"><code>list_domains</code></td>
-<td style="text-align: left;">List the 18 built-in domains and a sample story for each</td>
+<td style="text-align: left;">List all 18 built-in domains with a sample story for each</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>preview_story</code></td>
-<td style="text-align: left;">Detect domain, scale, locale, and table preview — no generation</td>
+<td style="text-align: left;">Detect domain, scale, locale, and table layout — zero rows generated</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>inspect_schema</code></td>
-<td style="text-align: left;">Return the full schema (tables, columns, relationships)</td>
+<td style="text-align: left;">Return the full schema (tables, columns, FK relationships) as structured JSON</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>generate_dataset</code></td>
-<td style="text-align: left;">Generate CSV files on disk and return paths + sample rows</td>
+<td style="text-align: left;">Generate CSV files on disk and return paths + 5-row sample for each table</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>validate_yaml</code></td>
-<td style="text-align: left;">Two-layer validation of a <code>misata.yaml</code> (structural + semantic)</td>
+<td style="text-align: left;">Two-layer validation (structural JSON Schema + semantic coherence checks) of a <code>misata.yaml</code></td>
 </tr>
 </tbody>
 </table>
-<p><code>generate_dataset</code> writes CSVs to a temp directory by default and returns
-the paths plus a small preview (5 rows per table). The agent can then read
-the CSVs incrementally instead of dumping millions of rows into the chat.</p>
+<p><code>generate_dataset</code> writes CSVs to a temp directory by default. The agent gets back file paths and a small preview — it never has to dump millions of rows into the chat context.</p>
+<hr />
 <h2 id="example-prompts">Example prompts</h2>
 <p>Once configured, try these in your assistant:</p>
 <blockquote>
-<p>"Generate a fintech dataset with 1000 customers, payments, and a 2% fraud rate."</p>
-<p>"Show me what tables and columns Misata would produce for an HR system with 200 employees."</p>
-<p>"I'm prototyping a dashboard. Generate sample SaaS subscription data with growth from $50k MRR in January to $200k in December, with a dip in March."</p>
-<p>"Validate this misata.yaml for me before I commit it." <em>(paste YAML)</em></p>
+<p>"Generate a fintech fraud dataset with 10k customers and a 2% fraud rate."</p>
+<p>"Show me what tables and columns Misata would produce for an HR system with 200 employees in Germany."</p>
+<p>"I'm building a BI dashboard. Generate SaaS subscription data with MRR growing from $50k in January to $200k in December, with a Q3 slump and a Black Friday spike."</p>
+<p>"Validate this misata.yaml before I commit it." <em>(paste YAML inline)</em></p>
+<p>"List all available Misata domains and pick the best one for an e-learning platform."</p>
 </blockquote>
-<p>The agent picks the right tool, calls Misata, and shows you the result.</p>
+<p>The assistant picks the right tool, calls Misata, and returns a concise summary with the file paths or validation result.</p>
+<hr />
+<h2 id="tool-reference">Tool reference</h2>
+<h3 id="list_domains"><code>list_domains</code></h3>
+<p>Returns a list of all 18 domain objects, each with <code>name</code>, <code>keywords</code>, and <code>sample_story</code>.</p>
+<p><strong>Input:</strong> none</p>
+<p><strong>Output:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;domains&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;saas&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">&quot;keywords&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;saas&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subscription&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;mrr&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;arr&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;churn&quot;</span><span class="p">],</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="nt">&quot;sample_story&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A SaaS startup with 5k users, 20% monthly churn, MRR $50k&quot;</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="err">...</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">}</span>
+</code></pre></div></p>
+<hr />
+<h3 id="preview_story"><code>preview_story</code></h3>
+<p>Parses a story and returns domain detection, scale, locale, and table layout — no rows generated.</p>
+<p><strong>Input:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;story&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A fintech startup with 10k customers, 3% fraud rate&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Output:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">&quot;domain&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fintech&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">&quot;domain_confidence&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">&quot;matched_keywords&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;fintech&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;fraud&quot;</span><span class="p">],</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="nt">&quot;scale_params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;users&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">},</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="nt">&quot;locale&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="nt">&quot;table_preview&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;customers&quot;</span><span class="p">,</span><span class="w">     </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;columns&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">},</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;accounts&quot;</span><span class="p">,</span><span class="w">      </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;columns&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">},</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;transactions&quot;</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">80000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;columns&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">}</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">  </span><span class="nt">&quot;total_rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100000</span><span class="p">,</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">  </span><span class="nt">&quot;temporal_events&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">  </span><span class="nt">&quot;warnings&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="p">}</span>
+</code></pre></div></p>
+<hr />
+<h3 id="inspect_schema"><code>inspect_schema</code></h3>
+<p>Returns the full parsed schema as structured data, including table names, column definitions, and FK relationships.</p>
+<p><strong>Input:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">&quot;story&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A SaaS company with 5k users&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Output:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">&quot;tables&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;users&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">      </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span><span class="p">,</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">      </span><span class="nt">&quot;columns&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">        </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user_id&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;int&quot;</span><span class="p">,</span><span class="w">         </span><span class="nt">&quot;unique&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">        </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;email&quot;</span><span class="p">,</span><span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;email&quot;</span><span class="p">},</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">        </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;plan&quot;</span><span class="p">,</span><span class="w">       </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;categorical&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;values&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;free&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;pro&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;enterprise&quot;</span><span class="p">]},</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">        </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;datetime&quot;</span><span class="p">}</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">      </span><span class="p">]</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="err">...</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">  </span><span class="nt">&quot;relationships&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subscriptions.user_id&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;to&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;users.user_id&quot;</span><span class="p">}</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">  </span><span class="nt">&quot;outcome_curves&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;table&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subscriptions&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;column&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mrr&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;curve_points&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">]}</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="p">}</span>
+</code></pre></div></p>
+<hr />
+<h3 id="generate_dataset"><code>generate_dataset</code></h3>
+<p>Generates a full dataset and writes one CSV per table to <code>output_dir</code> (defaults to a temp directory).</p>
+<p><strong>Input:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;story&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Ecommerce store — 5k customers, Black Friday spike, Q1 slump&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;seed&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;output_dir&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/misata_out&quot;</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Output:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;output_dir&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/misata_out&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">&quot;files&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;table&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;customers&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/misata_out/customers.csv&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span><span class="p">},</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;table&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;products&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/misata_out/products.csv&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">},</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;table&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;orders&quot;</span><span class="p">,</span><span class="w">      </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/misata_out/orders.csv&quot;</span><span class="p">,</span><span class="w">      </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">15000</span><span class="p">},</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;table&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order_items&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/misata_out/order_items.csv&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">45000</span><span class="p">}</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">  </span><span class="nt">&quot;preview&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">    </span><span class="nt">&quot;customers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;customer_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;email&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;alice@example.com&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;country&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;US&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">},</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">      </span><span class="err">...</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="p">}</span>
+</code></pre></div></p>
+<p>The agent can tell you: <em>"Generated 65,200 rows across 4 tables. Files are at <code>/tmp/misata_out/</code>. Here's a preview of the customers table…"</em></p>
+<hr />
+<h3 id="validate_yaml"><code>validate_yaml</code></h3>
+<p>Two-layer validation of a <code>misata.yaml</code> string: structural (JSON Schema) then semantic (FK consistency, formula references, distribution params).</p>
+<p><strong>Input:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;yaml_content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tables:\n  - name: users\n    rows: 1000\n    columns:\n...&quot;</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Output (valid):</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">&quot;errors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">&quot;warnings&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Output (invalid):</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">&quot;valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">&quot;errors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="s2">&quot;tables[0].columns[2]: &#39;distribution&#39; must be one of: uniform, normal, lognormal, ...&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span><span class="s2">&quot;tables[1].columns[0]: formula references column &#39;gross_pay&#39; which is not defined in this table&quot;</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">  </span><span class="nt">&quot;warnings&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">    </span><span class="s2">&quot;tables[0]: no primary key column — consider adding a unique int column&quot;</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="p">}</span>
+</code></pre></div></p>
+<hr />
+<h2 id="error-handling">Error handling</h2>
+<p>All five tools return a consistent <code>{"ok": true/false, ...}</code> envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ValueError&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;No domain could be detected from the story.&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">&quot;suggestion&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Name the domain explicitly — e.g. add &#39;fintech&#39;, &#39;saas&#39;, or &#39;ecommerce&#39; to your story.&quot;</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="p">}</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OSError&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[Errno 13] Permission denied: &#39;/protected/output&#39;&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span><span class="nt">&quot;suggestion&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Check that the output_dir path exists and is writable, or omit it to use a temp directory.&quot;</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>The agent can read the <code>suggestion</code> field and reformulate its next call without surfacing raw Python errors to the user.</p>
+<hr />
 <h2 id="how-it-works">How it works</h2>
-<p>The server is a thin protocol shim over Misata's existing public API.
-Each MCP tool maps onto one library function:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>preview_story  →  misata.preview()
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>inspect_schema →  misata.parse()
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>generate_dataset → misata.generate() + DataFrame.to_csv()
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>validate_yaml  →  misata.json_schema() + misata.validate_schema()
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>list_domains   →  StoryParser.DOMAIN_KEYWORDS
+<p>The server is a thin protocol shim over Misata's existing public API. Each tool maps to one library function:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>list_domains     →  StoryParser.DOMAIN_KEYWORDS
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>preview_story    →  misata.preview()
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>inspect_schema   →  misata.parse()
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>generate_dataset →  misata.generate() + DataFrame.to_csv()
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>validate_yaml    →  misata.json_schema() + misata.validate_schema()
 </code></pre></div>
-<p>Because it's part of the <code>misata</code> package itself (not a separate
-distribution), the server and library can never go out of sync. Update
-Misata, the MCP server updates with it.</p>
-<h2 id="running-it-standalone">Running it standalone</h2>
-<p>You don't normally need to run <code>misata-mcp</code> directly — your AI assistant
-launches it as a subprocess via stdio. But for debugging:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>misata-mcp
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># Server runs on stdio; send JSON-RPC requests on stdin.</span>
+<p>Because the MCP server is bundled inside the <code>misata</code> package itself — not a separate distribution — the server and library are always in sync. Update Misata, the MCP server updates automatically.</p>
+<hr />
+<h2 id="running-standalone-debugging">Running standalone / debugging</h2>
+<p>You don't normally need to run <code>misata-mcp</code> directly — your AI assistant launches it as a subprocess via stdio. For debugging:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>misata-mcp
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="c1"># Runs on stdio; send JSON-RPC requests on stdin, responses on stdout.</span>
 </code></pre></div>
-<p>Real debugging is easier through the <a href="https://github.com/modelcontextprotocol/inspector">MCP Inspector</a>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>npx<span class="w"> </span>@modelcontextprotocol/inspector<span class="w"> </span>misata-mcp
+<p>The easiest way to explore the tools interactively is the <a href="https://github.com/modelcontextprotocol/inspector">MCP Inspector</a>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>npx<span class="w"> </span>@modelcontextprotocol/inspector<span class="w"> </span>misata-mcp
 </code></pre></div>
-<p>This opens a web UI where you can call each tool interactively and see
-the responses. Useful when iterating on tool definitions.</p>
+<p>This opens a web UI where you can call each tool, inspect inputs and outputs, and iterate on prompts. Useful when writing system prompts that use Misata tools.</p>
+<hr />
+<h2 id="discovery-smithery">Discovery — Smithery</h2>
+<p>Misata is listed on <a href="https://smithery.ai">Smithery.ai</a>, the MCP server discovery directory. If your AI assistant supports one-click MCP installation via Smithery, you can find Misata there and install it without editing config files manually.</p>
+<hr />
+<h2 id="security-note">Security note</h2>
+<p><code>generate_dataset</code> writes files to disk. By default it uses a system temp directory that only the current user can read. If you pass a custom <code>output_dir</code>, ensure it is an appropriate path — the agent will not write outside the directory you specify.</p>
 
 
 
 
 
 
+
+  
+  
 
 
 
