@@ -182,12 +182,59 @@ class StoryParser:
     QUALITATIVE_MONTH_FACTORS = {
         "dip": 0.7,
         "drop": 0.7,
+        "slump": 0.72,
+        "crash": 0.5,
         "decline": 0.75,
+        "slow": 0.8,
         "low": 0.8,
+        "flat": 1.0,
+        "strong": 1.15,
+        "push": 1.2,
+        "high": 1.2,
         "peak": 1.25,
+        "boom": 1.3,
         "spike": 1.3,
         "surge": 1.3,
-        "high": 1.2,
+    }
+
+    # Maps quarter labels to their constituent calendar months.
+    QUARTER_MONTHS: Dict[str, List[int]] = {
+        "q1": [1, 2, 3],
+        "q2": [4, 5, 6],
+        "q3": [7, 8, 9],
+        "q4": [10, 11, 12],
+    }
+
+    # Named seasonal/commercial events → (month, relative factor).
+    # Multi-month events use None and are handled explicitly.
+    NAMED_EVENT_MODIFIERS: Dict[str, Any] = {
+        "new year": (1, 1.25),
+        "valentine": (2, 1.2),
+        "tax season": (4, 1.2),
+        "back to school": (8, 1.2),
+        "back-to-school": (8, 1.2),
+        "black friday": (11, 1.55),
+        "cyber monday": (11, 1.45),
+        "cyber week": (11, 1.4),
+        "christmas": (12, 1.4),
+        "xmas": (12, 1.4),
+        "holiday season": (12, 1.35),
+        "festive season": (12, 1.3),
+        "summer slump": None,   # handled below: months 7+8 → 0.75
+        "summer lull": None,
+        "slow summer": None,
+    }
+
+    # Word-form and Nx multipliers that indicate overall growth factor.
+    WORD_MULTIPLIERS: Dict[str, float] = {
+        "halved": 0.5,
+        "doubled": 2.0,
+        "tripled": 3.0,
+        "quadrupled": 4.0,
+        "10x": 10.0,
+        "5x": 5.0,
+        "3x": 3.0,
+        "2x": 2.0,
     }
 
     def __init__(self):
@@ -365,22 +412,119 @@ class StoryParser:
 
         return anchors
 
+    _MONTH_RE = (
+        r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?"
+        r"|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+    )
+
     def _extract_qualitative_month_modifiers(self, story: str) -> Dict[int, float]:
-        """Extract qualitative modifiers like dip in September or peak in December."""
+        """Extract qualitative modifiers — months, quarters, and named events.
+
+        Handles three pattern families:
+        * ``"dip in September"`` / ``"peak in Q4"`` — explicit keyword + period
+        * ``"Q3 slump"`` / ``"strong Q4"`` — qualifier before or after a quarter
+        * Named events: ``"Black Friday"`` → Nov ×1.55, ``"summer slump"`` → Jul+Aug ×0.75
+        """
         modifiers: Dict[int, float] = {}
 
+        # ── month-level keyword modifiers ──────────────────────────────────
         for keyword, factor in self.QUALITATIVE_MONTH_FACTORS.items():
+            # "dip in September", "peak in Dec"
             for match in re.finditer(
-                rf"{keyword}\s+in\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)",
-                story,
-                re.IGNORECASE,
+                rf"{keyword}\s+in\s+({self._MONTH_RE})", story, re.IGNORECASE
             ):
                 month_token = match.group(1).lower()
-                month_number = self.MONTHS.get(month_token[:3], self.MONTHS.get(month_token))
-                if month_number is not None:
-                    modifiers[month_number] = factor
+                m = self.MONTHS.get(month_token[:3], self.MONTHS.get(month_token))
+                if m is not None:
+                    modifiers[m] = factor
+
+        # ── quarter-level keyword modifiers ────────────────────────────────
+        for keyword, factor in self.QUALITATIVE_MONTH_FACTORS.items():
+            for pattern in (
+                rf"{keyword}\s+in\s+(q[1-4])\b",   # "dip in Q3"
+                rf"(q[1-4])\s+{keyword}\b",         # "Q3 dip"
+                rf"\b(q[1-4])\s+(?:was\s+(?:a\s+)?)?{keyword}\b",  # "Q3 was a peak"
+                rf"{keyword}(?:s)?\s+(?:in|during|through)\s+(q[1-4])\b",  # "peaks in Q4"
+                rf"{keyword}\s+(q[1-4])\b",         # "strong Q4", "slow Q1"
+            ):
+                for match in re.finditer(pattern, story, re.IGNORECASE):
+                    quarter = match.group(1).lower()
+                    for m in self.QUARTER_MONTHS.get(quarter, []):
+                        modifiers[m] = factor
+
+        # ── named commercial / seasonal events ─────────────────────────────
+        story_lower = story.lower()
+        for event, effect in self.NAMED_EVENT_MODIFIERS.items():
+            if event not in story_lower:
+                continue
+            if effect is None:
+                # summer slump / slow summer → July + August
+                modifiers[7] = min(modifiers.get(7, 1.0), 0.75)
+                modifiers[8] = min(modifiers.get(8, 1.0), 0.75)
+            else:
+                month, factor = effect
+                modifiers[month] = max(modifiers.get(month, 1.0), factor)
 
         return modifiers
+
+    def _extract_multiplier_growth(self, story: str) -> Optional[float]:
+        """Return the overall end-of-period multiplier implied by the story.
+
+        Recognises:
+        * Word forms: ``"doubled"``, ``"tripled"``, ``"halved"``
+        * Nx notation: ``"10x growth"``, ``"5x increase"``, ``"2x"``, ``"3x jump"``
+        * Percentage: ``"grew 300%"`` (300% = 4× starting value, i.e. 3× *increase*)
+
+        Returns ``None`` when no multiplier pattern is detected.
+        """
+        story_lower = story.lower()
+
+        # Word forms
+        for word, factor in self.WORD_MULTIPLIERS.items():
+            if re.search(rf"\b{re.escape(word)}\b", story_lower):
+                return factor
+
+        # Nx patterns (e.g. "10x growth", "3x increase", "5x in Q4")
+        nx_match = re.search(
+            r"\b(\d+(?:\.\d+)?)x\b(?:\s+(?:growth|increase|jump|surge|rise|gain))?",
+            story_lower,
+        )
+        if nx_match:
+            return float(nx_match.group(1))
+
+        # "grew / increased / jumped N%" where N > 100 implies multiplicative factor
+        pct_match = re.search(
+            r"\b(?:grew|grown|increased?|jumped?|surged?)\s+(\d+(?:\.\d+)?)%",
+            story_lower,
+        )
+        if pct_match:
+            pct = float(pct_match.group(1))
+            if pct > 100:
+                return 1.0 + pct / 100.0  # 300% growth → 4× total
+
+        return None
+
+    def _extract_quarter_anchors(self, story: str) -> Dict[int, float]:
+        """Extract quarter-level numeric anchors like ``"$100k in Q2"`` or ``"Q3: $150k"``.
+
+        Expands each quarter anchor to its three constituent months, filling any
+        gaps that ``_extract_target_month_points`` couldn't find.
+        """
+        anchors: Dict[int, float] = {}
+
+        # "$50k in Q2", "Q1: $30k", "Q3 = $200k", "$100k for Q4"
+        for pattern in (
+            r"(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)\s+(?:in|for|by|at)\s+(?P<q>q[1-4])\b",
+            r"\b(?P<q>q[1-4])\b\s*(?::|=|at|was|is|=)?\s*(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)",
+        ):
+            for match in re.finditer(pattern, story, re.IGNORECASE):
+                quarter = match.group("q").lower()
+                months = self.QUARTER_MONTHS.get(quarter, [])
+                val = self._parse_numeric_value(match.group("value"))
+                for m in months:
+                    anchors.setdefault(m, val)
+
+        return anchors
 
     def _extract_reference_year(self, story: str) -> int:
         """Choose a year for generated monthly targets."""
@@ -411,6 +555,9 @@ class StoryParser:
         "revenue", "sales", "mrr", "arr", "gmv", "amount",
         "orders", "bookings", "transactions", "volume", "churn",
         "growth", "peak", "dip", "spike", "surge", "drop", "decline",
+        "slump", "boom", "doubled", "tripled", "halved",
+        "black friday", "christmas", "summer slump",
+        "q1", "q2", "q3", "q4",
     ]
 
     def _build_absolute_monthly_curve(
@@ -430,16 +577,48 @@ class StoryParser:
         - Qualitative:    "sales peak in November, dip in March"
         """
         story_lower = story.lower()
-        if not any(token in story_lower for token in self.CURVE_SIGNAL_TOKENS):
+        # Extend the trigger set with multiplier + quarter + named event signals
+        extended_signals = list(self.CURVE_SIGNAL_TOKENS) + list(self.WORD_MULTIPLIERS) + [
+            "q1", "q2", "q3", "q4",
+            "black friday", "christmas", "summer slump", "doubled", "tripled",
+        ]
+        if not any(token in story_lower for token in extended_signals):
             return None
 
         period_count = self._extract_period_count(story)
         anchors = self._extract_target_month_points(story, period_count)
         modifiers = self._extract_qualitative_month_modifiers(story)
+        multiplier = self._extract_multiplier_growth(story)
 
-        # If we have no numeric anchors but do have qualitative modifiers,
-        # synthesise a flat baseline from avg_transaction_value so the
-        # modifiers have something meaningful to shape.
+        # Merge in quarter-level anchors (lower priority than explicit month anchors)
+        for m, v in self._extract_quarter_anchors(story).items():
+            anchors.setdefault(m, v)
+
+        # Convert a multiplier into endpoint anchors so everything flows through
+        # the same linear-interpolation path.
+        if multiplier is not None:
+            if not anchors:
+                # No anchors at all: derive a baseline and create start→end anchors
+                baseline = (avg_transaction_value or 1.0) * max(
+                    self.scale_params.get(
+                        "orders", self.scale_params.get("users", 1000)
+                    ) / period_count,
+                    1.0,
+                )
+                anchors = {1: baseline, period_count: baseline * multiplier}
+            elif len(anchors) == 1:
+                # One explicit anchor: use it as the pivot point.
+                pivot_month, pivot_val = next(iter(sorted(anchors.items())))
+                if pivot_month <= period_count // 2:
+                    # Anchor is early → treat as start, derive end
+                    anchors = {pivot_month: pivot_val, period_count: pivot_val * multiplier}
+                else:
+                    # Anchor is late → treat as end, back-derive start
+                    anchors = {1: pivot_val / multiplier, pivot_month: pivot_val}
+            # With >= 2 explicit anchors the user has been precise — honour those.
+            multiplier = None  # absorbed
+
+        # If we still have no anchors and no modifiers, nothing to shape
         if len(anchors) < 2 and not modifiers:
             return None
 
@@ -450,19 +629,21 @@ class StoryParser:
             y_known = np.array([anchors[int(m)] for m in x_known], dtype=float)
             interpolated = np.interp(months, x_known, y_known)
         elif len(anchors) == 1:
-            # One anchor + qualitative modifiers: use the anchor as the baseline
-            baseline = next(iter(anchors.values()))
-            interpolated = np.full(period_count, baseline, dtype=float)
+            # One anchor + qualitative modifiers: use the anchor as a flat baseline
+            baseline_val = next(iter(anchors.values()))
+            interpolated = np.full(period_count, baseline_val, dtype=float)
         else:
-            # Pure qualitative: derive a flat baseline from avg_transaction_value.
-            # We pick a round number that feels representative for the domain.
-            baseline = (avg_transaction_value or 1.0) * max(
+            # Pure qualitative: derive a flat baseline from avg_transaction_value
+            baseline_val = (avg_transaction_value or 1.0) * max(
                 self.scale_params.get("orders", self.scale_params.get("users", 1000)) / period_count,
                 1.0,
             )
-            interpolated = np.full(period_count, baseline, dtype=float)
+            interpolated = np.full(period_count, baseline_val, dtype=float)
 
-        # Apply qualitative modifiers (dip, peak, spike, …)
+        # Ensure interpolated is always a plain float64 ndarray.
+        interpolated = np.asarray(interpolated, dtype=float)
+
+        # Apply qualitative modifiers (dip, peak, spike, quarter patterns, named events)
         for month_number, factor in modifiers.items():
             if 1 <= month_number <= period_count:
                 interpolated[month_number - 1] *= factor
