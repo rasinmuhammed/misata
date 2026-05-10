@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic multi-table synthetic data from plain English, YAML, or your own database. The best Faker alternative for test data, database seeding, and ML datasets. Free and open-source.">
+        <meta name="description" content="Generate realistic multi-table synthetic data from plain English, YAML, or your own database, with Oracle reports for validation, realism, privacy, and reproducibility.">
       
       
       
@@ -25,7 +25,7 @@
     
     
       
-        <title>Misata — Python Synthetic Data Generator - Misata</title>
+        <title>Misata — Proof-Backed Python Synthetic Data Generator - Misata</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#misata-python-synthetic-data-generator" class="md-skip">
+        <a href="#misata-proof-backed-python-synthetic-data-generator" class="md-skip">
           Skip to content
         </a>
       
@@ -111,7 +111,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Misata — Python Synthetic Data Generator
+              Misata — Proof-Backed Python Synthetic Data Generator
             
           </span>
         </div>
@@ -561,6 +561,28 @@
     <span class="md-ellipsis">
       
         Why Misata over Faker or SDV?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrative-control-tell-misata-exactly-what-shape-your-data-should-have" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative control — tell Misata exactly what shape your data should have
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-misata-from-claude-cursor-or-windsurf-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Misata from Claude, Cursor, or Windsurf (MCP)
       
     </span>
   </a>
@@ -1104,6 +1126,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1445,6 +1471,34 @@
   
   
     <li class="md-nav__item">
+      <a href="guides/research-benchmarks.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="guides/jupyter/" class="md-nav__link">
         
   
@@ -1481,6 +1535,34 @@
     
   
     REST API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guides/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server (AI agents)
   
 
     
@@ -1550,6 +1632,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#narrative-control-tell-misata-exactly-what-shape-your-data-should-have" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative control — tell Misata exactly what shape your data should have
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-misata-from-claude-cursor-or-windsurf-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Misata from Claude, Cursor, or Windsurf (MCP)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-people-use-misata-for" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1591,66 +1695,74 @@
   
 
 
-<h1 id="misata-python-synthetic-data-generator">Misata — Python Synthetic Data Generator</h1>
-<p><strong>Realistic multi-table synthetic data — from a sentence, a YAML file, or your own database.</strong></p>
-<p>No ML model. No real data needed. Referential integrity guaranteed across every table.</p>
+<h1 id="misata-proof-backed-python-synthetic-data-generator">Misata — Proof-Backed Python Synthetic Data Generator</h1>
+<p><strong>Realistic multi-table synthetic data with validation reports — from a sentence, YAML, or your own database.</strong></p>
+<p>No ML model. No real data needed. Referential integrity guaranteed across every table. Every CLI generation writes an Oracle report by default.</p>
+<hr />
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>misata<span class="w"> </span>generate<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--story<span class="w"> </span><span class="s2">&quot;Brazilian fintech with R</span>$<span class="s2"> payments, CPF verification, and 3% fraud&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--rows<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--output-dir<span class="w"> </span>./demo_data
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># CSVs + ./demo_data/oracle_report.json</span>
+</code></pre></div>
+<p>The Oracle report separates hard guarantees from advisory realism checks: row counts, referential integrity, constraints, temporal consistency, locale/domain fit, privacy notes, fidelity scores, and reproducibility metadata.</p>
+<p><a class="md-button md-button--primary" href="quickstart/">Get started →</a>
+<a class="md-button" href="https://github.com/rasinmuhammed/misata">View on GitHub →</a></p>
 <hr />
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Plain English</label><label for="__tabbed_1_2">YAML Schema</label><label for="__tabbed_1_3">From a Database</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;A SaaS company with 5k users, monthly subscriptions, and 20</span><span class="si">% c</span><span class="s2">hurn&quot;</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;users&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscriptions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="s2">&quot;A SaaS company with 5k users, monthly subscriptions, and 20</span><span class="si">% c</span><span class="s2">hurn&quot;</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;users&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscriptions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># misata.yaml</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-app</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nt">tables</span><span class="p">:</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">users</span><span class="p">:</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">columns</span><span class="p">:</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">user_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">,</span><span class="nt"> unique</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">email</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">text</span><span class="p p-Indicator">,</span><span class="nt"> text_type</span><span class="p">:</span><span class="w"> </span><span class="nv">email</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">plan</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">categorical</span><span class="p p-Indicator">,</span><span class="nt"> choices</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">free</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pro</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">enterprise</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="nt">columns</span><span class="p">:</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">      </span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">,</span><span class="nt"> unique</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">      </span><span class="nt">user_id</span><span class="p">:</span><span class="w">  </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">foreign_key</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">      </span><span class="nt">amount</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">float</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">5.0</span><span class="p p-Indicator">,</span><span class="nt"> max</span><span class="p">:</span><span class="w"> </span><span class="nv">500.0</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="nt">relationships</span><span class="p">:</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;users.user_id</span><span class="nv"> </span><span class="s">→</span><span class="nv"> </span><span class="s">orders.user_id&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># misata.yaml</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-app</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nt">tables</span><span class="p">:</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">users</span><span class="p">:</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nt">columns</span><span class="p">:</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">user_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">,</span><span class="nt"> unique</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">email</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">text</span><span class="p p-Indicator">,</span><span class="nt"> text_type</span><span class="p">:</span><span class="w"> </span><span class="nv">email</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">plan</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">categorical</span><span class="p p-Indicator">,</span><span class="nt"> choices</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">free</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pro</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">enterprise</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="nt">rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">    </span><span class="nt">columns</span><span class="p">:</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">,</span><span class="nt"> unique</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">      </span><span class="nt">user_id</span><span class="p">:</span><span class="w">  </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">foreign_key</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">      </span><span class="nt">amount</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">float</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">5.0</span><span class="p p-Indicator">,</span><span class="nt"> max</span><span class="p">:</span><span class="w"> </span><span class="nv">500.0</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="nt">relationships</span><span class="p">:</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;users.user_id</span><span class="nv"> </span><span class="s">→</span><span class="nv"> </span><span class="s">orders.user_id&quot;</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">load_yaml_schema</span><span class="p">(</span><span class="s2">&quot;misata.yaml&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">load_yaml_schema</span><span class="p">(</span><span class="s2">&quot;misata.yaml&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">schema_from_db</span><span class="p">,</span> <span class="n">generate_from_schema</span><span class="p">,</span> <span class="n">seed_database</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">schema_from_db</span><span class="p">(</span><span class="s2">&quot;postgresql://user:pass@localhost/myapp&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">report</span> <span class="o">=</span> <span class="n">seed_database</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;postgresql://user:pass@localhost/myapp_dev&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># SeedReport: seeded 6 tables, 47,300 rows in 1.2s</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">schema_from_db</span><span class="p">,</span> <span class="n">generate_from_schema</span><span class="p">,</span> <span class="n">seed_database</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">schema_from_db</span><span class="p">(</span><span class="s2">&quot;postgresql://user:pass@localhost/myapp&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">report</span> <span class="o">=</span> <span class="n">seed_database</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;postgresql://user:pass@localhost/myapp_dev&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1"># SeedReport: seeded 6 tables, 47,300 rows in 1.2s</span>
 </code></pre></div>
 </div>
 </div>
 </div>
 <hr />
 <h2 id="install">Install</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span>misata
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span>misata
 </code></pre></div>
-<p><a class="md-button md-button--primary" href="quickstart/">Get started →</a>
-<a class="md-button" href="https://github.com/rasinmuhammed/misata">View on GitHub →</a></p>
-<hr />
 <h2 id="why-misata-over-faker-or-sdv">Why Misata over Faker or SDV?</h2>
 <p>Faker generates one column at a time — you write the loop, manage the IDs, enforce uniqueness yourself.
 SDV requires real training data and a fitted model before you get anything.
@@ -1673,6 +1785,24 @@ SDV requires real training data and a fitted model before you get anything.
 </tr>
 <tr>
 <td style="text-align: left;">Story auto-detects locale + country stats</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"><strong>✓</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">18 built-in domain schemas (SaaS → streaming)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"><strong>✓</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Narrative growth curves (Q4 push, Black Friday, 10×)</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"><strong>✓</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">MCP server — usable from Claude / Cursor / Windsurf</td>
 <td style="text-align: center;">—</td>
 <td style="text-align: center;">—</td>
 <td style="text-align: center;"><strong>✓</strong></td>
@@ -1720,7 +1850,7 @@ SDV requires real training data and a fitted model before you get anything.
 <td style="text-align: center;"><strong>✓</strong></td>
 </tr>
 <tr>
-<td style="text-align: left;">CSV quality validation</td>
+<td style="text-align: left;">Shareable Oracle report</td>
 <td style="text-align: center;">—</td>
 <td style="text-align: center;">—</td>
 <td style="text-align: center;"><strong>✓</strong></td>
@@ -1728,18 +1858,44 @@ SDV requires real training data and a fitted model before you get anything.
 </tbody>
 </table>
 <hr />
+<h2 id="narrative-control-tell-misata-exactly-what-shape-your-data-should-have">Narrative control — tell Misata exactly what shape your data should have</h2>
+<p>Misata understands natural-language growth patterns and turns them into exact monthly targets:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Seasonal ecommerce with named events</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Ecommerce store with 5k orders — Black Friday spike, Christmas peak&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># SaaS growth curve with a quarterly dip</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS mrr from $50k in Jan to $200k in Dec, Q3 slump&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># 10× startup trajectory</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;SaaS startup — MRR 10x growth over the year&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># Quarterly narrative</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Fintech payments — strong Q4, dip in Q1, flat Q2&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Quarterly patterns (<code>Q1</code>–<code>Q4</code>), named events (Black Friday, Christmas, summer slump, back to school), multipliers (<code>doubled</code>, <code>tripled</code>, <code>10x</code>, <code>halved</code>) — all resolve to exact per-month control points in the generated data.</p>
+<hr />
+<h2 id="use-misata-from-claude-cursor-or-windsurf-mcp">Use Misata from Claude, Cursor, or Windsurf (MCP)</h2>
+<p>Misata ships a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a> server. Once configured, AI assistants can generate synthetic data on the user's behalf from natural language.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;misata[mcp]&quot;</span>
+</code></pre></div>
+<p>Add to Claude Desktop config:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;misata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;misata-mcp&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Then ask Claude: <em>"Generate a fintech fraud dataset with 1 000 customers and a 2% fraud rate."</em></p>
+<p><a href="guides/mcp/">MCP setup guide →</a></p>
+<hr />
 <h2 id="what-people-use-misata-for">What people use Misata for</h2>
 <ul>
 <li><strong>Test data generation</strong> — seed your dev/staging database with realistic data in seconds</li>
 <li><strong>BI and dashboard demos</strong> — populate a demo environment with coherent, believable numbers</li>
-<li><strong>Machine learning datasets</strong> — create labelled training data without touching real user data</li>
 <li><strong>Database seeding in CI/CD</strong> — reproducible, seed-controlled datasets for every test run</li>
 <li><strong>Privacy-safe development</strong> — work with realistic schemas without exposure to PII</li>
+<li><strong>AI agent workflows</strong> — let Claude or Cursor generate the dataset directly via MCP</li>
 </ul>
 <hr />
 <h2 id="supported-domains">Supported domains</h2>
 <p>Misata auto-detects your domain from the story and applies statistically accurate priors:</p>
-<p><code>saas</code> · <code>ecommerce</code> · <code>fintech</code> · <code>healthcare</code> · <code>marketplace</code> · <code>logistics</code> · <code>hr</code> · <code>social</code> · <code>realestate</code></p>
+<p><code>saas</code> · <code>ecommerce</code> · <code>fintech</code> · <code>healthcare</code> · <code>marketplace</code> · <code>logistics</code> · <code>hr</code> · <code>social</code> · <code>realestate</code> · <code>pharma</code> · <code>fooddelivery</code> · <code>edtech</code> · <code>gaming</code> · <code>crm</code> · <code>crypto</code> · <code>insurance</code> · <code>travel</code> · <code>streaming</code></p>
 <p><a href="domains/">See all domains →</a></p>
 
 
