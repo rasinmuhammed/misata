@@ -5,7 +5,7 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-04-26
+## [0.8.0] - 2026-05-10
 
 ### Added
 
@@ -59,6 +59,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/guides/jupyter.md` — magic setup and workflow
 - `docs/guides/rest-api.md` — HTTP API reference with curl, JS, and Go examples
 - All 7 pages added to `mkdocs.yml` navigation
+
+#### Five new domain schemas
+- **CRM** — `companies`, `contacts`, `deals`, `activities`; pipeline stages, deal values, close dates, activity types
+- **Crypto / Web3** — `wallets`, `tokens`, `transactions`, `token_prices`; blockchain addresses, wallet balances, token symbols, USD prices
+- **Insurance** — `customers`, `policies`, `claims`, `payments`; policy types, premium amounts, claim status, coverage limits
+- **Travel** — `users`, `hotels`, `flights`, `bookings`, `reviews`; airport codes, seat classes, booking status, cancellation reasons (conditional null)
+- **Streaming** — `subscribers`, `content`, `watch_history`, `ratings`; churn coherence (`churned_at` only set when `is_churned = true`), content genres, watch duration
+- All five domains fully integrated into the 18-domain test matrix (113 tests: parse + validate, generate at two scales, FK integrity, YAML roundtrip, determinism, rows=1)
+
+#### Locale-aware phone numbers
+- `_generate_phone_number()` in `realism.py` — uses locale pack's `phone_prefix` to produce format-correct numbers (US: `+1-###-###-####`, UK: `+44 #### ######`, IN: `+91-#####-#####`, DE: `+49 ### #######`, etc.)
+- Columns named `phone`, `mobile`, `telephone`, or `tel` automatically route to the locale-aware generator
+- Removed phone from the Faker passthrough list so custom formatting is always applied
+
+#### Temporal coherence improvements
+- `after_column` + `max_date: "today"` — date columns derived from another column (e.g. `hire_date` after `date_of_birth`) are now capped at today, preventing future-dated hire dates
+- `date_diff_to: "today"` — float column deriving exact tenure in fractional years from a reference date column (e.g. `tenure_years` from `hire_date`)
+- Age coherence enforced in HR schema: employees are at least 18 years old at hire, never hired in the future
+- Hire date → tenure derived on the same row without separate distributions
+
+#### Name-derived email addresses
+- Email columns adjacent to `first_name` + `last_name` columns in the same table automatically adopt the person's name (`jane.doe@acmecorp.com`) instead of generating unrelated random emails
+
+#### DetectionReport and preview() API
+- `DetectionReport` dataclass — structured account of what `StoryParser` understood: `domain`, `domain_confidence` (`"high"` / `"low"` / `"none"`), `matched_keywords`, `near_misses`, `scale_params`, `temporal_events`, `locale`, `table_preview`, `total_rows`, `warnings`
+- `DetectionReport.summary()` — renders a concise multi-line human-readable summary with table widths and column counts
+- `misata.preview(story, rows)` — one-liner public API returning a `DetectionReport`; call this before `generate()` for a confirmation step
+- `StoryParser.detection_report()` — access the last parse's report directly on the parser instance
+
+#### Scored domain detection
+- Domain detection changed from first-match (dict order) to scored: **+5** if the literal domain name appears in the story, **+1** per matched keyword
+- Prevents "fintech with crypto wallets" from matching SaaS just because "churn" appears; the "fintech" literal gives fintech +5 and wins
+- `crypto` moved before `fintech` in `DOMAIN_KEYWORDS` (both have "wallet"; crypto keywords are more specific)
+- `_matched_keywords` and `_near_misses` recorded on every parse for transparent reporting
+
+#### JSON Schema for misata.yaml
+- `schema/misata.schema.json` and `misata/_schemas/misata.schema.json` — Draft 2020-12 JSON Schema with descriptions on every field, all 18 domain names enumerated, all text types enumerated
+- `misata.json_schema()` — public function returning the loaded schema dict
+- `misata.JSON_SCHEMA_URL` — constant pointing to the published schema URL for the `yaml-language-server` header
+- `misata init` scaffolds `misata.yaml` with `# yaml-language-server: $schema=...` header for editor auto-complete
+
+#### Actionable validation error messages
+- `SchemaValidationError.issues` now includes fix hints on every message:
+  - Probability sum: `"Fix: scale all values down by ×0.8333, or adjust one value by -0.2000"`
+  - Length mismatch: `"Fix: add N more probabilities entries"`
+  - FK without relationship: suggests the exact `Relationship(parent_table='...', ...)` call to add
+  - OutcomeCurve / ScenarioEvent column not found: `"Fix: columns in 'table': col1, col2, ..."`
+  - Cycle detection: `"Circular dependency: A → B → A"`
+
+#### MCP server — expose Misata to AI agents
+- `misata/mcp/server.py` — FastMCP server exposing five tools over stdio:
+  - `list_domains` — lists all 18 domains with trigger keywords and a sample story each
+  - `preview_story` — dry-run detection, table preview, row counts, and warnings without generating
+  - `inspect_schema` — full schema (every column, type, params, relationships, outcome curves)
+  - `generate_dataset` — generates CSV files, returns paths + per-table row samples; `sample_rows` capped at 50
+  - `validate_yaml` — two-layer structural (JSON Schema) + semantic (fix-hint) YAML validation
+- All five tools wrap exceptions and return `{"ok": false, "error": "...", "suggestion": "..."}` — agents recover gracefully instead of seeing Python tracebacks
+- `misata-mcp` console script — launch via stdio; Claude Desktop, Cursor, Windsurf, Zed, Continue all supported
+- `pip install "misata[mcp]"` — new optional extra pulling `mcp>=1.0.0` and `jsonschema>=4.0.0`
+- `smithery.yaml` in repo root — enables auto-indexing on Smithery.ai
+- `docs/guides/mcp.md` — install guide, Claude Desktop config, tool reference, example prompts, MCP Inspector debugging
+
+#### Narrative story patterns — quarterly, seasonal, and multiplier
+- **Quarterly modifiers**: `"Q4 spike"`, `"dip in Q3"`, `"strong Q4"`, `"Q1 slump"` expand to all three constituent months with the appropriate factor
+- **Quarter-level anchors**: `"$100k in Q2"` pins months 4, 5, and 6 all at $100k
+- **Named seasonal events**: `"Black Friday"` → Nov ×1.55, `"Christmas"` → Dec ×1.40, `"holiday season"` → Dec ×1.35, `"summer slump"` → Jul+Aug ×0.75, `"back to school"` → Aug ×1.20, `"New Year"` → Jan ×1.25, `"tax season"` → Apr ×1.20
+- **Relative multipliers**: `"doubled"` → 2×, `"tripled"` → 3×, `"10x growth"` → 10×, `"halved"` → 0.5×, `"Nx"` notation, `"grew 300%"` → 4× factor
+- **One-anchor multiplier**: `"$50k in January, doubled by December"` pins Jan at $50k and derives Dec at $100k exactly
+- **Extended qualitative keywords**: `slump`, `boom`, `crash`, `slow`, `strong`, `push`, `flat` alongside existing `dip`, `peak`, `spike`, `surge`
+- `CURVE_SIGNAL_TOKENS` extended to trigger on `"q1"–"q4"`, `"black friday"`, `"christmas"`, `"summer slump"`, `"doubled"`, `"tripled"`, `"halved"`
+
+#### Examples and test coverage
+- `examples/narrative_to_data.py` — end-to-end demo: `preview()` → generate → ASCII monthly bar chart → assertions on curve shape
+- `tests/test_mcp_server.py` — 17 tests covering all five tools, error recovery contract, determinism, temp-dir behaviour, sample cap
+- `tests/test_narrative_patterns.py` — 30 tests: quarter modifiers, named events, multipliers, extended keywords, integration stories
+- `tests/test_domain_hardening.py` — 113 tests: 18 domains × (parse+validate, generate at 2 scales, FK integrity, YAML roundtrip, determinism, rows=1)
+- `tests/test_detection_report.py` — 13 tests: DetectionReport contract, confidence levels, near_misses, table preview, no-domain warnings
+- Total test count: **581 passing**
 
 ## [0.7.2] - 2026-04-20
 

@@ -425,9 +425,11 @@ No keyword match → generic single-table schema with smart column inference.
 ## How it works
 
 ```
-story / YAML / dict / DB introspection
+story / YAML / dict / DB introspection / MCP tool call
               ↓
         StoryParser  ·  locale detection  ·  load_yaml_schema  ·  schema_from_db
+              ↓
+        DetectionReport  (domain, confidence, near_misses, table_preview, warnings)
               ↓
         SchemaConfig  ←  validate_schema() catches issues before any rows are generated
               ↓
@@ -435,21 +437,30 @@ story / YAML / dict / DB introspection
           ├─ topological sort (FK dependency order)
           ├─ domain priors  →  locale priors (salary, age, monetary)
           ├─ constraint engine (inequality, range, ratio, sum, unique)
-          ├─ outcome curves ("revenue rises from 50k in Jan to 200k in Dec")
+          ├─ outcome curves (monthly targets from narrative control points)
+          ├─ Iman-Conover correlation engine (Cholesky, preserves marginals)
           └─ RealisticTextGenerator (Faker locale + Kaggle vocabulary assets)
               ↓
         {table_name: DataFrame}
               ↓
-        seed_database  ·  to_parquet  ·  to_duckdb  ·  generate_documents
+        seed_database  ·  to_parquet  ·  to_duckdb  ·  generate_documents  ·  MCP CSV output
 ```
 
 **Domain priors** — monetary columns get log-normal distributions. Categoricals use Zipf sampling. Blood types, country distributions, and salary bands reflect real-world statistics.
 
 **Locale priors** — salary and age distributions are overridden with country-specific lognormal/normal parameters sourced from national statistics. `"Brazilian fintech"` in your story means salaries are sampled from the BRL distribution, not the USD one.
 
-**Outcome curves** — `"revenue rises from 50k in Jan to 200k in Dec"` becomes exact per-month targets that constrain row-by-row generation.
+**Outcome curves** — natural-language narrative is parsed into exact monthly control points. Named events, quarters, and multipliers all work:
 
-**Realism rules** — `cost` is always less than `price`. `delivered_at` is always after `shipped_at`. Email addresses derive from first and last name columns.
+```python
+# All of these produce precise, shaped outcome curves:
+misata.generate("SaaS mrr from $50k in Jan to $200k in Dec, with a Q3 slump")
+misata.generate("Ecommerce orders, Black Friday spike, Christmas peak")
+misata.generate("SaaS startup — MRR 10x growth over the year")
+misata.generate("Fintech payments — strong Q4, dip in Q1")
+```
+
+**Realism rules** — `cost` is always less than `price`. `delivered_at` is always after `shipped_at`. `hire_date` is after `date_of_birth` + 18 years and never in the future. `tenure_years` is derived on the same row from `hire_date`. Email addresses derive from first and last name columns.
 
 ---
 
@@ -460,11 +471,14 @@ story / YAML / dict / DB introspection
 | No config, one line to multi-table data | — | — | — | — | **Yes** |
 | Story auto-detects locale + country stats | — | — | — | — | **Yes** |
 | 18 built-in domain schemas (SaaS → streaming) | — | — | — | — | **Yes** |
+| Narrative curves (Q4 push, Black Friday, 10×) | — | — | — | — | **Yes** |
 | Mimic mode — clone distributions from a CSV | — | — | — | **Yes** | **Yes** |
 | Pairwise correlation enforcement (Iman-Conover) | — | — | — | **Yes** | **Yes** |
 | Geospatial columns (lat, lng, postal_code) | — | — | — | — | **Yes** |
 | Anomaly injection (per-column outlier rate) | — | — | — | — | **Yes** |
+| MCP server — usable from Claude / Cursor | — | — | — | — | **Yes** |
 | YAML schema committed to git | — | **Yes** | **Yes** | — | **Yes** |
+| JSON Schema validation + editor auto-complete | — | — | — | — | **Yes** |
 | DB introspection → generate → re-seed | — | **Yes** | — | Limited | **Yes** |
 | Direct DB seeding (Postgres / MySQL / SQLite) | — | — | — | — | **Yes** |
 | SQLAlchemy model seeding | — | — | — | — | **Yes** |
