@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.rasinmuhammed/misata",
+  "description": "Generate realistic multi-table synthetic datasets from plain English. Supports 18 industry domains, narrative growth curves (Black Friday, Q4 spike, 10x MRR), 15 locale packs, and an MCP server for Claude, Cursor, and Windsurf.",
+  "repository": {
+    "url": "https://github.com/rasinmuhammed/misata",
+    "source": "github"
+  },
+  "version": "0.8.0.post1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "misata",
+      "version": "0.8.0.post1",
+      "installInstructions": "pip install \"misata[mcp]\"",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": ["misata-mcp"]
+    }
+  ]
+}
