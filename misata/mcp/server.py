@@ -79,6 +79,16 @@ def _df_preview(df, n: int = 5) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
+def _tool_error(exc: Exception, suggestion: str) -> Dict[str, Any]:
+    """Return a structured error payload instead of raising — keeps agents recoverable."""
+    return {
+        "ok": False,
+        "error": type(exc).__name__,
+        "message": str(exc),
+        "suggestion": suggestion,
+    }
+
+
 @mcp.tool()
 def list_domains() -> Dict[str, Any]:
     """List the 18 built-in business domains Misata can generate from natural language.
@@ -87,10 +97,14 @@ def list_domains() -> Dict[str, Any]:
     ``preview_story`` or ``generate_dataset``. Use this when the user asks
     "what kinds of data can you generate?" or to suggest a story format.
     """
-    return {
-        "count": len(StoryParser.DOMAIN_KEYWORDS),
-        "domains": _domain_catalogue(),
-    }
+    try:
+        return {
+            "ok": True,
+            "count": len(StoryParser.DOMAIN_KEYWORDS),
+            "domains": _domain_catalogue(),
+        }
+    except Exception as exc:
+        return _tool_error(exc, "This should never fail — please report a bug at https://github.com/rasinmuhammed/misata/issues")
 
 
 @mcp.tool()
@@ -106,20 +120,28 @@ def preview_story(story: str, rows: int = 1000) -> Dict[str, Any]:
         story: Plain-English description of the dataset.
         rows:  Default row count for the primary table (affects preview only).
     """
-    report = misata.preview(story, rows=rows)
-    return {
-        "domain": report.domain,
-        "domain_confidence": report.domain_confidence,
-        "matched_keywords": report.matched_keywords,
-        "near_misses": report.near_misses,
-        "locale": report.locale,
-        "scale": report.scale_params,
-        "events": report.temporal_events,
-        "tables": report.table_preview,
-        "total_rows": report.total_rows,
-        "warnings": report.warnings,
-        "summary": report.summary(),
-    }
+    try:
+        report = misata.preview(story, rows=rows)
+        return {
+            "ok": True,
+            "domain": report.domain,
+            "domain_confidence": report.domain_confidence,
+            "matched_keywords": report.matched_keywords,
+            "near_misses": report.near_misses,
+            "locale": report.locale,
+            "scale": report.scale_params,
+            "events": report.temporal_events,
+            "tables": report.table_preview,
+            "total_rows": report.total_rows,
+            "warnings": report.warnings,
+            "summary": report.summary(),
+        }
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "Check that the story is a non-empty string. "
+            "Try calling list_domains() first to see which domain keywords are supported.",
+        )
 
 
 @mcp.tool()
@@ -135,7 +157,14 @@ def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
         story: Plain-English description of the dataset.
         rows:  Default row count for the primary table.
     """
-    schema = misata.parse(story, rows=rows)
+    try:
+        schema = misata.parse(story, rows=rows)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "Try preview_story() first to see how Misata interprets your description. "
+            "Adding a domain keyword (e.g. 'saas', 'fintech', 'ecommerce') often resolves parsing issues.",
+        )
 
     tables_out = []
     for tbl in schema.tables:
@@ -180,6 +209,7 @@ def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
     ]
 
     return {
+        "ok": True,
         "name": schema.name,
         "domain": schema.domain,
         "tables": tables_out,
@@ -214,11 +244,27 @@ def generate_dataset(
 
     if output_dir:
         out_path = Path(output_dir).expanduser().resolve()
-        out_path.mkdir(parents=True, exist_ok=True)
+        try:
+            out_path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return _tool_error(
+                exc,
+                f"Could not create output directory '{output_dir}'. "
+                "Check that the path is writable, or omit output_dir to use a temp directory.",
+            )
     else:
         out_path = Path(tempfile.mkdtemp(prefix="misata-mcp-"))
 
-    tables = misata.generate(story, rows=rows, seed=seed)
+    try:
+        tables = misata.generate(story, rows=rows, seed=seed)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "Try preview_story() first to verify Misata understands the story. "
+            "If rows is very large (>1 000 000), reduce it. "
+            "Adding a domain keyword such as 'saas', 'fintech', or 'ecommerce' "
+            "ensures a richer, more reliable schema.",
+        )
 
     files: List[Dict[str, Any]] = []
     for name, df in tables.items():
@@ -235,6 +281,7 @@ def generate_dataset(
     total_rows = sum(f["rows"] for f in files)
 
     return {
+        "ok": True,
         "output_dir": str(out_path),
         "files": files,
         "total_rows": total_rows,
@@ -343,7 +390,7 @@ def validate_yaml(yaml_text: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-    return {"valid": True, "errors": [], "stage": "ok"}
+    return {"ok": True, "valid": True, "errors": [], "stage": "ok"}
 
 
 # ---------------------------------------------------------------------------

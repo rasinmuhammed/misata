@@ -4,7 +4,7 @@
 
 # Misata
 
-**Realistic multi-table synthetic data — from a sentence, a YAML file, or your own database.**
+**Proof-backed synthetic data — realistic multi-table datasets with validation reports, from a sentence, YAML, or your own database.**
 
 [![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=flat-square&color=E89030)](https://pypi.org/project/misata/)
 [![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=flat-square)](https://pypi.org/project/misata/)
@@ -16,7 +16,9 @@
 
 ---
 
-Misata generates consistent, referentially-intact multi-table datasets from a plain-English description, a YAML schema file, or an existing database schema. No machine-learning model is required. No real data is needed.
+Misata generates consistent, referentially-intact multi-table datasets from a plain-English description, a YAML schema file, or an existing database schema. Every normal generation run can also write an **Oracle report**: a shareable proof bundle for row counts, referential integrity, constraints, temporal consistency, locale/domain fit, privacy notes, fidelity scores, and reproducibility metadata.
+
+No machine-learning model is required. No real data is needed.
 
 Built for:
 - **Database seeding** — fill dev and staging environments with production-like data
@@ -38,11 +40,56 @@ Optional extras:
 pip install "misata[llm]"        # multi-provider LLM schema generation
 pip install "misata[documents]"  # PDF output via weasyprint
 pip install "misata[advanced]"   # SDV/CTGAN statistical synthesis
+pip install "misata[mcp]"        # MCP server — expose Misata to Claude, Cursor, and other AI agents
 ```
 
 ---
 
+## Use Misata from Claude / Cursor / Windsurf (MCP)
+
+Misata ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server. Once configured, any MCP-compatible AI assistant can generate realistic synthetic data for you from natural language — no Python required on your end.
+
+**1. Install:**
+
+```bash
+pip install "misata[mcp]"
+```
+
+**2. Add to Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "misata": {
+      "command": "misata-mcp"
+    }
+  }
+}
+```
+
+Restart Claude Desktop. Then just ask:
+
+> *"Generate a fintech dataset with 1 000 customers, payments, and a 2% fraud rate."*
+
+> *"Show me what tables Misata would produce for an HR system with 200 employees."*
+
+> *"I need SaaS data: MRR from $50k in January, doubled by December, with a Q3 slump."*
+
+Claude calls Misata, writes CSVs to disk, and returns the file paths plus a preview of each table. See the [MCP guide](docs/guides/mcp.md) for Cursor/Windsurf/Zed setup and all five available tools.
+
+---
+
 ## Quick start
+
+```bash
+misata generate \
+  --story "Brazilian fintech with R$ payments, CPF verification, and 3% fraud" \
+  --rows 1000 \
+  --output-dir ./demo_data
+
+# Writes CSVs plus:
+# ./demo_data/oracle_report.json
+```
 
 ```python
 import misata
@@ -57,6 +104,34 @@ print(tables["subscriptions"].head())
 ```bash
 # Or from the CLI
 misata generate --story "A SaaS company with 5k users and 20% churn" --rows 5000
+```
+
+## Misata Oracle
+
+The Oracle report is Misata's proof layer. It separates hard guarantees from advisory realism checks so generated data can be trusted in CI, demos, notebooks, and research comparisons.
+
+Guaranteed checks:
+- referential integrity across configured relationships
+- requested row-count fulfillment
+- schema validation and configured constraints
+- deterministic reproducibility when a seed is set
+
+Advisory checks:
+- quality score and plausibility warnings
+- privacy heuristics
+- schema-vs-output fidelity score
+- locale/domain fit for countries, cities, phone prefixes, and national IDs
+- data-card metadata
+
+```python
+import misata
+
+schema = misata.parse("Brazilian fintech with CPF verification", rows=1000)
+tables = misata.generate_from_schema(schema)
+oracle = misata.build_oracle_report(tables, schema, seed=schema.seed)
+
+print(oracle["passed"])
+print(oracle["advisory"]["locale_domain_fit"]["locale"])
 ```
 
 ---

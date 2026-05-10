@@ -1,0 +1,31 @@
+# Smithery configuration for Misata MCP server
+# https://smithery.ai/docs/config
+
+name: misata
+displayName: Misata — Synthetic Data Generator
+description: >
+  Generate realistic multi-table synthetic datasets from a plain-English sentence.
+  18 built-in domains (SaaS, fintech, ecommerce, healthcare, and more), locale-aware
+  names and phone numbers, referential integrity across tables, exact growth curves
+  (Black Friday spikes, Q4 pushes, 10x multipliers), and two-layer YAML validation.
+  Agents can preview before generating, inspect full schemas, and validate hand-crafted
+  misata.yaml files before committing them.
+
+homepage: https://github.com/rasinmuhammed/misata
+license: MIT
+tags:
+  - data-generation
+  - synthetic-data
+  - testing
+  - database-seeding
+  - demo-data
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties: {}
+    additionalProperties: false
+  commandFunction:
+    |-
+    (_config) => ({ command: "misata-mcp" })

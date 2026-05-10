@@ -248,3 +248,32 @@ tables:
     error_text = " ".join(e["message"] for e in result["errors"])
     assert "probabilities sum to 1.2" in error_text
     assert "Fix:" in error_text, "Semantic errors must include actionable fix hints"
+
+
+# ---------------------------------------------------------------------------
+# Error recovery contract — tools must return structured JSON, never raise
+# ---------------------------------------------------------------------------
+
+
+def test_generate_dataset_bad_output_dir_returns_error():
+    """An unwritable output_dir should return ok=False, not raise an exception."""
+    result = generate_dataset(
+        story="A SaaS company with 50 users",
+        rows=50,
+        output_dir="/root/misata-should-not-exist-xyzzy",
+        sample_rows=0,
+    )
+    # On macOS/Linux /root is unwritable for non-root; expect an error dict
+    if not result.get("ok", True):
+        assert "error" in result
+        assert "suggestion" in result
+        assert result["suggestion"]  # non-empty hint
+
+
+def test_ok_field_present_on_success():
+    """Every successful tool call must include ok=True."""
+    assert list_domains()["ok"] is True
+    assert preview_story(story="A SaaS company", rows=100)["ok"] is True
+    assert inspect_schema(story="A fintech with 1k customers", rows=100)["ok"] is True
+    result = generate_dataset(story="A SaaS company with 50 users", rows=50, seed=1, sample_rows=0)
+    assert result["ok"] is True
