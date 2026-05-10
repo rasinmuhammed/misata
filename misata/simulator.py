@@ -1923,9 +1923,9 @@ class DataSimulator:
             try:
                 result = engine.evaluate_with_lookups(df, formula)
                 df[col.name] = result
-            except ValueError as e:
-                # Warn and skip if context missing
-                warnings.warn(f"Formula evaluation failed (context missing?): {e}")
+            except (ValueError, ImportError) as e:
+                # Skip formula columns when simpleeval is not installed or context is missing.
+                warnings.warn(f"Formula column '{col.name}' skipped: {e}")
 
         return df
 
