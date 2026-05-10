@@ -1,9 +1,11 @@
-"""Advisory privacy, fidelity, and data-card reporting for generated data."""
+"""Advisory privacy, fidelity, data-card, and Oracle reporting for generated data."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
+from enum import Enum
+import math
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -74,6 +76,70 @@ class GenerationReportBundle:
 
     validation: Any
     reports: Dict[str, Any] = field(default_factory=dict)
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert report objects and numpy/pandas values into JSON-safe structures."""
+    if is_dataclass(value):
+        return _json_safe(asdict(value))
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
+    if isinstance(value, Enum):
+        return value.value
+    return value
+
+
+def _serialize_validation_report(report: Any) -> Dict[str, Any]:
+    """Serialize Misata's validation report into the Oracle payload."""
+    return {
+        "is_clean": bool(getattr(report, "is_clean", False)),
+        "has_errors": bool(getattr(report, "has_errors", False)),
+        "has_warnings": bool(getattr(report, "has_warnings", False)),
+        "tables_checked": int(getattr(report, "tables_checked", 0)),
+        "columns_checked": int(getattr(report, "columns_checked", 0)),
+        "total_rows": int(getattr(report, "total_rows", 0)),
+        "summary": report.summary() if hasattr(report, "summary") else "",
+        "issues": [
+            {
+                "severity": getattr(getattr(issue, "severity", ""), "value", getattr(issue, "severity", "")),
+                "table": getattr(issue, "table", None),
+                "column": getattr(issue, "column", None),
+                "message": getattr(issue, "message", ""),
+                "affected_rows": getattr(issue, "affected_rows", None),
+                "sample_values": _json_safe(getattr(issue, "sample_values", [])),
+            }
+            for issue in getattr(report, "issues", [])
+        ],
+    }
+
+
+def _serialize_quality_report(report: Any) -> Dict[str, Any]:
+    """Serialize DataQualityChecker output into the Oracle payload."""
+    return {
+        "score": float(getattr(report, "score", 0.0)),
+        "passed": bool(getattr(report, "passed", False)),
+        "summary": report.summary() if hasattr(report, "summary") else "",
+        "stats": _json_safe(getattr(report, "stats", {})),
+        "issues": [
+            {
+                "severity": getattr(issue, "severity", ""),
+                "category": getattr(issue, "category", ""),
+                "table": getattr(issue, "table", ""),
+                "column": getattr(issue, "column", None),
+                "message": getattr(issue, "message", ""),
+                "details": _json_safe(getattr(issue, "details", {})),
+            }
+            for issue in getattr(report, "issues", [])
+        ],
+    }
 
 
 class ReservoirTableSampler:
@@ -355,3 +421,212 @@ def build_generation_report_bundle(
         sampled=sampled,
     )
     return GenerationReportBundle(validation=resolved_validation, reports=extra_reports)
+
+
+def _table_row_fulfillment(
+    tables: Dict[str, pd.DataFrame],
+    schema_config: Any,
+    row_counts: Optional[Dict[str, int]] = None,
+) -> Dict[str, Any]:
+    """Compare requested table sizes with generated table sizes."""
+    checks: Dict[str, Any] = {}
+    all_passed = True
+    counts = row_counts or {table_name: len(df) for table_name, df in tables.items()}
+
+    for table in getattr(schema_config, "tables", []):
+        expected = int(getattr(table, "row_count", 0) or 0)
+        actual = int(counts.get(table.name, len(tables.get(table.name, []))))
+        passed = actual == expected
+        checks[table.name] = {
+            "expected_rows": expected,
+            "actual_rows": actual,
+            "passed": passed,
+        }
+        all_passed = all_passed and passed
+
+    return {"passed": all_passed, "tables": checks}
+
+
+def _constraint_summary(validation_report: Any, quality_report: Any) -> Dict[str, Any]:
+    """Summarize hard-rule signals from validation and quality reports."""
+    validation_issues = [
+        issue for issue in getattr(validation_report, "issues", [])
+        if getattr(getattr(issue, "severity", ""), "value", getattr(issue, "severity", "")) == "error"
+    ]
+    quality_errors = [
+        issue for issue in getattr(quality_report, "issues", [])
+        if getattr(issue, "severity", "") == "error"
+    ]
+    return {
+        "passed": not validation_issues and not quality_errors,
+        "validation_errors": len(validation_issues),
+        "quality_errors": len(quality_errors),
+    }
+
+
+def _locale_domain_fit(tables: Dict[str, pd.DataFrame], schema_config: Any) -> Dict[str, Any]:
+    """Heuristic locale/domain fit checks for identity and geography columns."""
+    realism = getattr(schema_config, "realism", None)
+    locale = getattr(realism, "locale", None) or "en_US"
+    domain = getattr(schema_config, "domain", None) or getattr(realism, "domain_hint", None)
+
+    checks: List[Dict[str, Any]] = []
+    try:
+        from misata.locales.registry import LocaleRegistry
+        pack = LocaleRegistry.global_instance().get_pack(locale)
+    except Exception:
+        pack = None
+
+    for table_name, df in tables.items():
+        lower_columns = {column.lower(): column for column in df.columns}
+
+        country_col = lower_columns.get("country")
+        if pack and locale != "en_US" and country_col:
+            non_matching = int((df[country_col].astype(str) != pack.country_name).sum())
+            checks.append({
+                "name": f"{table_name}.{country_col}",
+                "test": "locale country",
+                "passed": non_matching == 0,
+                "details": {
+                    "expected": pack.country_name,
+                    "non_matching_rows": non_matching,
+                },
+            })
+
+        city_col = lower_columns.get("city")
+        if pack and city_col and pack.top_cities:
+            sample = df[city_col].astype(str)
+            matching = int(sample.isin(pack.top_cities).sum())
+            ratio = matching / max(len(sample), 1)
+            checks.append({
+                "name": f"{table_name}.{city_col}",
+                "test": "locale city",
+                "passed": ratio >= 0.8,
+                "details": {
+                    "expected_pool": pack.top_cities[:10],
+                    "match_ratio": round(ratio, 3),
+                },
+            })
+
+        phone_col = next((col for key, col in lower_columns.items() if "phone" in key or "mobile" in key), None)
+        if pack and phone_col:
+            prefix = pack.phone_prefix
+            matching = int(df[phone_col].astype(str).str.startswith(prefix).sum())
+            ratio = matching / max(len(df), 1)
+            checks.append({
+                "name": f"{table_name}.{phone_col}",
+                "test": "locale phone prefix",
+                "passed": ratio >= 0.95,
+                "details": {"expected_prefix": prefix, "match_ratio": round(ratio, 3)},
+            })
+
+        national_id_col = next(
+            (
+                col for key, col in lower_columns.items()
+                if key in {"national_id", "ssn", "cpf", "aadhaar", "tax_id", "nid"}
+                or "national_id" in key
+            ),
+            None,
+        )
+        if pack and national_id_col:
+            pattern = "^" + pack.national_id_pattern + "$"
+            matching = int(df[national_id_col].astype(str).str.match(pattern).sum())
+            ratio = matching / max(len(df), 1)
+            checks.append({
+                "name": f"{table_name}.{national_id_col}",
+                "test": f"locale {pack.national_id_label} format",
+                "passed": ratio >= 0.95,
+                "details": {"pattern": pack.national_id_pattern, "match_ratio": round(ratio, 3)},
+            })
+
+    passed = all(check["passed"] for check in checks) if checks else True
+    return {
+        "passed": passed,
+        "locale": locale,
+        "domain": domain,
+        "checks": checks,
+    }
+
+
+def build_oracle_report(
+    tables: Dict[str, pd.DataFrame],
+    schema_config: Any,
+    *,
+    seed: Optional[int] = None,
+    row_counts: Optional[Dict[str, int]] = None,
+    sampled: bool = False,
+    validation_report: Optional[Any] = None,
+    quality_report: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Build Misata Oracle: a proof-oriented, shareable generation report.
+
+    The Oracle combines hard validation signals with advisory realism, privacy,
+    fidelity, locale, and reproducibility metadata. It is intentionally
+    machine-readable so CLI, notebooks, CI, and docs can all use the same shape.
+    """
+    from misata.quality import check_quality
+
+    validation = validation_report or validate_data(tables, schema_config)
+    quality = quality_report or check_quality(
+        tables,
+        relationships=getattr(schema_config, "relationships", []),
+        schema=schema_config,
+    )
+    advisory_reports = analyze_generation(
+        tables,
+        schema_config,
+        reports=["privacy", "fidelity", "data_card"],
+        row_counts=row_counts,
+        sampled=sampled,
+    )
+
+    row_fulfillment = _table_row_fulfillment(tables, schema_config, row_counts)
+    constraint_summary = _constraint_summary(validation, quality)
+    locale_fit = _locale_domain_fit(tables, schema_config)
+
+    hard_passed = (
+        not getattr(validation, "has_errors", True)
+        and bool(getattr(quality, "passed", False))
+        and row_fulfillment["passed"]
+        and constraint_summary["passed"]
+    )
+
+    oracle = {
+        "name": getattr(schema_config, "name", "Misata Dataset"),
+        "generated_at": datetime.now().isoformat(),
+        "misata_report": "oracle",
+        "version": 1,
+        "passed": bool(hard_passed),
+        "summary": {
+            "tables": len(tables),
+            "total_rows": int(sum(row_counts.values()) if row_counts else sum(len(df) for df in tables.values())),
+            "hard_guarantees_passed": bool(hard_passed),
+            "locale_domain_fit_passed": bool(locale_fit["passed"]),
+            "quality_score": float(getattr(quality, "score", 0.0)),
+            "fidelity_score": float(getattr(advisory_reports["fidelity"], "overall_score", 0.0)),
+        },
+        "guarantees": {
+            "validation": _serialize_validation_report(validation),
+            "row_count_fulfillment": row_fulfillment,
+            "constraints": constraint_summary,
+        },
+        "advisory": {
+            "quality": _serialize_quality_report(quality),
+            "privacy": _json_safe(advisory_reports["privacy"]),
+            "fidelity": _json_safe(advisory_reports["fidelity"]),
+            "locale_domain_fit": locale_fit,
+            "data_card": _json_safe(advisory_reports["data_card"]),
+        },
+        "reproducibility": {
+            "seed": seed if seed is not None else getattr(schema_config, "seed", None),
+            "schema_name": getattr(schema_config, "name", None),
+            "domain": getattr(schema_config, "domain", None),
+            "locale": getattr(getattr(schema_config, "realism", None), "locale", None) or "en_US",
+            "sampled": sampled,
+        },
+        "notes": [
+            "Validation, row counts, referential integrity, and configured constraints are hard checks.",
+            "Privacy, fidelity, locale fit, and quality scores are advisory heuristics.",
+        ],
+    }
+    return _json_safe(oracle)

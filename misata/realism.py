@@ -101,7 +101,16 @@ class RealisticTextGenerator:
         # so names, cities, and phones match the target locale.
         # Exception: if the domain capsule already has vocabulary loaded for this
         # semantic type (e.g. from a Kaggle asset store), the capsule takes priority.
-        _has_capsule_vocab = lambda key: bool(self._vocabulary(key, []))  # noqa: E731
+        def _has_non_fallback_capsule_vocab(key: str) -> bool:
+            if not self.capsule or not self.capsule.vocabularies.get(key):
+                return False
+            provenances = self.capsule.provenance.get(key, [])
+            return any(
+                getattr(provenance, "source_name", "") != "misata-defaults"
+                for provenance in provenances
+            )
+
+        _has_capsule_vocab = _has_non_fallback_capsule_vocab
         faker = self._get_faker() if self.locale != "en_US" else None
 
         if semantic == "first_name":
@@ -173,9 +182,11 @@ class RealisticTextGenerator:
                     pass
             return self.rng.choice(self._vocabulary("job_title", JOB_TITLES), size=size)
         if semantic == "country":
-            if faker:
+            if self.locale != "en_US":
                 try:
-                    return np.array([faker.country() for _ in range(size)])
+                    from misata.locales.registry import LocaleRegistry
+                    pack = LocaleRegistry.global_instance().get_pack(self.locale)
+                    return np.array([pack.country_name] * size)
                 except Exception:
                     pass
             return self.rng.choice(self._vocabulary("country", COUNTRIES), size=size)
@@ -229,6 +240,8 @@ class RealisticTextGenerator:
             return np.array([f"{n} {street} {suffix}" for n, street, suffix in zip(numbers, streets, suffixes)])
         if semantic == "phone_number":
             return self._generate_phone_number(size=size)
+        if semantic == "national_id":
+            return self._generate_national_id(size=size)
         if semantic == "url":
             slugs = self._slugify(self.generate(column_name, table_name, size, "company_name"))
             return np.array([f"https://www.{slug}.com" for slug in slugs])
@@ -298,6 +311,8 @@ class RealisticTextGenerator:
             return "postal_code"
         if "phone" in name or "mobile" in name or "tel" in name:
             return "phone_number"
+        if name in ("national_id", "ssn", "cpf", "aadhaar", "nid", "tax_id") or "national_id" in name:
+            return "national_id"
         if name in ("review", "review_text", "review_body"):
             return "review"
         if name in ("ticket_body", "issue_body", "support_ticket", "description") and (
@@ -593,6 +608,54 @@ class RealisticTextGenerator:
                 results.append(f"{prefix} {body}")
 
         return np.array(results)
+
+    def _generate_national_id(self, *, size: int) -> np.ndarray:
+        try:
+            from misata.locales.registry import LocaleRegistry
+            pattern = LocaleRegistry.global_instance().get_pack(self.locale).national_id_pattern
+        except Exception:
+            pattern = r"\d{9}"
+        return np.array([self._expand_pattern(pattern) for _ in range(size)])
+
+    def _expand_pattern(self, pattern: str) -> str:
+        """Expand the limited locale-pack regex patterns into deterministic strings."""
+        output = ""
+        i = 0
+        while i < len(pattern):
+            token = pattern[i]
+            if pattern.startswith(r"\d", i):
+                char_type = "digit"
+                i += 2
+            elif token == "[":
+                end = pattern.find("]", i)
+                body = pattern[i + 1:end] if end != -1 else "A-Z"
+                char_type = "letter" if "A-Z" in body else "literal"
+                i = end + 1 if end != -1 else i + 1
+            elif token == "\\" and i + 1 < len(pattern):
+                output += pattern[i + 1]
+                i += 2
+                continue
+            else:
+                output += token
+                i += 1
+                continue
+
+            repeat = 1
+            if i < len(pattern) and pattern[i] == "{":
+                end = pattern.find("}", i)
+                if end != -1:
+                    try:
+                        repeat = int(pattern[i + 1:end])
+                    except ValueError:
+                        repeat = 1
+                    i = end + 1
+
+            if char_type == "digit":
+                output += "".join(str(int(self.rng.integers(0, 10))) for _ in range(repeat))
+            elif char_type == "letter":
+                output += "".join(chr(int(self.rng.integers(65, 91))) for _ in range(repeat))
+
+        return output
 
     def _generate_product_text(
         self,

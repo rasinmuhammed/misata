@@ -535,6 +535,14 @@ class DataSimulator:
         
         # CATEGORICAL
         if column.type == "categorical":
+            if column.name.lower() == "country" and self.locale != "en_US":
+                try:
+                    from misata.locales.registry import LocaleRegistry
+                    pack = LocaleRegistry.global_instance().get_pack(self.locale)
+                    return np.array([pack.country_name] * size)
+                except Exception:
+                    pass
+
             choices = params.get("choices", ["A", "B", "C"])
             probabilities = params.get("probabilities", None)
 
@@ -923,6 +931,11 @@ class DataSimulator:
                 "email_body":             "email_body",
                 "phone":                  "phone_number",
                 "phone_number":           "phone_number",
+                "national_id":            "national_id",
+                "ssn":                    "national_id",
+                "cpf":                    "national_id",
+                "aadhaar":                "national_id",
+                "nid":                    "national_id",
             }
             semantic = text_strategy or _REALISTIC_TYPE_MAP.get(text_type)
             # Route to RealisticTextGenerator for known types OR any unrecognised

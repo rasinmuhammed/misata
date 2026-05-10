@@ -18,11 +18,14 @@ SEMANTIC_PATTERNS: List[Tuple[str, str, Dict[str, Any]]] = [
 
     # Name patterns
     (r"^name$|^full_?name$|^user_?name$|^customer_?name$|^display_?name$", "text", {"text_type": "name"}),
-    (r"^first_?name$", "text", {"text_type": "name"}),
-    (r"^last_?name$|^surname$|^family_?name$", "text", {"text_type": "name"}),
+    (r"^first_?name$", "text", {"text_type": "first_name"}),
+    (r"^last_?name$|^surname$|^family_?name$", "text", {"text_type": "last_name"}),
 
     # Phone patterns
     (r"^phone$|^phone_?number$|^mobile$|^cell$|^telephone$", "text", {"text_type": "phone"}),
+
+    # Locale-specific identity documents
+    (r"^national_?id$|^ssn$|^cpf$|^aadhaar$|^aadhar$|^nid$|^tax_?id$", "text", {"text_type": "national_id"}),
 
     # Address patterns
     (r"^address$|^street$|^full_?address$|^billing_?address$|^shipping_?address$", "text", {"text_type": "address"}),

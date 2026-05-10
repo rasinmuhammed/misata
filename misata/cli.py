@@ -28,6 +28,7 @@ from misata.codegen import ScriptGenerator
 from misata.db import load_tables_from_db, seed_database
 from misata.quality import check_quality
 from misata.recipes import RecipeSpec, RunManifest, load_recipe, save_recipe, utc_now
+from misata.reporting import build_oracle_report
 from misata.schema import ScenarioEvent
 from misata.story_parser import StoryParser
 from misata.validation import validate_data
@@ -372,6 +373,11 @@ def init(db: Optional[str], story: Optional[str], output: str,
         "(e.g. de_DE, pt_BR, ja_JP, hi_IN). Auto-detected from story when not set."
     ),
 )
+@click.option(
+    "--oracle/--no-oracle",
+    default=True,
+    help="Write a proof-oriented oracle_report.json with validation, quality, locale, privacy, and fidelity checks.",
+)
 def generate(
     story: Optional[str],
     config: Optional[str],
@@ -391,6 +397,7 @@ def generate(
     smart: bool,
     smart_no_llm: bool,
     locale: Optional[str],
+    oracle: bool,
 ) -> None:
     """
     Generate synthetic data from a story or configuration file.
@@ -582,6 +589,19 @@ def generate(
         )
         console.print(f"[green]✓ Seeded {report.total_rows:,} rows into {report.dialect}[/green]")
         console.print(f"⏱️  Time: [cyan]{report.duration_seconds:.2f} seconds[/cyan]")
+        if oracle:
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            tables = load_tables_from_db(db_url, tables=list(report.table_rows.keys()))
+            oracle_payload = build_oracle_report(
+                tables,
+                schema_config,
+                seed=schema_config.seed,
+                row_counts=report.table_rows,
+            )
+            oracle_path = output_path / "oracle_report.json"
+            _write_json(oracle_path, oracle_payload)
+            console.print(f"🔮 Oracle report: [cyan]{oracle_path}[/cyan]")
         return
 
     # Generate data
@@ -606,6 +626,23 @@ def generate(
     console.print(f"🚀 Performance: [green]{rows_per_sec:,.0f} rows/second[/green]")
 
     console.print(f"\n💾 Data saved to: [cyan]{output_dir}[/cyan]")
+
+    if oracle:
+        output_path = Path(output_dir)
+        tables = {
+            table_name: pd.read_csv(output_path / f"{table_name}.csv")
+            for table_name in table_rows
+        }
+        oracle_payload = build_oracle_report(
+            tables,
+            schema_config,
+            seed=schema_config.seed,
+            row_counts=table_rows,
+        )
+        oracle_path = output_path / "oracle_report.json"
+        _write_json(oracle_path, oracle_payload)
+        console.print(f"🔮 Oracle report: [cyan]{oracle_path}[/cyan]")
+
     console.print("\n[bold green]✓ Done![/bold green]")
 
 
@@ -820,6 +857,18 @@ def recipe_run(
             quality_path = output_dir / "quality_report.json"
             _write_json(quality_path, _serialize_quality_report(quality_report))
             manifest.artifacts["quality_report"] = str(quality_path)
+
+        oracle_payload = build_oracle_report(
+            tables,
+            schema_config,
+            seed=schema_config.seed,
+            row_counts=table_rows,
+            validation_report=validation_report if recipe_spec.validation else None,
+            quality_report=quality_report if recipe_spec.quality else None,
+        )
+        oracle_path = output_dir / "oracle_report.json"
+        _write_json(oracle_path, oracle_payload)
+        manifest.artifacts["oracle_report"] = str(oracle_path)
 
         if audit_logger is not None and audit_session_id is not None:
             audit_logger.end_session(audit_session_id)
