@@ -14,6 +14,8 @@
 
 </div>
 
+<!-- mcp-name: io.github.rasinmuhammed/misata -->
+
 ---
 
 Misata generates consistent, referentially-intact multi-table datasets from a plain-English description, a YAML schema file, or an existing database schema. Every normal generation run can also write an **Oracle report**: a shareable proof bundle for row counts, referential integrity, constraints, temporal consistency, locale/domain fit, privacy notes, fidelity scores, and reproducibility metadata.
