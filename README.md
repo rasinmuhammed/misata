@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/misata-motion-logo.svg" width="180" alt="Misata" />
+<img src="public/logo.png" width="180" alt="Misata" />
 
 # Misata
 
