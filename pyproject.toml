@@ -115,8 +115,11 @@ mcp = [
     "mcp>=1.0.0",             # Model Context Protocol — exposes Misata to AI agents
     "jsonschema>=4.0.0",      # YAML validation tool
 ]
+kaggle = [
+    "kaggle>=1.0.0",          # Kaggle API for vocabulary enrichment from real datasets
+]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle]",
 ]
 
 [project.scripts]

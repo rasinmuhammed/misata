@@ -82,68 +82,14 @@ def preview(story: str, rows: int = 10_000) -> "DetectionReport":
     return parser.detection_report()
 
 
-def generate(
-    story: str,
-    rows: int = 10_000,
-    seed: "Optional[int]" = None,
-) -> "Dict[str, Any]":
-    """One-liner: story → dict of DataFrames.
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
 
-    Parses the story with the rule-based StoryParser, generates data, and
-    returns a ``{table_name: pd.DataFrame}`` dict.  No API key required.
-
-    Args:
-        story: Plain-English description of the dataset.
-        rows:  Default row count for the primary table.
-        seed:  Optional random seed for reproducibility.
-
-    Returns:
-        Dict mapping table name → ``pd.DataFrame``.
-
-    Example::
-
-        tables = misata.generate("A SaaS company with 5k users and 20% churn")
-        print(tables["users"].head())
-    """
-    import pandas as pd
-    from misata.story_parser import StoryParser
-    from misata.simulator import DataSimulator
-
-    schema = StoryParser().parse(story, default_rows=rows)
-    if seed is not None:
-        schema.seed = seed
-
-    sim = DataSimulator(schema)
-    tables: Dict[str, Any] = {}
-    for name, batch in sim.generate_all():
-        if name in tables:
-            tables[name] = pd.concat([tables[name], batch], ignore_index=True)
-        else:
-            tables[name] = batch
-    return tables
-
-
-def generate_from_schema(
+def _run_simulation(
     schema: "SchemaConfig",
     custom_generators: "Optional[Dict[str, Dict[str, Any]]]" = None,
 ) -> "Dict[str, Any]":
-    """Generate data from an already-built SchemaConfig.
-
-    Args:
-        schema:            A SchemaConfig (from ``misata.parse()``, an LLM generator,
-                           or built manually).
-        custom_generators: Optional ``{table: {column: callable}}`` overrides.
-                           Each callable receives ``(partial_df, context_tables)``
-                           and returns an array of length ``len(partial_df)``.
-
-    Returns:
-        Dict mapping table name → ``pd.DataFrame``.
-
-    Example::
-
-        schema = misata.parse("An ecommerce store")
-        tables = misata.generate_from_schema(schema)
-    """
     import pandas as pd
     from misata.simulator import DataSimulator
 
@@ -155,6 +101,184 @@ def generate_from_schema(
         else:
             tables[name] = batch
     return tables
+
+
+# (col_a_keywords, col_b_keywords, pearson_r)
+_CORRELATION_RULES = [
+    (["age"],                                            ["salary", "income", "compensation", "pay", "wage"],          0.45),
+    (["experience", "tenure", "seniority"],              ["salary", "income", "compensation", "pay"],                  0.55),
+    (["employee_count", "headcount", "team_size"],       ["revenue", "arr", "mrr", "gmv", "sales"],                    0.60),
+    (["price", "unit_price", "avg_price"],               ["quantity", "units_sold", "order_count", "volume"],         -0.35),
+    (["sessions", "visits", "page_views", "clicks"],     ["revenue", "spend", "amount", "sales"],                      0.50),
+    (["support_tickets", "complaints", "issues_count"],  ["churn_risk", "churn_score", "churn_probability"],           0.40),
+    (["discount_pct", "discount_rate"],                  ["quantity", "units_sold", "items"],                          0.30),
+    (["nps_score", "satisfaction_score", "rating"],      ["retention_rate", "renewal_rate", "ltv"],                    0.55),
+    (["loan_amount", "credit_limit", "credit_score"],    ["income", "salary", "annual_income"],                        0.50),
+    (["portfolio_value", "balance", "account_balance"],  ["age", "tenure", "years_active"],                            0.40),
+    (["fraud_score", "risk_score", "anomaly_score"],     ["amount", "transaction_amount", "value"],                    0.35),
+    (["clv", "ltv", "lifetime_value"],                   ["tenure", "account_age", "membership_months"],               0.60),
+]
+
+
+def _infer_correlations(schema: "SchemaConfig") -> None:
+    """Mutate schema in-place: add Pearson correlation specs for known column-name patterns."""
+    for table in schema.tables:
+        numeric_names = {
+            c.name for c in schema.get_columns(table.name)
+            if c.type in ("int", "float")
+        }
+        if len(numeric_names) < 2:
+            continue
+
+        existing_pairs: set = {
+            (s["col_a"], s["col_b"]) for s in table.correlations
+        } | {
+            (s["col_b"], s["col_a"]) for s in table.correlations
+        }
+
+        for col_a_kws, col_b_kws, r in _CORRELATION_RULES:
+            matched_a = [n for n in numeric_names if any(kw in n.lower() for kw in col_a_kws)]
+            matched_b = [n for n in numeric_names if any(kw in n.lower() for kw in col_b_kws)]
+            for a in matched_a:
+                for b in matched_b:
+                    if a != b and (a, b) not in existing_pairs:
+                        table.correlations.append({"col_a": a, "col_b": b, "r": r})
+                        existing_pairs.add((a, b))
+                        existing_pairs.add((b, a))
+
+
+# ---------------------------------------------------------------------------
+# Top-level convenience functions
+# ---------------------------------------------------------------------------
+
+def generate(
+    story: str,
+    rows: int = 10_000,
+    seed: "Optional[int]" = None,
+    min_quality_score: "Optional[float]" = None,
+    max_retries: int = 3,
+    smart_correlations: bool = False,
+) -> "Dict[str, Any]":
+    """One-liner: story → dict of DataFrames.
+
+    Parses the story with the rule-based StoryParser, generates data, and
+    returns a ``{table_name: pd.DataFrame}`` dict.  No API key required.
+
+    Args:
+        story:             Plain-English description of the dataset.
+        rows:              Default row count for the primary table.
+        seed:              Optional random seed for reproducibility.
+        min_quality_score: If set (0–100), generation retries until
+                           ``FidelityChecker.overall_score`` meets the threshold
+                           or ``max_retries`` is exhausted. The best result is
+                           always returned.
+        max_retries:       Maximum retry attempts when ``min_quality_score`` is
+                           set (default 3).
+        smart_correlations: If True, automatically infer and apply Pearson
+                            correlations between semantically related numeric
+                            columns (e.g. age↔salary, price↔quantity).
+
+    Returns:
+        Dict mapping table name → ``pd.DataFrame``.
+
+    Example::
+
+        tables = misata.generate("A SaaS company with 5k users and 20% churn")
+        print(tables["users"].head())
+
+        # Quality-guaranteed generation
+        tables = misata.generate("An ecommerce store", min_quality_score=80)
+
+        # Auto-correlate numeric columns
+        tables = misata.generate("An HR dataset", smart_correlations=True)
+    """
+    from misata.story_parser import StoryParser
+
+    schema = StoryParser().parse(story, default_rows=rows)
+    if seed is not None:
+        schema.seed = seed
+
+    if smart_correlations:
+        _infer_correlations(schema)
+
+    if min_quality_score is None:
+        return _run_simulation(schema)
+
+    from misata.reporting import FidelityChecker
+    best_tables: "Optional[Dict[str, Any]]" = None
+    best_score = -1.0
+    base_seed = schema.seed or 0
+
+    for attempt in range(max_retries + 1):
+        if attempt > 0:
+            schema.seed = base_seed + attempt
+        tables = _run_simulation(schema)
+        report = FidelityChecker().check_against_schema(tables, schema)
+        if report.overall_score > best_score:
+            best_score = report.overall_score
+            best_tables = tables
+        if report.overall_score >= min_quality_score:
+            break
+
+    return best_tables  # type: ignore[return-value]
+
+
+def generate_from_schema(
+    schema: "SchemaConfig",
+    custom_generators: "Optional[Dict[str, Dict[str, Any]]]" = None,
+    min_quality_score: "Optional[float]" = None,
+    max_retries: int = 3,
+    smart_correlations: bool = False,
+) -> "Dict[str, Any]":
+    """Generate data from an already-built SchemaConfig.
+
+    Args:
+        schema:            A SchemaConfig (from ``misata.parse()``, an LLM generator,
+                           or built manually).
+        custom_generators: Optional ``{table: {column: callable}}`` overrides.
+                           Each callable receives ``(partial_df, context_tables)``
+                           and returns an array of length ``len(partial_df)``.
+        min_quality_score: If set (0–100), generation retries until the fidelity
+                           score meets the threshold or ``max_retries`` is
+                           exhausted. The best result is always returned.
+        max_retries:       Maximum retry attempts when ``min_quality_score`` is set.
+        smart_correlations: If True, automatically infer Pearson correlations
+                            between semantically related numeric columns.
+
+    Returns:
+        Dict mapping table name → ``pd.DataFrame``.
+
+    Example::
+
+        schema = misata.parse("An ecommerce store")
+        tables = misata.generate_from_schema(schema, min_quality_score=85)
+    """
+    import copy
+
+    if smart_correlations:
+        schema = copy.deepcopy(schema)
+        _infer_correlations(schema)
+
+    if min_quality_score is None:
+        return _run_simulation(schema, custom_generators=custom_generators)
+
+    from misata.reporting import FidelityChecker
+    best_tables: "Optional[Dict[str, Any]]" = None
+    best_score = -1.0
+    base_seed = schema.seed or 0
+
+    for attempt in range(max_retries + 1):
+        if attempt > 0:
+            schema.seed = base_seed + attempt
+        tables = _run_simulation(schema, custom_generators=custom_generators)
+        report = FidelityChecker().check_against_schema(tables, schema)
+        if report.overall_score > best_score:
+            best_score = report.overall_score
+            best_tables = tables
+        if report.overall_score >= min_quality_score:
+            break
+
+    return best_tables  # type: ignore[return-value]
 
 
 def generate_more(

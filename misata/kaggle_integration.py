@@ -292,6 +292,12 @@ def _get_kaggle_api() -> Optional[Any]:
         api.authenticate()
         return api
     except ImportError:
+        import warnings
+        warnings.warn(
+            "Kaggle API not installed. Run: pip install \"misata[kaggle]\"",
+            UserWarning,
+            stacklevel=3,
+        )
         return None
     except Exception:
         return None
