@@ -73,7 +73,26 @@ nav:
     - Incremental: generation/incremental.md
   - Localisation: localisation.md
   - Time Series: timeseries.md
-  - Domains: domains.md
+  - Domains:
+    - Overview: domains.md
+    - SaaS: domains/saas.md
+    - Ecommerce: domains/ecommerce.md
+    - Fintech: domains/fintech.md
+    - Healthcare: domains/healthcare.md
+    - HR & Workforce: domains/hr.md
+    - Logistics: domains/logistics.md
+    - Marketplace: domains/marketplace.md
+    - Social Media: domains/social.md
+    - Real Estate: domains/realestate.md
+    - Pharma & Research: domains/pharma.md
+    - Food Delivery: domains/fooddelivery.md
+    - EdTech: domains/edtech.md
+    - Gaming: domains/gaming.md
+    - CRM: domains/crm.md
+    - Crypto & Web3: domains/crypto.md
+    - Insurance: domains/insurance.md
+    - Travel: domains/travel.md
+    - Streaming: domains/streaming.md
   - Constraints: constraints.md
   - Export: export.md
   - Validate: validate.md
@@ -95,6 +114,10 @@ nav:
     - REST API: guides/rest-api.md
     - Narrative Patterns: guides/narrative-patterns.md
     - MCP Server (AI agents): guides/mcp.md
+    - pytest Fixtures: guides/testing.md
+    - SQL DDL to Schema: guides/from-ddl.md
+    - dbt Seed Integration: guides/dbt-seed.md
+    - Streaming Large Datasets: guides/streaming.md
 
 extra:
   social:

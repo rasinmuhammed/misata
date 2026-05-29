@@ -1609,5 +1609,99 @@ def validate_cmd(csv_file: str, schema: Optional[str], story: Optional[str], tab
     console.print()
 
 
+@main.command("dbt-seed")
+@click.option("--story", "-s", type=str, default=None,
+              help="Plain-English story to generate data from.")
+@click.option("--config", "-c", type=click.Path(exists=True), default=None,
+              help="misata.yaml schema file.")
+@click.option("--seeds-dir", type=click.Path(), default="seeds",
+              help="dbt seeds directory (default: seeds/).")
+@click.option("--rows", "-n", type=int, default=1000,
+              help="Row count for the primary table (default: 1000).")
+@click.option("--seed", type=int, default=42,
+              help="Random seed for reproducibility (default: 42).")
+@click.option("--force", is_flag=True, default=False,
+              help="Overwrite existing seed CSV files.")
+def dbt_seed_cmd(
+    story: Optional[str],
+    config: Optional[str],
+    seeds_dir: str,
+    rows: int,
+    seed: int,
+    force: bool,
+) -> None:
+    """Generate synthetic data and write CSV files into a dbt seeds directory.
+
+    Generates one CSV per table and writes them to the specified seeds directory.
+    Run `dbt seed` afterwards to load them into your data warehouse.
+
+    Examples:
+
+        misata dbt-seed --story "A SaaS company with 1k users" --seeds-dir seeds/
+
+        misata dbt-seed --config misata.yaml --rows 5000 --seeds-dir dbt/seeds/
+
+        misata dbt-seed -s "A fintech with fraud data" -n 2000 --force
+    """
+    print_banner()
+    from pathlib import Path
+
+    seeds_path = Path(seeds_dir)
+    seeds_path.mkdir(parents=True, exist_ok=True)
+
+    # Build schema
+    if config:
+        schema_config = load_yaml_schema(config, rows=rows, seed=seed)
+        console.print(f"[dim]Schema loaded from {config}[/dim]")
+    elif story:
+        from misata.story_parser import StoryParser
+        schema_config = StoryParser().parse(story, default_rows=rows)
+        schema_config.seed = seed
+        console.print(f"[dim]Parsed domain:[/dim] [cyan]{schema_config.domain or 'generic'}[/cyan]")
+    else:
+        console.print("[red]Error:[/red] provide --story or --config")
+        raise SystemExit(1)
+
+    # Generate
+    from misata.simulator import DataSimulator
+    import pandas as pd
+
+    sim = DataSimulator(schema_config)
+    tables: dict = {}
+    for name, batch in sim.generate_all():
+        if name in tables:
+            tables[name] = pd.concat([tables[name], batch], ignore_index=True)
+        else:
+            tables[name] = batch
+
+    # Write CSVs
+    written = []
+    skipped = []
+    for table_name, df in tables.items():
+        dest = seeds_path / f"{table_name}.csv"
+        if dest.exists() and not force:
+            skipped.append(table_name)
+            continue
+        df.to_csv(dest, index=False)
+        written.append((table_name, len(df), str(dest)))
+
+    for table_name, row_count, path in written:
+        console.print(
+            f"[green]✓[/green] [bold]{table_name}[/bold] — "
+            f"{row_count:,} rows → [cyan]{path}[/cyan]"
+        )
+    for table_name in skipped:
+        console.print(
+            f"[yellow]⚠[/yellow] [bold]{table_name}[/bold] — "
+            f"skipped (file exists, use --force to overwrite)"
+        )
+
+    if written:
+        console.print(
+            f"\n[dim]Run [bold]dbt seed[/bold] to load {len(written)} table(s) "
+            f"into your warehouse.[/dim]"
+        )
+
+
 if __name__ == "__main__":
     main()

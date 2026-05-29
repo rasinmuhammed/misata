@@ -83,6 +83,50 @@ def preview(story: str, rows: int = 10_000) -> "DetectionReport":
 
 
 # ---------------------------------------------------------------------------
+# Streaming generation
+# ---------------------------------------------------------------------------
+
+def generate_stream(
+    story: str,
+    rows: int = 10_000,
+    seed: "Optional[int]" = None,
+    smart_correlations: bool = False,
+) -> "Any":
+    """Yield ``(table_name, batch_df)`` tuples — never buffers the full dataset.
+
+    Suitable for 10M+ row datasets that don't fit in memory at once.
+    Each ``batch_df`` is a :class:`pandas.DataFrame` containing one generation
+    batch for that table.
+
+    Args:
+        story:             Plain-English description of the dataset.
+        rows:              Default row count for the primary table.
+        seed:              Optional random seed for reproducibility.
+        smart_correlations: Auto-infer Pearson correlations between related
+                           numeric columns.
+
+    Yields:
+        Tuple of ``(table_name, batch_df)``.
+
+    Example::
+
+        for table_name, batch in misata.generate_stream("A SaaS company", rows=1_000_000):
+            batch.to_parquet(f"./output/{table_name}_{i}.parquet")
+    """
+    from misata.story_parser import StoryParser
+    from misata.simulator import DataSimulator
+
+    schema = StoryParser().parse(story, default_rows=rows)
+    if seed is not None:
+        schema.seed = seed
+    if smart_correlations:
+        _infer_correlations(schema)
+
+    sim = DataSimulator(schema)
+    yield from sim.generate_all()
+
+
+# ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
@@ -483,14 +527,17 @@ from misata.generators.base import (
     create_conditional_generator,
 )
 from misata.profiler import mimic, DataProfiler
+from misata.ddl import from_ddl
 
 __all__ = [
     # One-liners
     "parse",
     "preview",
     "generate",
+    "generate_stream",
     "generate_from_schema",
     "generate_more",
+    "from_ddl",
     "mimic",
     "DataProfiler",
     "from_dict_schema",
