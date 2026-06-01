@@ -1,260 +1,161 @@
-# Outcome-Driven Relational Synthesis: A Formalization
+# The Exact-Aggregate Engine: Correct Mathematical Identity, Honest Lineage
 
-**Status:** working draft, brick 1 of the research program.
-**Scope:** formalize the *exact-aggregate* generation mechanism implemented in
-`misata/engines/fact_engine.py`, state precisely what it guarantees, and bound its
-failure mode. Every claim below is grounded in the actual implementation
-(`_allocate_row_counts`, `_generate_exact_values`, `generate`) and is empirically
-checked by `research/measure.py`.
+**Status:** brick 1, rewritten after literature reconnaissance (see `02_literature_and_verdict.md`).
+**Purpose:** state *exactly* what `misata/engines/fact_engine.py` does, in the correct
+mathematical language, with full citation of the fields that own each idea. Every
+proposition is checked numerically by `research/measure.py`.
 
----
-
-## 1. The problem
-
-The dominant paradigm in synthetic tabular data is **imitation**: given a real
-dataset `D`, learn `P(D)` (copulas, GANs, diffusion, autoregressive LLMs) and
-sample. We study the **inverse / specification** problem:
-
-> Given a desired *analytical outcome* and **no source data**, generate microdata
-> that *provably reproduces that outcome* while remaining individually realistic and
-> referentially consistent.
-
-This document formalizes the first solved instance of that problem: a metric whose
-**period-level aggregate** must follow a user-specified curve (e.g. "monthly revenue
-rises \$50k → \$200k with a Q3 dip").
-
-### 1.1 Relation to prior work (must be cited; we do not claim the category)
-
-The general idea of "generate microdata consistent with given aggregates" is
-established under other names, and a credible paper must engage them:
-
-- **Population synthesis / spatial microsimulation** — synthesize individuals
-  matching known marginal totals.
-- **Iterative Proportional Fitting (IPF)** and **synthetic reconstruction** — the
-  classical algorithms for matching contingency-table margins.
-- **Apportionment theory** — the largest-remainder (Hamilton) method we use to keep
-  integer sums exact is a 19th-century result.
-
-Our contribution is **not** the bare concept. It is the specific, unclaimed
-combination: *relational, multi-table transactional* microdata, specified by a
-*business-narrative* curve, targeting a *BI-level analytical outcome*, with
-*zero source data*, FK integrity, temporal coherence, and a closed-form realism
-guarantee. §6 states the contribution precisely and honestly.
+> **Posture.** Nothing here is claimed as novel. The value of this document is
+> *correctness and lineage-awareness*: describing the engine the way someone who
+> knows official statistics, compositional data analysis, and constrained sampling
+> would describe it. That is the anti-slop signal. Where a genuine open seam may
+> exist, it is flagged as *open*, not claimed as solved.
 
 ---
 
-## 2. Notation and objects
+## 1. What the engine computes
 
-A **schema** is a set of tables `T₁,…,T_K` with columns and a set of foreign-key
-constraints `F` (a directed acyclic graph over tables). We focus on a single
-**fact table** `T` carrying a **metric column** `Y` (e.g. `mrr`, `amount`) and a
-**time column** `t`.
+Given, for a metric column `Y` over `P` time periods: targets `T_1,…,T_P ≥ 0`, a
+mean transaction value `μ`, a concentration `α`, row bounds `[r_min,r_max]`, and
+decimal precision `d` (`m=10^d`). For each period `p` independently it returns a row
+count `n_p` and nonnegative values `v_{p,1..n_p}` on the `1/m` grid with
+`Σ_i v_{p,i} = round(T_p,d)` exactly.
 
-An **outcome curve** for `(T, Y, t)` is a partition of the time axis into
-`P` consecutive **periods** (buckets) `B₁,…,B_P` with **targets**
-
-$$
-T_1,\dots,T_P \ \in\ \mathbb{R}_{\ge 0},
-$$
-
-where `T_p` is the required value of the aggregate of `Y` over the rows whose
-timestamp falls in `B_p`. (Targets between user-specified anchors are produced by
-interpolation upstream in the parser; here they are given.)
-
-Two further user parameters shape the within-period microdata:
-
-- `μ > 0` — a target **average transaction value** (`avg_transaction_value`);
-- `α > 0` — a **concentration** parameter controlling per-row dispersion;
-- `[r_min, r_max]` — bounds on the number of rows generated per period;
-- `d ∈ ℕ` — decimal precision of `Y` (money: `d = 2`), with `m := 10^d`.
-
-A **generator** `G` is a randomized map producing, for each period `p`, a row count
-`n_p` and values `v_{p,1},…,v_{p,n_p} ∈ (1/m)·ℤ_{≥0}`. The realized period
-aggregate is `Ŝ_p := Σ_i v_{p,i}`.
-
-We require three things of `G`, formalized in §4–§5:
-
-1. **(A) Aggregate fidelity:** `Ŝ_p = round(T_p, d)` exactly, for all `p`.
-2. **(R) Marginal realism:** the per-row law of `Y` has mean ≈ `μ` and a
-   controllable, well-characterized spread.
-3. **(I) Integrity:** rows are emitted into a relational scaffold that preserves FK
-   and temporal constraints (handled by the simulator around the engine; not
-   re-derived here).
+- **Stage 1, counts:** `n_p = clip(round(T_p/μ), r_min, r_max)` (then capped by
+  `⌊T_p m⌋`).
+- **Stage 2, values:** `w ~ Dirichlet(α·1_{n_p})`, scale by `U_p = round(T_p m)`,
+  then **largest-remainder (Hamilton) apportionment** to make the integer units sum
+  to `U_p` exactly; divide by `m`.
 
 ---
 
-## 3. The mechanism (exactly as implemented)
+## 2. The correct identity: this is conditional-sum sampling of a Gamma population
 
-For each period `p` independently:
+The engine is **not** an ad-hoc rescale. It is the *exact* solution to a classical
+problem for one specific family.
 
-**Stage 1 — row allocation** (`_allocate_row_counts`, absolute mode). With `μ` given,
+**Fact (Lukacs 1955 characterization; standard).** If
+`X_1,…,X_n ~ iid Gamma(α, θ)`, then the normalized vector
+`(X_1,…,X_n)/Σ_j X_j ~ Dirichlet(α,…,α)` and is **independent** of the sum `Σ_j X_j`.
 
-$$
-n_p \;=\; \operatorname{clip}\!\Big(\operatorname{round}(T_p/\mu),\; r_{\min},\; r_{\max}\Big),
-\qquad\text{then } n_p \leftarrow \min\!\big(n_p,\ \lfloor T_p\, m\rfloor\big).
-$$
+**Proposition 0 (what Stage 2 really is).** Drawing `w ~ Dirichlet(α·1_n)` and
+setting `v_i = T·w_i` produces a sample distributed *exactly* as
+`(X_1,…,X_n) | Σ_j X_j = T` for `X_j ~ iid Gamma(α,θ)` — i.e. **exact sampling from
+a Gamma population conditioned on a fixed total.**
 
-The last cap (`_clip_to_target_units`) forbids more rows than indivisible currency
-units; it is inactive whenever `T_p m ≥ n_p`, i.e. essentially always for nontrivial
-targets.
+*Proof.* By the Fact, conditioning iid Gammas on their sum yields a Dirichlet
+composition scaled by that sum, with no residual dependence on `θ`. The construction
+reproduces this law verbatim; controlled rounding (§3) projects onto the `1/m` grid
+without changing the sum. ∎
 
-**Stage 2 — exact value partition** (`_generate_exact_values`). Let
-`U_p := round(T_p · m) ∈ ℤ_{≥0}` be the target in integer units. Draw a composition
+This is the right frame and it is *clarifying*, not deflating:
 
-$$
-w \;\sim\; \mathrm{Dirichlet}(\alpha\mathbf{1}_{n_p}),
-\qquad \tilde u_i = w_i\, U_p,
-\qquad u_i = \lfloor \tilde u_i\rfloor,
-$$
-
-then apply **largest-remainder apportionment**: with residual
-`R = U_p − Σ_i u_i`, add one unit to each of the `R` rows with the largest
-fractional parts `tilde u_i − u_i`. (A final safety line forces
-`Σ u_i = U_p` unconditionally.) Output `v_{p,i} = u_i / m`.
-
-The optional `intra_period_pattern` rescales the Dirichlet concentration per row
-(`weekday_heavy`, `start_heavy`, …) to shape *where within the period* the mass
-lands; it does not affect the totals.
-
-> **Relative mode (no `μ`).** When `μ` is absent, Stage 1 instead distributes a row
-> budget `N` by `n_p = round( (T_p / Σ_q T_q)·N )`. Stage 2 is unchanged. We treat
-> absolute mode as primary; the relative variant is analyzed in Remark 5.3.
+- The marginal realism we observe is not luck. Conditioning a Gamma population on its
+  total is genuinely realistic — heavier-tailed than Gaussian, strictly positive,
+  unimodal — and the engine samples it *exactly and in closed form*.
+- It immediately tells us the method's reach: **exactness for free holds precisely
+  for the Gamma/exponential/χ² family.** For other target marginals, the
+  corresponding conditional-sum sampling is generally *not* closed-form (§6, open).
 
 ---
 
-## 4. Aggregate fidelity is exact and unconditional
+## 3. Aggregate exactness (controlled rounding)
 
-**Proposition 1 (Exactness).** For every period `p`,
-`Ŝ_p = Σ_{i=1}^{n_p} v_{p,i} = U_p/m = round(T_p, d)`, deterministically, for any
-draw of `w` and any `n_p ≥ 1`.
+**Proposition 1 (Exactness).** For every `p`, `Σ_i v_{p,i} = U_p/m = round(T_p,d)`
+deterministically, for any draw and any `n_p ≥ 1`.
 
-*Proof.* The Dirichlet weights satisfy `Σ_i w_i = 1`, so `Σ_i \tilde u_i = U_p`,
-an integer. Hence
+*Proof.* `Σ_i w_i = 1 ⇒ Σ_i T̃_i = U_p` with `T̃_i = w_i U_p`. The residual
+`R = U_p − Σ_i⌊T̃_i⌋ = Σ_i frac(T̃_i) ∈ {0,…,n_p−1}`. Largest-remainder adds one unit
+to the `R` largest fractional parts (well defined as `R < n_p`), giving `Σ_i u_i=U_p`.
+Divide by `m`. ∎
 
-$$
-R \;=\; U_p - \textstyle\sum_i u_i \;=\; \sum_i (\tilde u_i - \lfloor \tilde u_i\rfloor)
-\;=\; \sum_i \mathrm{frac}(\tilde u_i).
-$$
+**Lineage.** Integer apportionment to a fixed total under proportional weights is the
+**Hamilton/largest-remainder method** (apportionment theory, 1792) and, in tabular
+form, **controlled rounding / controlled tabular adjustment** in statistical
+disclosure control (Cox 1987; Willenborg & de Waal 2001). The exactness is a known
+guarantee of that family; we use it, we do not claim it.
 
-Each `frac(·) ∈ [0,1)`, so `R ∈ [0, n_p)`, and because the left side is an integer,
-`R ∈ {0,1,…,n_p−1}`. Largest-remainder adds exactly `R` units among distinct rows
-(well-defined since `R < n_p`), giving `Σ_i u_i = U_p`. The safety line is therefore
-a no-op but guarantees the identity even under floating-point pathologies. Dividing
-by `m` gives `Ŝ_p = U_p/m`. ∎
-
-**Corollary 1.1.** The total aggregate error against the *rounded* curve is zero in
-every period; against the *unrounded* curve it is at most `1/(2m)` per period
-(half a currency unit), independent of `n_p`, `α`, and the distribution shape.
-
-This is the property the field's imitation methods structurally lack: a conditional
-GAN/diffusion model conditioned on a target sum matches it only in expectation and
-approximately. Here it is an identity.
+**Corollary 1.1.** Error vs the rounded curve is 0 per period; vs the unrounded curve
+≤ `1/(2m)` (half a cent), independent of `n_p,α`, and the shape.
 
 ---
 
-## 5. Marginal realism: closed form, and an exact distortion bound
+## 4. Marginal law in closed form (compositional data analysis)
 
-Exactness alone is trivial (any rescaling hits a sum). The substance is that the
-**per-row law stays realistic** — and we can say exactly when it does and doesn't.
-
-**Proposition 2 (Marginal law).** Ignore integer rounding (an `O(1/U_p)`
-perturbation). Under `w ∼ Dirichlet(α𝟏_{n_p})`, each normalized weight is
-`w_i ∼ Beta(α, (n_p−1)α)`, so the per-row value `v_{p,i} = U_p w_i / m` satisfies
+**Proposition 2.** Ignoring the `O(1/U_p)` rounding term, with `w~Dirichlet(α1_n)`
+each `w_i ~ Beta(α,(n−1)α)`, so `v_i = T w_i`:
 
 $$
-\mathbb{E}[v_{p,i}] = \frac{T_p}{n_p},
-\qquad
-\mathrm{CV}(v_{p,i}) \;=\; \sqrt{\frac{n_p-1}{\,n_p\alpha+1\,}}
-\;\xrightarrow[n_p\to\infty]{}\; \frac{1}{\sqrt{\alpha}}.
+\mathbb E[v_i]=\frac{T}{n},\qquad
+\mathrm{CV}(v_i)=\sqrt{\frac{n-1}{\,n\alpha+1\,}}\xrightarrow[n\to\infty]{}\frac1{\sqrt\alpha}.
 $$
 
-*Proof.* Marginals of a symmetric Dirichlet are Beta with the stated parameters;
-`E[w_i] = 1/n_p` and `Var(w_i) = (n_p−1)/(n_p²(n_pα+1))`. Then
-`E[v] = (U_p/m)E[w] = T_p/n_p` and
-`CV² = Var(w)/E[w]² = (n_p−1)/(n_pα+1)`; take `n_p→∞`. ∎
+*Proof.* Symmetric-Dirichlet marginals are Beta with these parameters; substitute
+into mean and CV. ∎
 
-**Interpretation.** `α` is a principled, closed-form realism knob: in the
-large-period limit the per-row coefficient of variation is `1/√α`
-(e.g. `α=1`⇒CV≈1, heavy spread; `α=25`⇒CV≈0.2, tight). This is *designed*
-dispersion, not an artifact.
+**Lineage.** Dirichlet/Beta marginals on the simplex are textbook **compositional
+data analysis** (Aitchison 1986); `Dirichlet` as the max-entropy law on the simplex
+for fixed log-moments is standard. `α` as a closed-form CV knob is a property of that
+family, not an invention.
 
-**Proposition 3 (Exact realism-distortion bound).** Define the **distortion**
-`ρ_p := E[v_{p,i}] / μ = T_p/(n_p μ)`, the ratio of realized mean to intended
-average. With `n_p = clip(round(T_p/μ), r_min, r_max)`:
+---
+
+## 5. Distortion under saturation (the precise, honest failure mode)
+
+**Proposition 3.** Let `ρ_p = E[v_{p,i}]/μ = T_p/(n_p μ)`. With
+`n_p = clip(round(T_p/μ),r_min,r_max)`:
 
 $$
-\rho_p =
-\begin{cases}
-1 + O\!\big(\mu/T_p\big), & r_{\min} \le T_p/\mu \le r_{\max}\ \text{(unsaturated)},\\[4pt]
-\dfrac{T_p}{r_{\max}\,\mu} \;>\; 1, & T_p/\mu > r_{\max}\ \text{(lower-clamp saturated)},\\[6pt]
-\dfrac{T_p}{r_{\min}\,\mu} \;<\; 1, & T_p/\mu < r_{\min}\ \text{(upper-clamp saturated)}.
+\rho_p=\begin{cases}
+1+O(\mu/T_p) & r_{\min}\le T_p/\mu\le r_{\max}\\
+T_p/(r_{\max}\mu)>1 & T_p/\mu>r_{\max}\\
+T_p/(r_{\min}\mu)<1 & T_p/\mu<r_{\min}
 \end{cases}
 $$
 
-*Proof.* Immediate from `ρ_p = T_p/(n_p μ)` and the three branches of `clip`. In the
-unsaturated branch `n_p = round(T_p/μ) = (T_p/μ)(1+O(μ/T_p))`, so `ρ_p → 1`. ∎
+*Proof.* Three branches of `clip` in `ρ_p=T_p/(n_pμ)`; unsaturated branch uses
+`round(x)=x(1+O(1/x))`. ∎
 
-**Reading of Proposition 3 (the honest failure mode).** Per-row marginals are
-undistorted **iff** the target-to-average ratio lies within the row bounds. This is
-exactly why, empirically, a 100× target swing left the per-row mean flat at ≈\$150
-across all periods (the ratio never hit a clamp): **the curve is carried by row
-*counts*, not by inflating values.** Distortion appears only at saturation, and then
-its magnitude is the *closed-form clamp ratio* above — giving the user a precise
-recipe (`set r_max ≥ max_p T_p/μ`, `r_min ≤ min_p T_p/μ`) to guarantee `ρ_p ≡ 1`.
-
-**Remark 5.3 (Relative mode).** Without `μ`, `n_p ∝ T_p`, hence
-`E[v_{p,i}] = T_p/n_p = (Σ_q T_q)/N`, **constant across periods**: the entire curve
-shape is carried by density and the value marginal is homogeneous. Both modes
-preserve realism; they differ in *what* is held fixed (per-row mean vs. row budget).
+**Reading.** The curve is carried by **row counts**, not by inflating values; per-row
+marginals are undistorted **iff** `T_p/μ ∈ [r_min,r_max]`. Outside, distortion is the
+**closed-form clamp ratio**, giving an exact recipe to guarantee `ρ_p≡1`
+(`r_max ≥ max_p T_p/μ`, `r_min ≤ min_p T_p/μ`). Numerically confirmed to 0.00% in all
+three regimes (`research/measure.py`).
 
 ---
 
-## 6. What is, and is not, the contribution
+## 6. What is genuinely open (the only place worth digging)
 
-**Not novel (state plainly):** proportional partition to hit a sum is trivial;
-largest-remainder apportionment is classical; matching aggregates with microdata is
-the population-synthesis problem.
+Proposition 0 localizes the boundary precisely. Exact, closed-form, training-free
+conditional-sum sampling is **free for the Gamma family** (our engine) and **for the
+Gaussian family** (affine projection onto the sum hyperplane — classical). The open
+problem:
 
-**The genuine kernel:**
+> **P★ (specified-marginal exact-aggregate sampling).** Given an arbitrary target
+> marginal `F` (e.g. real lognormal/Pareto/empirical) and a total `T`, draw
+> `n` values approximately `~ F` with `Σ = T` *exactly*, efficiently, with a
+> *provable bound* on the divergence from `F` induced by the sum constraint.
 
-1. **Problem framing** — *outcome-driven relational synthesis from zero data*: a
-   metric's BI-level aggregate curve is satisfied *exactly* (Prop. 1) while the
-   per-row law is realistic *with a closed-form CV* (Prop. 2), across a relational
-   scaffold with FK/temporal integrity.
-2. **A clean separation of concerns** — *counts carry shape, a Dirichlet carries
-   spread* — yielding the **exact distortion characterization** of Prop. 3, i.e. a
-   provable condition for zero realism loss. We have not found this stated for the
-   relational, narrative-specified, zero-data regime.
-3. **A measurement methodology** (`research/measure.py`, brick 2) that quantifies
-   *outcome-match error* and *marginal distortion* and shows imitation baselines
-   cannot take aggregate targets at all.
+For non-Gamma/Gaussian `F` there is no closed-form conditional; one needs exponential
+tilting, sequential Monte Carlo, or MCMC, trading exactness against fidelity to `F`.
+**Caveat (honest):** constrained / fixed-sum sampling is itself a studied area
+(tilting, SMC with constraints). Before claiming P★ as a contribution we must verify
+it is not already solved in that literature — see `02_literature_and_verdict.md`.
+The plausibly-fresh angle is only the *wrapper*: P★ inside relational, temporal,
+zero-data synthetic generation with a benchmark.
 
-**Conceded, in writing:** when real data exists and the goal is fidelity to its
-joint distribution, learned methods (CTGAN, diffusion) win. We address a different
-objective; honesty about this boundary is the credibility of the paper.
+Secondary open items: **G2** distortion-minimizing count allocation when clamps must
+bind (small integer program; our `clip` is the naive baseline); **G3** joint targets
+across correlated metrics / across FK joins (current exactness is per-column,
+per-period, independent).
 
 ---
 
-## 7. Open problems (the deeper trench)
+## 7. One-line honest summary
 
-- **G1 — Generalize the target class.** From period aggregates to arbitrary
-  analytical outcomes: cohort-retention curves, funnel conversion vectors, a target
-  regression coefficient, a full correlation matrix. Each is an inverse problem;
-  some are ill-posed (many or no solutions). Characterize solvability.
-- **G2 — Joint multi-metric / cross-table targets.** Current exactness is
-  per-column, per-period and independent across periods. Simultaneous targets on
-  correlated metrics, or on aggregates that span FK joins, require a constrained
-  *joint* solve. Formulate as optimization:
-  minimize marginal distortion `Σ_p D(law_p ‖ realistic_p)` subject to exact
-  aggregate + integer-row + FK constraints; relate the current heuristic to its
-  optimum.
-- **G3 — Distortion-minimizing allocation under hard row bounds.** When clamps must
-  bind, choose `n_p` (and possibly redistribute across periods) to minimize total
-  distortion subject to Σ constraints — a small integer program with, plausibly, a
-  greedy optimum.
-- **G4 — Statistical indistinguishability.** Beyond mean/CV, bound the divergence
-  between the Dirichlet-partition law and a target marginal (e.g. lognormal) and
-  state when they are indistinguishable at sample size `n_p`.
-
-Brick 2 builds the measurement harness that turns Propositions 1–3 into reproducible
-numbers and stress-tests the saturation boundary of Proposition 3.
+The exact-aggregate engine is **exact Gamma-population conditional-sum sampling
+(Dirichlet) + controlled rounding (Hamilton apportionment)**, with closed-form
+marginal CV (compositional data analysis) and a closed-form clamp-distortion bound.
+Every component is classical and correctly cited. The only candidate open seam is
+P★ — exact-aggregate sampling for an *arbitrary specified* marginal — and even that
+must survive a constrained-sampling literature check before any claim.
