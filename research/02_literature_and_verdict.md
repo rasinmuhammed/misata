@@ -94,15 +94,41 @@ means, not the headline.
 
 ---
 
-## 6. Next actions, in order
+## 6. P★ gate — RESOLVED: closed as theory, but yields a real applied principle
 
-1. **DONE — both 2026 threats cleared** (JANUS §4, maxent §3). Neighborhood is active
-   but our corner is unoccupied.
-2. **Probe P★ honestly (the decisive gate):** literature check on fixed-sum /
-   constrained sampling for arbitrary marginals (exponential tilting, SMC with
-   constraints, Gibbs-on-the-simplex). If genuinely open, prototype tilting vs the
-   Dirichlet baseline and *measure* the exact-aggregate-vs-fidelity tradeoff in the
-   harness. This single result decides "tool paper or no paper."
-3. **If P★ is already solved:** stop chasing a paper; redirect all energy to the tool
-   and the *honest* public-doc rewrite (no novelty claims, full lineage). Not failure
-   — the credibility that compounds.
+Literature check done. P★ (exact-sum sampling for an arbitrary specified marginal) is
+**not open as a theory contribution**:
+
+- **Sampling machinery exists.** Exponential tilting (closed-form for the exponential
+  family) and **Sequentially Constrained Monte Carlo** (Golchi & Campbell 2014/16,
+  [1410.8209](https://arxiv.org/abs/1410.8209)) already sample from an arbitrary `F`
+  under a hard sum constraint. The "how to sample" half is solved, generically.
+- **Distortion is already characterized.** The statistical-physics literature on
+  **condensation** of sums ([1812.02513](https://arxiv.org/pdf/1812.02513)) gives the
+  exact behavior: conditioning *light-tailed* `F` (exponential/Gamma) on a sum is the
+  "fluid phase" — the excess spreads evenly, marginal ≈ `F`. Conditioning
+  *heavy-tailed* `F` (lognormal/Pareto) on a large sum enters a **condensation phase**
+  — one summand absorbs the excess; the conditional marginal is provably NOT `F`. So a
+  "provable low-distortion bound for arbitrary `F`" cannot exist for heavy tails — it
+  is a known impossibility, not our discovery.
+
+**The genuine applied insight (docs/blog, not a paper):** our engine's choice of the
+Gamma-conditional (Dirichlet) law is *exactly the fluid-phase regime* — the unique
+classical family where exact-sum conditioning leaves the marginal essentially
+undistorted. That is *why* Proposition 2 holds and why empirical means stay flat. It
+is a correct, citable engineering rationale (Lukacs + condensation theory), and a
+good story — but it is assembling known results, not new theory.
+
+## 7. Final verdict
+
+- **Novel-theory paper: CLOSED.** Every door checked; each component is classical and
+  P★ is impossible/solved. Pursuing it = the slop trap.
+- **Benchmark / systems paper: OPEN and achievable.** No standardized benchmark
+  exists for the *specification regime* — controllable, cold-start, relational
+  synthesis measured jointly on aggregate-match error, FK integrity, marginal
+  realism, and controllability (SDMetrics measures fidelity-to-real, a different
+  axis). Building that benchmark + Misata as reference implementation is a real,
+  landable contribution that needs rigor and honesty, not novel math. Venue:
+  **NeurIPS Datasets & Benchmarks**, **VLDB tool/demo**, or **JOSS**.
+- **The name comes from the adopted tool**, with the benchmark as its credibility
+  anchor. Not from theory.
