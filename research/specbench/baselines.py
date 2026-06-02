@@ -70,17 +70,51 @@ class MisataBaseline(Baseline):
         import time
         import misata
         t0 = time.perf_counter()
-        # Misata consumes the natural-language / declarative spec directly.
+        # Primary path: consume the natural-language spec (input=nl).
         tables = misata.generate(task.story, rows=task.rows, seed=seed)
-        # For reference-mode AME we compare like-for-like: expose the generator's
-        # metric-bearing table under the task's metric_table name. Pick the table
-        # that actually contains the metric column.
         if task.metric_table not in tables:
             for name, df in tables.items():
                 if task.metric_col in df.columns and task.time_col in df.columns:
                     tables[task.metric_table] = df
                     break
-        return GenResult(tables=tables, wall_seconds=time.perf_counter() - t0)
+
+        # Honest fallback: if NL domain detection did not yield the task's metric/time
+        # columns (e.g. an arbitrary real schema outside the 18 curated domains), build an
+        # explicit SchemaConfig + OutcomeCurve from the task and generate declaratively.
+        # This is a REAL Misata capability (declarative specs), but it is NOT the NL path:
+        # the run records input_type="schema" so the leaderboard never overstates the NL
+        # capability on tasks where it did not actually apply.
+        used_input = "nl"
+        mt = tables.get(task.metric_table)
+        if mt is None or task.metric_col not in mt.columns or task.time_col not in mt.columns:
+            tables = self._generate_from_explicit_spec(task, seed)
+            used_input = "schema"
+
+        return GenResult(tables=tables, wall_seconds=time.perf_counter() - t0,
+                         reason=f"input={used_input}")
+
+    def _generate_from_explicit_spec(self, task, seed: int) -> Dict[str, pd.DataFrame]:
+        """Declarative Misata: SchemaConfig + OutcomeCurve from the task's targets."""
+        import misata
+        from misata.schema import SchemaConfig, Table, Column, OutcomeCurve
+        points = [{"month": int(k), "target_value": float(v)}
+                  for k, v in task.period_targets.items()]
+        cfg = SchemaConfig(
+            name=task.task_id,
+            tables=[Table(name=task.metric_table, row_count=task.rows)],
+            columns={task.metric_table: [
+                Column(name=task.metric_col, type="float",
+                       distribution_params={"distribution": "lognormal",
+                                            "mu": 0.5, "sigma": 0.5, "min": 1e-6}),
+                Column(name=task.time_col, type="date",
+                       distribution_params={"start": "2024-01-01", "end": "2024-12-31"}),
+            ]},
+            outcome_curves=[OutcomeCurve(
+                table=task.metric_table, column=task.metric_col, time_column=task.time_col,
+                time_unit="month", value_mode="absolute", curve_points=points)],
+            seed=seed,
+        )
+        return misata.generate_from_schema(cfg)
 
 
 # --------------------------------------------------------------------------- #

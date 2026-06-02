@@ -239,14 +239,74 @@ def _ecommerce_curve_task() -> Task:
     )
 
 
+def _real_dataset_reference_task() -> Optional[Task]:
+    """Reference-mode on a GENUINELY REAL dataset (review D8): California Housing.
+
+    Honesty notes — read before trusting this task:
+    - The metric column `value` is the **real** `MedHouseVal` from California Housing
+      (20,640 actual records); nothing about the values is synthetic.
+    - California Housing has no timestamp. Misata's outcome engine is time-scoped, so to
+      give every generator a fair, on-mechanism target we derive a **deterministic** date
+      from a real feature: `month = 1 + (HouseAge mod 12)`. This is a fixed, documented
+      mapping of a real attribute, not invented data — it induces a real per-month
+      aggregate of real house values, which becomes the oracle.
+    - Targets are the real data's own per-month sums (the spec = what the real data says).
+      SDV/HMA train on the real table; Misata is given only the derived monthly targets.
+    Returns None if scikit-learn / the dataset is unavailable (recorded as skipped,
+    never faked).
+    """
+    try:
+        import numpy as np
+        import pandas as pd
+        from sklearn.datasets import fetch_california_housing
+        cal = fetch_california_housing(as_frame=True).frame
+    except Exception:
+        return None
+
+    real = pd.DataFrame({
+        "value": cal["MedHouseVal"].to_numpy(),                       # REAL metric
+        "month": (1 + (cal["HouseAge"].astype(int) % 12)).astype(int),
+        "rooms": cal["AveRooms"].to_numpy(),
+    })
+    real["date"] = pd.to_datetime("2024-" + real["month"].map(lambda m: f"{m:02d}") + "-15")
+    targets = {f"{m:02d}": float(real.loc[real.month == m, "value"].sum())
+               for m in range(1, 13)}
+
+    return Task(
+        task_id="california_housing_reference",
+        mode="reference",
+        story=("Housing dataset: total median house value per month following the "
+               "California Housing distribution"),
+        rows=len(real),
+        metric_table="housing",
+        metric_col="value",
+        time_col="date",
+        period_freq="M",
+        period_targets=targets,                  # oracle = REAL per-month sums
+        constraints=[{"table": "housing", "column": "value", "op": ">", "value": 0.0}],
+        primary_table="housing",
+        schema_tables=[
+            {"name": "housing", "pk": "house_id", "rows": len(real), "columns": [
+                {"name": "value", "kind": "metric", "scale": float(real["value"].mean())},
+                {"name": "date", "kind": "date", "start": "2024-01-01", "span_days": 365},
+            ]},
+        ],
+        reference_tables={"housing": real[["value", "date", "rooms"]]},
+    )
+
+
 def seed_suite() -> List[Task]:
     """Real, verified SpecBench tasks. Each curve task confirmed AME=0 achievable by the
     reference engine before inclusion (no task is added that even the engine cannot meet,
     which would be dishonest). Expanded from the initial 3-task demo (review M1)."""
-    return [
+    suite = [
         _saas_curve_task(),          # spec-mode curve + hard constraint (CSAT)
         _fintech_curve_task(),       # spec-mode curve, different domain/scale
         _ecommerce_curve_task(),     # spec-mode curve, different domain/scale
         _ecommerce_fk_task(),        # spec-mode integrity-only (FIVR/TCV)
-        _reference_mode_task(),      # reference-mode (SDV/HMA compete on real data)
+        _reference_mode_task(),      # reference-mode, controlled synthetic source
     ]
+    real_task = _real_dataset_reference_task()   # reference-mode on REAL data (D8)
+    if real_task is not None:
+        suite.append(real_task)
+    return suite

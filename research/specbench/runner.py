@@ -67,6 +67,11 @@ def run_task(task: Task, baselines: List[Baseline], seed: int = 42,
 
         rec["ran"] = True
         rec["secs"] = round(res.wall_seconds, 3)
+        # actual per-run input type: a baseline may report input=... in reason
+        # (e.g. Misata falling back from NL to declarative schema on an unknown domain).
+        rec["run_input"] = bl.capabilities.input_type
+        if res.reason.startswith("input="):
+            rec["run_input"] = res.reason.split("=", 1)[1]
 
         # --- Family A: AME (only if the task declares period targets) ---
         if task.period_targets:
@@ -158,6 +163,10 @@ def main(seeds: int = 10) -> None:
                 continue
             for r in ran:
                 r["input_type"] = itype
+            # show the ACTUAL input used this task (may differ from the static default,
+            # e.g. Misata's NL→schema fallback on an unknown domain)
+            run_itypes = {r.get("run_input", itype) for r in ran}
+            itype = "/".join(sorted(run_itypes)) if run_itypes else itype
             print(f"  {bl.name:<20} {itype:>7} {ran[0]['CSC']:>3} "
                   f"{_agg([r['AME'] for r in ran]):>11} "
                   f"{_agg([r['FIVR'] for r in ran]):>8} "
