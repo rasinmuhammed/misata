@@ -142,5 +142,8 @@ numbers, purge retractions) → M9/M10 (AME shape check, demote CSAT) → D8 (re
   3. Theory: Prop. 0 (Gamma-conditional identity) + Prop. 4 (scale-invariance w/ control).
   AME-alone-on-spec-mode is explicitly conceded trivial (NaiveRescale ties it).
 - **M10 RESOLVED:** CSAT removed from headline table (all baselines 1.0 → noise).
-- **M8 pending:** rewrite paper E5 from final numbers, purge the two retracted claims.
+- **M8 RESOLVED:** paper E5/E6 rewritten from final multi-seed numbers; both retracted
+  claims (non-determinism, condensation frontier) purged from spine/abstract/
+  contributions/§3.4/conclusion and replaced with the corrected Prop-4 scale-invariance
+  + input-axis story; explicit retraction notes kept in E5, E6, §3.4.
 - **M9 pending:** per-period AME shape check on the non-monotone task.

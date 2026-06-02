@@ -10,12 +10,15 @@
 > Math → `01_formalization.md`; lineage → `02_*`/`05_literature_review.md`; scope lock
 > → `00_moat_and_scope.md`; numbers → `research/measure.py` + `specbench/`.
 >
-> **Spine (do not lose this again).** The paper's backbone is the *mathematics*: the
-> conditional-sum identity (Prop. 0) that makes outcome conformance exact and
-> closed-form, and the condensation frontier (Prop. 5) that says exactly when it must
-> trade against marginal fidelity. SpecBench is the *measurement arm* of these
-> propositions — every metric operationalizes a specific claim (§4.1). The axis is
-> **conformance, not fidelity**; we concede fidelity-to-real to imitation methods.
+> **Spine.** The paper's backbone is the *mathematics*: the conditional-sum identity
+> (Prop. 0) that makes outcome conformance exact and closed-form, and scale-invariance
+> (Prop. 4) showing the engine preserves the marginal by fixing shape and letting scale
+> absorb the constraint — which is *why* it sidesteps the condensation obstruction that
+> bounds the fixed-marginal problem. SpecBench is the *measurement arm* — every metric
+> operationalizes a specific claim (§4.1). The axis is **conformance, not fidelity**; we
+> concede fidelity-to-real to imitation methods, and we concede that exact aggregation
+> *alone* is trivial (a rescale ties it given a hand-built schema) — the contribution is
+> exact conformance from an NL spec, zero data, with the marginal preserved.
 >
 > **Author note.** Rewrite in the author's own voice before submission. `[CITE: ...]`
 > markers resolve to entries in `05_literature_review.md`.
@@ -37,12 +40,15 @@ widely-used family of exact-aggregate generators is, precisely, *exact sampling 
 a Gamma population conditioned on a fixed total* (via Lukacs' proportion–sum
 independence `[CITE: Lukacs 1955]`), giving closed-form aggregate exactness
 (controlled rounding `[CITE: Cox 1987]`), a closed-form marginal coefficient of
-variation, and an *exact* distortion bound under resource limits. We then establish
-the **achievable frontier**: using condensation theory for conditioned sums
-`[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan et al. 2014]`, exact-aggregate
-conformance preserves an arbitrary target marginal *only* in the light-tailed (fluid)
-regime; for heavy-tailed targets under tight totals a condensate forms (single big
-jump) and fidelity loss is unavoidable — a known impossibility, not an open problem.
+variation, and an *exact* distortion bound under resource limits. We further prove a
+**scale-invariance** property: the engine fixes the per-row *shape* (a Gamma family at
+fixed concentration) and lets the *scale* absorb the aggregate constraint, so the
+marginal is preserved regardless of the target — empirically, the distortion vs an
+unconstrained control is ≈ 0 across all tail weights. We connect this to condensation
+theory for conditioned sums `[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan et al.
+2014]`: condensation (single-big-jump marginal collapse) is the obstruction for the
+*fixed-external-marginal* exact-aggregate problem (which we do **not** claim to solve),
+and scale-invariance is precisely how our shape-fixing engine *sidesteps* it.
 **(C2) SpecBench**, the first benchmark for conformance: it scores generators on
 aggregate-match error, rate/group-distribution conformance, controllability response,
 FK-integrity, temporal coherence, and determinism — axes that fidelity benchmarks
@@ -99,8 +105,8 @@ outcomes, relational, from natural language, zero data — is unoccupied (§7).
 
 ### 1.3 Contributions
 
-**C1 — Formal characterization with an achievable frontier (§2–§3).** We define
-outcome-conformant synthesis and analyze its exactly-solvable core.
+**C1 — Formal characterization (§2–§3).** We define outcome-conformant synthesis and
+analyze its exactly-solvable core.
 - **Identity (Prop. 0).** The exact-aggregate engine *is* exact sampling from a Gamma
   population conditioned on a fixed total (Lukacs proportion–sum independence
   `[CITE: Lukacs 1955]`) — not an ad-hoc rescale. This is the mathematical spine.
@@ -108,11 +114,14 @@ outcome-conformant synthesis and analyze its exactly-solvable core.
   controlled rounding `[CITE: Cox 1987]`; closed-form marginal `CV = √((n−1)/(nα+1))`
   `[CITE: Aitchison 1986]`.
 - **Distortion bound (Prop. 3).** Exact closed-form distortion under resource clamps.
-- **Frontier (Prop. 5).** Via condensation theory `[CITE: Armendáriz–Loulakis 2011;
-  Szavits-Nossan et al. 2014]`: exact conformance preserves an arbitrary target
-  marginal *only* in the light-tailed fluid regime; heavy tails under tight totals
-  force a condensate (single big jump) and unavoidable fidelity loss. This both
-  *justifies* the Gamma design and *bounds* what any such method can achieve.
+- **Scale-invariance, and why condensation is avoided (Prop. 4).** The engine fixes the
+  per-row *shape* and lets the *scale* meet the target, so the marginal is invariant to
+  the demanded aggregate (verified: distortion vs an unconstrained control ≈ 0 across
+  tail weights, E6). Condensation theory `[CITE: Armendáriz–Loulakis 2011;
+  Szavits-Nossan et al. 2014]` says single-big-jump collapse is the obstruction for the
+  *fixed-external-marginal* exact-aggregate problem; Prop. 4 shows our shape-fixing
+  design sidesteps that obstruction by construction. We do **not** claim to solve the
+  fixed-marginal problem (that remains open, §6, P★) — we delimit where it bites.
 
 **C2 — SpecBench (§4): the first conformance benchmark.** Metrics for the regime —
 aggregate-match error, rate- and group-distribution conformance, controllability
@@ -187,26 +196,39 @@ controlled-rounding lineage `[CITE: Cox 1987]`.)*
 `CV(v_i) = sqrt((n−1)/(nα+1)) → 1/√α`. `α` is a closed-form realism knob
 (compositional data analysis `[CITE: Aitchison 1986]`).
 
-### 3.4 The achievable frontier (the honest negative result)
+### 3.4 Distortion under resource limits, scale-invariance, and the boundary
 
-**Proposition 4 (Distortion under resource limits).** With
+**Proposition 3b (Distortion under resource limits).** With
 `ρ_p = E[v_{p,i}]/μ = T_p/(n_p μ)`: `ρ_p = 1 + O(μ/T_p)` when
 `T_p/μ ∈ [r_min, r_max]`; otherwise `ρ_p` equals the closed-form clamp ratio
 `T_p/(r_max μ)` or `T_p/(r_min μ)`. The aggregate curve is carried by *row counts*,
 not by inflating values; marginals are undistorted iff the target-to-average ratio
 fits the resource bounds.
 
-**Proposition 5 (Heavy-tail impossibility).** For a *specified* target marginal `F`
-and total `T`, exact-sum conditioning preserves `F` only in the light-tailed
-("fluid") regime. For heavy-tailed `F` (lognormal, Pareto) under a large total, the
-conditioned law enters a **condensation** phase — one summand absorbs the excess and
-the marginal is provably not `F` `[CITE: Szavits-Nossan et al. 2014]`. Hence no
-generator can offer exact aggregates *and* a low-distortion guarantee for arbitrary
-heavy-tailed marginals. This is a frontier, not a defect: the reference design's
-Gamma/Dirichlet choice is exactly the fluid regime where (A) and (R) coexist.
+**Proposition 4 (Scale-invariance).** Fix concentration `α`. For totals `T, T'`, the
+engine's output for `T'` equals `(T'/T)·` its output for `T` in distribution (up to the
+`O(1/U)` rounding term): the *normalized* law `v_i/\bar v` is independent of the target.
+The target sets the scale; the shape is invariant. *(Proof: Stage-2 `w∼Dirichlet(α𝟙)`
+is independent of `T`; `v_i(T')=T'w_i=(T'/T)v_i(T)`.)*
 
-This subsection is the paper's intellectual honesty and, paradoxically, its
-strength: we map the boundary of what is possible rather than overclaiming past it.
+**Where condensation does — and does not — apply (the honest boundary).** Condensation
+theory `[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan et al. 2014]` shows that
+conditioning a sum of variables with a *fixed marginal* `F` on a large-deviation total
+forces a single-big-jump collapse: the conditional marginal is provably not `F` for
+heavy-tailed `F`. This is the obstruction for the **fixed-external-marginal**
+exact-aggregate problem (P★, §6) — which we do **not** claim to solve. Our engine
+**avoids** the obstruction rather than defeating it: by Prop. 4 it holds the *shape*
+fixed and lets the *scale* absorb the constraint, so there is no fixed `F` to collapse.
+E6 confirms this empirically — with the proper unconstrained control, the marginal
+distortion gap is ≈ 0 across all tail weights.
+
+> **Retraction (intellectual-honesty note).** An earlier draft asserted a "heavy-tail
+> impossibility frontier" *for our engine* and reported a 21.7× distortion rise with
+> tail-heaviness. Adding the unconstrained control revealed that rise to be a
+> Beta-vs-lognormal family-mismatch plus finite-sample 1-Wasserstein bias — an artifact,
+> not a constraint effect. The corrected result (Prop. 4 + E6) is that the engine's
+> marginal is *invariant* to the target. We keep this note because mapping the boundary
+> honestly — and catching our own confound — is part of the contribution.
 
 ---
 
@@ -223,18 +245,20 @@ operationalizes a proposition from §3.** This is the explicit link between the 
 | Proposition (C1) | What it claims | SpecBench metric that measures it |
 |---|---|---|
 | Prop. 1 (exactness) | aggregate hits target exactly | **AME** → 0 for exact generators |
-| Prop. 2 (marginal law) | per-row `CV=√((n−1)/(nα+1))` | marginal-plausibility check vs predicted CV |
-| Prop. 3 (clamp distortion) | distortion = closed-form clamp ratio | conformance vs declared row-bounds |
-| Prop. 5 (frontier) | fidelity preserved only in fluid regime | **MD trade-off curve** across tail-heaviness |
+| Prop. 2 (marginal law) | per-row `CV=√((n−1)/(nα+1))` | CV check vs predicted (E2: ≤0.1%) |
+| Prop. 3 (clamp distortion) | distortion = closed-form clamp ratio | ρ vs declared row-bounds (E3) |
+| Prop. 4 (scale-invariance) | marginal preserved; condensation avoided | **MD vs unconstrained control** ≈ 0 (E6) |
 | §2 integrity desiderata | FK + temporal correctness | **FIVR**, **TCV** → 0 |
 | determinism (system) | same seed ⇒ identical output | **DET** → 1 |
+| capability (input) | conformant data from an NL spec, zero data | **input axis** (nl vs schema vs data) |
 | controllability | tracks a changed spec | **CR** → 0 under target change |
 
-The single most important plot in the paper is the **Prop. 5 MD trade-off curve**:
-as the declared marginal grows heavier-tailed under a fixed aggregate, measured
-marginal distortion rises, and the *onset* matches the condensation transition
-predicted in §3. That figure turns the theory's frontier into an empirical,
-falsifiable curve — the core scientific result, not a leaderboard cell.
+The key figure (E6) is the **Prop. 4 scale-invariance plot**: across tail-heaviness,
+the engine's constrained marginal coincides with an *unconstrained* same-family control
+(distortion gap ≈ 0) while the aggregate stays exact. It turns the theory into a
+falsifiable curve and — crucially — includes the control that distinguishes a genuine
+effect from the family-mismatch artifact an uncontrolled version would show (see the
+retraction note in §6/E6). That methodological care is itself part of the contribution.
 
 ### 4.2 Metrics (grouped by family; see `00_moat_and_scope.md`)
 
@@ -257,8 +281,9 @@ falsifiable curve — the core scientific result, not a leaderboard cell.
 - **Throughput / peak memory** (SDGym convention `[CITE]`).
 
 **Secondary context only (reference-mode tasks; never headline):**
-- **MD** Marginal Distortion (normalized 1-Wasserstein) — used for the Prop. 5 curve
-  and to *concede* fidelity to imitation methods, per the scope lock. TSTR,
+- **MD** Marginal Distortion (normalized 1-Wasserstein) — used for the Prop. 4
+  scale-invariance experiment (E6, vs an unconstrained control) and to *concede*
+  fidelity to imitation methods, per the scope lock. TSTR,
   detection-as-goal, and DCR-as-privacy are deliberately excluded (§ rationale in
   `00_moat_and_scope.md`); privacy is argued by construction (zero real data).
 
@@ -294,7 +319,7 @@ novelty — its components are classical (§3) and correctly cited.
 ## 6. Experiments
 
 E1–E4 validate the propositions of §3 (reproducible via `research/measure.py`); E5 is
-the cross-paradigm SpecBench leaderboard and E6 the Prop. 5 frontier figure (both via
+the cross-paradigm SpecBench leaderboard and E6 the Prop. 4 scale-invariance figure (both via
 `research/specbench/`, isolated env `requirements-specbench.txt`, SDV 1.37.0).
 
 **E1 — Aggregate exactness (Prop. 1).** Over **5,000** randomized trials spanning
@@ -314,50 +339,68 @@ unsaturated, lower-clamp) the realized `ρ_p` matched the closed-form prediction
 in January … \$200k in December"* produced microdata whose monthly rollups were
 **\$50,000.00** and **\$200,000.00** — exact to the cent.
 
-**E5 — Cross-paradigm conformance (SpecBench leaderboard).** Real runs; AME = relative
-aggregate-match error against declared anchors, FIVR = FK-violation rate, DET =
-determinism (same-seed bitwise identity), CSC = cold-start capability. SDV trained for
-real (GaussianCopula and CTGAN, the latter 100 epochs).
+**E5 — Cross-paradigm conformance (SpecBench leaderboard).** Real runs, **10 seeds,
+mean ± std**. AME = relative aggregate-match error against declared anchors; FIVR =
+FK-violation rate; DET = determinism over ≥3 same-seed regenerations; CSC = cold-start
+capability; **input** = what the generator consumes (`nl` = natural-language spec;
+`schema` = a hand-built schema enumerating columns/FKs/periods; `data` = a real source
+table). SDV is properly seeded (torch+numpy); CTGAN 100 epochs.
 
-*Spec-mode (cold-start) task — SaaS MRR curve:*
+*Spec-mode (cold-start) tasks — three domains (SaaS non-monotone, fintech, ecommerce):*
 
-| Generator | CSC | AME | FIVR | DET |
-|---|---|---|---|---|
-| **Misata (ours)** | 1 | **0.000** | 0.000 | 1.000 |
-| Faker + hand-wired FK | 1 | 0.735 | 0.000 | 1.000 |
-| SDV GaussianCopula | 0 | — (cannot run: no source data) | | |
-| SDV CTGAN | 0 | — (cannot run: no source data) | | |
-
-*Reference-mode task — revenue curve, real source table supplied so learned methods
-train on data whose monthly sums already match the targets:*
-
-| Generator | CSC | AME | FIVR | DET | fit+sample (s) |
+| Generator | input | CSC | AME | FIVR | DET |
 |---|---|---|---|---|---|
-| **Misata (ours)** | 1 | **0.000** | 0.000 | 1.000 | 0.04 |
-| SDV GaussianCopula | 0 | 0.213 | 0.000 | 1.000 | 0.80 |
-| SDV CTGAN | 0 | 0.698 | 0.000 | **0.000** | 52.0 |
-| Faker + hand-wired FK | 1 | 1.823 | 0.000 | 1.000 | 0.00 |
+| **Misata (ours)** | **nl** | 1 | **0 (≤1/2m)** | 0 | 1 |
+| NaiveRescale (Faker + per-period ×T/Σ) | schema | 1 | 1.5e-16 | 0 | 1 |
+| Faker (independent draws) | schema | 1 | 0.82–0.90 | 0 | 1 |
+| SDV (GC / CTGAN / HMA) | data | 0 | — *(cannot run: no source data)* | — | — |
 
-The reference-mode row is the paper's central empirical point: **even when an
-imitation model is trained on data whose monthly totals already equal the targets, it
-reproduces the point cloud, not the declared outcome** (AME 0.21–0.70), and the deep
-model is **non-deterministic** (DET 0) — it cannot reproduce its own output under a
-fixed seed. Conformance is a property of *taking the specification as input*, which
-imitation structurally does not. We concede, as predicted, that learned methods lead
-on fidelity-to-real context metrics (reported in the appendix, not as a success axis).
+**Honest reading.** Hitting the aggregate exactly is *trivial*: NaiveRescale also
+reaches AME ≈ 0. The distinction E5 makes visible is the **input axis** — NaiveRescale
+and Faker reach the table only because *a human hand-built their schema, columns, FKs,
+and period structure*; the engine produces the same conformant relational dataset from
+a **single natural-language sentence, with zero source data**. That is the contribution
+on spec-mode: not AME = 0 (conceded trivial), but AME = 0 **from an NL spec with no
+hand-built schema and no source data** (the only `input=nl` row). Imitation methods
+(SDV) cannot run cold-start at all (CSC = 0).
 
-**E6 — The conformance/fidelity frontier (Prop. 5).** Holding the aggregate exact, we
-sweep the *demanded* target marginal from light- to heavy-tailed (lognormal log-σ from
-0.1 to 2.0) and measure marginal distortion MD (normalized 1-Wasserstein to an
-unconstrained draw from the same target). Distortion rises monotonically from
-**MD ≈ 0.058** (light tail, σ≤0.4: the *fluid* regime where the exact-sum constraint
-is essentially free) to **MD ≈ 1.25** (heavy tail, σ≥1.6: the *condensation* regime) —
-a **21.7×** increase with a visible knee near σ≈1.4, while the aggregate stays exact
-(max sum-error 0.00 across the sweep). This is the empirical signature of the
-condensation transition (§3.4): exact aggregate conformance and arbitrary
-heavy-tailed marginal fidelity are jointly unachievable, and the boundary is the one
-condensation theory predicts. *(Figure: MD vs σ; data in
-`research/specbench/prop5_curve.csv`.)*
+*Reference-mode task — a real source table is supplied so learned methods train on data
+whose monthly sums already match the targets; the engine is given only the spec:*
+
+| Generator | input | CSC | AME (10 seeds) | FIVR | DET | fit+sample (s) |
+|---|---|---|---|---|---|---|
+| **Misata (ours)** | nl | 1 | **0** | 0 | 1 | 0.04 |
+| SDV GaussianCopula | data | 0 | 0.213 ± 0.000 | 0 | 1 | 0.82 |
+| SDV HMA | data | 0 | 0.213 ± 0.000 | 0 | 1 | 1.54 |
+| SDV CTGAN | data | 0 | 0.569 ± 0.436 | 0 | 1 | 48.8 |
+| Faker | schema | 1 | 0.895 ± 0.005 | 0 | 1 | 0.00 |
+
+**Reading.** Even trained on data whose monthly totals already equal the targets,
+imitation methods reproduce the point cloud, **not** the declared outcome: GaussianCopula
+and HMA miss by a deterministic 21%, and CTGAN by **0.569 ± 0.436** — a variance so wide
+its conformance is effectively *uncontrolled* (it has no mechanism to target the
+aggregate). The engine attains AME = 0 from the spec alone. *Correction note:* an earlier
+single-seed draft reported CTGAN "non-deterministic (DET 0)"; once SDV is properly seeded
+**all SDV synthesizers are deterministic (DET = 1)** — that claim was an artifact of
+un-seeded runs and is retracted. The honest claim is *uncontrolled conformance under
+high run-to-run variance*, not non-determinism. We concede learned methods lead on
+fidelity-to-real where real data exists (a different objective).
+
+**E6 — Exact aggregate costs ~no shape distortion (Prop. 4; condensation avoided).**
+*Correction note:* an earlier draft claimed a "condensation frontier" (a 21.7× rise in
+marginal distortion with tail-heaviness). With the proper **unconstrained control
+added**, that rise proved to be a Beta-vs-lognormal family-mismatch and finite-sample
+1-Wasserstein artifact, **not** a constraint effect; it is **retracted**. The corrected,
+controlled experiment (10 seeds) holds the aggregate exact and compares the engine's
+constrained sample to an unconstrained i.i.d. draw from the *same* family across
+tail-heaviness CV ∈ [0.35, 2.9]. The two coincide — distortion **gap ≈ 0** throughout
+(−0.012 light-tail to −0.051 heavy-tail; the constrained sample is, if anything,
+slightly *closer* to the target) — while the aggregate stays exact (max sum-error 0).
+This empirically confirms **Prop. 4**: the engine fixes the *shape* (Dirichlet/Gamma
+at concentration α) and lets the *scale* absorb the constraint, so condensation — which
+afflicts *fixed-marginal* conditional sampling — is **avoided by construction**, not
+merely deferred. *(Figure: `research/specbench/prop4_scale_invariance.png`; data in
+`prop5_curve.csv` / `prop5_summary.csv`.)*
 
 ---
 
@@ -379,8 +422,9 @@ disaggregation (Denton `[CITE: 1971]`, Chow–Lin `[CITE: 1971]`), IPF
 relational populations. **(v) The exact mathematics** — Lukacs proportion–sum
 independence `[CITE: 1955]`, compositional data analysis `[CITE: Aitchison 1986]`,
 controlled rounding `[CITE: Cox 1987]`, apportionment `[CITE: Balinski–Young 1982]`.
-**(vi) The frontier** — condensation of conditioned sums
-`[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan et al. 2014]`; constrained sampling
+**(vi) The boundary** — condensation of conditioned sums
+`[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan et al. 2014]` (the obstruction for the
+fixed-marginal problem our engine sidesteps); constrained sampling
 `[CITE: Golchi–Campbell 2014]`. We unify the *specification* thread, supply the missing
 *conformance* benchmark, and reuse — and cite — the rest.
 
@@ -388,24 +432,33 @@ controlled rounding `[CITE: Cox 1987]`, apportionment `[CITE: Balinski–Young 1
 
 ## 8. Limitations
 
-Exact aggregate satisfaction is per-column and per-period independent; *joint*
-targets across correlated metrics or across FK joins are future work. Marginal
-control is exact only in the fluid regime (Prop. 5). Domain priors are curated, not
-learned, so realism outside the 18 domains relies on user specification. We do not
-compete with learned methods on fidelity-to-real when real data exists.
+Exact aggregate satisfaction is per-column and per-period independent; *joint* targets
+across correlated metrics or across FK joins are future work. The engine fixes a
+Gamma-family shape (Prop. 4); hitting an *arbitrary externally specified* marginal under
+an exact aggregate (P★, §6) is open and condensation-bounded. On cold-start spec-mode,
+exact aggregation *alone* is trivial — a rescale ties it given a hand-built schema; the
+contribution there is conformance from an NL spec with zero data. Domain priors are
+curated, not learned, so realism outside the curated domains relies on user
+specification. Reference-mode currently uses controlled synthetic source data; a real
+public dataset is the priority external-validity addition. We do not compete with
+learned methods on fidelity-to-real when real data exists.
 
 ## 9. Conclusion
 
 Outcome-conformant relational synthesis is a real, practically important problem that
-the imitation paradigm structurally cannot serve. We formalized it (Prop. 0 reveals
-the exact-aggregate engine as conditional-sum sampling of a Gamma population), mapped
-its achievable frontier honestly (the condensation impossibility, Prop. 5, confirmed
-empirically as a 21.7× distortion rise in E6), built the first conformance benchmark
-(SpecBench), and released a closed-form, zero-data, integrity-preserving reference
-system that attains AME = 0 where learned methods — even trained on
-target-consistent data — reach only 0.21–0.70 and may be non-deterministic. The
-contribution is unification, measurement, and honesty — not a new theorem — and that
-is precisely what the area needed.
+the imitation paradigm structurally cannot serve. We formalized it (Prop. 0 reveals the
+exact-aggregate engine as conditional-sum sampling of a Gamma population; Prop. 4 shows
+it preserves the marginal by fixing shape and letting scale absorb the constraint,
+sidestepping the condensation obstruction that bounds the fixed-marginal problem), built
+the first conformance benchmark (SpecBench), and released a closed-form, zero-data,
+integrity-preserving reference system. On reference-mode it attains AME = 0 from the spec
+where learned methods — even trained on target-consistent data — reach only 0.21
+(GaussianCopula/HMA) to 0.57 ± 0.44 (CTGAN, effectively uncontrolled). On cold-start
+spec-mode it is the only method producing a conformant relational dataset from a natural
+-language sentence with no source data and no hand-built schema. The contribution is
+unification, measurement, and honesty — including the retraction of two claims that did
+not survive proper controls — not a new theorem, and that is precisely what the area
+needed.
 
 ---
 
@@ -414,12 +467,17 @@ is precisely what the area needed.
   engine; no extra dependencies.
 - **E5** (cross-paradigm leaderboard): `python -m research.specbench.runner` in the
   isolated env (`requirements-specbench.txt`, SDV 1.37.0); writes
-  `research/specbench/results_e5.csv`. Each baseline run twice per task for DET.
-- **E6** (Prop. 5 frontier): `python -m research.specbench.prop5_curve`; writes
-  `research/specbench/prop5_curve.csv`. Seeds and library versions pinned.
+  `research/specbench/results_e5.csv`. 10 seeds; SDV seeded (torch+numpy); DET measured
+  over ≥3 same-seed regenerations.
+- **E6** (Prop. 4 scale-invariance, with control): `python -m research.specbench.prop5_curve`
+  then `plot_prop5`; writes `prop5_curve.csv`, `prop5_summary.csv`,
+  `prop4_scale_invariance.png`. Seeds and library versions pinned.
 - All oracles are frozen in the task definitions (the spec *is* the ground truth);
   no metric reads any generator's internals.
 
 ## Appendix B — Proofs
-Full proofs of Propositions 1–5 (Prop. 0 identity; 1 exactness; 2 marginal law;
-3 distortion; 5 condensation frontier) in `research/01_formalization.md`.
+Full proofs in `research/01_formalization.md`: Prop. 0 (Gamma-conditional identity),
+Prop. 1 (aggregate exactness), Prop. 2 (closed-form marginal CV), Prop. 3 (clamp
+distortion), Prop. 4 (scale-invariance / condensation avoided). The retracted
+"condensation frontier" conjecture and its confound are documented in
+`06_adversarial_review.md` (B1) and the §3.4 retraction note.

@@ -1,301 +1,301 @@
-task,baseline,CSC,ran,secs,AME,FIVR,CSAT,DET,seed,reason
-saas_mrr_curve,misata,1,True,0.051,0.0,0.0,1.0,1.0,42,
-saas_mrr_curve,faker,1,True,0.002,0.8139166688995587,0.0,1.0,1.0,42,
-saas_mrr_curve,naive_rescale,1,True,0.02,1.4551915228366853e-16,0.0,1.0,1.0,42,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.037,0.0,0.0,1.0,,43,
-saas_mrr_curve,faker,1,True,0.002,0.8162233526240287,0.0,1.0,,43,
-saas_mrr_curve,naive_rescale,1,True,0.02,1.8189894035458566e-16,0.0,1.0,,43,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.037,0.0,0.0,1.0,,44,
-saas_mrr_curve,faker,1,True,0.002,0.8311514081505831,0.0,1.0,,44,
-saas_mrr_curve,naive_rescale,1,True,0.02,1.4551915228366853e-16,0.0,1.0,,44,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.037,0.0,0.0,1.0,,45,
-saas_mrr_curve,faker,1,True,0.002,0.8152147781861284,0.0,1.0,,45,
-saas_mrr_curve,naive_rescale,1,True,0.02,1.8189894035458566e-16,0.0,1.0,,45,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.036,0.0,0.0,1.0,,46,
-saas_mrr_curve,faker,1,True,0.002,0.8321645229277809,0.0,1.0,,46,
-saas_mrr_curve,naive_rescale,1,True,0.02,1.8189894035458566e-16,0.0,1.0,,46,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.036,0.0,0.0,1.0,,47,
-saas_mrr_curve,faker,1,True,0.002,0.8310205903162001,0.0,1.0,,47,
-saas_mrr_curve,naive_rescale,1,True,0.021,1.2126596023639044e-16,0.0,1.0,,47,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.037,0.0,0.0,1.0,,48,
-saas_mrr_curve,faker,1,True,0.002,0.834941503855901,0.0,1.0,,48,
-saas_mrr_curve,naive_rescale,1,True,0.024,1.2126596023639044e-16,0.0,1.0,,48,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.036,0.0,0.0,1.0,,49,
-saas_mrr_curve,faker,1,True,0.002,0.8118251832634511,0.0,1.0,,49,
-saas_mrr_curve,naive_rescale,1,True,0.02,1.2126596023639044e-16,0.0,1.0,,49,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.036,0.0,0.0,1.0,,50,
-saas_mrr_curve,faker,1,True,0.002,0.8066455066942445,0.0,1.0,,50,
-saas_mrr_curve,naive_rescale,1,True,0.023,1.8189894035458566e-16,0.0,1.0,,50,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,misata,1,True,0.036,0.0,0.0,1.0,,51,
-saas_mrr_curve,faker,1,True,0.002,0.8190758034303298,0.0,1.0,,51,
-saas_mrr_curve,naive_rescale,1,True,0.02,1.8189894035458566e-16,0.0,1.0,,51,
-saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_ctgan,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-saas_mrr_curve,sdv_hma,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.155,0.0,0.0,1.0,1.0,42,
-fintech_volume_curve,faker,1,True,0.002,0.8913663677197123,0.0,1.0,1.0,42,
-fintech_volume_curve,naive_rescale,1,True,0.027,1.4551915228366853e-16,0.0,1.0,1.0,42,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.154,0.0,0.0,1.0,,43,
-fintech_volume_curve,faker,1,True,0.002,0.9031565542627196,0.0,1.0,,43,
-fintech_volume_curve,naive_rescale,1,True,0.027,0.0,0.0,1.0,,43,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.152,0.0,0.0,1.0,,44,
-fintech_volume_curve,faker,1,True,0.002,0.9003680953914732,0.0,1.0,,44,
-fintech_volume_curve,naive_rescale,1,True,0.03,1.4551915228366853e-16,0.0,1.0,,44,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.152,0.0,0.0,1.0,,45,
-fintech_volume_curve,faker,1,True,0.002,0.8925258343911308,0.0,1.0,,45,
-fintech_volume_curve,naive_rescale,1,True,0.027,1.4551915228366853e-16,0.0,1.0,,45,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.151,0.0,0.0,1.0,,46,
-fintech_volume_curve,faker,1,True,0.002,0.9003247242624185,0.0,1.0,,46,
-fintech_volume_curve,naive_rescale,1,True,0.027,1.4551915228366853e-16,0.0,1.0,,46,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.156,0.0,0.0,1.0,,47,
-fintech_volume_curve,faker,1,True,0.002,0.9034644475506896,0.0,1.0,,47,
-fintech_volume_curve,naive_rescale,1,True,0.027,1.4551915228366853e-16,0.0,1.0,,47,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.154,0.0,0.0,1.0,,48,
-fintech_volume_curve,faker,1,True,0.002,0.9032171412760869,0.0,1.0,,48,
-fintech_volume_curve,naive_rescale,1,True,0.028,1.4551915228366853e-16,0.0,1.0,,48,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.155,0.0,0.0,1.0,,49,
-fintech_volume_curve,faker,1,True,0.002,0.8977218932897716,0.0,1.0,,49,
-fintech_volume_curve,naive_rescale,1,True,0.027,1.4551915228366853e-16,0.0,1.0,,49,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.154,0.0,0.0,1.0,,50,
-fintech_volume_curve,faker,1,True,0.002,0.8996354907323442,0.0,1.0,,50,
-fintech_volume_curve,naive_rescale,1,True,0.03,0.0,0.0,1.0,,50,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,misata,1,True,0.154,0.0,0.0,1.0,,51,
-fintech_volume_curve,faker,1,True,0.002,0.899004365122548,0.0,1.0,,51,
-fintech_volume_curve,naive_rescale,1,True,0.028,0.0,0.0,1.0,,51,
-fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_ctgan,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-fintech_volume_curve,sdv_hma,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.053,0.0,0.0,1.0,1.0,42,
-ecommerce_revenue_curve,faker,1,True,0.002,0.8947462556954114,0.0,1.0,1.0,42,
-ecommerce_revenue_curve,naive_rescale,1,True,0.031,0.0,0.0,1.0,1.0,42,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.053,0.0,0.0,1.0,,43,
-ecommerce_revenue_curve,faker,1,True,0.002,0.9041526467110191,0.0,1.0,,43,
-ecommerce_revenue_curve,naive_rescale,1,True,0.036,0.0,0.0,1.0,,43,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.054,0.0,0.0,1.0,,44,
-ecommerce_revenue_curve,faker,1,True,0.002,0.8988743786339863,0.0,1.0,,44,
-ecommerce_revenue_curve,naive_rescale,1,True,0.031,1.8189894035458566e-16,0.0,1.0,,44,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.052,0.0,0.0,1.0,,45,
-ecommerce_revenue_curve,faker,1,True,0.002,0.8954779006705794,0.0,1.0,,45,
-ecommerce_revenue_curve,naive_rescale,1,True,0.03,0.0,0.0,1.0,,45,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.053,0.0,0.0,1.0,,46,
-ecommerce_revenue_curve,faker,1,True,0.002,0.9008323099873429,0.0,1.0,,46,
-ecommerce_revenue_curve,naive_rescale,1,True,0.03,0.0,0.0,1.0,,46,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.058,0.0,0.0,1.0,,47,
-ecommerce_revenue_curve,faker,1,True,0.002,0.9004373526411809,0.0,1.0,,47,
-ecommerce_revenue_curve,naive_rescale,1,True,0.031,0.0,0.0,1.0,,47,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.053,0.0,0.0,1.0,,48,
-ecommerce_revenue_curve,faker,1,True,0.002,0.9014193794015861,0.0,1.0,,48,
-ecommerce_revenue_curve,naive_rescale,1,True,0.03,1.8189894035458566e-16,0.0,1.0,,48,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.052,0.0,0.0,1.0,,49,
-ecommerce_revenue_curve,faker,1,True,0.002,0.8950301712386638,0.0,1.0,,49,
-ecommerce_revenue_curve,naive_rescale,1,True,0.031,1.8189894035458566e-16,0.0,1.0,,49,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.053,0.0,0.0,1.0,,50,
-ecommerce_revenue_curve,faker,1,True,0.002,0.9067027541627319,0.0,1.0,,50,
-ecommerce_revenue_curve,naive_rescale,1,True,0.031,0.0,0.0,1.0,,50,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,misata,1,True,0.053,0.0,0.0,1.0,,51,
-ecommerce_revenue_curve,faker,1,True,0.002,0.8984230595115985,0.0,1.0,,51,
-ecommerce_revenue_curve,naive_rescale,1,True,0.03,1.940255363782247e-16,0.0,1.0,,51,
-ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_revenue_curve,sdv_hma,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,1.0,42,
-ecommerce_integrity,faker,1,True,0.002,,0.0,,1.0,42,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,1.0,42,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,42,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,43,
-ecommerce_integrity,faker,1,True,0.001,,0.0,,,43,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,43,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,43,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,44,
-ecommerce_integrity,faker,1,True,0.001,,0.0,,,44,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,44,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,44,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,45,
-ecommerce_integrity,faker,1,True,0.002,,0.0,,,45,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,45,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,45,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,46,
-ecommerce_integrity,faker,1,True,0.002,,0.0,,,46,
-ecommerce_integrity,naive_rescale,1,True,0.002,,0.0,,,46,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,46,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,47,
-ecommerce_integrity,faker,1,True,0.001,,0.0,,,47,
-ecommerce_integrity,naive_rescale,1,True,0.002,,0.0,,,47,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,47,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,48,
-ecommerce_integrity,faker,1,True,0.002,,0.0,,,48,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,48,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,48,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,49,
-ecommerce_integrity,faker,1,True,0.001,,0.0,,,49,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,49,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,49,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,50,
-ecommerce_integrity,faker,1,True,0.001,,0.0,,,50,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,50,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,50,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,misata,1,True,0.022,,0.0,,,51,
-ecommerce_integrity,faker,1,True,0.001,,0.0,,,51,
-ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,51,
-ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_ctgan,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-ecommerce_integrity,sdv_hma,0,False,,,,,,51,SDV requires source data; task is cold-start (CSC=0)
-revenue_reference_mode,misata,1,True,0.039,0.0,0.0,,1.0,42,
-revenue_reference_mode,faker,1,True,0.002,0.8933041073991005,0.0,,1.0,42,
-revenue_reference_mode,naive_rescale,1,True,0.03,1.4551915228366853e-16,0.0,,1.0,42,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.862,0.21326085526194002,0.0,,1.0,42,
-revenue_reference_mode,sdv_ctgan,0,True,52.683,0.9981887903106681,0.0,,1.0,42,
-revenue_reference_mode,sdv_hma,0,True,1.621,0.21326085526194002,0.0,,1.0,42,
-revenue_reference_mode,misata,1,True,0.042,0.0,0.0,,,43,
-revenue_reference_mode,faker,1,True,0.002,0.8932872923525786,0.0,,,43,
-revenue_reference_mode,naive_rescale,1,True,0.032,0.0,0.0,,,43,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.839,0.21326085526194002,0.0,,,43,
-revenue_reference_mode,sdv_ctgan,0,True,48.284,0.5545622257527799,0.0,,,43,
-revenue_reference_mode,sdv_hma,0,True,1.547,0.21326085526194002,0.0,,,43,
-revenue_reference_mode,misata,1,True,0.044,0.0,0.0,,,44,
-revenue_reference_mode,faker,1,True,0.002,0.9019286212523887,0.0,,,44,
-revenue_reference_mode,naive_rescale,1,True,0.031,0.0,0.0,,,44,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.828,0.21326085526194002,0.0,,,44,
-revenue_reference_mode,sdv_ctgan,0,True,50.368,0.1724627098531228,0.0,,,44,
-revenue_reference_mode,sdv_hma,0,True,1.535,0.21326085526194002,0.0,,,44,
-revenue_reference_mode,misata,1,True,0.041,0.0,0.0,,,45,
-revenue_reference_mode,faker,1,True,0.002,0.8901529930332471,0.0,,,45,
-revenue_reference_mode,naive_rescale,1,True,0.03,1.4551915228366853e-16,0.0,,,45,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.797,0.21326085526194002,0.0,,,45,
-revenue_reference_mode,sdv_ctgan,0,True,47.991,0.08893845702401668,0.0,,,45,
-revenue_reference_mode,sdv_hma,0,True,1.551,0.21326085526194002,0.0,,,45,
-revenue_reference_mode,misata,1,True,0.043,0.0,0.0,,,46,
-revenue_reference_mode,faker,1,True,0.002,0.8992135623121437,0.0,,,46,
-revenue_reference_mode,naive_rescale,1,True,0.031,0.0,0.0,,,46,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.81,0.21326085526194002,0.0,,,46,
-revenue_reference_mode,sdv_ctgan,0,True,42.935,0.030931800981966955,0.0,,,46,
-revenue_reference_mode,sdv_hma,0,True,1.645,0.21326085526194002,0.0,,,46,
-revenue_reference_mode,misata,1,True,0.046,0.0,0.0,,,47,
-revenue_reference_mode,faker,1,True,0.003,0.8873888765878347,0.0,,,47,
-revenue_reference_mode,naive_rescale,1,True,0.053,1.4551915228366853e-16,0.0,,,47,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.948,0.21326085526194002,0.0,,,47,
-revenue_reference_mode,sdv_ctgan,0,True,49.074,0.4649793129254907,0.0,,,47,
-revenue_reference_mode,sdv_hma,0,True,1.486,0.21326085526194002,0.0,,,47,
-revenue_reference_mode,misata,1,True,0.038,0.0,0.0,,,48,
-revenue_reference_mode,faker,1,True,0.002,0.8994384106956014,0.0,,,48,
-revenue_reference_mode,naive_rescale,1,True,0.029,1.4551915228366853e-16,0.0,,,48,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.769,0.21326085526194002,0.0,,,48,
-revenue_reference_mode,sdv_ctgan,0,True,48.424,1.3200347344161616,0.0,,,48,
-revenue_reference_mode,sdv_hma,0,True,1.489,0.21326085526194002,0.0,,,48,
-revenue_reference_mode,misata,1,True,0.036,0.0,0.0,,,49,
-revenue_reference_mode,faker,1,True,0.002,0.8956846337634173,0.0,,,49,
-revenue_reference_mode,naive_rescale,1,True,0.029,1.4551915228366853e-16,0.0,,,49,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.768,0.21326085526194002,0.0,,,49,
-revenue_reference_mode,sdv_ctgan,0,True,48.502,0.6752040368998574,0.0,,,49,
-revenue_reference_mode,sdv_hma,0,True,1.488,0.21326085526194002,0.0,,,49,
-revenue_reference_mode,misata,1,True,0.037,0.0,0.0,,,50,
-revenue_reference_mode,faker,1,True,0.002,0.8939433542386878,0.0,,,50,
-revenue_reference_mode,naive_rescale,1,True,0.029,1.4551915228366853e-16,0.0,,,50,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.77,0.21326085526194002,0.0,,,50,
-revenue_reference_mode,sdv_ctgan,0,True,48.462,0.3498712806244579,0.0,,,50,
-revenue_reference_mode,sdv_hma,0,True,1.504,0.21326085526194002,0.0,,,50,
-revenue_reference_mode,misata,1,True,0.037,0.0,0.0,,,51,
-revenue_reference_mode,faker,1,True,0.002,0.8907651649553235,0.0,,,51,
-revenue_reference_mode,naive_rescale,1,True,0.03,2.9103830456733706e-16,0.0,,,51,
-revenue_reference_mode,sdv_gaussian_copula,0,True,0.784,0.21326085526194002,0.0,,,51,
-revenue_reference_mode,sdv_ctgan,0,True,50.898,1.0306852912490783,0.0,,,51,
-revenue_reference_mode,sdv_hma,0,True,1.503,0.21326085526194002,0.0,,,51,
+task,baseline,CSC,ran,secs,AME,FIVR,CSAT,DET,seed,input_type,reason
+saas_mrr_curve,misata,1,True,0.047,0.0,0.0,1.0,1.0,42,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8139166688995587,0.0,1.0,1.0,42,schema,
+saas_mrr_curve,naive_rescale,1,True,0.019,1.4551915228366853e-16,0.0,1.0,1.0,42,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.034,0.0,0.0,1.0,,43,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8162233526240287,0.0,1.0,,43,schema,
+saas_mrr_curve,naive_rescale,1,True,0.018,1.8189894035458566e-16,0.0,1.0,,43,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.033,0.0,0.0,1.0,,44,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8311514081505831,0.0,1.0,,44,schema,
+saas_mrr_curve,naive_rescale,1,True,0.042,1.4551915228366853e-16,0.0,1.0,,44,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.034,0.0,0.0,1.0,,45,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8152147781861284,0.0,1.0,,45,schema,
+saas_mrr_curve,naive_rescale,1,True,0.019,1.8189894035458566e-16,0.0,1.0,,45,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.034,0.0,0.0,1.0,,46,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8321645229277809,0.0,1.0,,46,schema,
+saas_mrr_curve,naive_rescale,1,True,0.019,1.8189894035458566e-16,0.0,1.0,,46,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.034,0.0,0.0,1.0,,47,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8310205903162001,0.0,1.0,,47,schema,
+saas_mrr_curve,naive_rescale,1,True,0.02,1.2126596023639044e-16,0.0,1.0,,47,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.034,0.0,0.0,1.0,,48,nl,
+saas_mrr_curve,faker,1,True,0.002,0.834941503855901,0.0,1.0,,48,schema,
+saas_mrr_curve,naive_rescale,1,True,0.02,1.2126596023639044e-16,0.0,1.0,,48,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.033,0.0,0.0,1.0,,49,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8118251832634511,0.0,1.0,,49,schema,
+saas_mrr_curve,naive_rescale,1,True,0.023,1.2126596023639044e-16,0.0,1.0,,49,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.034,0.0,0.0,1.0,,50,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8066455066942445,0.0,1.0,,50,schema,
+saas_mrr_curve,naive_rescale,1,True,0.019,1.8189894035458566e-16,0.0,1.0,,50,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,misata,1,True,0.034,0.0,0.0,1.0,,51,nl,
+saas_mrr_curve,faker,1,True,0.002,0.8190758034303298,0.0,1.0,,51,schema,
+saas_mrr_curve,naive_rescale,1,True,0.019,1.8189894035458566e-16,0.0,1.0,,51,schema,
+saas_mrr_curve,sdv_gaussian_copula,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_ctgan,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+saas_mrr_curve,sdv_hma,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.146,0.0,0.0,1.0,1.0,42,nl,
+fintech_volume_curve,faker,1,True,0.002,0.8913663677197123,0.0,1.0,1.0,42,schema,
+fintech_volume_curve,naive_rescale,1,True,0.026,1.4551915228366853e-16,0.0,1.0,1.0,42,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.145,0.0,0.0,1.0,,43,nl,
+fintech_volume_curve,faker,1,True,0.002,0.9031565542627196,0.0,1.0,,43,schema,
+fintech_volume_curve,naive_rescale,1,True,0.026,0.0,0.0,1.0,,43,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.145,0.0,0.0,1.0,,44,nl,
+fintech_volume_curve,faker,1,True,0.002,0.9003680953914732,0.0,1.0,,44,schema,
+fintech_volume_curve,naive_rescale,1,True,0.025,1.4551915228366853e-16,0.0,1.0,,44,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.146,0.0,0.0,1.0,,45,nl,
+fintech_volume_curve,faker,1,True,0.002,0.8925258343911308,0.0,1.0,,45,schema,
+fintech_volume_curve,naive_rescale,1,True,0.026,1.4551915228366853e-16,0.0,1.0,,45,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.145,0.0,0.0,1.0,,46,nl,
+fintech_volume_curve,faker,1,True,0.002,0.9003247242624185,0.0,1.0,,46,schema,
+fintech_volume_curve,naive_rescale,1,True,0.026,1.4551915228366853e-16,0.0,1.0,,46,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.145,0.0,0.0,1.0,,47,nl,
+fintech_volume_curve,faker,1,True,0.002,0.9034644475506896,0.0,1.0,,47,schema,
+fintech_volume_curve,naive_rescale,1,True,0.026,1.4551915228366853e-16,0.0,1.0,,47,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.145,0.0,0.0,1.0,,48,nl,
+fintech_volume_curve,faker,1,True,0.002,0.9032171412760869,0.0,1.0,,48,schema,
+fintech_volume_curve,naive_rescale,1,True,0.027,1.4551915228366853e-16,0.0,1.0,,48,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.148,0.0,0.0,1.0,,49,nl,
+fintech_volume_curve,faker,1,True,0.002,0.8977218932897716,0.0,1.0,,49,schema,
+fintech_volume_curve,naive_rescale,1,True,0.027,1.4551915228366853e-16,0.0,1.0,,49,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.146,0.0,0.0,1.0,,50,nl,
+fintech_volume_curve,faker,1,True,0.002,0.8996354907323442,0.0,1.0,,50,schema,
+fintech_volume_curve,naive_rescale,1,True,0.026,0.0,0.0,1.0,,50,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,misata,1,True,0.146,0.0,0.0,1.0,,51,nl,
+fintech_volume_curve,faker,1,True,0.002,0.899004365122548,0.0,1.0,,51,schema,
+fintech_volume_curve,naive_rescale,1,True,0.027,0.0,0.0,1.0,,51,schema,
+fintech_volume_curve,sdv_gaussian_copula,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_ctgan,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+fintech_volume_curve,sdv_hma,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.049,0.0,0.0,1.0,1.0,42,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.8947462556954114,0.0,1.0,1.0,42,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.029,0.0,0.0,1.0,1.0,42,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.049,0.0,0.0,1.0,,43,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.9041526467110191,0.0,1.0,,43,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.03,0.0,0.0,1.0,,43,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.049,0.0,0.0,1.0,,44,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.8988743786339863,0.0,1.0,,44,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.03,1.8189894035458566e-16,0.0,1.0,,44,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.05,0.0,0.0,1.0,,45,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.8954779006705794,0.0,1.0,,45,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.029,0.0,0.0,1.0,,45,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.05,0.0,0.0,1.0,,46,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.9008323099873429,0.0,1.0,,46,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.029,0.0,0.0,1.0,,46,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.051,0.0,0.0,1.0,,47,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.9004373526411809,0.0,1.0,,47,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.03,0.0,0.0,1.0,,47,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.05,0.0,0.0,1.0,,48,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.9014193794015861,0.0,1.0,,48,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.029,1.8189894035458566e-16,0.0,1.0,,48,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.05,0.0,0.0,1.0,,49,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.8950301712386638,0.0,1.0,,49,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.029,1.8189894035458566e-16,0.0,1.0,,49,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.049,0.0,0.0,1.0,,50,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.9067027541627319,0.0,1.0,,50,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.029,0.0,0.0,1.0,,50,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,misata,1,True,0.05,0.0,0.0,1.0,,51,nl,
+ecommerce_revenue_curve,faker,1,True,0.002,0.8984230595115985,0.0,1.0,,51,schema,
+ecommerce_revenue_curve,naive_rescale,1,True,0.029,1.940255363782247e-16,0.0,1.0,,51,schema,
+ecommerce_revenue_curve,sdv_gaussian_copula,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_ctgan,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_revenue_curve,sdv_hma,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.021,,0.0,,1.0,42,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,1.0,42,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,1.0,42,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,42,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.02,,0.0,,,43,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,43,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,43,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,43,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.02,,0.0,,,44,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,44,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,44,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,44,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.02,,0.0,,,45,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,45,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,45,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,45,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.021,,0.0,,,46,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,46,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,46,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,46,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.02,,0.0,,,47,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,47,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,47,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,47,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.02,,0.0,,,48,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,48,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,48,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,48,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.021,,0.0,,,49,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,49,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,49,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,49,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.02,,0.0,,,50,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,50,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,50,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,50,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,misata,1,True,0.021,,0.0,,,51,nl,
+ecommerce_integrity,faker,1,True,0.001,,0.0,,,51,schema,
+ecommerce_integrity,naive_rescale,1,True,0.001,,0.0,,,51,schema,
+ecommerce_integrity,sdv_gaussian_copula,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_ctgan,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+ecommerce_integrity,sdv_hma,0,False,,,,,,51,,SDV requires source data; task is cold-start (CSC=0)
+revenue_reference_mode,misata,1,True,0.036,0.0,0.0,,1.0,42,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8933041073991005,0.0,,1.0,42,schema,
+revenue_reference_mode,naive_rescale,1,True,0.029,1.4551915228366853e-16,0.0,,1.0,42,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.783,0.21326085526194002,0.0,,1.0,42,data,
+revenue_reference_mode,sdv_ctgan,0,True,52.114,0.9981887903106681,0.0,,1.0,42,data,
+revenue_reference_mode,sdv_hma,0,True,1.545,0.21326085526194002,0.0,,1.0,42,data,
+revenue_reference_mode,misata,1,True,0.038,0.0,0.0,,,43,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8932872923525786,0.0,,,43,schema,
+revenue_reference_mode,naive_rescale,1,True,0.029,0.0,0.0,,,43,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.78,0.21326085526194002,0.0,,,43,data,
+revenue_reference_mode,sdv_ctgan,0,True,48.855,0.5545622257527799,0.0,,,43,data,
+revenue_reference_mode,sdv_hma,0,True,1.498,0.21326085526194002,0.0,,,43,data,
+revenue_reference_mode,misata,1,True,0.041,0.0,0.0,,,44,nl,
+revenue_reference_mode,faker,1,True,0.002,0.9019286212523887,0.0,,,44,schema,
+revenue_reference_mode,naive_rescale,1,True,0.029,0.0,0.0,,,44,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.779,0.21326085526194002,0.0,,,44,data,
+revenue_reference_mode,sdv_ctgan,0,True,50.469,0.1724627098531228,0.0,,,44,data,
+revenue_reference_mode,sdv_hma,0,True,1.499,0.21326085526194002,0.0,,,44,data,
+revenue_reference_mode,misata,1,True,0.038,0.0,0.0,,,45,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8901529930332471,0.0,,,45,schema,
+revenue_reference_mode,naive_rescale,1,True,0.029,1.4551915228366853e-16,0.0,,,45,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.779,0.21326085526194002,0.0,,,45,data,
+revenue_reference_mode,sdv_ctgan,0,True,48.464,0.08893845702401668,0.0,,,45,data,
+revenue_reference_mode,sdv_hma,0,True,1.493,0.21326085526194002,0.0,,,45,data,
+revenue_reference_mode,misata,1,True,0.039,0.0,0.0,,,46,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8992135623121437,0.0,,,46,schema,
+revenue_reference_mode,naive_rescale,1,True,0.029,0.0,0.0,,,46,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.839,0.21326085526194002,0.0,,,46,data,
+revenue_reference_mode,sdv_ctgan,0,True,48.615,0.030931800981966955,0.0,,,46,data,
+revenue_reference_mode,sdv_hma,0,True,1.546,0.21326085526194002,0.0,,,46,data,
+revenue_reference_mode,misata,1,True,0.039,0.0,0.0,,,47,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8873888765878347,0.0,,,47,schema,
+revenue_reference_mode,naive_rescale,1,True,0.034,1.4551915228366853e-16,0.0,,,47,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.906,0.21326085526194002,0.0,,,47,data,
+revenue_reference_mode,sdv_ctgan,0,True,49.509,0.4649793129254907,0.0,,,47,data,
+revenue_reference_mode,sdv_hma,0,True,1.495,0.21326085526194002,0.0,,,47,data,
+revenue_reference_mode,misata,1,True,0.059,0.0,0.0,,,48,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8994384106956014,0.0,,,48,schema,
+revenue_reference_mode,naive_rescale,1,True,0.03,1.4551915228366853e-16,0.0,,,48,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.773,0.21326085526194002,0.0,,,48,data,
+revenue_reference_mode,sdv_ctgan,0,True,48.108,1.3200347344161616,0.0,,,48,data,
+revenue_reference_mode,sdv_hma,0,True,1.473,0.21326085526194002,0.0,,,48,data,
+revenue_reference_mode,misata,1,True,0.037,0.0,0.0,,,49,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8956846337634173,0.0,,,49,schema,
+revenue_reference_mode,naive_rescale,1,True,0.029,1.4551915228366853e-16,0.0,,,49,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.764,0.21326085526194002,0.0,,,49,data,
+revenue_reference_mode,sdv_ctgan,0,True,48.783,0.6752040368998574,0.0,,,49,data,
+revenue_reference_mode,sdv_hma,0,True,1.442,0.21326085526194002,0.0,,,49,data,
+revenue_reference_mode,misata,1,True,0.037,0.0,0.0,,,50,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8939433542386878,0.0,,,50,schema,
+revenue_reference_mode,naive_rescale,1,True,0.028,1.4551915228366853e-16,0.0,,,50,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.747,0.21326085526194002,0.0,,,50,data,
+revenue_reference_mode,sdv_ctgan,0,True,81.021,0.3498712806244579,0.0,,,50,data,
+revenue_reference_mode,sdv_hma,0,True,1.546,0.21326085526194002,0.0,,,50,data,
+revenue_reference_mode,misata,1,True,0.043,0.0,0.0,,,51,nl,
+revenue_reference_mode,faker,1,True,0.002,0.8907651649553235,0.0,,,51,schema,
+revenue_reference_mode,naive_rescale,1,True,0.05,2.9103830456733706e-16,0.0,,,51,schema,
+revenue_reference_mode,sdv_gaussian_copula,0,True,0.816,0.21326085526194002,0.0,,,51,data,
+revenue_reference_mode,sdv_ctgan,0,True,52.087,1.0306852912490783,0.0,,,51,data,
+revenue_reference_mode,sdv_hma,0,True,1.476,0.21326085526194002,0.0,,,51,data,
