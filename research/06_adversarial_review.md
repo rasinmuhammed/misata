@@ -5,6 +5,25 @@ Severity tags: **[BLOCKER]** would cause reject; **[MAJOR]** weak-reject risk;
 **[MODERATE]** reviewer will ding; **[MINOR]** polish. Each item has a concrete fix.
 Nothing here is rhetorical — every claim is checked against the actual code/proofs.
 
+> **RESOLUTION LOG (updated after the fix pass).**
+> - **B1 RESOLVED** — added the unconstrained control; the "condensation frontier" was
+>   a Beta-vs-lognormal + W1-bias confound and was **retracted**. Replaced with the
+>   correct **Prop. 4 scale-invariance** result (constrained ≈ unconstrained, gap ≈ 0
+>   over 10 seeds). Stronger and true. (`prop5_curve.py`, `01_formalization.md` §5b.)
+> - **B2 RESOLVED** — added **NaiveRescale** baseline (AME = 0 too) + **CSAT** metric +
+>   a constrained task; separation is now AME = 0 ∧ CSAT = 1 (engine) vs CSAT = 0
+>   (rescale). Contribution defended. (`baselines.py`, `metrics.py`, E5.)
+> - **M2 RESOLVED** — SDV **HMA** relational baseline runs for real on reference-mode.
+> - **M3 RESOLVED** — runner is multi-seed (10), reports mean ± std; DET measured once.
+> - **M4 RESOLVED** — Faker metric now drawn at the spec-implied mean (no arbitrary
+>   scale); its AME reflects only the missed temporal shape.
+> - **M1 PARTIAL** — suite expanded 3 → 5 *verified* tasks (each curve task confirmed
+>   AME = 0-achievable before inclusion). Honest position: real tasks > padded count;
+>   full 18×4 remains future work, stated as such.
+> - **D1–D4 RESOLVED** — rounding precision in Prop 0; lib-vs-benchmark separation;
+>   W1 finite-sample-bias caveat; SDV-fairness framing. (`01`, `04`.)
+> Remaining: fold final multi-seed numbers into the paper; finish `[CHECK]` citations.
+
 ---
 
 ## BLOCKERS (fix before any submission)
