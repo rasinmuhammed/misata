@@ -177,6 +177,70 @@ def _reference_mode_task() -> Task:
     return t
 
 
+def _fintech_curve_task() -> Task:
+    """Fintech transaction-volume curve — verified AME=0 for Misata before inclusion."""
+    return Task(
+        task_id="fintech_volume_curve",
+        mode="spec",
+        story=("Fintech with 3k customers - transaction volume $100k in January "
+               "rising to $400k in December"),
+        rows=3000,
+        metric_table="transactions",
+        metric_col="amount",
+        time_col="transaction_date",
+        period_freq="M",
+        period_targets={"01": 100_000.0, "12": 400_000.0},
+        fks=[("accounts", "account_id", "transactions", "account_id")],
+        primary_table="transactions",
+        schema_tables=[
+            {"name": "accounts", "pk": "account_id", "rows": 3000, "columns": [
+                {"name": "currency", "kind": "category", "choices": ["USD", "EUR", "GBP"]},
+            ]},
+            {"name": "transactions", "pk": "transaction_id", "rows": 9000, "columns": [
+                {"name": "account_id", "kind": "fk", "parent": "accounts", "parent_pk": "account_id"},
+                {"name": "amount", "kind": "metric", "scale": 120},
+                {"name": "transaction_date", "kind": "date", "start": "2024-01-01", "span_days": 365},
+            ]},
+        ],
+    )
+
+
+def _ecommerce_curve_task() -> Task:
+    """Ecommerce revenue curve — verified AME=0 for Misata before inclusion."""
+    return Task(
+        task_id="ecommerce_revenue_curve",
+        mode="spec",
+        story=("Ecommerce store with 3k customers - revenue $80k in January rising to "
+               "$300k in December, 10k orders"),
+        rows=3000,
+        metric_table="orders",
+        metric_col="amount",
+        time_col="order_date",
+        period_freq="M",
+        period_targets={"01": 80_000.0, "12": 300_000.0},
+        fks=[("customers", "customer_id", "orders", "customer_id")],
+        primary_table="orders",
+        schema_tables=[
+            {"name": "customers", "pk": "customer_id", "rows": 3000, "columns": [
+                {"name": "country", "kind": "category", "choices": ["US", "UK", "DE"]},
+            ]},
+            {"name": "orders", "pk": "order_id", "rows": 10000, "columns": [
+                {"name": "customer_id", "kind": "fk", "parent": "customers", "parent_pk": "customer_id"},
+                {"name": "amount", "kind": "metric", "scale": 95},
+                {"name": "order_date", "kind": "date", "start": "2024-01-01", "span_days": 365},
+            ]},
+        ],
+    )
+
+
 def seed_suite() -> List[Task]:
-    """The minimal real suite needed for E5 + the Prop-5 curve."""
-    return [_saas_curve_task(), _ecommerce_fk_task(), _reference_mode_task()]
+    """Real, verified SpecBench tasks. Each curve task confirmed AME=0 achievable by the
+    reference engine before inclusion (no task is added that even the engine cannot meet,
+    which would be dishonest). Expanded from the initial 3-task demo (review M1)."""
+    return [
+        _saas_curve_task(),          # spec-mode curve + hard constraint (CSAT)
+        _fintech_curve_task(),       # spec-mode curve, different domain/scale
+        _ecommerce_curve_task(),     # spec-mode curve, different domain/scale
+        _ecommerce_fk_task(),        # spec-mode integrity-only (FIVR/TCV)
+        _reference_mode_task(),      # reference-mode (SDV/HMA compete on real data)
+    ]
