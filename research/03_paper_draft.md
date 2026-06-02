@@ -293,43 +293,96 @@ novelty — its components are classical (§3) and correctly cited.
 
 ## 6. Experiments
 
-All results reproducible via `research/measure.py` against the released engine.
+E1–E4 validate the propositions of §3 (reproducible via `research/measure.py`); E5 is
+the cross-paradigm SpecBench leaderboard and E6 the Prop. 5 frontier figure (both via
+`research/specbench/`, isolated env `requirements-specbench.txt`, SDV 1.37.0).
 
-**E1 — Aggregate exactness (Prop. 2).** Over **5,000** randomized trials spanning
+**E1 — Aggregate exactness (Prop. 1).** Over **5,000** randomized trials spanning
 row counts `n ∈ [1, 2000]`, targets up to `5×10⁶`, integer and 2-decimal precision,
 and `α ∈ [0.3, 50]`, the maximum aggregate error was **0 integer units** — exact in
 every trial.
 
-**E2 — Marginal law (Prop. 3).** Pooled ~2×10⁶ samples per cell. Empirical mean
-matched `T/n` exactly; empirical CV matched `sqrt((n−1)/(nα+1))` to within
+**E2 — Marginal law (Prop. 2).** Pooled ~2×10⁶ samples per cell. Empirical mean
+matched `T/n` exactly; empirical CV matched `√((n−1)/(nα+1))` to within
 **0.01%–0.10%** across `(n,α) ∈ {(50,1),(200,2),(500,5),(1000,25)}`.
 
-**E3 — Distortion frontier (Prop. 4).** Across the three regimes (upper-clamp,
+**E3 — Distortion bound (Prop. 3).** Across the three regimes (upper-clamp,
 unsaturated, lower-clamp) the realized `ρ_p` matched the closed-form prediction
 (0.500, 1.000, 5.000) to **0.00%** relative error.
 
 **E4 — End-to-end controllability.** The natural-language specification *"MRR \$50k
-in January, \$100k in June, \$200k in December"* produced microdata whose monthly
-rollups were **\$50,000.00** and **\$200,000.00** — exact to the cent.
+in January … \$200k in December"* produced microdata whose monthly rollups were
+**\$50,000.00** and **\$200,000.00** — exact to the cent.
 
-**E5 — Cross-paradigm (to run for submission).** SpecBench across all baselines:
-expected — reference system `AME=0, FIVR=0, CSC=1`; SDV/CTGAN `CSC=0` and no
-aggregate-target ingestion; on fidelity-to-real (where applicable) learned methods
-lead, as they should.
+**E5 — Cross-paradigm conformance (SpecBench leaderboard).** Real runs; AME = relative
+aggregate-match error against declared anchors, FIVR = FK-violation rate, DET =
+determinism (same-seed bitwise identity), CSC = cold-start capability. SDV trained for
+real (GaussianCopula and CTGAN, the latter 100 epochs).
+
+*Spec-mode (cold-start) task — SaaS MRR curve:*
+
+| Generator | CSC | AME | FIVR | DET |
+|---|---|---|---|---|
+| **Misata (ours)** | 1 | **0.000** | 0.000 | 1.000 |
+| Faker + hand-wired FK | 1 | 0.735 | 0.000 | 1.000 |
+| SDV GaussianCopula | 0 | — (cannot run: no source data) | | |
+| SDV CTGAN | 0 | — (cannot run: no source data) | | |
+
+*Reference-mode task — revenue curve, real source table supplied so learned methods
+train on data whose monthly sums already match the targets:*
+
+| Generator | CSC | AME | FIVR | DET | fit+sample (s) |
+|---|---|---|---|---|---|
+| **Misata (ours)** | 1 | **0.000** | 0.000 | 1.000 | 0.04 |
+| SDV GaussianCopula | 0 | 0.213 | 0.000 | 1.000 | 0.80 |
+| SDV CTGAN | 0 | 0.698 | 0.000 | **0.000** | 52.0 |
+| Faker + hand-wired FK | 1 | 1.823 | 0.000 | 1.000 | 0.00 |
+
+The reference-mode row is the paper's central empirical point: **even when an
+imitation model is trained on data whose monthly totals already equal the targets, it
+reproduces the point cloud, not the declared outcome** (AME 0.21–0.70), and the deep
+model is **non-deterministic** (DET 0) — it cannot reproduce its own output under a
+fixed seed. Conformance is a property of *taking the specification as input*, which
+imitation structurally does not. We concede, as predicted, that learned methods lead
+on fidelity-to-real context metrics (reported in the appendix, not as a success axis).
+
+**E6 — The conformance/fidelity frontier (Prop. 5).** Holding the aggregate exact, we
+sweep the *demanded* target marginal from light- to heavy-tailed (lognormal log-σ from
+0.1 to 2.0) and measure marginal distortion MD (normalized 1-Wasserstein to an
+unconstrained draw from the same target). Distortion rises monotonically from
+**MD ≈ 0.058** (light tail, σ≤0.4: the *fluid* regime where the exact-sum constraint
+is essentially free) to **MD ≈ 1.25** (heavy tail, σ≥1.6: the *condensation* regime) —
+a **21.7×** increase with a visible knee near σ≈1.4, while the aggregate stays exact
+(max sum-error 0.00 across the sweep). This is the empirical signature of the
+condensation transition (§3.4): exact aggregate conformance and arbitrary
+heavy-tailed marginal fidelity are jointly unachievable, and the boundary is the one
+condensation theory predicts. *(Figure: MD vs σ; data in
+`research/specbench/prop5_curve.csv`.)*
 
 ---
 
 ## 7. Related work
 
-Temporal disaggregation (Denton 1971, Chow–Lin 1971) `[CITE]`; controlled
-rounding / tabular adjustment (Cox 1987) `[CITE]`; iterative proportional fitting
-and maximum-entropy population synthesis (Deming–Stephan 1940; Private-PGM/AIM)
-`[CITE]`; reverse query processing / query-aware generation (QAGen, Touchstone,
-Hydra, DataSynth) `[CITE]`; constraint-guaranteed generation (JANUS 2026) `[CITE]`;
-constrained sampling (Sequentially Constrained Monte Carlo, Golchi–Campbell 2014)
-`[CITE]`; condensation of conditioned sums `[CITE]`; relational deep synthesis
-(ClavaDDPM, RelDiff) `[CITE]`. Our work unifies the *specification* thread and
-supplies the missing benchmark; we reuse, and cite, the rest.
+Full annotated bibliography in `research/05_literature_review.md`; we summarize the
+six threads that bound our contribution. **(i) Imitation / learned synthesis** — SDV
+`[CITE: Patki 2016]`, CTGAN `[CITE: Xu 2019]`, TabDDPM `[CITE: Kotelnikov 2023]`, and
+relational deep models RelDiff `[CITE: 2025]`, IRG `[CITE: SIGKDD 2026]`, HCTGAN
+`[CITE: 2024]` learn `P(D)` from real data and are judged on fidelity; we are
+orthogonal (conformance, cold-start). **(ii) Query-aware DB test-data** — QAGen
+`[CITE: Binnig 2007]`, DataSynth `[CITE: Arasu 2011]`, projection-compliant generation
+`[CITE: PVLDB 2022]`, XData `[CITE: 2015]` target *query-output cardinalities*, not
+analytical outcomes, and not from natural language. **(iii) LLM cold-start** — NeMo
+Data Designer `[CITE: NVIDIA 2025]` approximates outcomes stochastically without
+exactness or determinism. **(iv) Aggregate-consistent official statistics** — temporal
+disaggregation (Denton `[CITE: 1971]`, Chow–Lin `[CITE: 1971]`), IPF
+`[CITE: Deming–Stephan 1940]`, population synthesis — series/contingency tables, not
+relational populations. **(v) The exact mathematics** — Lukacs proportion–sum
+independence `[CITE: 1955]`, compositional data analysis `[CITE: Aitchison 1986]`,
+controlled rounding `[CITE: Cox 1987]`, apportionment `[CITE: Balinski–Young 1982]`.
+**(vi) The frontier** — condensation of conditioned sums
+`[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan et al. 2014]`; constrained sampling
+`[CITE: Golchi–Campbell 2014]`. We unify the *specification* thread, supply the missing
+*conformance* benchmark, and reuse — and cite — the rest.
 
 ---
 
@@ -343,18 +396,30 @@ compete with learned methods on fidelity-to-real when real data exists.
 
 ## 9. Conclusion
 
-Specification-driven relational synthesis is a real, practically important problem
-that the imitation paradigm structurally cannot serve. We formalized it, mapped its
-achievable frontier honestly (including a heavy-tail impossibility), built the first
-benchmark for it, and released a closed-form, zero-data, integrity-preserving
-reference system. The contribution is unification, measurement, and honesty — not a
-new theorem — and that is precisely what the area needed.
+Outcome-conformant relational synthesis is a real, practically important problem that
+the imitation paradigm structurally cannot serve. We formalized it (Prop. 0 reveals
+the exact-aggregate engine as conditional-sum sampling of a Gamma population), mapped
+its achievable frontier honestly (the condensation impossibility, Prop. 5, confirmed
+empirically as a 21.7× distortion rise in E6), built the first conformance benchmark
+(SpecBench), and released a closed-form, zero-data, integrity-preserving reference
+system that attains AME = 0 where learned methods — even trained on
+target-consistent data — reach only 0.21–0.70 and may be non-deterministic. The
+contribution is unification, measurement, and honesty — not a new theorem — and that
+is precisely what the area needed.
 
 ---
 
 ## Appendix A — Reproducibility
-`research/measure.py` regenerates E1–E4 from the released engine; SpecBench tasks
-and the E5 harness ship in `research/specbench/` `[TO BUILD]`.
+- **E1–E4** (proposition validation): `research/measure.py` against the released
+  engine; no extra dependencies.
+- **E5** (cross-paradigm leaderboard): `python -m research.specbench.runner` in the
+  isolated env (`requirements-specbench.txt`, SDV 1.37.0); writes
+  `research/specbench/results_e5.csv`. Each baseline run twice per task for DET.
+- **E6** (Prop. 5 frontier): `python -m research.specbench.prop5_curve`; writes
+  `research/specbench/prop5_curve.csv`. Seeds and library versions pinned.
+- All oracles are frozen in the task definitions (the spec *is* the ground truth);
+  no metric reads any generator's internals.
 
 ## Appendix B — Proofs
-Full proofs of Propositions 1–5 in `research/01_formalization.md`.
+Full proofs of Propositions 1–5 (Prop. 0 identity; 1 exactness; 2 marginal law;
+3 distortion; 5 condensation frontier) in `research/01_formalization.md`.
