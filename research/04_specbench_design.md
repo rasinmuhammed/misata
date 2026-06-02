@@ -182,17 +182,32 @@ metadata for D&B compliance. `[CITE]`
 
 ## 7. Threats to validity (we write this section, reviewers respect it)
 
-- **Construct validity:** AME rewards exactness, which our method achieves by design —
-  is the metric "rigged"? Mitigation: AME measures a *user-declared* requirement that
-  is real and that no baseline is prevented from meeting; we show learned methods
-  *could* be post-hoc rescaled and quantify the marginal damage that causes (ties to
-  Prop. 5). The point is not "we hit a number we chose" but "the regime demands this
-  and imitation cannot meet it without breaking fidelity."
-- **External validity:** curated domain priors may not generalize beyond 18 domains;
-  we report locale-shift robustness and document the limit.
-- **Privacy validity:** DCR is unreliable (`[CITE: DCR Delusion]`) → we use MIA.
-- **Benchmark gaming:** all specs/oracles frozen and hashed; held-out reference data
-  for Family C/D to prevent overfitting the suite.
+- **Construct validity (AME looks rigged?).** Hitting one aggregate is trivial — so we
+  *include a baseline that also achieves AME = 0*: **NaiveRescale** (Faker draws +
+  per-period multiply). It confirms AME = 0 is easy, and is then separated from the
+  reference system on **CSAT**: blind rescaling inflates the tail past declared range
+  caps (CSAT = 0) while the engine respects them (CSAT = 1). So the contribution is not
+  "we hit a number we chose" but "AME = 0 **jointly with** CSAT = 1, FIVR = 0, DET = 1,
+  cold-start" — which no single baseline achieves. (Empirically confirmed, E5.)
+- **External validity:** curated domain priors are a *library* property; SpecBench
+  coverage is only the tasks the suite actually exercises (we state both separately;
+  review D3). The suite is verified — every curve task is confirmed AME = 0-achievable
+  by the engine before inclusion — and extensible; we do not pad it with untested tasks.
+- **Measurement validity of MD (review D4).** Finite-sample 1-Wasserstein is biased
+  upward and noisier for heavy tails, which could inflate the heavy-tail end of any MD
+  curve independent of the effect studied. Mitigation: equal large sample sizes on both
+  arms; we always report MD *against an unconstrained same-family control* (Prop. 4
+  experiment), so the bias cancels in the constrained-vs-control comparison rather than
+  being attributed to the constraint. (This is exactly the confound that invalidated an
+  earlier "condensation frontier" figure; see `06_adversarial_review.md` B1.)
+- **Privacy validity:** DCR is unreliable (`[CITE: DCR Delusion]`) → privacy is argued
+  by construction (zero real data read); optionally checked via MIA = chance.
+- **Benchmark gaming:** specs/oracles are frozen in task definitions (the spec *is* the
+  oracle); no metric reads any generator's internals; reference-mode data is held
+  separate from the spec given to the cold-start generator.
+- **Statistical validity:** all E5 numbers are mean ± std over 10 seeds; deterministic
+  quantities (AME = 0 by construction) are reported exactly; stochastic baselines
+  (CTGAN) report their spread, whose nonzero variance is itself evidence (DET = 0).
 
 ---
 

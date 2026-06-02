@@ -41,12 +41,20 @@ problem for one specific family.
 **Proposition 0 (what Stage 2 really is).** Drawing `w ~ Dirichlet(α·1_n)` and
 setting `v_i = T·w_i` produces a sample distributed *exactly* as
 `(X_1,…,X_n) | Σ_j X_j = T` for `X_j ~ iid Gamma(α,θ)` — i.e. **exact sampling from
-a Gamma population conditioned on a fixed total.**
+a Gamma population conditioned on a fixed total** (before grid rounding).
 
 *Proof.* By the Fact, conditioning iid Gammas on their sum yields a Dirichlet
-composition scaled by that sum, with no residual dependence on `θ`. The construction
-reproduces this law verbatim; controlled rounding (§3) projects onto the `1/m` grid
-without changing the sum. ∎
+composition scaled by that sum, with no residual dependence on `θ`. The pre-rounding
+construction reproduces this law verbatim. ∎
+
+**Precision about rounding (review fix D1).** The statement is exact for the
+*continuous* construction. Controlled rounding (§3) then projects onto the `1/m` grid:
+this keeps the **aggregate exact** (Prop. 1) but perturbs the **per-row law** by
+`O(1/U)` in total variation, where `U = round(T·m)`. So the realized marginal equals
+the Gamma-conditional *up to an `O(1/U)` rounding term* — negligible for monetary `U`
+(e.g. `U ≳ 10^6` for a \$10k period at cent precision), and confirmed empirically to
+≤0.1% in Prop. 2's CV check. We never claim distributional exactness post-rounding;
+we claim aggregate exactness (Prop. 1) and marginal equality up to `O(1/U)`.
 
 This is the right frame and it is *clarifying*, not deflating:
 
