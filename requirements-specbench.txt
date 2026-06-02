@@ -1,0 +1,7 @@
+# SpecBench reproducibility — isolated env with learned baselines.
+# Build: python3 -m venv .venv_specbench && .venv_specbench/bin/pip install -r requirements-specbench.txt && .venv_specbench/bin/pip install -e .
+sdv==1.37.0
+faker>=40.0.0
+scipy>=1.10.0
+pandas>=2.0.0
+numpy>=1.24.0

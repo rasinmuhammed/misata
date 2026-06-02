@@ -22,6 +22,15 @@ class MetricResult:
     detail: str = ""
 
 
+def _resolve_alias(columns, candidates):
+    """Return the first candidate present in columns (case-insensitive), else None."""
+    lower = {str(c).lower(): c for c in columns}
+    for cand in candidates:
+        if cand is not None and str(cand).lower() in lower:
+            return lower[str(cand).lower()]
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # AME — Aggregate-Match Error
 # --------------------------------------------------------------------------- #
@@ -40,13 +49,34 @@ def aggregate_match_error(
     metric_col over rows whose time_col falls in that period. Exact generators
     score 0.0.
     """
-    if table not in tables or metric_col not in tables[table].columns:
-        return MetricResult("AME", float("inf"), f"missing {table}.{metric_col}")
+    if table not in tables:
+        return MetricResult("AME", float("inf"), f"missing table {table}")
 
-    df = tables[table][[time_col, metric_col]].copy()
+    cols = tables[table].columns
+    # Resolve metric & time columns tolerantly: generators name things differently
+    # (ordered_at vs order_date vs date). Comparison stays fair — we look for the
+    # same semantic column in each generator's own output.
+    m_col = metric_col if metric_col in cols else _resolve_alias(
+        cols, [metric_col, "amount", "value", "revenue", "total", "mrr"])
+    t_col = time_col if time_col in cols else _resolve_alias(
+        cols, [time_col, "ordered_at", "order_date", "date", "start_date",
+               "created_at", "timestamp"])
+    if m_col is None or t_col is None:
+        return MetricResult("AME", float("inf"),
+                            f"no metric/time column in {table} (have {list(cols)})")
+
+    df = tables[table][[t_col, m_col]].copy().rename(
+        columns={t_col: time_col, m_col: metric_col})
     df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
     df = df.dropna(subset=[time_col])
-    df["__period__"] = df[time_col].dt.to_period(freq).astype(str)
+
+    # Period labels may be full ('2024-01', freq='M') or month-of-year ('01') for
+    # year-agnostic specs. Detect from the target keys and bucket to match.
+    month_only = all(len(str(k)) == 2 for k in period_targets)
+    if month_only:
+        df["__period__"] = df[time_col].dt.strftime("%m")
+    else:
+        df["__period__"] = df[time_col].dt.to_period(freq).astype(str)
     realized = df.groupby("__period__")[metric_col].sum()
 
     worst = 0.0
