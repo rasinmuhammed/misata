@@ -119,6 +119,23 @@ undistorted. That is *why* Proposition 2 holds and why empirical means stay flat
 is a correct, citable engineering rationale (Lukacs + condensation theory), and a
 good story — but it is assembling known results, not new theory.
 
+## 6b. Currency sweep (Jun 2026) — latest 2025–2026 work checked
+
+Swept the recent LLM-constraint and benchmark literature to ensure related work is
+current to submission. All cleared as **disjoint**; moat intact:
+
+- **RDDG** (2604.16817, 2026), **LLM-TabLogic** (2503.02161, 2026), **StructSynth**
+  (2508.02601), **FASTGEN** (2507.15839), **prob-prompting note** (2505.02659): the
+  2025–26 LLM tabular wave — all *learned/stochastic*, seed/low-data, fidelity-judged.
+  None does exact, deterministic, closed-form, cold-start outcome conformance.
+- **Benchmarks** — Multi-Dimensional Eval Framework (2504.01908, 2025), SynthEval
+  (2024), TabSynDex (2022), mostlyai-qa: all *reference-based fidelity/privacy*. None
+  measures conformance/aggregate-match/controllability. They **confirm** SpecBench's
+  gap; we must cite + differentiate explicitly so we are not mis-read as "yet another
+  tabular benchmark."
+
+Conclusion: nothing in 2025–2026 occupies our corner; the related work is now current.
+
 ## 7. Final verdict
 
 - **Novel-theory paper: CLOSED.** Every door checked; each component is classical and

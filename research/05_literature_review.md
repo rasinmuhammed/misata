@@ -114,9 +114,25 @@ cardinality match + runtime).
   *training data for NL→SQL models*. *Diff:* different task (model training data), not
   outcome-conformant relational test databases.
 
-**Takeaway:** NeMo Data Designer is the competitor to name explicitly. Our wedge is
-the formal-guarantee axis (exact + deterministic + closed-form), which we *measure*
-in SpecBench and they cannot meet.
+**2025–2026 LLM-constraint wave (swept Jun 2026; all disjoint, all must be cited):**
+- **RDDG — Relational Data generator with Dynamic Guidance (arXiv 2604.16817, 2026).**
+  LLM in-context generation for *imbalanced classification*; core-set selection from
+  *real data* + self-reinforcing feedback. *Diff:* needs seed data (not cold-start);
+  stochastic (not exact/deterministic); inter-column correlations, not aggregate/rate
+  outcomes; judged on fidelity + downstream accuracy.
+- **LLM-TabLogic (arXiv 2503.02161, 2026).** Prompt-guided latent diffusion preserving
+  *inter-column logical relationships*; claims "first" on that axis. *Diff:* logical
+  relations (cf. JANUS), learned/diffusion, not exact aggregate/outcome conformance,
+  not cold-start. Must be cited and distinguished, not used as our baseline.
+- **StructSynth (2508.02601, 2025)** dependency-graph discovery + LLM synthesis in
+  low-data regimes; **FASTGEN (2507.15839, 2025)** LLM-inferred per-field sampling
+  scripts; **probability-driven prompting note (2505.02659, 2025).** All
+  LLM-stochastic, fidelity-oriented, seed/low-data — disjoint from exact conformance.
+
+**Takeaway:** NeMo Data Designer is the competitor to name explicitly; the 2025–26 LLM
+wave (RDDG, LLM-TabLogic, StructSynth, FASTGEN) is the *current* related work and is
+uniformly stochastic + learned. Our wedge is the formal-guarantee axis (exact +
+deterministic + closed-form), which we *measure* in SpecBench and none of them meet.
 
 ---
 
@@ -208,6 +224,16 @@ would be the slop signal.
   *Diff:* presuppose real data; measure fidelity-to-real. SpecBench measures
   conformance-to-spec — orthogonal axes; we reuse SDMetrics shape/correlation only as
   *secondary context* on reference-mode tasks.
+- **Recent fidelity/utility benchmarks (must differentiate, swept Jun 2026):**
+  "Benchmarking Synthetic Tabular Data: A Multi-Dimensional Evaluation Framework"
+  (arXiv 2504.01908, 2025) — holdout-based, *replicates original distributional
+  properties + privacy*; **SynthEval** (2404.15821, 2024); **TabSynDex** (2207.05295,
+  2022); **mostlyai-qa** (software). *Diff (critical):* **every one is reference-based
+  and measures fidelity/utility/privacy — none measures conformance to a declared
+  specification, aggregate-match, controllability, or works cold-start.** This cluster
+  *confirms* SpecBench's gap rather than competing with it; the paper must cite them
+  explicitly and state the orthogonality, or risk being mis-read as "another tabular
+  benchmark."
 - **TSTR — train-synthetic-test-real (Esteban et al. 2017; widely used).** ML-utility
   protocol. *Diff:* utility axis; reported once as context, never headline.
 - **The "DCR Delusion" (arXiv 2505.01524, 2025).** Shows distance-to-closest-record
@@ -257,6 +283,17 @@ would be the slop signal.
 31. SDGym / SDMetrics (DataCebo, software).
 32. TPC-H, TPC-DS specifications (TPC); tpchgen-rs 2025 (software).
 33. NeurIPS Datasets & Benchmarks Track CFP 2021–2026.
+% --- 2025-2026 currency sweep (added Jun 2026) ---
+34. RDDG — Relational Data generator with Dynamic Guidance, 2026, arXiv 2604.16817.
+35. LLM-TabLogic, 2026, arXiv 2503.02161.
+36. StructSynth, 2025, arXiv 2508.02601.
+37. FASTGEN, 2025, arXiv 2507.15839.
+38. "Statistically Accurate Tabular Data Generation with LLMs" (note), 2025, arXiv 2505.02659.
+39. "Benchmarking Synthetic Tabular Data: A Multi-Dimensional Evaluation Framework," 2025, arXiv 2504.01908.
+40. SynthEval, 2024, arXiv 2404.15821.
+41. TabSynDex, 2022, arXiv 2207.05295.
+42. JANUS, 2026, arXiv 2603.03748 (cleared, disjoint — per-row logical constraints).
+43. Maxent multi-way cardinality, 2026, arXiv 2603.22558 (cleared, disjoint — categorical, in-expectation).
 
 > **Verification note.** Authors/venues/years/pages above were taken from search
 > results during reconnaissance. Before submission, each must be confirmed against the
