@@ -124,6 +124,50 @@ three regimes (`research/measure.py`).
 
 ---
 
+## 5b. Scale-invariance: the engine's distortion is mean-shift ONLY, no shape change
+
+> **Correction (review fix B1).** An earlier draft of this document conjectured a
+> *condensation* frontier (Prop. 5): that exact-sum conditioning would distort the
+> per-row *shape* for heavy tails. **Direct experiment with the proper unconstrained
+> control refuted this for our engine.** The honest — and stronger — result is below.
+> The retracted conjecture and its (confounded) evidence are documented in
+> `research/06_adversarial_review.md` (B1) and `research/specbench/prop5_curve.py`.
+
+**Proposition 4 (shape-invariance under the aggregate constraint).** Fix concentration
+`α`. For any two totals `T, T' > 0`, the engine's output for total `T'` is, in
+distribution, exactly `(T'/T)` times its output for `T` (up to the `O(1/U)` rounding
+term). Equivalently: the *normalized* law `v_i / \bar v` is independent of the target
+`T`; the target sets only the scale, never the shape.
+
+*Proof.* Stage 2 draws `w ~ Dirichlet(α𝟙_n)` and sets `v_i = T·w_i` (Prop. 0). The
+law of `w` does not depend on `T`. Hence `v_i(T') = T'·w_i = (T'/T)·v_i(T)` for the
+same `w`. Rounding contributes the usual `O(1/U)` perturbation. ∎
+
+**Consequence — why condensation does not arise here.** Condensation
+`[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan 2014]` is a property of conditioning
+a sum of variables with a *fixed marginal* `F`; forcing the sum into a large deviation
+makes one summand absorb the excess (single big jump), deforming the shape. Our engine
+does **not** hold a fixed marginal — it holds a fixed *shape* (the Dirichlet/Gamma
+family at concentration `α`) and lets the *scale* float to meet the target. Therefore
+the constraint is absorbed entirely by the mean (Prop. 3), and the shape is invariant
+(Prop. 4). Condensation is *avoided by construction*, not merely deferred.
+
+**Empirical confirmation (`prop5_curve.py`, 10 seeds).** (i) At the natural operating
+point (sum ≈ n·μ), the marginal-distortion **gap** between the constrained sample and
+an unconstrained i.i.d. draw from the *same* family is ≈ 0 across all tail weights
+(CV 0.35→2.9): mean gap −0.012 (light) to −0.051 (heavy) — i.e. the constrained sample
+is *as close* to the target as the unconstrained one. (ii) Normalizing out the mean,
+shape-distortion is **constant in the forced-deviation factor** (identical to 4 d.p.
+as the demanded sum is stretched 1×→25×): pure mean-shift, zero shape condensation.
+
+**Honest cost of this correction.** We lose a dramatic "frontier" figure. We gain a
+*true* and tidier theorem (Prop. 4) and a defensible story: the engine sidesteps the
+classical condensation obstruction by parameterizing shape-not-marginal. The real
+frontier (P★, §6) is for methods that must hit a *fixed external marginal* `F` —
+exactly where condensation bites and where our scale-free engine does not apply.
+
+---
+
 ## 6. What is genuinely open (the only place worth digging)
 
 Proposition 0 localizes the boundary precisely. Exact, closed-form, training-free
@@ -138,11 +182,15 @@ problem:
 
 For non-Gamma/Gaussian `F` there is no closed-form conditional; one needs exponential
 tilting, sequential Monte Carlo, or MCMC, trading exactness against fidelity to `F`.
+**This is exactly where condensation bites:** if `F` is fixed and heavy-tailed and the
+demanded `T` is a large deviation of `Σ`, the conditional marginal *must* depart from
+`F` (single big jump) — a genuine impossibility for P★, now correctly located as a
+property of the *fixed-marginal* problem, NOT of our scale-free engine (Prop. 4).
 **Caveat (honest):** constrained / fixed-sum sampling is itself a studied area
-(tilting, SMC with constraints). Before claiming P★ as a contribution we must verify
-it is not already solved in that literature — see `02_literature_and_verdict.md`.
-The plausibly-fresh angle is only the *wrapper*: P★ inside relational, temporal,
-zero-data synthetic generation with a benchmark.
+(tilting, SMC with constraints; `[CITE: Golchi–Campbell 2014]`). Before claiming P★ as
+a contribution we must verify it is not already solved there — see
+`02_literature_and_verdict.md`. The plausibly-fresh angle is only the *wrapper*: P★
+inside relational, temporal, zero-data synthetic generation with a benchmark.
 
 Secondary open items: **G2** distortion-minimizing count allocation when clamps must
 bind (small integer program; our `clip` is the naive baseline); **G3** joint targets
