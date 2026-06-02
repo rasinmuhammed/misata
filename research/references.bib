@@ -1,0 +1,264 @@
+% SpecBench / Outcome-Conformant Relational Synthesis — bibliography.
+%
+% VERIFICATION LEGEND:
+%   [VERIFIED]  cross-checked against DBLP / ACM DL / publisher this session.
+%   [CHECK]     details from search; confirm against primary source before submission.
+% Do not submit with any [CHECK] remaining.
+
+% ===================== Query-aware / DB test-data thread =====================
+
+% [VERIFIED] DBLP conf/sigmod/BinnigKLO07; ACM DOI 10.1145/1247480.1247520; pp.341-352.
+@inproceedings{binnig2007qagen,
+  author    = {Binnig, Carsten and Kossmann, Donald and Lo, Eric and {\"O}zsu, M. Tamer},
+  title     = {{QAGen}: Generating Query-Aware Test Databases},
+  booktitle = {Proc. ACM SIGMOD Int. Conf. on Management of Data},
+  pages     = {341--352},
+  year      = {2007},
+  address   = {Beijing, China},
+  doi       = {10.1145/1247480.1247520},
+}
+
+% [VERIFIED] ACM DOI 10.1145/1989323.1989395; SIGMOD 2011 Athens; pp.685-696.
+@inproceedings{arasu2011datagen,
+  author    = {Arasu, Arvind and Kaushik, Raghav and Li, Jian},
+  title     = {Data Generation using Declarative Constraints},
+  booktitle = {Proc. ACM SIGMOD Int. Conf. on Management of Data},
+  pages     = {685--696},
+  year      = {2011},
+  address   = {Athens, Greece},
+  doi       = {10.1145/1989323.1989395},
+}
+
+% [VERIFIED] PVLDB 4(12); ACM DOI 10.14778/3402755.3402785 (DataSynth demo/system).
+@article{arasu2011datasynth,
+  author    = {Arasu, Arvind and Kaushik, Raghav and Li, Jian},
+  title     = {{DataSynth}: Generating Synthetic Data using Declarative Constraints},
+  journal   = {Proc. VLDB Endowment (PVLDB)},
+  volume    = {4},
+  number    = {12},
+  year      = {2011},
+  doi       = {10.14778/3402755.3402785},
+}
+
+% [CHECK] VLDB Journal 2010, "A framework for testing DBMS features" (QAGen line).
+@article{lo2010framework,
+  author    = {Lo, Eric and Binnig, Carsten and Kossmann, Donald and {\"O}zsu, M. Tamer and Hon, Wing-Kai},
+  title     = {A Framework for Testing {DBMS} Features},
+  journal   = {The VLDB Journal},
+  volume    = {19},
+  number    = {2},
+  pages     = {203--230},
+  year      = {2010},
+  doi       = {10.1007/s00778-009-0157-y},
+}
+
+% [CHECK] Projection-compliant database generation, PVLDB 2022.
+@article{projectioncompliant2022,
+  title     = {Projection-Compliant Database Generation},
+  journal   = {Proc. VLDB Endowment (PVLDB)},
+  year      = {2022},
+  doi       = {10.14778/3510397.3510398},
+  note      = {confirm authors/volume/pages from PVLDB vol.15}
+}
+
+% ===================== Imitation / learned synthesis =====================
+
+% [VERIFIED] arXiv:1907.00503; NeurIPS 2019 (NIPS'19), pp.7335-7345.
+@inproceedings{xu2019ctgan,
+  author    = {Xu, Lei and Skoularidou, Maria and Cuesta-Infante, Alfredo and Veeramachaneni, Kalyan},
+  title     = {Modeling Tabular Data using Conditional {GAN}},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages     = {7335--7345},
+  year      = {2019},
+  eprint    = {1907.00503},
+  archivePrefix = {arXiv},
+}
+
+% [CHECK] IEEE DSAA 2016; confirm pages/DOI.
+@inproceedings{patki2016sdv,
+  author    = {Patki, Neha and Wedge, Roy and Veeramachaneni, Kalyan},
+  title     = {The Synthetic Data Vault},
+  booktitle = {IEEE Int. Conf. on Data Science and Advanced Analytics (DSAA)},
+  year      = {2016},
+  doi       = {10.1109/DSAA.2016.49},
+  note      = {confirm page range}
+}
+
+% [CHECK] TabDDPM, ICML 2023; confirm proceedings volume/pages.
+@inproceedings{kotelnikov2023tabddpm,
+  author    = {Kotelnikov, Akim and Baranchuk, Dmitry and Rubachev, Ivan and Babenko, Artem},
+  title     = {{TabDDPM}: Modelling Tabular Data with Diffusion Models},
+  booktitle = {Int. Conf. on Machine Learning (ICML)},
+  year      = {2023},
+}
+
+% [CHECK] RelDiff, arXiv:2506.00710 (2025); confirm venue if published.
+@article{reldiff2025,
+  title  = {{RelDiff}: Relational Data Generative Modeling with Graph-Based Diffusion Models},
+  year   = {2025},
+  eprint = {2506.00710},
+  archivePrefix = {arXiv},
+}
+
+% [CHECK] IRG, arXiv:2312.15187; reported SIGKDD 2026 — confirm acceptance/pages.
+@article{irg2024,
+  title  = {{IRG}: Modular Synthetic Relational Database Generation with Complex Relational Schemas},
+  year   = {2024},
+  eprint = {2312.15187},
+  archivePrefix = {arXiv},
+}
+
+% [CHECK] HCTGAN, arXiv:2411.07009 (2024).
+@article{hctgan2024,
+  title  = {Hierarchical Conditional Tabular {GAN} for Multi-Tabular Synthetic Data Generation},
+  year   = {2024},
+  eprint = {2411.07009},
+  archivePrefix = {arXiv},
+}
+
+% ===================== Exact mathematics =====================
+
+% [VERIFIED] Ann. Math. Statist. 26(2):319-324, 1955.
+@article{lukacs1955gamma,
+  author  = {Lukacs, Eugene},
+  title   = {A Characterization of the Gamma Distribution},
+  journal = {The Annals of Mathematical Statistics},
+  volume  = {26},
+  number  = {2},
+  pages   = {319--324},
+  year    = {1955},
+}
+
+% [CHECK] Aitchison, compositional data analysis, 1986 (Chapman & Hall).
+@book{aitchison1986compositional,
+  author    = {Aitchison, John},
+  title     = {The Statistical Analysis of Compositional Data},
+  publisher = {Chapman \& Hall},
+  year      = {1986},
+}
+
+% [CHECK] Cox, JASA 1987 — confirm volume/issue/pages (82, 520-524 reported).
+@article{cox1987rounding,
+  author  = {Cox, Lawrence H.},
+  title   = {A Constructive Procedure for Unbiased Controlled Rounding},
+  journal = {Journal of the American Statistical Association},
+  volume  = {82},
+  number  = {398},
+  pages   = {520--524},
+  year    = {1987},
+}
+
+% [CHECK] Balinski & Young, Fair Representation, Yale UP 1982.
+@book{balinski1982fair,
+  author    = {Balinski, Michel L. and Young, H. Peyton},
+  title     = {Fair Representation: Meeting the Ideal of One Man, One Vote},
+  publisher = {Yale University Press},
+  year      = {1982},
+}
+
+% ===================== Aggregate-consistent statistics =====================
+
+% [CHECK] Denton, JASA 1971, 66(333):99-102.
+@article{denton1971,
+  author  = {Denton, Frank T.},
+  title   = {Adjustment of Monthly or Quarterly Series to Annual Totals: An Approach Based on Quadratic Minimization},
+  journal = {Journal of the American Statistical Association},
+  volume  = {66},
+  number  = {333},
+  pages   = {99--102},
+  year    = {1971},
+}
+
+% [CHECK] Chow & Lin, Rev. Econ. Stat. 1971, 53(4):372-375.
+@article{chowlin1971,
+  author  = {Chow, Gregory C. and Lin, An-loh},
+  title   = {Best Linear Unbiased Interpolation, Distribution, and Extrapolation of Time Series by Related Series},
+  journal = {The Review of Economics and Statistics},
+  volume  = {53},
+  number  = {4},
+  pages   = {372--375},
+  year    = {1971},
+}
+
+% [CHECK] Deming & Stephan, Ann. Math. Statist. 1940, 11(4):427-444 (IPF).
+@article{deming1940ipf,
+  author  = {Deming, W. Edwards and Stephan, Frederick F.},
+  title   = {On a Least Squares Adjustment of a Sampled Frequency Table When the Expected Marginal Totals are Known},
+  journal = {The Annals of Mathematical Statistics},
+  volume  = {11},
+  number  = {4},
+  pages   = {427--444},
+  year    = {1940},
+}
+
+% ===================== Condensation / conditioned-sum frontier =====================
+
+% [CHECK] Armendariz & Loulakis, Stoch. Proc. Appl. 121(5):1138-1147, 2011; arXiv:0912.1516.
+@article{armendariz2011condensation,
+  author  = {Armend{\'a}riz, In{\'e}s and Loulakis, Michail},
+  title   = {Conditional Distribution of Heavy Tailed Random Variables on Large Deviations of their Sum},
+  journal = {Stochastic Processes and their Applications},
+  volume  = {121},
+  number  = {5},
+  pages   = {1138--1147},
+  year    = {2011},
+  eprint  = {0912.1516},
+  archivePrefix = {arXiv},
+}
+
+% [CHECK] Szavits-Nossan, Evans, Majumdar, PRL 2014; arXiv:1406.3573.
+@article{szavits2014condensation,
+  author  = {Szavits-Nossan, Juraj and Evans, Martin R. and Majumdar, Satya N.},
+  title   = {Condensation Transition in Joint Large Deviations of Linear Statistics},
+  journal = {Physical Review Letters},
+  year    = {2014},
+  eprint  = {1406.3573},
+  archivePrefix = {arXiv},
+  note    = {confirm volume/article-id (J. Phys. A companion exists too)}
+}
+
+% [CHECK] Golchi & Campbell, Sequentially Constrained Monte Carlo; arXiv:1410.8209;
+%         Comput. Stat. Data Anal. 97:98-113, 2016.
+@article{golchi2016scmc,
+  author  = {Golchi, Shirin and Campbell, David A.},
+  title   = {Sequentially Constrained Monte Carlo},
+  journal = {Computational Statistics \& Data Analysis},
+  volume  = {97},
+  pages   = {98--113},
+  year    = {2016},
+  eprint  = {1410.8209},
+  archivePrefix = {arXiv},
+}
+
+% ===================== Evaluation methodology =====================
+
+% [CHECK] "The DCR Delusion", arXiv:2505.01524 (2025); confirm authors/venue.
+@article{dcrdelusion2025,
+  title  = {The {DCR} Delusion: Measuring the Privacy Risk of Synthetic Data},
+  year   = {2025},
+  eprint = {2505.01524},
+  archivePrefix = {arXiv},
+}
+
+% [CHECK] TSTR origin — Esteban, Hyland, R{\"a}tsch 2017; arXiv:1706.02633.
+@article{esteban2017tstr,
+  author  = {Esteban, Crist{\'o}bal and Hyland, Stephanie L. and R{\"a}tsch, Gunnar},
+  title   = {Real-valued (Medical) Time Series Generation with Recurrent Conditional GANs},
+  year    = {2017},
+  eprint  = {1706.02633},
+  archivePrefix = {arXiv},
+}
+
+% [SOFTWARE] cite tool+docs, not a paper.
+@misc{nemo_data_designer,
+  title  = {{NeMo} Data Designer},
+  author = {{NVIDIA (formerly Gretel)}},
+  year   = {2025},
+  note   = {Apache-2.0; software + documentation},
+}
+
+@misc{sdgym,
+  title  = {{SDGym} / {SDMetrics}},
+  author = {{DataCebo}},
+  note   = {software + documentation},
+}
