@@ -164,6 +164,67 @@ def marginal_distortion(
 
 
 # --------------------------------------------------------------------------- #
+# CSAT — hard-constraint satisfaction
+# --------------------------------------------------------------------------- #
+
+def constraint_satisfaction(
+    tables: Dict[str, pd.DataFrame],
+    constraints: List[Dict[str, Any]],
+) -> MetricResult:
+    """Fraction of declared hard constraints satisfied (1.0 = all satisfied).
+
+    Each constraint dict: {table, column, op, value} with op in
+    {">=","<=",">","<"}, or {table, column, op:"between", low, high}.
+    A constraint is 'satisfied' iff EVERY row obeys it. Blind aggregate-rescaling
+    (NaiveRescale) typically violates range constraints because multiplying to hit a
+    sum pushes values out of their declared bounds.
+    """
+    if not constraints:
+        return MetricResult("CSAT", 1.0, "no hard constraints")
+
+    satisfied = 0
+    detail = []
+    for c in constraints:
+        t, col = c["table"], c["column"]
+        if t not in tables or col not in tables[t].columns:
+            detail.append(f"{t}.{col}:MISSING"); continue
+        s = pd.to_numeric(tables[t][col], errors="coerce").dropna()
+        op = c["op"]
+        if op == "between":
+            ok = bool((s >= c["low"]).all() and (s <= c["high"]).all())
+        elif op == ">=":
+            ok = bool((s >= c["value"]).all())
+        elif op == "<=":
+            ok = bool((s <= c["value"]).all())
+        elif op == ">":
+            ok = bool((s > c["value"]).all())
+        elif op == "<":
+            ok = bool((s < c["value"]).all())
+        else:
+            ok = False
+        satisfied += int(ok)
+        frac_bad = float((~_obey(s, c)).mean()) if not ok else 0.0
+        detail.append(f"{t}.{col}{op}:{'ok' if ok else f'{frac_bad:.0%}bad'}")
+
+    return MetricResult("CSAT", satisfied / len(constraints), "; ".join(detail))
+
+
+def _obey(s: pd.Series, c: Dict[str, Any]) -> pd.Series:
+    op = c["op"]
+    if op == "between":
+        return (s >= c["low"]) & (s <= c["high"])
+    if op == ">=":
+        return s >= c["value"]
+    if op == "<=":
+        return s <= c["value"]
+    if op == ">":
+        return s > c["value"]
+    if op == "<":
+        return s < c["value"]
+    return pd.Series(False, index=s.index)
+
+
+# --------------------------------------------------------------------------- #
 # CR — Controllability Response error
 # --------------------------------------------------------------------------- #
 

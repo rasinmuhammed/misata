@@ -88,40 +88,87 @@ class FakerBaseline(Baseline):
     )
 
     def generate(self, task, seed: int) -> GenResult:
-        import time
-        from faker import Faker
-        t0 = time.perf_counter()
-        fake = Faker()
-        Faker.seed(seed)
-        rng = np.random.default_rng(seed)
+        tables, secs = _faker_scaffold(task, seed, rescale_to_targets=False)
+        return GenResult(tables=tables, wall_seconds=secs)
 
-        # A *typical practitioner* Faker script for this schema: independent columns,
-        # FK by sampling parent ids. It does NOT know the outcome targets — that is the
-        # point. We build the same logical schema the task declares, generically.
-        tables: Dict[str, pd.DataFrame] = {}
-        for tbl in task.schema_tables:
-            n = tbl["rows"]
-            cols: Dict[str, Any] = {}
-            cols[tbl["pk"]] = np.arange(1, n + 1)
-            for col in tbl["columns"]:
-                kind = col["kind"]
-                name = col["name"]
-                if kind == "metric":          # the column an outcome would target
-                    # Faker has no notion of the target; draw a plausible positive value
-                    cols[name] = rng.lognormal(mean=np.log(col.get("scale", 100)), sigma=0.6, size=n)
-                elif kind == "category":
-                    cols[name] = rng.choice(col["choices"], size=n)
-                elif kind == "date":
-                    start = np.datetime64(col.get("start", "2024-01-01"))
-                    span = int(col.get("span_days", 365))
-                    cols[name] = start + rng.integers(0, span, size=n).astype("timedelta64[D]")
-                elif kind == "fk":
-                    parent_ids = tables[col["parent"]][col["parent_pk"]].to_numpy()
-                    cols[name] = rng.choice(parent_ids, size=n)
-                else:
-                    cols[name] = [fake.word() for _ in range(n)]
-            tables[tbl["name"]] = pd.DataFrame(cols)
-        return GenResult(tables=tables, wall_seconds=time.perf_counter() - t0)
+
+def _faker_scaffold(task, seed: int, rescale_to_targets: bool = False):
+    """Build the task's schema with Faker-style independent columns + FK by parent
+    sampling. If rescale_to_targets, multiply the metric within each declared period to
+    hit the aggregate target exactly (the NaiveRescale strategy).
+
+    Fairness (review M4): the metric column is drawn with mean = the spec's *implied*
+    per-row mean (target-total / declared-rows), NOT an arbitrary scale. A baseline's
+    only disadvantage is then missing the *temporal shape*, never a scale we picked.
+    """
+    import time
+    from faker import Faker
+    t0 = time.perf_counter()
+    fake = Faker(); Faker.seed(seed)
+    rng = np.random.default_rng(seed)
+
+    implied_mean = None
+    if task.period_targets:
+        tot = sum(task.period_targets.values())
+        mrows = next((t["rows"] for t in task.schema_tables
+                      if t["name"] == task.metric_table), None)
+        if mrows:
+            implied_mean = tot / mrows
+
+    tables: Dict[str, pd.DataFrame] = {}
+    for tbl in task.schema_tables:
+        n = tbl["rows"]
+        cols: Dict[str, Any] = {}
+        cols[tbl["pk"]] = np.arange(1, n + 1)
+        for col in tbl["columns"]:
+            kind, name = col["kind"], col["name"]
+            if kind == "metric":
+                mean = implied_mean if (implied_mean and tbl["name"] == task.metric_table) \
+                    else col.get("scale", 100)
+                s = 0.6
+                cols[name] = rng.lognormal(mean=np.log(mean) - 0.5 * s * s, sigma=s, size=n)
+            elif kind == "category":
+                cols[name] = rng.choice(col["choices"], size=n)
+            elif kind == "date":
+                start = np.datetime64(col.get("start", "2024-01-01"))
+                span = int(col.get("span_days", 365))
+                cols[name] = start + rng.integers(0, span, size=n).astype("timedelta64[D]")
+            elif kind == "fk":
+                parent_ids = tables[col["parent"]][col["parent_pk"]].to_numpy()
+                cols[name] = rng.choice(parent_ids, size=n)
+            else:
+                cols[name] = [fake.word() for _ in range(n)]
+        tables[tbl["name"]] = pd.DataFrame(cols)
+
+    if rescale_to_targets and task.period_targets and \
+            task.metric_table in tables and \
+            task.time_col in tables[task.metric_table].columns:
+        df = tables[task.metric_table]
+        month = pd.to_datetime(df[task.time_col]).dt.strftime("%m")
+        for label, target in task.period_targets.items():
+            mask = (month == label)
+            cur = df.loc[mask, task.metric_col].sum()
+            if cur > 0:
+                df.loc[mask, task.metric_col] *= target / cur   # exact-sum by blind rescale
+    return tables, time.perf_counter() - t0
+
+
+class NaiveRescaleBaseline(Baseline):
+    """Faker scaffold + per-period multiply to hit each aggregate exactly.
+
+    The point (review B2): this ALSO achieves AME = 0 — proving hitting one aggregate is
+    trivial. What it does NOT do: respect *other* declared hard constraints (range /
+    inequality → CSAT), and it needs a hand-built schema, not a natural-language spec.
+    It isolates exactly what is, and is not, the contribution.
+    """
+    name = "naive_rescale"
+    capabilities = Capabilities(
+        cold_start=True, ingests_outcomes=True, deterministic=True, relational=False,
+    )
+
+    def generate(self, task, seed: int) -> GenResult:
+        tables, secs = _faker_scaffold(task, seed, rescale_to_targets=True)
+        return GenResult(tables=tables, wall_seconds=secs)
 
 
 # --------------------------------------------------------------------------- #
@@ -159,6 +206,25 @@ class SDVBaseline(Baseline):
             return GenResult(tables={}, ran=False,
                              reason="SDV requires source data; task is cold-start (CSC=0)")
         t0 = time.perf_counter()
+
+        # --- HMA: multi-table relational synthesizer (review M2) ---
+        if self.synthesizer == "hma":
+            from sdv.metadata import Metadata
+            from sdv.multi_table import HMASynthesizer
+            # needs the full relational reference + FK metadata
+            md = Metadata.detect_from_dataframes(reference)
+            try:
+                for (pt, pk, ct, ck) in getattr(task, "fks", []):
+                    md.add_relationship(parent_table_name=pt, child_table_name=ct,
+                                        parent_primary_key=pk, child_foreign_key=ck)
+            except Exception:
+                pass  # detect_from_dataframes may already infer them
+            synth = HMASynthesizer(md)
+            synth.fit(reference)
+            sample = synth.sample(scale=1.0)
+            return GenResult(tables=dict(sample), wall_seconds=time.perf_counter() - t0)
+
+        # --- single-table synthesizers ---
         from sdv.metadata import Metadata
         primary = task.primary_table
         df = reference[primary]
@@ -178,8 +244,7 @@ class SDVBaseline(Baseline):
 
 def all_baselines() -> List[Baseline]:
     """Construct the standard baseline set; SDV entries auto-skip if unavailable."""
-    bl: List[Baseline] = [MisataBaseline(), FakerBaseline()]
-    for s in ("gaussian_copula", "ctgan"):
-        b = SDVBaseline(s)
-        bl.append(b)
+    bl: List[Baseline] = [MisataBaseline(), FakerBaseline(), NaiveRescaleBaseline()]
+    for s in ("gaussian_copula", "ctgan", "hma"):
+        bl.append(SDVBaseline(s))
     return bl

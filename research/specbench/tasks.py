@@ -40,6 +40,7 @@ class Task:
     # integrity oracle (Family B)
     fks: List[Tuple[str, str, str, str]] = field(default_factory=list)
     temporal_order: List[Tuple[str, str, str]] = field(default_factory=list)  # (table, earlier, later)
+    constraints: List[Dict[str, Any]] = field(default_factory=list)  # hard constraints (CSAT)
 
     # generic schema (for the Faker baseline)
     schema_tables: List[Dict[str, Any]] = field(default_factory=list)
@@ -73,6 +74,10 @@ def _saas_curve_task() -> Task:
         time_col="start_date",
         period_freq="M",
         period_targets=targets,
+        # Hard constraint: per-subscription MRR ceiling ($1000 plan cap). Misata respects
+        # per-row bounds by construction; blind aggregate-rescale inflates the tail past
+        # the cap because multiplying a period to hit its sum scales up the largest rows.
+        constraints=[{"table": "subscriptions", "column": "mrr", "op": "<=", "value": 1000.0}],
         fks=[("users", "user_id", "subscriptions", "user_id")],
         primary_table="subscriptions",
         schema_tables=[

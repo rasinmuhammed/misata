@@ -24,6 +24,7 @@ warnings.filterwarnings("ignore")
 from research.specbench.baselines import Baseline, all_baselines  # noqa: E402
 from research.specbench.metrics import (  # noqa: E402
     aggregate_match_error,
+    constraint_satisfaction,
     determinism,
     fk_integrity_violation_rate,
 )
@@ -71,6 +72,13 @@ def run_task(task: Task, baselines: List[Baseline], seed: int = 42) -> List[Dict
         fivr = fk_integrity_violation_rate(res.tables, task.fks)
         rec["FIVR"] = fivr.value
 
+        # --- Family A: CSAT (hard-constraint satisfaction) ---
+        if task.constraints:
+            csat = constraint_satisfaction(res.tables, task.constraints)
+            rec["CSAT"] = csat.value
+        else:
+            rec["CSAT"] = float("nan")
+
         # --- Family B: DET (same seed twice) ---
         res2 = bl.generate(task, seed=seed)
         det = determinism(res.tables, res2.tables) if res2.ran else None
@@ -93,15 +101,15 @@ def main() -> None:
     for task in tasks:
         print(f"\n### Task: {task.task_id}  (mode={task.mode}, "
               f"targets={'curve' if task.period_targets else 'integrity-only'})")
-        print(f"  {'baseline':<22} {'CSC':>3} {'AME':>8} {'FIVR':>7} {'DET':>5}  {'secs':>7}  note")
-        print("  " + "-" * 74)
+        print(f"  {'baseline':<22} {'CSC':>3} {'AME':>8} {'CSAT':>6} {'FIVR':>7} {'DET':>5}  {'secs':>7}  note")
+        print("  " + "-" * 82)
         for rec in run_task(task, baselines):
             if not rec.get("ran", False):
-                print(f"  {rec['baseline']:<22} {rec['CSC']:>3} {'n/a':>8} {'n/a':>7} "
+                print(f"  {rec['baseline']:<22} {rec['CSC']:>3} {'n/a':>8} {'n/a':>6} {'n/a':>7} "
                       f"{'n/a':>5}  {'-':>7}  {rec.get('reason','')}")
             else:
                 print(f"  {rec['baseline']:<22} {rec['CSC']:>3} "
-                      f"{_fmt(rec['AME']):>8} {_fmt(rec['FIVR']):>7} "
+                      f"{_fmt(rec['AME']):>8} {_fmt(rec['CSAT']):>6} {_fmt(rec['FIVR']):>7} "
                       f"{_fmt(rec['DET']):>5}  {rec['secs']:>7}  ")
             all_rows.append(rec)
 
