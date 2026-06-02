@@ -21,12 +21,21 @@ Every item is checked against code/output, not asserted. Severity as before.
 >   torch stochasticity; with seeding it is now reproducible per seed. Claim reframed:
 >   imitation conformance is *uncontrolled / untargetable* (and, for the deep model,
 >   high-variance run-to-run pre-seeding), vs engine AME≈0 — what the data supports.
-> - **M5 PARTIAL/HONEST** — constraints added to 3 tasks with *semantic* caps (amount>0,
->   domain ceilings), NOT tuned to break the baseline. Honest outcome: NaiveRescale
->   breaches caps on SaaS (CSAT=0) but not fintech/ecommerce (their inflation stays
->   under the generous ceilings). Claim corrected to: NaiveRescale *cannot guarantee*
->   CSAT (fails when rescale inflates past a cap); engine satisfies by construction on
->   all tasks. We do NOT tune caps to manufacture failures.
+> - **M5 RESOLVED (the hard, honest way).** First attempt used a $1000 SaaS cap — but
+>   the multi-seed run exposed that *Misata itself* breaches it ~1/10 seeds (its MRR max
+>   ranges 751–1221). So the engine does **not** enforce an arbitrary cap "by
+>   construction"; that claim was false. **Decision: drop all tuned caps.** Constraints
+>   are now the single genuine invariant the engine truly guarantees (amount/MRR > 0).
+>   Consequence: CSAT no longer separates NaiveRescale (it preserves positivity too), so
+>   **CSAT is demoted from the contribution-defining metric.** The honest B2 separation
+>   is restated below — we refused to reverse-engineer a cap to save a headline.
+> - **B2 separation, restated honestly.** NaiveRescale achieves AME≈0 (confirming AME
+>   alone is trivial), BUT (i) it requires a **hand-built schema** — it cannot consume
+>   the natural-language spec (our scaffold hand-specifies every column, FK, and period);
+>   (ii) its blind per-period multiply **distorts the marginal**: measured mean drifts to
+>   ~$76 vs the spec-implied $150 and the tail inflates (max ~$1955 vs the engine's
+>   ~$1221). The contribution is AME≈0 **from an NL spec, with an undistorted
+>   domain-calibrated marginal** — not AME≈0 alone.
 > - **M6 RESOLVED** — SaaS curve is now non-monotone (100k→40k dip→120k); AME must
 >   track shape. Misata AME still 0; verified.
 > - **M7 RESOLVED** — formatter prints tiny AME in scientific notation (e.g. 1.46e-16),

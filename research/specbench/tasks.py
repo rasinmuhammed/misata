@@ -74,10 +74,11 @@ def _saas_curve_task() -> Task:
         time_col="start_date",
         period_freq="M",
         period_targets=targets,
-        # Hard constraint: per-subscription MRR ceiling ($1000 plan cap). Misata respects
-        # per-row bounds by construction; blind aggregate-rescale inflates the tail past
-        # the cap because multiplying a period to hit its sum scales up the largest rows.
-        constraints=[{"table": "subscriptions", "column": "mrr", "op": "<=", "value": 1000.0}],
+        # Hard constraint: MRR is strictly positive (a genuine domain invariant the
+        # engine guarantees by generating within per-plan distributions). We deliberately
+        # do NOT impose a tuned upper cap — that would be reverse-engineering a baseline
+        # failure. The honest CSAT story (see review R2/M5) is reported, not headlined.
+        constraints=[{"table": "subscriptions", "column": "mrr", "op": ">", "value": 0.0}],
         fks=[("users", "user_id", "subscriptions", "user_id")],
         primary_table="subscriptions",
         schema_tables=[
@@ -190,13 +191,9 @@ def _fintech_curve_task() -> Task:
         time_col="transaction_date",
         period_freq="M",
         period_targets={"01": 100_000.0, "12": 400_000.0},
-        # Semantic constraints (not reverse-engineered): a transaction amount is strictly
-        # positive, and a single retail transaction stays under a $10k reporting ceiling.
-        # Misata respects both; blind rescale can push the tail past the ceiling.
-        constraints=[
-            {"table": "transactions", "column": "amount", "op": ">", "value": 0.0},
-            {"table": "transactions", "column": "amount", "op": "<=", "value": 10_000.0},
-        ],
+        # Genuine domain invariant only: a transaction amount is strictly positive.
+        # No tuned ceiling (would be reverse-engineering).
+        constraints=[{"table": "transactions", "column": "amount", "op": ">", "value": 0.0}],
         fks=[("accounts", "account_id", "transactions", "account_id")],
         primary_table="transactions",
         schema_tables=[
@@ -225,12 +222,8 @@ def _ecommerce_curve_task() -> Task:
         time_col="order_date",
         period_freq="M",
         period_targets={"01": 80_000.0, "12": 300_000.0},
-        # Semantic: an order total is positive and below a $2k per-order ceiling for this
-        # store. Domain-justified, not tuned to break a baseline.
-        constraints=[
-            {"table": "orders", "column": "amount", "op": ">", "value": 0.0},
-            {"table": "orders", "column": "amount", "op": "<=", "value": 2_000.0},
-        ],
+        # Genuine domain invariant only: an order total is strictly positive.
+        constraints=[{"table": "orders", "column": "amount", "op": ">", "value": 0.0}],
         fks=[("customers", "customer_id", "orders", "customer_id")],
         primary_table="orders",
         schema_tables=[
