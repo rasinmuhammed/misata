@@ -1,45 +1,59 @@
-# Specification-Driven Relational Synthesis: A Benchmark and Reference Implementation for Controllable Cold-Start Data Generation
+# Outcome-Conformant Relational Synthesis: Exact Specification Satisfaction, Its Achievable Frontier, and a Conformance Benchmark
 
-> **Draft status.** Publication-ready skeleton for a *benchmark / systems* paper
-> (target: NeurIPS Datasets & Benchmarks, VLDB tools/demo, or JOSS). This is **not**
-> a novel-theory paper — §3 attributes every mechanism to its classical owner. The
-> contributions are the *problem formalization*, the *benchmark*, the *honest
-> characterization*, and the *reference implementation*. All numbers trace to
-> `research/measure.py`; all math to `research/01_formalization.md`; all lineage to
-> `research/02_literature_and_verdict.md`.
+> **Draft status.** Publication-ready skeleton for a *data-management / benchmark*
+> paper (target: VLDB/SIGMOD; secondary: NeurIPS Datasets & Benchmarks framed as a
+> new evaluation paradigm; JOSS for the tool). This is **not** a novel-theory paper —
+> every mechanism is attributed to its classical owner (§3). The contribution is
+> (C1) a unifying formal characterization of *outcome-conformant* synthesis, including
+> a precise achievable frontier; (C2) **SpecBench**, the first benchmark for
+> *conformance* (not fidelity); (C3) a closed-form, deterministic reference system.
+> Math → `01_formalization.md`; lineage → `02_*`/`05_literature_review.md`; scope lock
+> → `00_moat_and_scope.md`; numbers → `research/measure.py` + `specbench/`.
 >
-> **Author note.** Every section is to be rewritten in the author's own voice before
-> submission. Citations marked `[CITE: ...]` need a real bibliographic entry.
+> **Spine (do not lose this again).** The paper's backbone is the *mathematics*: the
+> conditional-sum identity (Prop. 0) that makes outcome conformance exact and
+> closed-form, and the condensation frontier (Prop. 5) that says exactly when it must
+> trade against marginal fidelity. SpecBench is the *measurement arm* of these
+> propositions — every metric operationalizes a specific claim (§4.1). The axis is
+> **conformance, not fidelity**; we concede fidelity-to-real to imitation methods.
+>
+> **Author note.** Rewrite in the author's own voice before submission. `[CITE: ...]`
+> markers resolve to entries in `05_literature_review.md`.
 
 ---
 
 ## Abstract
 
-Synthetic tabular data research is dominated by the *imitation* paradigm: given a
-real dataset, learn its distribution (copulas, GANs, diffusion, autoregressive
-models) and sample from it. This paradigm is structurally unable to serve a large
-and practical class of needs — software testing, database seeding, demos, and
-teaching — where (i) no source data exists ("cold start"), (ii) the data must hit
-*specified analytical targets* (a revenue curve, a fraud rate, a funnel), and
-(iii) multi-table referential integrity is mandatory. We call the complementary
-problem **specification-driven relational synthesis** and argue it has been studied
-only in fragments across official statistics, databases, and statistical physics,
-never unified or benchmarked. We make three contributions. First, we formalize the
-problem and its core sub-task — generating microdata whose period-level aggregate
-exactly matches a target while remaining individually realistic — and we
-characterize, using a classical conditional-sum identity and condensation theory,
-*exactly* when an exact-aggregate generator preserves marginal realism and when it
-cannot. Second, we introduce **SpecBench**, a benchmark that scores generators
-jointly on aggregate-match error, FK-integrity violation rate, marginal-distortion,
-controllability, and cold-start capability — axes that existing fidelity-to-real
-benchmarks (e.g. SDMetrics) do not measure. Third, we provide a permissively
-licensed reference implementation that satisfies aggregate targets *exactly* in
-closed form, generates relational data from a natural-language specification with
-zero source data, and serves as a strong, honest baseline. We show that
-imitation-based methods cannot take specification targets at all, and we delineate —
-honestly — the regime (heavy-tailed marginals under tight aggregate constraints)
-where *no* method can preserve fidelity, a known impossibility rather than an open
-problem.
+Synthetic tabular data research is dominated by the *imitation* paradigm: learn a
+real distribution and sample from it, judged on *fidelity to real data*. A large
+class of practical needs — software testing, database seeding, demos, teaching,
+query-engine stress — is structurally outside this paradigm: there is no source data
+("cold start"), and success means *reproducing a declared analytical outcome* (a
+revenue curve, a churn rate, a group-wise distribution) across a relational schema,
+not resembling some real dataset. We call this **outcome-conformant relational
+synthesis** and argue its evaluation axis is **conformance**, not fidelity. Our
+contributions are threefold. **(C1) A formal characterization.** We show that a
+widely-used family of exact-aggregate generators is, precisely, *exact sampling from
+a Gamma population conditioned on a fixed total* (via Lukacs' proportion–sum
+independence `[CITE: Lukacs 1955]`), giving closed-form aggregate exactness
+(controlled rounding `[CITE: Cox 1987]`), a closed-form marginal coefficient of
+variation, and an *exact* distortion bound under resource limits. We then establish
+the **achievable frontier**: using condensation theory for conditioned sums
+`[CITE: Armendáriz–Loulakis 2011; Szavits-Nossan et al. 2014]`, exact-aggregate
+conformance preserves an arbitrary target marginal *only* in the light-tailed (fluid)
+regime; for heavy-tailed targets under tight totals a condensate forms (single big
+jump) and fidelity loss is unavoidable — a known impossibility, not an open problem.
+**(C2) SpecBench**, the first benchmark for conformance: it scores generators on
+aggregate-match error, rate/group-distribution conformance, controllability response,
+FK-integrity, temporal coherence, and determinism — axes that fidelity benchmarks
+(SDGym/SDMetrics) cannot express because they presuppose real data. Each metric
+operationalizes a proposition from C1. **(C3) A reference implementation** that maps a
+natural-language or declarative specification to a relational dataset with exact,
+deterministic, closed-form conformance and zero source data. We show imitation methods
+(SDV, CTGAN, RelDiff) cannot ingest outcome targets and score zero on cold-start
+tasks, and that LLM-driven cold-start generators (NeMo Data Designer) approximate but
+cannot *guarantee* conformance or determinism — while honestly conceding that
+imitation methods lead on fidelity-to-real where real data exists.
 
 ---
 
@@ -60,40 +74,57 @@ founder building a demo, an instructor preparing an exercise, or an engineer
 stress-testing a query planner does not have — and must not use — real customer
 data. They instead know the *shape* the data should have: "10k users, 20% churn,
 MRR rising from \$50k to \$200k across the year with a Q3 dip," across a schema with
-valid foreign keys. We call this **specification-driven relational synthesis**.
+valid foreign keys. We call this **outcome-conformant relational synthesis**: the
+input is a *specification of analytical outcomes*; success is *conformance* to it.
 
-### 1.2 Why imitation cannot serve it
+### 1.2 Why imitation cannot serve it; why prior specification work is partial
 
-The two paradigms are not competitors on one axis; they answer different questions.
-Imitation requires source data (violating cold-start), satisfies aggregate targets
-only in expectation if at all (most learned models cannot ingest a "sum must equal
-X" constraint), and historically struggled with cross-table integrity. Conversely,
-when real data *does* exist and the goal is joint-distribution fidelity, learned
-methods are the right tool and we do not compete with them. We are explicit about
-this boundary throughout; conceding it is what makes the rest credible.
+The two paradigms answer different questions. Imitation requires source data
+(violating cold-start), satisfies outcome targets only in expectation if at all (most
+learned models cannot ingest "this sum/rate/share must equal X"), and is judged on
+fidelity. When real data exists and fidelity is the goal, imitation is the right tool
+and we do not compete; conceding this is what makes the rest credible.
+
+The *specification* tradition is real but partial. In databases, **QAGen**
+`[CITE: Binnig et al. 2007]` and **DataSynth** `[CITE: Arasu et al. 2011]` generate
+data to satisfy declared **query-output cardinalities** for optimizer testing — not
+analytical outcomes (curves, rates, distributions) on metric columns, and not from
+natural language. In official statistics, **temporal disaggregation**
+`[CITE: Denton 1971]` and **IPF** `[CITE: Deming–Stephan 1940]` produce
+aggregate-consistent *series* or *contingency tables* — not relational populations
+with per-row realism. LLM cold-start tools (**NeMo Data Designer**, 2025) target
+outcomes but *approximate* them stochastically with no exactness or determinism. The
+specific intersection — exact, deterministic, closed-form conformance to analytical
+outcomes, relational, from natural language, zero data — is unoccupied (§7).
 
 ### 1.3 Contributions
 
-1. **Formalization (§2–§3).** We define specification-driven relational synthesis
-   and isolate its hardest exactly-solvable core: *exact-aggregate microdata
-   generation*. We give the correct mathematical identity for a widely-used class of
-   generators (conditional-sum sampling of a Gamma population; Lukacs
-   `[CITE: Lukacs 1955]`), a closed-form marginal law, and an *exact* distortion
-   bound under resource limits.
-2. **A negative result, stated honestly (§3.4).** Using condensation theory for
-   conditioned sums `[CITE: Szavits-Nossan et al. 2014]`, we show that an
-   exact-aggregate generator can preserve an arbitrary target marginal *only* in the
-   light-tailed (fluid) regime; for heavy-tailed targets under tight totals,
-   fidelity loss is unavoidable. This delineates the achievable frontier and
-   explains why our reference design chooses the Gamma family.
-3. **SpecBench (§4).** A benchmark and metric suite for the specification regime:
-   aggregate-match error, FK-integrity violation rate, marginal distortion,
-   controllability response, and cold-start capability — with a task suite spanning
-   18 business domains and 15 locales.
-4. **Reference implementation (§5).** An open-source system that maps a
-   natural-language or declarative specification to a relational dataset with exact
-   aggregate satisfaction and guaranteed FK integrity, from zero source data, in
-   closed form (no iterative fitting, no training).
+**C1 — Formal characterization with an achievable frontier (§2–§3).** We define
+outcome-conformant synthesis and analyze its exactly-solvable core.
+- **Identity (Prop. 0).** The exact-aggregate engine *is* exact sampling from a Gamma
+  population conditioned on a fixed total (Lukacs proportion–sum independence
+  `[CITE: Lukacs 1955]`) — not an ad-hoc rescale. This is the mathematical spine.
+- **Exactness & marginal law (Props. 1–2).** Closed-form aggregate exactness via
+  controlled rounding `[CITE: Cox 1987]`; closed-form marginal `CV = √((n−1)/(nα+1))`
+  `[CITE: Aitchison 1986]`.
+- **Distortion bound (Prop. 3).** Exact closed-form distortion under resource clamps.
+- **Frontier (Prop. 5).** Via condensation theory `[CITE: Armendáriz–Loulakis 2011;
+  Szavits-Nossan et al. 2014]`: exact conformance preserves an arbitrary target
+  marginal *only* in the light-tailed fluid regime; heavy tails under tight totals
+  force a condensate (single big jump) and unavoidable fidelity loss. This both
+  *justifies* the Gamma design and *bounds* what any such method can achieve.
+
+**C2 — SpecBench (§4): the first conformance benchmark.** Metrics for the regime —
+aggregate-match error, rate- and group-distribution conformance, controllability
+response, FK-integrity, temporal coherence, determinism — none expressible in
+fidelity suites (SDGym/SDMetrics) that presuppose real data. Crucially, **each metric
+operationalizes a proposition from C1** (mapping in §4.1), so the benchmark is the
+measurement arm of the theory, not a detached scoreboard.
+
+**C3 — Reference implementation (§5).** An open-source system mapping a
+natural-language/declarative spec to a relational dataset with exact, deterministic,
+closed-form conformance and guaranteed FK integrity, from zero source data — no
+iterative fitting, no training, no LLM call at generation time.
 
 We deliberately claim **no new theorem**. The novelty is the unification, the
 benchmark, the honest frontier, and the reference system.
@@ -181,27 +212,55 @@ strength: we map the boundary of what is possible rather than overclaiming past 
 
 ## 4. SpecBench
 
-### 4.1 Why a new benchmark
+### 4.1 SpecBench is the measurement arm of C1 (the weld)
 
-Existing benchmarks (SDMetrics `[CITE]`, SDGym `[CITE]`) score *fidelity to a
-reference dataset*. The specification regime has no reference dataset and different
-success criteria. SpecBench measures what matters here.
+Existing benchmarks (SDMetrics, SDGym `[CITE]`) score *fidelity to a reference
+dataset* and therefore presuppose real data. The conformance regime has none and a
+different success criterion. SpecBench is not a detached scoreboard: **every metric
+operationalizes a proposition from §3.** This is the explicit link between the theory
+(C1) and the evaluation (C2).
 
-### 4.2 Metrics
+| Proposition (C1) | What it claims | SpecBench metric that measures it |
+|---|---|---|
+| Prop. 1 (exactness) | aggregate hits target exactly | **AME** → 0 for exact generators |
+| Prop. 2 (marginal law) | per-row `CV=√((n−1)/(nα+1))` | marginal-plausibility check vs predicted CV |
+| Prop. 3 (clamp distortion) | distortion = closed-form clamp ratio | conformance vs declared row-bounds |
+| Prop. 5 (frontier) | fidelity preserved only in fluid regime | **MD trade-off curve** across tail-heaviness |
+| §2 integrity desiderata | FK + temporal correctness | **FIVR**, **TCV** → 0 |
+| determinism (system) | same seed ⇒ identical output | **DET** → 1 |
+| controllability | tracks a changed spec | **CR** → 0 under target change |
 
-- **Aggregate-Match Error (AME):** `max_p |Ŝ_p − T_p| / T_p` over specified targets.
-  Exact generators achieve `0`; learned generators conditioned post-hoc do not.
-- **FK-Integrity Violation Rate (FIVR):** fraction of child rows whose foreign key
-  has no matching parent key. Target `0`.
-- **Marginal Distortion (MD):** divergence (e.g. 1-Wasserstein) between the realized
-  per-row metric law and the intended marginal, reported *within* and *outside* the
-  fluid regime per Prop. 5.
-- **Controllability Response (CR):** given a change to a target (e.g. double the Dec
-  value), the realized response error — does the system track the new spec?
-- **Cold-Start Capability (CSC):** binary — does the method run with zero source
-  rows? Imitation methods score `0`.
-- **Throughput / Determinism:** rows/s and seed-reproducibility (bitwise identical
-  output per seed).
+The single most important plot in the paper is the **Prop. 5 MD trade-off curve**:
+as the declared marginal grows heavier-tailed under a fixed aggregate, measured
+marginal distortion rises, and the *onset* matches the condensation transition
+predicted in §3. That figure turns the theory's frontier into an empirical,
+falsifiable curve — the core scientific result, not a leaderboard cell.
+
+### 4.2 Metrics (grouped by family; see `00_moat_and_scope.md`)
+
+**Core — Family A (outcome conformance):**
+- **AME** Aggregate-Match Error: `max_p |Ŝ_p − T_p| / |T_p|`. Exact generators → 0.
+- **RCE** Rate-Conformance Error: `|declared − realized|` for fraction targets
+  (churn %, fraud %).
+- **GDC** Group-Distribution Conformance: total-variation distance between declared
+  and realized group shares.
+- **CR** Controllability Response: AME/RCE against a *changed* spec after regen.
+- **CSAT** Constraint Satisfaction: fraction of declared hard constraints met.
+
+**Core — Family B (integrity & reproducibility):**
+- **FIVR** FK-Integrity Violation Rate (child-weighted dangling FKs) → 0.
+- **TCV** Temporal Coherence Violations (declared order breaks) → 0.
+- **DET** Determinism (bitwise identical under fixed seed) → 1.
+
+**Capability gate:**
+- **CSC** Cold-Start Capability: binary — runs with zero source rows? Imitation → 0.
+- **Throughput / peak memory** (SDGym convention `[CITE]`).
+
+**Secondary context only (reference-mode tasks; never headline):**
+- **MD** Marginal Distortion (normalized 1-Wasserstein) — used for the Prop. 5 curve
+  and to *concede* fidelity to imitation methods, per the scope lock. TSTR,
+  detection-as-goal, and DCR-as-privacy are deliberately excluded (§ rationale in
+  `00_moat_and_scope.md`); privacy is argued by construction (zero real data).
 
 ### 4.3 Task suite
 
