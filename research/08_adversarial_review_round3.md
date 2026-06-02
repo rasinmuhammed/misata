@@ -113,3 +113,34 @@ both true *and* visible. Until then a reviewer would say "ties a trivial baselin
 
 **Priority:** B5 (instrument MP + input axis, RUN it) → M8 (rewrite E5 with final
 numbers, purge retractions) → M9/M10 (AME shape check, demote CSAT) → D8 (real dataset).
+
+---
+
+## RESOLUTION LOG (Round-3 fix pass)
+
+- **B5 — the MP half FAILED honestly; the input-axis half SUCCEEDED.** I built the
+  Marginal-Plausibility metric and ran it. **It did NOT favor the engine** — it ranked
+  Faker best, Misata worst (SaaS: Misata MP 3.5, NaiveRescale 1.1, Faker 0.02). Cause is
+  real: MP's reference uses `implied_mean = total/rows`, assuming every row carries
+  value; the engine legitimately gives free-tier subscriptions $0, raising its
+  paying-row mean — so MP *penalizes realistic structure*. **MP is declared INVALID and
+  NOT used** (documented in `metrics.py`). We ship neither a metric that manufactures a
+  win nor one that manufactures a loss from an ill-posed reference.
+  - **Stated plainly:** on cold-start spec-mode, the engine does **not** beat a trivial
+    rescale on any clean *automated marginal* metric we could justify. The honest
+    separator is the **categorical input axis** (now in the table): engine consumes an
+    **NL spec** (`input=nl`); NaiveRescale/Faker need a **hand-built schema**
+    (`input=schema`); SDV needs **real data** (`input=data`). NaiveRescale ties AME only
+    *because a human enumerated its schema/columns/FKs/periods* — the very work the
+    engine removes. Real, defensible, and now visible rather than asserted in prose.
+  - Secondary honest context (not headlined): NaiveRescale over-disperses the marginal
+    (SaaS CV 1.20 vs engine 0.72; skew 3.69 vs 1.40; max $1955 vs $1221).
+- **Contribution re-stated after three rounds (what survives):**
+  1. Reference-mode: engine AME=0 from the spec vs SDV 0.213 (deterministic) — clean win.
+  2. Input axis: only the engine yields a conformant relational dataset from an NL
+     sentence, zero data, no hand-built schema (categorical, in the table).
+  3. Theory: Prop. 0 (Gamma-conditional identity) + Prop. 4 (scale-invariance w/ control).
+  AME-alone-on-spec-mode is explicitly conceded trivial (NaiveRescale ties it).
+- **M10 RESOLVED:** CSAT removed from headline table (all baselines 1.0 → noise).
+- **M8 pending:** rewrite paper E5 from final numbers, purge the two retracted claims.
+- **M9 pending:** per-period AME shape check on the non-monotone task.

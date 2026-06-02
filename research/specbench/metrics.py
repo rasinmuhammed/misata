@@ -164,6 +164,55 @@ def marginal_distortion(
 
 
 # --------------------------------------------------------------------------- #
+# MP — Marginal Plausibility (review B5): drift of the generated metric marginal
+#       from the spec-implied domain-calibrated reference.
+# --------------------------------------------------------------------------- #
+
+def marginal_plausibility(
+    tables: Dict[str, pd.DataFrame],
+    table: str,
+    metric_col: str,
+    implied_mean: float,
+    sigma: float = 0.6,
+    n_ref: int = 200_000,
+    seed: int = 0,
+) -> MetricResult:
+    """DEPRECATED / INVALID — kept for the scientific record (review B5 finding).
+
+    This metric was an attempt to show blind rescaling distorts the marginal. It is
+    **invalid** and must NOT be used as a headline: it compares the generated marginal to
+    a lognormal at `implied_mean = total_targets / total_rows`, which wrongly assumes
+    every row carries metric value. Models that legitimately differ on the *fraction* of
+    value-bearing rows (e.g. a SaaS model with free-tier $0 subscriptions has a higher
+    mean over paying rows) are penalized for being MORE realistic. Empirically it ranked
+    Faker best and Misata worst — an artifact of the ill-defined reference, not a real
+    plausibility ordering. We report distributional stats (CV/skew) and the categorical
+    input-type axis instead; see `08_adversarial_review_round3.md` B5 resolution.
+    """
+    if table not in tables:
+        return MetricResult("MP", float("inf"), f"missing table {table}")
+    cols = tables[table].columns
+    m_col = metric_col if metric_col in cols else _resolve_alias(
+        cols, [metric_col, "amount", "value", "mrr", "revenue", "total"])
+    if m_col is None:
+        return MetricResult("MP", float("inf"), f"no metric column in {table}")
+
+    realized = pd.to_numeric(tables[table][m_col], errors="coerce").dropna().to_numpy()
+    realized = realized[realized > 0]                # lognormal reference is positive
+    if realized.size == 0:
+        return MetricResult("MP", float("inf"), "no positive metric values")
+
+    rng = np.random.default_rng(seed)
+    mu = np.log(max(implied_mean, 1e-9)) - 0.5 * sigma * sigma
+    reference = rng.lognormal(mean=mu, sigma=sigma, size=n_ref)
+
+    md = marginal_distortion(realized, reference)
+    return MetricResult("MP", md.value,
+                        f"gen_mean={realized.mean():.1f} vs implied={implied_mean:.1f}; "
+                        f"gen_max={realized.max():.0f}")
+
+
+# --------------------------------------------------------------------------- #
 # CSAT — hard-constraint satisfaction
 # --------------------------------------------------------------------------- #
 

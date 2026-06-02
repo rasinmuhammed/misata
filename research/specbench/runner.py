@@ -125,7 +125,8 @@ def main(seeds: int = 10) -> None:
 
     print("\n" + "=" * 90)
     print(f"  SpecBench E5 — cross-paradigm conformance leaderboard ({seeds} seeds, mean±std)")
-    print("  axis: CONFORMANCE (lower AME/FIVR better; CSAT/DET=1 better; CSC=1 capable)")
+    print("  axis: CONFORMANCE. input: nl=natural-language spec | schema=hand-built | data=needs real")
+    print("  (lower AME/FIVR better; DET=1 better; CSC=1 capable)")
     print("=" * 90)
 
     all_rows: List[Dict] = []
@@ -133,8 +134,8 @@ def main(seeds: int = 10) -> None:
         print(f"\n### Task: {task.task_id}  (mode={task.mode}, "
               f"targets={'curve' if task.period_targets else 'integrity-only'}, "
               f"constraints={len(task.constraints)})")
-        print(f"  {'baseline':<20} {'CSC':>3} {'AME':>11} {'CSAT':>8} {'FIVR':>8} {'DET':>6}  {'secs':>7}")
-        print("  " + "-" * 84)
+        print(f"  {'baseline':<20} {'input':>7} {'CSC':>3} {'AME':>11} {'FIVR':>8} {'DET':>6}  {'secs':>7}")
+        print("  " + "-" * 86)
 
         # collect per-seed records, keyed by baseline
         by_bl: Dict[str, List[Dict]] = {}
@@ -147,16 +148,18 @@ def main(seeds: int = 10) -> None:
                 all_rows.append(rec)
 
         for bl in baselines:
+            itype = bl.capabilities.input_type
             recs = by_bl.get(bl.name, [])
             ran = [r for r in recs if r.get("ran")]
             if not ran:
                 reason = recs[0].get("reason", "") if recs else ""
-                print(f"  {bl.name:<20} {int(bl.capabilities.cold_start):>3} "
-                      f"{'n/a':>11} {'n/a':>8} {'n/a':>8} {'n/a':>6}  {'-':>7}  {reason}")
+                print(f"  {bl.name:<20} {itype:>7} {int(bl.capabilities.cold_start):>3} "
+                      f"{'n/a':>11} {'n/a':>8} {'n/a':>6}  {'-':>7}  {reason}")
                 continue
-            print(f"  {bl.name:<20} {ran[0]['CSC']:>3} "
+            for r in ran:
+                r["input_type"] = itype
+            print(f"  {bl.name:<20} {itype:>7} {ran[0]['CSC']:>3} "
                   f"{_agg([r['AME'] for r in ran]):>11} "
-                  f"{_agg([r['CSAT'] for r in ran]):>8} "
                   f"{_agg([r['FIVR'] for r in ran]):>8} "
                   f"{_agg([r['DET'] for r in ran]):>6}  "
                   f"{np.mean([r['secs'] for r in ran]):>7.2f}")

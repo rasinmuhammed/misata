@@ -36,6 +36,11 @@ class Capabilities:
     ingests_outcomes: bool                # can take aggregate/rate/group targets?
     deterministic: bool                   # bitwise identical under fixed seed?
     relational: bool                      # native multi-table with FK awareness?
+    input_type: str = "nl"                # "nl" (natural-language spec) | "schema"
+    #   (hand-built schema enumerating columns/FK/periods) | "data" (needs real data).
+    #   This is the categorical separator the metric table makes visible (review B5):
+    #   only the engine consumes an NL spec; rescale/Faker need a hand-built schema;
+    #   SDV needs real data.
 
 
 class Baseline:
@@ -58,6 +63,7 @@ class MisataBaseline(Baseline):
     name = "misata"
     capabilities = Capabilities(
         cold_start=True, ingests_outcomes=True, deterministic=True, relational=True,
+        input_type="nl",
     )
 
     def generate(self, task, seed: int) -> GenResult:
@@ -85,6 +91,7 @@ class FakerBaseline(Baseline):
     name = "faker"
     capabilities = Capabilities(
         cold_start=True, ingests_outcomes=False, deterministic=True, relational=False,
+        input_type="schema",
     )
 
     def generate(self, task, seed: int) -> GenResult:
@@ -164,6 +171,7 @@ class NaiveRescaleBaseline(Baseline):
     name = "naive_rescale"
     capabilities = Capabilities(
         cold_start=True, ingests_outcomes=True, deterministic=True, relational=False,
+        input_type="schema",
     )
 
     def generate(self, task, seed: int) -> GenResult:
@@ -196,6 +204,7 @@ class SDVBaseline(Baseline):
         self.capabilities = Capabilities(
             cold_start=False, ingests_outcomes=False,
             deterministic=True, relational=(synthesizer == "hma"),
+            input_type="data",
         )
 
     def available(self) -> bool:
