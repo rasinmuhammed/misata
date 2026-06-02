@@ -53,16 +53,16 @@ class Task:
 def _saas_curve_task() -> Task:
     """SaaS MRR curve — the canonical Family-A conformance task.
 
-    Oracle contains ONLY the anchors the specification explicitly declares
-    ($50k January, $200k December). Interpolated months are the generator's choice,
-    not declared targets, so measuring against them would be inventing ground truth.
-    Period labels are month-of-year ('01'..'12'), matched year-agnostically, because
-    the spec fixes the shape across "a year", not a calendar year.
+    Oracle contains ONLY the anchors the specification explicitly declares. The curve is
+    deliberately NON-MONOTONE (Jan high, June dip, Dec recovery) so AME must reflect the
+    *shape*, not merely "flat vs ramp" (review M6): a flat baseline cannot accidentally
+    score well on a curve that goes up, down, then up. Period labels are month-of-year,
+    matched year-agnostically.
     """
-    targets = {"01": 50_000.0, "12": 200_000.0}
+    targets = {"01": 100_000.0, "06": 40_000.0, "12": 120_000.0}
     story = (
-        "SaaS company with 5k users - MRR $50k in January rising to $200k in December, "
-        "Q3 dip in July, strong Q4"
+        "SaaS with 5k users - MRR $100k in January, dip to $40k in June, "
+        "back to $120k in December"
     )
     return Task(
         task_id="saas_mrr_curve",
@@ -190,6 +190,13 @@ def _fintech_curve_task() -> Task:
         time_col="transaction_date",
         period_freq="M",
         period_targets={"01": 100_000.0, "12": 400_000.0},
+        # Semantic constraints (not reverse-engineered): a transaction amount is strictly
+        # positive, and a single retail transaction stays under a $10k reporting ceiling.
+        # Misata respects both; blind rescale can push the tail past the ceiling.
+        constraints=[
+            {"table": "transactions", "column": "amount", "op": ">", "value": 0.0},
+            {"table": "transactions", "column": "amount", "op": "<=", "value": 10_000.0},
+        ],
         fks=[("accounts", "account_id", "transactions", "account_id")],
         primary_table="transactions",
         schema_tables=[
@@ -218,6 +225,12 @@ def _ecommerce_curve_task() -> Task:
         time_col="order_date",
         period_freq="M",
         period_targets={"01": 80_000.0, "12": 300_000.0},
+        # Semantic: an order total is positive and below a $2k per-order ceiling for this
+        # store. Domain-justified, not tuned to break a baseline.
+        constraints=[
+            {"table": "orders", "column": "amount", "op": ">", "value": 0.0},
+            {"table": "orders", "column": "amount", "op": "<=", "value": 2_000.0},
+        ],
         fks=[("customers", "customer_id", "orders", "customer_id")],
         primary_table="orders",
         schema_tables=[

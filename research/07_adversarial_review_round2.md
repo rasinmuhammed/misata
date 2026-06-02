@@ -8,6 +8,31 @@ Every item is checked against code/output, not asserted. Severity as before.
 > Round-1 blockers (B1 condensation confound, B2 trivial-AME) are genuinely resolved.
 > Round 2 finds problems *created by* those fixes, plus things nobody examined yet.
 
+> **RESOLUTION LOG (Round-2 fix pass).**
+> - **B3 RESOLVED** — SDV now seeded (torch+numpy+random) in the adapter; DET measured
+>   over 3 same-seed pairs, not 1. **Key honest finding:** once seeded, *both* SDV
+>   synthesizers are reproducible (GaussianCopula is a deterministic fitted model;
+>   CTGAN is reproducible under `torch.manual_seed` — verified 11260.78==11260.78).
+>   ⇒ **The "imitation is non-deterministic" claim was FALSE and is RETRACTED.** The
+>   real differentiator is conformance (AME) + cold-start (CSC), not determinism.
+>   `capabilities.deterministic` for SDV corrected True.
+> - **B4 RESOLVED** — GaussianCopula's zero-variance AME (0.213) is *correct*: it is a
+>   deterministic model, not a single-draw artifact. CTGAN's high variance is real
+>   torch stochasticity; with seeding it is now reproducible per seed. Claim reframed:
+>   imitation conformance is *uncontrolled / untargetable* (and, for the deep model,
+>   high-variance run-to-run pre-seeding), vs engine AME≈0 — what the data supports.
+> - **M5 PARTIAL/HONEST** — constraints added to 3 tasks with *semantic* caps (amount>0,
+>   domain ceilings), NOT tuned to break the baseline. Honest outcome: NaiveRescale
+>   breaches caps on SaaS (CSAT=0) but not fintech/ecommerce (their inflation stays
+>   under the generous ceilings). Claim corrected to: NaiveRescale *cannot guarantee*
+>   CSAT (fails when rescale inflates past a cap); engine satisfies by construction on
+>   all tasks. We do NOT tune caps to manufacture failures.
+> - **M6 RESOLVED** — SaaS curve is now non-monotone (100k→40k dip→120k); AME must
+>   track shape. Misata AME still 0; verified.
+> - **M7 RESOLVED** — formatter prints tiny AME in scientific notation (e.g. 1.46e-16),
+>   never a fake 0.000.
+> - **D5/D6/D7** — pending (markers, HMA-vs-GC explanation, one real public dataset).
+
 ---
 
 ## BLOCKERS

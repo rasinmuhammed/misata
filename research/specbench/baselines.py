@@ -190,13 +190,32 @@ class SDVBaseline(Baseline):
     def __init__(self, synthesizer: str = "gaussian_copula"):
         self.synthesizer = synthesizer
         self.name = f"sdv_{synthesizer}"
+        # deterministic=True: reproducible UNDER A FIXED SEED once we seed torch/numpy
+        # (verified). The honest differentiator vs the engine is therefore NOT
+        # determinism but conformance (AME) and cold-start capability (CSC).
         self.capabilities = Capabilities(
             cold_start=False, ingests_outcomes=False,
-            deterministic=False, relational=(synthesizer == "hma"),
+            deterministic=True, relational=(synthesizer == "hma"),
         )
 
     def available(self) -> bool:
         return _sdv_available()
+
+    def _seed_everything(self, seed: int) -> None:
+        """Seed all RNGs SDV may touch so runs are reproducible under a fixed seed
+        (review B3). Without this, CTGAN's torch RNG is uncontrolled and DET is
+        meaningless. GaussianCopula is a fitted parametric model and is deterministic
+        regardless; seeding makes CTGAN reproducible too."""
+        import random
+        random.seed(seed)
+        np.random.seed(seed)
+        try:
+            import torch
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+        except Exception:
+            pass
 
     def generate(self, task, seed: int) -> GenResult:
         import time
@@ -205,6 +224,7 @@ class SDVBaseline(Baseline):
         if not reference:
             return GenResult(tables={}, ran=False,
                              reason="SDV requires source data; task is cold-start (CSC=0)")
+        self._seed_everything(seed)
         t0 = time.perf_counter()
 
         # --- HMA: multi-table relational synthesizer (review M2) ---

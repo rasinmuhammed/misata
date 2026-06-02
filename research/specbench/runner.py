@@ -35,7 +35,9 @@ def _fmt(x: float) -> str:
     if x != x:                       # NaN
         return "  n/a"
     if x == 0:
-        return "0.000"
+        return "0.0e+00"
+    if 0 < abs(x) < 1e-3:            # M7: never print ~0 as 0.000; show the real tiny value
+        return f"{x:.1e}"
     if x >= 100:
         return f"{x:7.1f}"
     return f"{x:.3f}"
@@ -87,11 +89,18 @@ def run_task(task: Task, baselines: List[Baseline], seed: int = 42,
         else:
             rec["CSAT"] = float("nan")
 
-        # --- Family B: DET (same seed twice) — only when requested ---
+        # --- Family B: DET — measured over MULTIPLE same-seed pairs (review B4) ---
+        # n=1 is not evidence of (non)determinism. We regenerate the same fixed seed
+        # det_pairs times and require ALL to be bitwise identical to the first.
         if det_check:
-            res2 = bl.generate(task, seed=seed)
-            det = determinism(res.tables, res2.tables) if res2.ran else None
-            rec["DET"] = det.value if det else float("nan")
+            det_pairs = 3
+            all_identical = True
+            for _ in range(det_pairs):
+                r2 = bl.generate(task, seed=seed)
+                if not r2.ran or determinism(res.tables, r2.tables).value != 1.0:
+                    all_identical = False
+                    break
+            rec["DET"] = 1.0 if all_identical else 0.0
         else:
             rec["DET"] = float("nan")
 
