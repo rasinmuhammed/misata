@@ -1,4 +1,12 @@
-# Outcome-Conformant Relational Synthesis: Exact Specification Satisfaction, Its Achievable Frontier, and a Conformance Benchmark
+# Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark
+
+<!-- SCOPE NOTE (review B6/R4): re-scoped declarative-first. The contribution is the
+closed-form exact-conformance engine + the conformance benchmark. Natural-language
+input is a *bounded convenience layer over curated domains*, NOT a general capability:
+on an arbitrary non-curated schema (D8, California Housing) the NL path does not apply
+and the engine is driven by an explicit declarative spec instead. Title and claims are
+deliberately kept to what the evidence supports. -->
+
 
 > **Draft status.** Publication-ready skeleton for a *data-management / benchmark*
 > paper (target: VLDB/SIGMOD; secondary: NeurIPS Datasets & Benchmarks framed as a
@@ -18,7 +26,8 @@
 > operationalizes a specific claim (§4.1). The axis is **conformance, not fidelity**; we
 > concede fidelity-to-real to imitation methods, and we concede that exact aggregation
 > *alone* is trivial (a rescale ties it given a hand-built schema) — the contribution is
-> exact conformance from an NL spec, zero data, with the marginal preserved.
+> exact conformance from a **declarative spec**, zero data, with closed-form marginals
+> and integrity preserved (NL input is a bounded convenience over curated domains).
 >
 > **Author note.** Rewrite in the author's own voice before submission. `[CITE: ...]`
 > markers resolve to entries in `05_literature_review.md`.
@@ -54,12 +63,17 @@ aggregate-match error, rate/group-distribution conformance, controllability resp
 FK-integrity, temporal coherence, and determinism — axes that fidelity benchmarks
 (SDGym/SDMetrics) cannot express because they presuppose real data. Each metric
 operationalizes a proposition from C1. **(C3) A reference implementation** that maps a
-natural-language or declarative specification to a relational dataset with exact,
-deterministic, closed-form conformance and zero source data. We show imitation methods
-(SDV, CTGAN, RelDiff) cannot ingest outcome targets and score zero on cold-start
-tasks, and that LLM-driven cold-start generators (NeMo Data Designer) approximate but
-cannot *guarantee* conformance or determinism — while honestly conceding that
-imitation methods lead on fidelity-to-real where real data exists.
+**declarative** specification (schema + outcome targets) to a relational dataset with
+exact, deterministic, closed-form conformance and zero source data; a natural-language
+front-end provides the same over a curated set of domains. We show imitation methods
+(SDV, CTGAN, RelDiff) cannot ingest outcome targets and score zero on cold-start tasks.
+**Scope, stated up front:** exact *aggregate* satisfaction alone is trivial (a rescale
+script ties it given a hand-built schema); our contribution is exact conformance
+*jointly* with closed-form per-row marginals, FK/temporal integrity, determinism, and
+zero source data — and a benchmark that measures these together. The natural-language
+capability is **bounded to curated domains**: on an arbitrary real schema the engine is
+driven by an explicit declarative spec, not parsed from a sentence (Section 6, D8). We
+concede imitation methods lead on fidelity-to-real where real data exists.
 
 ---
 
@@ -130,10 +144,13 @@ fidelity suites (SDGym/SDMetrics) that presuppose real data. Crucially, **each m
 operationalizes a proposition from C1** (mapping in §4.1), so the benchmark is the
 measurement arm of the theory, not a detached scoreboard.
 
-**C3 — Reference implementation (§5).** An open-source system mapping a
-natural-language/declarative spec to a relational dataset with exact, deterministic,
+**C3 — Reference implementation (§5).** An open-source system mapping a **declarative
+spec** (schema + outcome targets) to a relational dataset with exact, deterministic,
 closed-form conformance and guaranteed FK integrity, from zero source data — no
-iterative fitting, no training, no LLM call at generation time.
+iterative fitting, no training, no LLM call at generation time. A natural-language
+front-end offers the same over a curated domain set; we bound that claim explicitly
+(§6, D8) — on non-curated schemas the system is driven declaratively, not from a
+sentence.
 
 We deliberately claim **no new theorem**. The novelty is the unification, the
 benchmark, the honest frontier, and the reference system.
