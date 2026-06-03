@@ -44,7 +44,7 @@ distribution and sample from it; they are the field's default and are judged on
 ("cold start") that *reproduces a declared analytical outcome* (a revenue curve, a
 churn rate, a group-wise distribution) across a relational schema. On a **real** public
 dataset, state-of-the-art learned synthesizers — *trained on that very data* — miss the
-declared monthly aggregate by **74–81%**, because they have no mechanism to ingest a
+declared monthly aggregate by **74–87%**, because they have no mechanism to ingest a
 target; the gap is not a tuning failure but a structural one. We name this task
 **outcome-conformant synthesis**, argue its evaluation axis is **conformance** (does the
 output obey the specification?) rather than **fidelity** (does it resemble real data?),
@@ -107,7 +107,7 @@ cell: **outcome-conformant synthesis** — input is a *specification of analytic
 outcomes*; success is *conformance*. Imitation cannot reach this cell: it needs source
 data (no cold start) and has no channel to accept a target (no conformance). §6 shows
 this is not hypothetical — learned methods trained on real data miss declared outcomes
-on that very data by 74–81%.
+on that very data by 74–87%.
 
 ### 1.2 Why imitation cannot serve it; why prior specification work is partial
 
@@ -408,29 +408,33 @@ records; metric = real `MedHouseVal`, monthly targets = the data's own per-month
 Learned methods train on the real table; the engine receives only the targets (`input=
 schema`, since "housing" is outside the curated domains — the honest D8 finding):*
 
-| Generator | input | CSC | AME | FIVR | DET | fit+sample (s) |
+| Generator | input | CSC | AME (3 seeds) | FIVR | DET | fit+sample (s) |
 |---|---|---|---|---|---|---|
-| **Misata (ours)** | schema | 1 | **0** (3 seeds, exact) | 0 | 1 | ~0.1 |
-| NaiveRescale | schema | 1 | **0** (3 seeds, exact) | 0 | 1 | ~0.1 |
-| Faker | schema | 1 | 0.493 (3 seeds) | 0 | 1 | 0.0 |
-| SDV GaussianCopula | data | 0 | 0.739 (3 seeds, det.) | 0 | 1 | ~1 |
-| SDV HMA | data | 0 | 0.739 (3 seeds, det.) | 0 | 1 | ~2 |
-| SDV CTGAN | data | 0 | 0.805 (1 seed)† | 0 | 1 | 77 |
+| **Misata (ours)** | schema | 1 | **0** (exact) | 0 | 1 | ~0.1 |
+| NaiveRescale | schema | 1 | **0** (exact) | 0 | 1 | ~0.1 |
+| Faker | schema | 1 | 0.493 | 0 | 1 | 0.0 |
+| SDV GaussianCopula | data | 0 | 0.739 (det.) | 0 | 1 | ~1 |
+| SDV HMA | data | 0 | 0.739 (det.) | 0 | 1 | ~2 |
+| SDV CTGAN | data | 0 | 0.867 ± 0.107 | 0 | 1 | 77/seed |
 
-† CTGAN on 20,640 real rows is ~77 s/seed; the single-seed figure is reported honestly
-as such (full 10-seed CTGAN on this task is a compute note, not yet run). GaussianCopula
-and HMA are deterministic fitted models, so 3 seeds suffice to establish their value.
+GaussianCopula and HMA are deterministic fitted models (zero variance). CTGAN is the
+deep, stochastic baseline; its 0.867 ± 0.107 over 3 seeds is both the largest miss and
+the highest variance — consistent with having *no mechanism* to target the aggregate.
 
-**Reading (primary).** On genuinely real data, imitation methods trained *on that very
-data* miss the declared monthly aggregate by **74–81%** — they reproduce the marginal
-cloud, not the requested outcome, because they have no mechanism to ingest a target.
-A declarative exact-conformance generator (Misata, or even NaiveRescale) attains AME = 0.
-**Honest caveat (review M11):** on a non-curated schema the engine has no domain prior,
-so while it hits the aggregate exactly its *per-row marginal* is a supplied default, not
-a domain-calibrated one — i.e. here Misata and NaiveRescale are both "right aggregate,
-generic marginal," and we do not claim a marginal-realism advantage on non-curated data.
-The defensible claim on real data is precisely the conformance gap vs imitation
-(0 vs 0.74–0.81), not marginal superiority over a rescale.
+**Reading (primary) — a capability gap, not a head-to-head "win."** We are explicit
+about fairness: SDV/CTGAN/HMA have **no API to accept an aggregate target**, so this is
+*not* "our tool beats SDV at SDV's job." It is a *structural capability gap* made
+quantitative. Given genuinely real data and trained *on that very data*, imitation
+methods still miss the declared monthly aggregate by **74–87%** — not from poor tuning
+but because the target is not an input they can receive; they can only reproduce the
+marginal cloud. Any generator that *can* ingest the target (Misata's declarative path,
+or even a trivial NaiveRescale) attains AME = 0. The point of the row is the orthogonality
+of the two axes (§1.1), demonstrated on real data — not a performance ranking on a shared
+objective. **Honest caveat (review M11):** on this non-curated schema the engine has no
+domain prior, so it hits the aggregate exactly but its *per-row marginal* is a supplied
+default — here Misata and NaiveRescale are both "right aggregate, generic marginal," and
+we claim *no* marginal-realism advantage over a rescale on non-curated data. The
+defensible real-data claim is precisely the conformance capability gap vs imitation.
 
 *Multi-table reference-mode (review M13) — real parent `customers` + child `orders`,
 an outcome target on `orders.amount`, and a customer→order FK. Tests the relational
