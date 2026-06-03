@@ -484,8 +484,8 @@ slightly *closer* to the target) — while the aggregate stays exact (max sum-er
 This empirically confirms **Prop. 4**: the engine fixes the *shape* (Dirichlet/Gamma
 at concentration α) and lets the *scale* absorb the constraint, so condensation — which
 afflicts *fixed-marginal* conditional sampling — is **avoided by construction**, not
-merely deferred. *(Figure: `research/specbench/prop4_scale_invariance.png`; data in
-`prop5_curve.csv` / `prop5_summary.csv`.)*
+merely deferred. *(Figure: `research/specbench/scale_invariance.png`; data in
+`scale_invariance_curve.csv` / `scale_invariance_summary.csv`.)*
 
 **E7 — Conformance generalizes beyond temporal sums (rates and group shares).** Outcome
 conformance is not limited to aggregate curves. We declare (i) a **churn rate** target
@@ -508,6 +508,16 @@ monthly revenue rollup returns **\$50,000 in January and \$200,000 in December**
 declared outcome holds *in SQL*, not just in the generator; (c) a `WHERE amount <= 0`
 assertion returns **0** rows. One sentence to a queryable, outcome-correct test database.
 *(Script: `research/specbench/case_study.py`.)*
+
+**E9 — Throughput and the absence of an infeasible regime.** *(a) Cost:* closed-form
+generation is training-free and scales near-linearly — 0.06 s (1k rows) to 0.34 s (50k
+rows) — versus SDV GaussianCopula's fit+sample at 0.56–2.40 s, a **7–11× speedup** on a
+comparable single-table workload (and SDV cannot ingest the target at all). *(b)
+Robustness:* the aggregate-conformance problem has **no infeasible regime** — by Prop. 1
+the exact sum is achievable for any row count `n ≥ 1`; pushing targets to extremes (a
+\$1M month over 10 rows, or a \$0.02 month over 10 rows) still yields the exact sum, the
+latter simply leaving some rows at 0. There is no silent-miss failure mode to detect,
+because there is no miss. *(Scripts: `throughput.py`; verified edge cases in text.)*
 
 ---
 
@@ -576,9 +586,9 @@ needed.
   isolated env (`requirements-specbench.txt`, SDV 1.37.0); writes
   `research/specbench/results_e5.csv`. 10 seeds; SDV seeded (torch+numpy); DET measured
   over ≥3 same-seed regenerations.
-- **E6** (Prop. 4 scale-invariance, with control): `python -m research.specbench.prop5_curve`
-  then `plot_prop5`; writes `prop5_curve.csv`, `prop5_summary.csv`,
-  `prop4_scale_invariance.png`. Seeds and library versions pinned.
+- **E6** (Prop. 4 scale-invariance, with control): `python -m research.specbench.scale_invariance`
+  then `plot_scale_invariance`; writes `scale_invariance_curve.csv`, `scale_invariance_summary.csv`,
+  `scale_invariance.png`. Seeds and library versions pinned.
 - All oracles are frozen in the task definitions (the spec *is* the ground truth);
   no metric reads any generator's internals.
 

@@ -7,8 +7,8 @@ over seeds. The two curves coincide -> the exact-aggregate constraint costs ~not
 shape; the gap is ~0 (the condensation cost vanishes because the engine is scale-free,
 Prop. 4). This replaces the earlier, confounded "frontier" figure (review fix B1).
 
-Run: .venv_specbench/bin/python3 -m research.specbench.plot_prop5
-Writes research/specbench/prop4_scale_invariance.png (+ .pdf).
+Run: .venv_specbench/bin/python3 -m research.specbench.plot_scale_invariance
+Writes research/specbench/scale_invariance.png (+ .pdf).
 """
 
 from __future__ import annotations
@@ -19,14 +19,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-SUMM = "research/specbench/prop5_summary.csv"
-OUT_PNG = "research/specbench/prop4_scale_invariance.png"
-OUT_PDF = "research/specbench/prop4_scale_invariance.pdf"
+SUMM = "research/specbench/scale_invariance_summary.csv"
+OUT_PNG = "research/specbench/scale_invariance.png"
+OUT_PDF = "research/specbench/scale_invariance.pdf"
 
 
 def main() -> None:
     if not os.path.exists(SUMM):
-        raise SystemExit(f"missing {SUMM}; run prop5_curve.py first")
+        raise SystemExit(f"missing {SUMM}; run scale_invariance.py first")
     df = pd.read_csv(SUMM).sort_values("cv")
 
     fig, ax = plt.subplots(figsize=(7, 4.4))

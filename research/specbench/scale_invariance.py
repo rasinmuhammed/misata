@@ -23,8 +23,8 @@ CV = 1/sqrt(k)). Gamma is subexponential-enough at small k to exhibit the transi
 and crucially the engine's law is *exactly* the Gamma-conditional (Prop. 0), so this is
 the honest, on-mechanism test — no cross-family confound.
 
-Run: .venv_specbench/bin/python3 -m research.specbench.prop5_curve
-Writes research/specbench/prop5_curve.csv.
+Run: .venv_specbench/bin/python3 -m research.specbench.scale_invariance
+Writes research/specbench/scale_invariance_curve.csv.
 """
 
 from __future__ import annotations
@@ -108,8 +108,8 @@ def summarize(df: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     df = run()
     summ = summarize(df)
-    df.to_csv("research/specbench/prop5_curve.csv", index=False)
-    summ.to_csv("research/specbench/prop5_summary.csv", index=False)
+    df.to_csv("research/specbench/scale_invariance_curve.csv", index=False)
+    summ.to_csv("research/specbench/scale_invariance_summary.csv", index=False)
 
     print("\n" + "=" * 86)
     print("  Prop-5 frontier WITH unconstrained control (review fix B1) — 10 seeds")
@@ -132,7 +132,7 @@ def main() -> None:
         print(f"  heavy/light gap ratio:                  {heavy/light:.1f}x")
     print(f"\n  VERDICT: condensation gap {'SURVIVES' if heavy > 3*max(light,1e-6) else 'DOES NOT clearly survive'} "
           f"the control.")
-    print("\n  wrote prop5_curve.csv (per-seed) + prop5_summary.csv\n")
+    print("\n  wrote scale_invariance_curve.csv (per-seed) + scale_invariance_summary.csv\n")
 
 
 if __name__ == "__main__":
