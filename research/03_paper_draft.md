@@ -363,7 +363,8 @@ capability; **input** = what the generator consumes (`nl` = natural-language spe
 `schema` = a hand-built schema enumerating columns/FKs/periods; `data` = a real source
 table). SDV is properly seeded (torch+numpy); CTGAN 100 epochs.
 
-*Spec-mode (cold-start) tasks — three domains (SaaS non-monotone, fintech, ecommerce):*
+*Spec-mode (cold-start) tasks — three curated domains (SaaS non-monotone, fintech,
+ecommerce). Misata's NL front-end applies here (`input=nl`):*
 
 | Generator | input | CSC | AME | FIVR | DET |
 |---|---|---|---|---|---|
@@ -375,33 +376,60 @@ table). SDV is properly seeded (torch+numpy); CTGAN 100 epochs.
 **Honest reading.** Hitting the aggregate exactly is *trivial*: NaiveRescale also
 reaches AME ≈ 0. The distinction E5 makes visible is the **input axis** — NaiveRescale
 and Faker reach the table only because *a human hand-built their schema, columns, FKs,
-and period structure*; the engine produces the same conformant relational dataset from
-a **single natural-language sentence, with zero source data**. That is the contribution
-on spec-mode: not AME = 0 (conceded trivial), but AME = 0 **from an NL spec with no
-hand-built schema and no source data** (the only `input=nl` row). Imitation methods
-(SDV) cannot run cold-start at all (CSC = 0).
+and period structure*; on these curated domains the engine produces the same conformant
+relational dataset from a natural-language sentence with zero source data. The
+contribution on spec-mode is not AME = 0 (conceded trivial) but AME = 0 with closed-form
+realistic marginals and FK/temporal integrity, and — on curated domains — from an NL
+spec (the only `input=nl` row). Imitation methods (SDV) cannot run cold-start (CSC = 0).
+**Scope:** the `input=nl` advantage is bounded to the curated domains; on an arbitrary
+real schema the engine runs declaratively (`input=schema`), shown next.
 
-*Reference-mode task — a real source table is supplied so learned methods train on data
-whose monthly sums already match the targets; the engine is given only the spec:*
+*Reference-mode, PRIMARY result — a **real public dataset** (California Housing, 20,640
+records; metric = real `MedHouseVal`, monthly targets = the data's own per-month sums).
+Learned methods train on the real table; the engine receives only the targets (`input=
+schema`, since "housing" is outside the curated domains — the honest D8 finding):*
 
-| Generator | input | CSC | AME (10 seeds) | FIVR | DET | fit+sample (s) |
+| Generator | input | CSC | AME | FIVR | DET | fit+sample (s) |
 |---|---|---|---|---|---|---|
-| **Misata (ours)** | nl | 1 | **0** | 0 | 1 | 0.04 |
-| SDV GaussianCopula | data | 0 | 0.213 ± 0.000 | 0 | 1 | 0.82 |
-| SDV HMA | data | 0 | 0.213 ± 0.000 | 0 | 1 | 1.54 |
-| SDV CTGAN | data | 0 | 0.569 ± 0.436 | 0 | 1 | 48.8 |
-| Faker | schema | 1 | 0.895 ± 0.005 | 0 | 1 | 0.00 |
+| **Misata (ours)** | schema | 1 | **0** (3 seeds, exact) | 0 | 1 | ~0.1 |
+| NaiveRescale | schema | 1 | **0** (3 seeds, exact) | 0 | 1 | ~0.1 |
+| Faker | schema | 1 | 0.493 (3 seeds) | 0 | 1 | 0.0 |
+| SDV GaussianCopula | data | 0 | 0.739 (3 seeds, det.) | 0 | 1 | ~1 |
+| SDV HMA | data | 0 | 0.739 (3 seeds, det.) | 0 | 1 | ~2 |
+| SDV CTGAN | data | 0 | 0.805 (1 seed)† | 0 | 1 | 77 |
 
-**Reading.** Even trained on data whose monthly totals already equal the targets,
-imitation methods reproduce the point cloud, **not** the declared outcome: GaussianCopula
-and HMA miss by a deterministic 21%, and CTGAN by **0.569 ± 0.436** — a variance so wide
-its conformance is effectively *uncontrolled* (it has no mechanism to target the
-aggregate). The engine attains AME = 0 from the spec alone. *Correction note:* an earlier
-single-seed draft reported CTGAN "non-deterministic (DET 0)"; once SDV is properly seeded
-**all SDV synthesizers are deterministic (DET = 1)** — that claim was an artifact of
-un-seeded runs and is retracted. The honest claim is *uncontrolled conformance under
-high run-to-run variance*, not non-determinism. We concede learned methods lead on
-fidelity-to-real where real data exists (a different objective).
+† CTGAN on 20,640 real rows is ~77 s/seed; the single-seed figure is reported honestly
+as such (full 10-seed CTGAN on this task is a compute note, not yet run). GaussianCopula
+and HMA are deterministic fitted models, so 3 seeds suffice to establish their value.
+
+**Reading (primary).** On genuinely real data, imitation methods trained *on that very
+data* miss the declared monthly aggregate by **74–81%** — they reproduce the marginal
+cloud, not the requested outcome, because they have no mechanism to ingest a target.
+A declarative exact-conformance generator (Misata, or even NaiveRescale) attains AME = 0.
+**Honest caveat (review M11):** on a non-curated schema the engine has no domain prior,
+so while it hits the aggregate exactly its *per-row marginal* is a supplied default, not
+a domain-calibrated one — i.e. here Misata and NaiveRescale are both "right aggregate,
+generic marginal," and we do not claim a marginal-realism advantage on non-curated data.
+The defensible claim on real data is precisely the conformance gap vs imitation
+(0 vs 0.74–0.81), not marginal superiority over a rescale.
+
+*Reference-mode, controlled check — a synthetic source table with a clean ramp (10
+seeds), to isolate behavior on a known-smooth curve:*
+
+| Generator | input | CSC | AME (10 seeds) | DET | fit+sample (s) |
+|---|---|---|---|---|---|
+| **Misata (ours)** | schema | 1 | **0** | 1 | 0.04 |
+| SDV GaussianCopula | data | 0 | 0.213 ± 0.000 | 1 | 0.82 |
+| SDV HMA | data | 0 | 0.213 ± 0.000 | 1 | 1.54 |
+| SDV CTGAN | data | 0 | 0.569 ± 0.436 | 1 | 48.8 |
+| Faker | schema | 1 | 0.895 ± 0.005 | 1 | 0.00 |
+
+CTGAN's **0.569 ± 0.436** confirms imitation conformance is *uncontrolled* (variance so
+wide it sometimes nearly hits, sometimes badly misses — no targeting mechanism).
+*Correction note:* an earlier single-seed draft reported CTGAN "non-deterministic
+(DET 0)"; once SDV is properly seeded **all SDV synthesizers are deterministic (DET = 1)**
+— that claim was a un-seeded-run artifact and is retracted. We concede learned methods
+lead on fidelity-to-real where real data exists (a different objective).
 
 **E6 — Exact aggregate costs ~no shape distortion (Prop. 4; condensation avoided).**
 *Correction note:* an earlier draft claimed a "condensation frontier" (a 21.7× rise in

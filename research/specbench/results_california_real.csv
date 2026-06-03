@@ -1,0 +1,7 @@
+baseline,input,CSC,AME,DET,seeds,note
+misata,schema,1,0.0,1.0,3,exact (declarative; housing outside curated NL domains)
+naive_rescale,schema,1,0.0,1.0,3,exact
+faker,schema,1,0.4932,1.0,3,independent draws miss the monthly curve
+sdv_gaussian_copula,data,0,0.7389,1.0,3,deterministic fitted model
+sdv_hma,data,0,0.7389,1.0,3,deterministic fitted model
+sdv_ctgan,data,0,0.8052,1.0,1,77s/seed on 20640 real rows; 1-seed honest report
