@@ -164,6 +164,48 @@ def marginal_distortion(
 
 
 # --------------------------------------------------------------------------- #
+# RCE — Rate-Conformance Error: |declared rate - realized rate| for a fraction target
+#       (e.g. churn %, fraud %). Generalizes outcome conformance from sums to rates.
+# --------------------------------------------------------------------------- #
+
+def rate_conformance_error(
+    tables: Dict[str, pd.DataFrame],
+    table: str,
+    column: str,
+    positive_value,
+    target_rate: float,
+) -> MetricResult:
+    """|realized_rate - target_rate|, where realized_rate = mean(column == positive_value).
+    0.0 = exact. Demonstrates that outcome conformance is not limited to temporal sums."""
+    if table not in tables or column not in tables[table].columns:
+        return MetricResult("RCE", float("inf"), f"missing {table}.{column}")
+    s = tables[table][column]
+    realized = float((s == positive_value).mean())
+    return MetricResult("RCE", abs(realized - target_rate),
+                        f"realized={realized:.3f} vs target={target_rate:.3f}")
+
+
+# --------------------------------------------------------------------------- #
+# GDC — Group-Distribution Conformance: total-variation distance between the
+#       declared category shares and the realized shares. 0.0 = exact match.
+# --------------------------------------------------------------------------- #
+
+def group_distribution_conformance(
+    tables: Dict[str, pd.DataFrame],
+    table: str,
+    column: str,
+    target_shares: Dict[str, float],
+) -> MetricResult:
+    """TVD = 0.5 * sum_k |realized_k - declared_k| over declared categories. 0 = exact."""
+    if table not in tables or column not in tables[table].columns:
+        return MetricResult("GDC", float("inf"), f"missing {table}.{column}")
+    vc = tables[table][column].value_counts(normalize=True)
+    tvd = 0.5 * sum(abs(float(vc.get(k, 0.0)) - p) for k, p in target_shares.items())
+    return MetricResult("GDC", tvd,
+                        f"realized={ {k: round(float(vc.get(k,0)),3) for k in target_shares} }")
+
+
+# --------------------------------------------------------------------------- #
 # MP — Marginal Plausibility (review B5): drift of the generated metric marginal
 #       from the spec-implied domain-calibrated reference.
 # --------------------------------------------------------------------------- #

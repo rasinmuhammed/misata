@@ -931,20 +931,31 @@ class StoryParser:
             ),
         ]
 
+        # Wire any declared churn RATE directly into the churned column's probability,
+        # so "20% churn" actually yields ~20% churned (previously the rate was only used
+        # in a description string while a date-condition event set ~55% churned).
+        churn_rate = next((v for et, v in self.temporal_events if et == "churn"), None)
+        if churn_rate is not None:
+            for col in columns.get("users", []):
+                if col.name == "churned":
+                    col.distribution_params["probability"] = float(churn_rate)
+
         # Build scenario events from temporal patterns
         events = []
         for event_type, value in self.temporal_events:
             if event_type == "churn":
+                # The proportion is now controlled by the churned column's probability
+                # (set above). We keep a cascade so cancelled subscriptions track churn,
+                # but condition it on the churned flag rather than an arbitrary date.
                 events.append(
                     ScenarioEvent(
-                        name="High_Churn_Period",
+                        name="Churn_Cascade",
                         table="users",
                         column="churned",
-                        condition="signup_date < '2023-06-01'",
+                        condition="churned == True",
                         modifier_type="set",
                         modifier_value=True,
                         description=f"Churn rate of {value*100:.0f}%",
-                        # Cascade: mark matching subscriptions as cancelled
                         propagate_to={"subscriptions": {"status": "cancelled"}},
                     )
                 )
