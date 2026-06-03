@@ -36,14 +36,19 @@ deliberately kept to what the evidence supports. -->
 
 ## Abstract
 
-Synthetic tabular data research is dominated by the *imitation* paradigm: learn a
-real distribution and sample from it, judged on *fidelity to real data*. A large
-class of practical needs — software testing, database seeding, demos, teaching,
-query-engine stress — is structurally outside this paradigm: there is no source data
-("cold start"), and success means *reproducing a declared analytical outcome* (a
-revenue curve, a churn rate, a group-wise distribution) across a relational schema,
-not resembling some real dataset. We call this **outcome-conformant relational
-synthesis** and argue its evaluation axis is **conformance**, not fidelity. Our
+We report a structural limitation of the dominant paradigm in synthetic tabular data.
+Imitation methods — copulas, GANs, diffusion, the Synthetic Data Vault — learn a real
+distribution and sample from it; they are the field's default and are judged on
+*fidelity to real data*. We show that an entire, practically important task lies
+**outside what they can do by construction**: generating data with **no source data**
+("cold start") that *reproduces a declared analytical outcome* (a revenue curve, a
+churn rate, a group-wise distribution) across a relational schema. On a **real** public
+dataset, state-of-the-art learned synthesizers — *trained on that very data* — miss the
+declared monthly aggregate by **74–81%**, because they have no mechanism to ingest a
+target; the gap is not a tuning failure but a structural one. We name this task
+**outcome-conformant synthesis**, argue its evaluation axis is **conformance** (does the
+output obey the specification?) rather than **fidelity** (does it resemble real data?),
+and show the two axes are orthogonal. Our
 contributions are threefold. **(C1) A formal characterization.** We show that a
 widely-used family of exact-aggregate generators is, precisely, *exact sampling from
 a Gamma population conditioned on a fixed total* (via Lukacs' proportion–sum
@@ -79,23 +84,30 @@ concede imitation methods lead on fidelity-to-real where real data exists.
 
 ## 1. Introduction
 
-### 1.1 Two paradigms
+### 1.1 Two orthogonal axes, and a task one of them cannot reach
 
-Most synthetic-data systems answer the question *"make data that looks like this real
-data."* This is **imitation**, and the field's flagship tools — CTGAN/TVAE
-`[CITE: Xu et al. 2019]`, TabDDPM `[CITE: Kotelnikov et al. 2023]`, the Synthetic
-Data Vault `[CITE: Patki et al. 2016]`, and the recent relational diffusion models
-ClavaDDPM `[CITE: 2024]` and RelDiff — are optimized for, and benchmarked on,
-fidelity to a reference distribution.
+Synthetic tabular data is evaluated along what the literature treats as a single quality
+axis but is really **two orthogonal axes**:
 
-A different question arises constantly in software practice: *"make data that
-produces this outcome, from nothing."* A developer seeding a test database, a
-founder building a demo, an instructor preparing an exercise, or an engineer
-stress-testing a query planner does not have — and must not use — real customer
-data. They instead know the *shape* the data should have: "10k users, 20% churn,
-MRR rising from \$50k to \$200k across the year with a Q3 dip," across a schema with
-valid foreign keys. We call this **outcome-conformant relational synthesis**: the
-input is a *specification of analytical outcomes*; success is *conformance* to it.
+| | **Data available** | **Cold start (no source data)** |
+|---|---|---|
+| **Fidelity** (resemble real data) | imitation: SDV, CTGAN, TabDDPM, RelDiff — the field's focus | undefined (nothing to resemble) |
+| **Conformance** (obey a declared outcome) | possible but unaddressed by imitation | **the task of this paper** |
+
+Most systems answer *"make data that looks like this real data"* — **imitation**, the
+flagship tools `[CITE: Xu et al. 2019; Kotelnikov et al. 2023; Patki et al. 2016]` and
+recent relational diffusion (ClavaDDPM `[CITE: 2024]`, RelDiff), all optimized for and
+benchmarked on *fidelity*. But a different question arises constantly in software
+practice: *"make data that produces this outcome, from nothing."* A developer seeding a
+test database, a founder building a demo, an instructor preparing an exercise, or an
+engineer stress-testing a query planner has no real data — and must not use it — yet
+knows the *shape* the data must have: "10k users, 20% churn, MRR rising from \$50k to
+\$200k with a Q3 dip," over a schema with valid foreign keys. This is the bottom-right
+cell: **outcome-conformant synthesis** — input is a *specification of analytical
+outcomes*; success is *conformance*. Imitation cannot reach this cell: it needs source
+data (no cold start) and has no channel to accept a target (no conformance). §6 shows
+this is not hypothetical — learned methods trained on real data miss declared outcomes
+on that very data by 74–81%.
 
 ### 1.2 Why imitation cannot serve it; why prior specification work is partial
 
@@ -184,8 +196,15 @@ generation in the reference system (§5) and measured, not re-derived.
 
 ## 3. The exact-aggregate core: identity, guarantees, and the achievable frontier
 
-We analyze the generator implemented in the reference system; all claims are
-verified numerically in §6.
+**The key insight.** Generating values that hit an exact total while staying realistic
+*looks* like a hard constrained-sampling problem — and for an *arbitrary fixed marginal*
+it genuinely is, blocked by a condensation impossibility (§3.4). Our engine sidesteps
+this entirely by a single design choice: **parameterize the per-row *shape*, not the
+marginal, and let the *scale* absorb the constraint.** Under that choice the hard problem
+collapses to an exact, closed-form, training-free draw (Prop. 0) — and the impossibility
+that blocks the obvious formulation simply does not apply (Prop. 4). The rest of this
+section makes that precise. We analyze the generator in the reference system; all claims
+are verified numerically in §6.
 
 ### 3.1 The mechanism
 
@@ -463,6 +482,28 @@ at concentration α) and lets the *scale* absorb the constraint, so condensation
 afflicts *fixed-marginal* conditional sampling — is **avoided by construction**, not
 merely deferred. *(Figure: `research/specbench/prop4_scale_invariance.png`; data in
 `prop5_curve.csv` / `prop5_summary.csv`.)*
+
+**E7 — Conformance generalizes beyond temporal sums (rates and group shares).** Outcome
+conformance is not limited to aggregate curves. We declare (i) a **churn rate** target
+and (ii) a **plan-distribution** (group-share) target, and measure Rate-Conformance
+Error (RCE = |declared − realized|) and Group-Distribution Conformance (GDC = total-
+variation distance). The engine attains **RCE ≤ 0.008** across declared rates
+{0.05, 0.10, 0.20, 0.35} and **GDC = 0.005** for a declared 0.60/0.30/0.10 split, versus
+**RCE = 0.30** for an uncontrolled draw with no target channel. A natural-language
+front-end bug previously mapped "20% churn" to ~55% churned; we fixed it so the NL path
+now also yields the declared rate (0.10→0.101, 0.20→0.195, 0.35→0.343). This shows the
+contribution is *outcome conformance* generally, not a single curve-fitting trick.
+*(Demo: `research/specbench/demo_rate_group.py`.)*
+
+**E8 — End-to-end usability (case study).** Intrinsic metrics aside, can a developer
+*use* the output? From the one-line spec *"an ecommerce store with 2000 customers and
+8000 orders, revenue \$50k in January rising to \$200k in December"* we generate, load
+into a real **SQLite** database, and run the SQL a BI tool or test suite would run:
+(a) a `LEFT JOIN` orphan check returns **0** dangling foreign keys; (b) the in-database
+monthly revenue rollup returns **\$50,000 in January and \$200,000 in December** — the
+declared outcome holds *in SQL*, not just in the generator; (c) a `WHERE amount <= 0`
+assertion returns **0** rows. One sentence to a queryable, outcome-correct test database.
+*(Script: `research/specbench/case_study.py`.)*
 
 ---
 
