@@ -295,6 +295,70 @@ def _real_dataset_reference_task() -> Optional[Task]:
     )
 
 
+def _multitable_reference_task() -> Task:
+    """Multi-table reference-mode (review M13): parent `customers` + child `orders` with
+    an OUTCOME target on orders.amount AND a parent-child FK.
+
+    The honest relational point this task makes: HMA (SDV's relational synthesizer)
+    *preserves FK by construction* (FIVR=0) — verified — so FK integrity does NOT
+    separate it from the engine. What separates them is **conformance**: HMA, trained on
+    the real child, still misses the declared monthly aggregate (AME high), because it
+    has no mechanism to ingest an outcome target. The engine attains AME=0 *and* FIVR=0.
+    So the relational contribution is "integrity AND outcome-conformance together,"
+    not "we beat HMA on integrity" (we tie at 0 there).
+    """
+    import numpy as np
+    import pandas as pd
+    rng = np.random.default_rng(0)
+    cust = pd.DataFrame({"customer_id": np.arange(1, 501),
+                         "country": rng.choice(list("ABCD"), 500)})
+    frames = []
+    ramp = np.linspace(40_000, 160_000, 12)
+    for m, tot in enumerate(ramp, 1):
+        n = max(20, int(tot / 85))
+        v = rng.lognormal(np.log(85), 0.5, n); v *= tot / v.sum()
+        frames.append(pd.DataFrame({
+            "customer_id": rng.choice(cust.customer_id, n),
+            "amount": v,
+            "order_date": pd.to_datetime(f"2024-{m:02d}-15"),
+        }))
+    orders = pd.concat(frames, ignore_index=True)
+    orders.insert(0, "order_id", np.arange(1, len(orders) + 1))
+    targets = {f"{m:02d}": float(orders.loc[
+        pd.to_datetime(orders.order_date).dt.month == m, "amount"].sum())
+        for m in range(1, 13)}
+
+    return Task(
+        task_id="multitable_reference",
+        mode="reference",
+        story=("Ecommerce store with customers and orders; monthly order revenue "
+               "ramping from $40k to $160k"),
+        rows=len(orders),
+        metric_table="orders",
+        metric_col="amount",
+        time_col="order_date",
+        period_freq="M",
+        period_targets=targets,
+        constraints=[{"table": "orders", "column": "amount", "op": ">", "value": 0.0}],
+        fks=[("customers", "customer_id", "orders", "customer_id")],
+        primary_table="orders",
+        schema_tables=[
+            {"name": "customers", "pk": "customer_id", "rows": 500, "columns": [
+                {"name": "country", "kind": "category", "choices": list("ABCD")},
+            ]},
+            {"name": "orders", "pk": "order_id", "rows": len(orders), "columns": [
+                {"name": "customer_id", "kind": "fk", "parent": "customers",
+                 "parent_pk": "customer_id"},
+                {"name": "amount", "kind": "metric", "scale": 85},
+                {"name": "order_date", "kind": "date", "start": "2024-01-01",
+                 "span_days": 365},
+            ]},
+        ],
+        reference_tables={"customers": cust,
+                          "orders": orders[["order_id", "customer_id", "amount", "order_date"]]},
+    )
+
+
 def seed_suite() -> List[Task]:
     """Real, verified SpecBench tasks. Each curve task confirmed AME=0 achievable by the
     reference engine before inclusion (no task is added that even the engine cannot meet,
@@ -304,6 +368,7 @@ def seed_suite() -> List[Task]:
         _fintech_curve_task(),       # spec-mode curve, different domain/scale
         _ecommerce_curve_task(),     # spec-mode curve, different domain/scale
         _ecommerce_fk_task(),        # spec-mode integrity-only (FIVR/TCV)
+        _multitable_reference_task(),# reference-mode multi-table FK + outcome (M13)
         _reference_mode_task(),      # reference-mode, controlled synthetic source
     ]
     real_task = _real_dataset_reference_task()   # reference-mode on REAL data (D8)

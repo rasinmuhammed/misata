@@ -413,6 +413,23 @@ generic marginal," and we do not claim a marginal-realism advantage on non-curat
 The defensible claim on real data is precisely the conformance gap vs imitation
 (0 vs 0.74–0.81), not marginal superiority over a rescale.
 
+*Multi-table reference-mode (review M13) — real parent `customers` + child `orders`,
+an outcome target on `orders.amount`, and a customer→order FK. Tests the relational
+claim directly against SDV's relational synthesizer, HMA:*
+
+| Generator | input | CSC | AME | FIVR | DET |
+|---|---|---|---|---|---|
+| **Misata (ours)** | nl | 1 | **0** | **0** | 1 |
+| SDV HMA (relational) | data | 0 | 0.783 | **0** | 1 |
+
+**Reading (the honest relational result).** HMA **preserves FK by construction**
+(FIVR = 0) — so referential integrity does *not* separate the methods; both achieve it.
+The separation is **conformance**: HMA, trained on the real child table, still misses
+the declared monthly aggregate by **78%** because it has no mechanism to ingest an
+outcome target. The engine attains **AME = 0 *and* FIVR = 0 together**. The relational
+contribution is therefore *integrity jointly with outcome conformance*, not a claim of
+superior integrity over a purpose-built relational synthesizer (we tie there at 0).
+
 *Reference-mode, controlled check — a synthetic source table with a clean ramp (10
 seeds), to isolate behavior on a known-smooth curve:*
 

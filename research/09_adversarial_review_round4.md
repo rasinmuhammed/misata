@@ -126,3 +126,31 @@ non-curated data) → M13 (more multi-table tasks) → D10–D12.
 — it is to *write the honest paper to the scope the evidence supports* and stop
 expanding claims. The evidence supports a solid systems/benchmark contribution. The
 danger now is not dishonesty (that's been drilled out) but scope-creep in the framing.
+
+---
+
+## RESOLUTION LOG (Round-4 fix pass)
+
+- **B6 RESOLVED** — paper re-scoped declarative-first; retitled "Declarative
+  Outcome-Conformant Synthesis"; NL bounded to curated domains in title/abstract/spine/
+  C3 with the D8 finding stated up front.
+- **M12 RESOLVED** — real California Housing is now the PRIMARY reference-mode table
+  (imitation trained on the real data misses the monthly target by 74–81%; Misata &
+  NaiveRescale AME=0). Synthetic ramp task demoted to a controlled check.
+- **M11 RESOLVED (honest concession)** — on non-curated data the engine's per-row
+  marginal is a supplied default; paper now states no marginal-realism claim there, only
+  the conformance gap (0 vs 0.74–0.81).
+- **M13 RESOLVED (the honest way)** — added a real multi-table reference task
+  (customers→orders + outcome target). **Verified finding:** HMA preserves FK *by
+  construction* (FIVR=0), so integrity does NOT separate the methods; the real gap is
+  conformance — HMA misses the outcome by 78% (AME=0.783) while the engine gets AME=0
+  AND FIVR=0. Relational claim reframed to "integrity jointly with conformance," not
+  "we beat HMA on integrity." We do not manufacture an FK-violation we could not honestly
+  produce (HMA simply does not dangle keys).
+- **D10/D11/D12 pending** — cosmetic renames, an infeasible-target task, a throughput
+  curve: genuine polish, non-blocking.
+
+**Standing meta-conclusion (unchanged, now earned): stop expanding claims.** Four review
+rounds have converged the paper to exactly what the evidence supports — a declarative
+exact-conformance engine + the first conformance benchmark, validated on real data and
+against the right relational baseline, with every retraction documented.

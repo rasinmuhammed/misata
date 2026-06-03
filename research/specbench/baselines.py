@@ -270,18 +270,27 @@ class SDVBaseline(Baseline):
         self._seed_everything(seed)
         t0 = time.perf_counter()
 
-        # --- HMA: multi-table relational synthesizer (review M2) ---
+        # --- HMA: multi-table relational synthesizer (review M2/M13) ---
         if self.synthesizer == "hma":
             from sdv.metadata import Metadata
             from sdv.multi_table import HMASynthesizer
-            # needs the full relational reference + FK metadata
             md = Metadata.detect_from_dataframes(reference)
-            try:
-                for (pt, pk, ct, ck) in getattr(task, "fks", []):
+            # Set primary keys from the task schema (detect alone is unreliable), then
+            # declare FK relationships. Wrapped defensively: SDV raises if a relationship
+            # or key is already present.
+            pk_by_table = {t["name"]: t.get("pk") for t in getattr(task, "schema_tables", [])}
+            for tname, pk in pk_by_table.items():
+                if pk and tname in reference:
+                    try:
+                        md.set_primary_key(pk, table_name=tname)
+                    except Exception:
+                        pass
+            for (pt, pk, ct, ck) in getattr(task, "fks", []):
+                try:
                     md.add_relationship(parent_table_name=pt, child_table_name=ct,
                                         parent_primary_key=pk, child_foreign_key=ck)
-            except Exception:
-                pass  # detect_from_dataframes may already infer them
+                except Exception:
+                    pass
             synth = HMASynthesizer(md)
             synth.fit(reference)
             sample = synth.sample(scale=1.0)
