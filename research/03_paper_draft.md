@@ -12,7 +12,7 @@ deliberately kept to what the evidence supports. -->
 > paper (target: VLDB/SIGMOD; secondary: NeurIPS Datasets & Benchmarks framed as a
 > new evaluation paradigm; JOSS for the tool). This is **not** a novel-theory paper —
 > every mechanism is attributed to its classical owner (§3). The contribution is
-> (C1) a unifying formal characterization of *outcome-conformant* synthesis, including
+> (C1) correct attribution + analysis of the exact-aggregate engine for *outcome-conformant* synthesis, including
 > a precise achievable frontier; (C2) **SpecBench**, the first benchmark for
 > *conformance* (not fidelity); (C3) a closed-form, deterministic reference system.
 > Math → `01_formalization.md`; lineage → `02_*`/`05_literature_review.md`; scope lock
@@ -75,7 +75,7 @@ operationalizes a proposition from C1. **(C3) A reference implementation** that 
 **declarative** specification (schema + outcome targets) to a relational dataset with
 exact, deterministic, closed-form conformance and zero source data; a natural-language
 front-end provides the same over a curated set of domains. We show imitation methods
-(SDV, CTGAN, RelDiff) cannot ingest outcome targets and score zero on cold-start tasks.
+(SDV, CTGAN, RelDiff) provide no off-the-shelf interface for outcome targets and score zero on cold-start tasks; even per-period conditioning (§6) approximates but never hits them exactly.
 **Scope, stated up front:** exact *aggregate* satisfaction alone is trivial (a rescale
 script ties it given a hand-built schema); our contribution is exact conformance
 *jointly* with closed-form per-row marginals, FK/temporal integrity, determinism, and
@@ -88,7 +88,7 @@ concede imitation methods lead on fidelity-to-real where real data exists.
 
 ## 1. Introduction
 
-### 1.1 Two orthogonal axes, and a task one of them cannot reach
+### 1.1 Two orthogonal axes: fidelity vs exact conformance
 
 Synthetic tabular data is evaluated along what the literature treats as a single quality
 axis but is really **two orthogonal axes**:
@@ -121,7 +121,7 @@ coaxed to approximate.
 
 The two paradigms answer different questions. Imitation requires source data
 (violating cold-start), satisfies outcome targets only in expectation if at all (most
-learned models cannot ingest "this sum/rate/share must equal X"), and is judged on
+off-the-shelf learned models provide no interface for "this sum/rate/share must equal X", and even conditioned they approximate rather than hit it exactly), and are judged on
 fidelity. When real data exists and fidelity is the goal, imitation is the right tool
 and we do not compete; conceding this is what makes the rest credible.
 
@@ -529,7 +529,7 @@ assertion returns **0** rows. One sentence to a queryable, outcome-correct test 
 **E9 — Throughput and the absence of an infeasible regime.** *(a) Cost:* closed-form
 generation is training-free and scales near-linearly — 0.06 s (1k rows) to 0.34 s (50k
 rows) — versus SDV GaussianCopula's fit+sample at 0.56–2.40 s, a **7–11× speedup** on a
-comparable single-table workload (and SDV cannot ingest the target at all). *(b)
+comparable single-table workload (and off-the-shelf SDV has no target interface). *(b)
 Robustness:* the aggregate-conformance problem has **no infeasible regime** — by Prop. 1
 the exact sum is achievable for any row count `n ≥ 1`; pushing targets to extremes (a
 \$1M month over 10 rows, or a \$0.02 month over 10 rows) still yields the exact sum, the
@@ -591,7 +591,8 @@ learned methods on fidelity-to-real when real data exists.
 ## 9. Conclusion
 
 Outcome-conformant relational synthesis is a real, practically important problem that
-the imitation paradigm structurally cannot serve. We formalized it (Prop. 0 reveals the
+the imitation paradigm does not serve — off-the-shelf it cannot take the target, and no
+sampler can hit an aggregate *exactly*. We analyzed it (Prop. 0 reveals the
 exact-aggregate engine as conditional-sum sampling of a Gamma population; Prop. 4 shows
 it preserves the marginal by fixing shape and letting scale absorb the constraint,
 sidestepping the condensation obstruction that bounds the fixed-marginal problem), built
