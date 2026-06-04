@@ -139,8 +139,12 @@ outcomes, relational, from natural language, zero data — is unoccupied (§7).
 
 ### 1.3 Contributions
 
-**C1 — Formal characterization (§2–§3).** We define outcome-conformant synthesis and
-analyze its exactly-solvable core.
+**C1 — Correct attribution and analysis of the exact-aggregate engine (§2–§3).** We do
+not claim new theorems; the value is *clarity and honesty* — naming exactly what a
+widely-used generation mechanism is, in classical terms, and identifying the one
+non-obvious consequence (condensation explains why the shape-fixing design choice is what
+makes exactness free). We define outcome-conformant synthesis and analyze its
+exactly-solvable core.
 - **Identity (Prop. 0).** The exact-aggregate engine *is* exact sampling from a Gamma
   population conditioned on a fixed total (Lukacs proportion–sum independence
   `[CITE: Lukacs 1955]`) — not an ad-hoc rescale. This is the mathematical spine.
@@ -531,6 +535,17 @@ the exact sum is achievable for any row count `n ≥ 1`; pushing targets to extr
 \$1M month over 10 rows, or a \$0.02 month over 10 rows) still yields the exact sum, the
 latter simply leaving some rows at 0. There is no silent-miss failure mode to detect,
 because there is no miss. *(Scripts: `throughput.py`; verified edge cases in text.)*
+
+**E10 — A task the reference method does NOT ace (so the benchmark can be failed).**
+A benchmark its author always wins is worthless. We include **P★**: hit an exact monthly
+sum *and* match a **specified external heavy-tailed marginal** (a Pareto target). The
+engine hits the sum exactly (err 5e-4) but **fails the marginal-match axis**
+(normalized 1-Wasserstein = 0.78) — because by Prop. 4 it fixes a Gamma-family shape and
+*cannot* reproduce an arbitrary external marginal. This is the P★ / condensation regime
+(§3.4): exact aggregate + arbitrary fixed marginal is the open, condensation-bounded
+problem we explicitly do **not** solve. SpecBench reports this as a Misata **failure**,
+which is the point — the suite contains tasks the proposing method loses, and the
+boundary of the contribution is measured, not hidden.
 
 ---
 
