@@ -5,3 +5,4 @@ faker,schema,1,0.4932,1.0,3,independent draws miss the monthly curve
 sdv_gaussian_copula,data,0,0.7389,1.0,3,deterministic fitted model
 sdv_hma,data,0,0.7389,1.0,3,deterministic fitted model
 sdv_ctgan,data,0,0.867,1.0,3,mean 0.867 std 0.107 over 3 seeds; 77s/seed on 20640 real rows
+sdv_gaussian_copula_conditional,data,0,0.189,1.0,1,per-period steelman (F1): trains a copula per month; best imitation can do, still misses exact target

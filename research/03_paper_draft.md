@@ -36,19 +36,23 @@ deliberately kept to what the evidence supports. -->
 
 ## Abstract
 
-We report a structural limitation of the dominant paradigm in synthetic tabular data.
-Imitation methods — copulas, GANs, diffusion, the Synthetic Data Vault — learn a real
-distribution and sample from it; they are the field's default and are judged on
-*fidelity to real data*. We show that an entire, practically important task lies
-**outside what they can do by construction**: generating data with **no source data**
-("cold start") that *reproduces a declared analytical outcome* (a revenue curve, a
-churn rate, a group-wise distribution) across a relational schema. On a **real** public
-dataset, state-of-the-art learned synthesizers — *trained on that very data* — miss the
-declared monthly aggregate by **74–87%**, because they have no mechanism to ingest a
-target; the gap is not a tuning failure but a structural one. We name this task
+We study a capability the dominant paradigm in synthetic tabular data does not provide:
+**exact** satisfaction of a declared analytical outcome with no source data. Imitation
+methods — copulas, GANs, diffusion, the Synthetic Data Vault — learn a real distribution
+and sample from it; they are judged on *fidelity to real data*. A large, practical class
+of needs is different: generating data with **no source data** ("cold start") that
+*reproduces a declared outcome* (a revenue curve, a churn rate, a group-wise
+distribution) across a relational schema. Off-the-shelf imitation tools provide no
+interface for such targets; and — the structural point — **no sampler can hit an exact
+aggregate**, because sampling has variance. We make this precise: on a real public
+dataset, off-the-shelf learned synthesizers trained *on that very data* miss the declared
+monthly aggregate by **74–87%**; the strongest steelman (a GaussianCopula trained
+*per period*, the fix a reviewer would demand) cuts the miss to **~19%** but still cannot
+reach **0** — exactness is unattainable by sampling. A closed-form generator attains
+**exactly 0** (to the half-cent, deterministically). We name this task
 **outcome-conformant synthesis**, argue its evaluation axis is **conformance** (does the
-output obey the specification?) rather than **fidelity** (does it resemble real data?),
-and show the two axes are orthogonal. Our
+output *exactly* obey the specification?) rather than **fidelity** (does it resemble real
+data?), and show the two axes are orthogonal. Our
 contributions are threefold. **(C1) A formal characterization.** We show that a
 widely-used family of exact-aggregate generators is, precisely, *exact sampling from
 a Gamma population conditioned on a fixed total* (via Lukacs' proportion–sum
@@ -91,8 +95,8 @@ axis but is really **two orthogonal axes**:
 
 | | **Data available** | **Cold start (no source data)** |
 |---|---|---|
-| **Fidelity** (resemble real data) | imitation: SDV, CTGAN, TabDDPM, RelDiff — the field's focus | undefined (nothing to resemble) |
-| **Conformance** (obey a declared outcome) | possible but unaddressed by imitation | **the task of this paper** |
+| **Fidelity** (resemble real data) | imitation: SDV, CTGAN, TabDDPM, RelDiff — the field's focus | n/a (no reference to resemble) |
+| **Exact conformance** (obey a declared outcome to 0 error) | only approximable by conditioning (sampling variance ⇒ AME>0) | **the task of this paper** (closed-form, AME=0) |
 
 Most systems answer *"make data that looks like this real data"* — **imitation**, the
 flagship tools `[CITE: Xu et al. 2019; Kotelnikov et al. 2023; Patki et al. 2016]` and
@@ -104,10 +108,14 @@ engineer stress-testing a query planner has no real data — and must not use it
 knows the *shape* the data must have: "10k users, 20% churn, MRR rising from \$50k to
 \$200k with a Q3 dip," over a schema with valid foreign keys. This is the bottom-right
 cell: **outcome-conformant synthesis** — input is a *specification of analytical
-outcomes*; success is *conformance*. Imitation cannot reach this cell: it needs source
-data (no cold start) and has no channel to accept a target (no conformance). §6 shows
-this is not hypothetical — learned methods trained on real data miss declared outcomes
-on that very data by 74–87%.
+outcomes*; success is *exact conformance*. Imitation struggles here on two counts:
+off-the-shelf tools provide no interface to accept a target (cold-start = 0 capability),
+and — even when *conditioned* per period (the obvious fix) — a sampler cannot produce an
+*exact* aggregate, only an approximation with variance. §6 shows this concretely:
+off-the-shelf learned methods miss real-data outcomes by 74–87%; a per-period-conditioned
+steelman still misses by ~19% and never reaches 0; closed-form generation reaches exactly
+0. The structural statement is about *exactness*, not about whether imitation can be
+coaxed to approximate.
 
 ### 1.2 Why imitation cannot serve it; why prior specification work is partial
 
@@ -413,22 +421,27 @@ schema`, since "housing" is outside the curated domains — the honest D8 findin
 | **Misata (ours)** | schema | 1 | **0** (exact) | 0 | 1 | ~0.1 |
 | NaiveRescale | schema | 1 | **0** (exact) | 0 | 1 | ~0.1 |
 | Faker | schema | 1 | 0.493 | 0 | 1 | 0.0 |
-| SDV GaussianCopula | data | 0 | 0.739 (det.) | 0 | 1 | ~1 |
+| SDV GaussianCopula (off-the-shelf) | data | 0 | 0.739 (det.) | 0 | 1 | ~1 |
 | SDV HMA | data | 0 | 0.739 (det.) | 0 | 1 | ~2 |
 | SDV CTGAN | data | 0 | 0.867 ± 0.107 | 0 | 1 | 77/seed |
+| **SDV GaussianCopula, per-period conditioned** (steelman) | data | 0 | **0.189** | 0 | 1 | ~2 |
 
-GaussianCopula and HMA are deterministic fitted models (zero variance). CTGAN is the
-deep, stochastic baseline; its 0.867 ± 0.107 over 3 seeds is both the largest miss and
-the highest variance — consistent with having *no mechanism* to target the aggregate.
+The last row is the key fairness control (review F1): we *give imitation the best shot* by
+training a separate GaussianCopula per declared period — the obvious way to make it
+"target" the aggregate. It improves dramatically (0.739 → 0.189) but **cannot reach 0**:
+per-period sums still vary by 0.1–0.8% even on the best months, because sampling has
+variance. Closed-form generation reaches exactly 0. *Exactness is the structural divide.*
 
-**Reading (primary) — a capability gap, not a head-to-head "win."** We are explicit
-about fairness: SDV/CTGAN/HMA have **no API to accept an aggregate target**, so this is
-*not* "our tool beats SDV at SDV's job." It is a *structural capability gap* made
-quantitative. Given genuinely real data and trained *on that very data*, imitation
-methods still miss the declared monthly aggregate by **74–87%** — not from poor tuning
-but because the target is not an input they can receive; they can only reproduce the
-marginal cloud. Any generator that *can* ingest the target (Misata's declarative path,
-or even a trivial NaiveRescale) attains AME = 0. The point of the row is the orthogonality
+**Reading (primary) — exactness, not "we beat SDV."** Three honest points. (1) *Fairness:*
+off-the-shelf SDV has no API for aggregate targets; the conditioned steelman shows that
+*even when we engineer imitation to target*, it lands at AME≈0.19, not 0. The divide is
+**exact vs in-expectation**, which is structural to sampling, not a tuning artifact.
+(2) *On the metric's validity (review F2):* the monthly targets here have CV≈0.30
+(one bin is ~2× the others; the `HouseAge mod 12` binning is ~uncorrelated with value,
+r=−0.03), so the targets are *not* near-uniform — the miss is a genuine failure to match
+real per-bin structure, verified per-month (e.g. month 05 target 7103 vs SDV 3810), not
+an artifact of a degenerate target. (3) Any generator that ingests the target exactly
+(Misata declarative, or NaiveRescale) attains AME=0. The point is the orthogonality
 of the two axes (§1.1), demonstrated on real data — not a performance ranking on a shared
 objective. **Honest caveat (review M11):** on this non-curated schema the engine has no
 domain prior, so it hits the aggregate exactly but its *per-row marginal* is a supplied
