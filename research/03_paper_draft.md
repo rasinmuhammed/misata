@@ -427,7 +427,7 @@ schema`, since "housing" is outside the curated domains — the honest D8 findin
 | Faker | schema | 1 | 0.493 | 0 | 1 | 0.0 |
 | SDV GaussianCopula (off-the-shelf) | data | 0 | 0.739 (det.) | 0 | 1 | ~1 |
 | SDV HMA | data | 0 | 0.739 (det.) | 0 | 1 | ~2 |
-| SDV CTGAN | data | 0 | 0.867 ± 0.107 | 0 | 1 | 77/seed |
+| SDV CTGAN | data | 0 | 0.857 ± 0.354 | 0 | 1 | 77/seed |
 | **SDV GaussianCopula, per-period conditioned** (steelman) | data | 0 | **0.189** | 0 | 1 | ~2 |
 
 The last row is the key fairness control (review F1): we *give imitation the best shot* by
@@ -457,18 +457,25 @@ defensible real-data claim is precisely the conformance capability gap vs imitat
 an outcome target on `orders.amount`, and a customer→order FK. Tests the relational
 claim directly against SDV's relational synthesizer, HMA:*
 
-| Generator | input | CSC | AME | FIVR | DET |
-|---|---|---|---|---|---|
-| **Misata (ours)** | nl | 1 | **0** | **0** | 1 |
-| SDV HMA (relational) | data | 0 | 0.783 | **0** | 1 |
+Two relational depths are tested: a **2-table** parent→child (customers→orders) and a
+**3-table** hierarchy (regions→stores→sales, two FK edges), each with an outcome target.
 
-**Reading (the honest relational result).** HMA **preserves FK by construction**
-(FIVR = 0) — so referential integrity does *not* separate the methods; both achieve it.
-The separation is **conformance**: HMA, trained on the real child table, still misses
-the declared monthly aggregate by **78%** because it has no mechanism to ingest an
-outcome target. The engine attains **AME = 0 *and* FIVR = 0 together**. The relational
-contribution is therefore *integrity jointly with outcome conformance*, not a claim of
-superior integrity over a purpose-built relational synthesizer (we tie there at 0).
+| Task | Generator | input | AME | FIVR | DET |
+|---|---|---|---|---|---|
+| 2-table | **Misata (ours)** | schema | **0** | **0** | 1 |
+| 2-table | SDV HMA (relational) | data | 0.783 | **0** | 1 |
+| 3-table | **Misata (ours)** | schema | **0** | **0** (2 edges) | 1 |
+| 3-table | SDV HMA (relational) | data | 0.640 | **0** (2 edges) | 1 |
+
+**Reading (the honest relational result).** HMA **preserves every FK by construction**
+(FIVR = 0, including both edges of the 3-level hierarchy) — so referential integrity does
+*not* separate the methods; both achieve it. The separation is **conformance**: HMA,
+trained on the real child table, still misses the declared monthly aggregate by **64–78%**
+because it has no mechanism to ingest an outcome target. The engine attains **AME = 0
+*and* FIVR = 0 together** at both depths (via the declarative path — "retail"/"ecommerce"
+schemas drive `input=schema`). The relational contribution is therefore *integrity
+jointly with outcome conformance*, not a claim of superior integrity over a purpose-built
+relational synthesizer (we tie there at 0).
 
 *Reference-mode, controlled check — a synthetic source table with a clean ramp (10
 seeds), to isolate behavior on a known-smooth curve:*

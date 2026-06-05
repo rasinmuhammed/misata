@@ -359,6 +359,77 @@ def _multitable_reference_task() -> Task:
     )
 
 
+def _three_table_reference_task() -> Task:
+    """Deeper relational task (review M13): a 3-level hierarchy regions -> stores -> sales
+    with an outcome target on sales.amount and TWO FK edges. Tests HMA on a genuine
+    hierarchy (not just a 2-table parent/child), so the relational claim does not rest on
+    a single depth-1 case. Same honest point: HMA preserves both FKs (FIVR=0) but cannot
+    ingest the outcome target; the engine attains AME=0 AND FIVR=0 across both edges.
+    """
+    import numpy as np
+    import pandas as pd
+    rng = np.random.default_rng(1)
+    regions = pd.DataFrame({"region_id": np.arange(1, 11),
+                            "name": [f"R{i}" for i in range(1, 11)]})
+    stores = pd.DataFrame({"store_id": np.arange(1, 101),
+                           "region_id": rng.choice(regions.region_id, 100),
+                           "size": rng.choice(["S", "M", "L"], 100)})
+    frames = []
+    ramp = np.linspace(30_000, 90_000, 12)
+    for m, tot in enumerate(ramp, 1):
+        n = max(20, int(tot / 60))
+        v = rng.lognormal(np.log(60), 0.5, n); v *= tot / v.sum()
+        frames.append(pd.DataFrame({
+            "store_id": rng.choice(stores.store_id, n),
+            "amount": v,
+            "sale_date": pd.to_datetime(f"2024-{m:02d}-15"),
+        }))
+    sales = pd.concat(frames, ignore_index=True)
+    sales.insert(0, "sale_id", np.arange(1, len(sales) + 1))
+    targets = {f"{m:02d}": float(sales.loc[
+        pd.to_datetime(sales.sale_date).dt.month == m, "amount"].sum())
+        for m in range(1, 13)}
+
+    return Task(
+        task_id="three_table_reference",
+        mode="reference",
+        story=("Retail chain with regions, stores, and sales; monthly sales revenue "
+               "ramping from $30k to $90k"),
+        rows=len(sales),
+        metric_table="sales",
+        metric_col="amount",
+        time_col="sale_date",
+        period_freq="M",
+        period_targets=targets,
+        constraints=[{"table": "sales", "column": "amount", "op": ">", "value": 0.0}],
+        fks=[("regions", "region_id", "stores", "region_id"),
+             ("stores", "store_id", "sales", "store_id")],
+        primary_table="sales",
+        schema_tables=[
+            {"name": "regions", "pk": "region_id", "rows": 10, "columns": [
+                {"name": "name", "kind": "text"},
+            ]},
+            {"name": "stores", "pk": "store_id", "rows": 100, "columns": [
+                {"name": "region_id", "kind": "fk", "parent": "regions",
+                 "parent_pk": "region_id"},
+                {"name": "size", "kind": "category", "choices": ["S", "M", "L"]},
+            ]},
+            {"name": "sales", "pk": "sale_id", "rows": len(sales), "columns": [
+                {"name": "store_id", "kind": "fk", "parent": "stores",
+                 "parent_pk": "store_id"},
+                {"name": "amount", "kind": "metric", "scale": 60},
+                {"name": "sale_date", "kind": "date", "start": "2024-01-01",
+                 "span_days": 365},
+            ]},
+        ],
+        reference_tables={
+            "regions": regions,
+            "stores": stores,
+            "sales": sales[["sale_id", "store_id", "amount", "sale_date"]],
+        },
+    )
+
+
 def seed_suite() -> List[Task]:
     """Real, verified SpecBench tasks. Each curve task confirmed AME=0 achievable by the
     reference engine before inclusion (no task is added that even the engine cannot meet,
@@ -368,7 +439,8 @@ def seed_suite() -> List[Task]:
         _fintech_curve_task(),       # spec-mode curve, different domain/scale
         _ecommerce_curve_task(),     # spec-mode curve, different domain/scale
         _ecommerce_fk_task(),        # spec-mode integrity-only (FIVR/TCV)
-        _multitable_reference_task(),# reference-mode multi-table FK + outcome (M13)
+        _multitable_reference_task(),# reference-mode 2-table FK + outcome (M13)
+        _three_table_reference_task(),# reference-mode 3-table hierarchy + outcome (M13)
         _reference_mode_task(),      # reference-mode, controlled synthetic source
     ]
     real_task = _real_dataset_reference_task()   # reference-mode on REAL data (D8)
