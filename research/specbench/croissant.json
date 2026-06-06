@@ -1,0 +1,123 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "https://schema.org/",
+    "cr": "http://mlcommons.org/croissant/",
+    "sc": "https://schema.org/",
+    "dct": "http://purl.org/dc/terms/",
+    "data": { "@id": "cr:data", "@type": "@json" },
+    "dataType": { "@id": "cr:dataType", "@type": "@vocab" },
+    "extract": "cr:extract",
+    "field": "cr:field",
+    "fileObject": "cr:fileObject",
+    "format": "cr:format",
+    "includes": "cr:includes",
+    "isLiveDataset": "cr:isLiveDataset",
+    "column": "cr:column",
+    "recordSet": "cr:recordSet",
+    "references": "cr:references",
+    "source": "cr:source",
+    "subField": "cr:subField"
+  },
+  "@type": "sc:Dataset",
+  "name": "SpecBench",
+  "description": "A benchmark for outcome-conformant relational synthesis. SpecBench measures whether a generator obeys a declared analytical outcome (an aggregate curve, a rate, or a group-wise distribution) across a relational schema, with no source data, rather than whether its output resembles a real dataset. Each task is a frozen specification plus an oracle; metrics include aggregate-match error (AME), foreign-key violation rate (FIVR), determinism (DET), cold-start capability (CSC), and constraint satisfaction (CSAT). The benchmark accompanies the paper on declarative outcome-conformant synthesis.",
+  "version": "1.0.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://github.com/rasinmuhammed/misata",
+  "citeAs": "SpecBench: a conformance benchmark for outcome-conformant relational synthesis (Misata project, MIT License).",
+  "creator": { "@type": "sc:Person", "name": "Muhammed Rasin" },
+  "keywords": [
+    "synthetic data", "tabular data", "relational data", "benchmark",
+    "conformance", "cold-start generation", "specification-driven synthesis"
+  ],
+  "isLiveDataset": false,
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "results_e5.csv",
+      "name": "results_e5.csv",
+      "description": "Cross-paradigm leaderboard: per task, baseline, and seed metrics (AME, FIVR, CSAT, DET, CSC, input_type, seconds).",
+      "contentUrl": "research/specbench/results_e5.csv",
+      "encodingFormat": "text/csv",
+      "sha256": "e6ec1a57616ddc3a4cb97f6007f1be731ede37c83caae761aae55eb057255e81"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "results_california_real.csv",
+      "name": "results_california_real.csv",
+      "description": "Reference-mode result on the real California Housing dataset.",
+      "contentUrl": "research/specbench/results_california_real.csv",
+      "encodingFormat": "text/csv",
+      "sha256": "7f6b5c2482e71eff34411d16d3ee3ae412363776d3c4b6571a0e33a4dc98af11"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "results_nl_suite.csv",
+      "name": "results_nl_suite.csv",
+      "description": "Suite-level natural-language conformance across 18 domains, for three parsers (rule-based, Llama-3.3-70b, GPT-5.3-class).",
+      "contentUrl": "research/specbench/results_nl_suite.csv",
+      "encodingFormat": "text/csv",
+      "sha256": "f1fe3dc168dd1bdfc9f78fc760b8c5a6f945159b7b7e714a2306321a56386b34"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "results_pstar_frontier.csv",
+      "name": "results_pstar_frontier.csv",
+      "description": "P-star frontier: marginal-distortion decomposition (constraint cost vs shape-family gap) across target marginals.",
+      "contentUrl": "research/specbench/results_pstar_frontier.csv",
+      "encodingFormat": "text/csv",
+      "sha256": "8e2f4642df50e19aa322be7e92de65078229cbbe1cca1b94d5c7fa0c1edcff1d"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "scale_invariance_summary.csv",
+      "name": "scale_invariance_summary.csv",
+      "description": "Proposition 4 scale-invariance experiment: marginal distortion of the constrained vs unconstrained draw across tail-heaviness.",
+      "contentUrl": "research/specbench/scale_invariance_summary.csv",
+      "encodingFormat": "text/csv",
+      "sha256": "86d940c8d705fd4293382feee35cbf47a48a12d5febd090c14d50fc18cc331df"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "throughput.csv",
+      "name": "throughput.csv",
+      "description": "Throughput comparison: closed-form generation vs SDV GaussianCopula fit-plus-sample.",
+      "contentUrl": "research/specbench/throughput.csv",
+      "encodingFormat": "text/csv",
+      "sha256": "c7876bcef2d20ea477beb9d60098c9264b3e46bac9227176dd298d0b0830ece7"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "nl_suite",
+      "name": "nl_suite",
+      "description": "Per (parser, domain) conformance of the natural-language path across 18 domains.",
+      "field": [
+        { "@type": "cr:Field", "@id": "nl_suite/parser", "name": "parser", "description": "Parser behind the engine: rule-based, groq-llama-3.3-70b, or openai-gpt-5.3.", "dataType": "sc:Text", "source": { "fileObject": { "@id": "results_nl_suite.csv" }, "extract": { "column": "parser" } } },
+        { "@type": "cr:Field", "@id": "nl_suite/domain", "name": "domain", "description": "Business domain of the one-sentence specification.", "dataType": "sc:Text", "source": { "fileObject": { "@id": "results_nl_suite.csv" }, "extract": { "column": "domain" } } },
+        { "@type": "cr:Field", "@id": "nl_suite/curve_detected", "name": "curve_detected", "description": "Whether the parser produced an outcome curve.", "dataType": "sc:Boolean", "source": { "fileObject": { "@id": "results_nl_suite.csv" }, "extract": { "column": "curve_detected" } } },
+        { "@type": "cr:Field", "@id": "nl_suite/anchor_match", "name": "anchor_match", "description": "Whether the parser read the declared January and December anchors correctly.", "dataType": "sc:Boolean", "source": { "fileObject": { "@id": "results_nl_suite.csv" }, "extract": { "column": "anchor_match" } } },
+        { "@type": "cr:Field", "@id": "nl_suite/AME", "name": "AME", "description": "Aggregate-match error of the generated data against the declared curve (0 is exact).", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_nl_suite.csv" }, "extract": { "column": "AME" } } },
+        { "@type": "cr:Field", "@id": "nl_suite/FIVR", "name": "FIVR", "description": "Foreign-key violation rate (0 is clean).", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_nl_suite.csv" }, "extract": { "column": "FIVR" } } },
+        { "@type": "cr:Field", "@id": "nl_suite/DET", "name": "DET", "description": "Determinism under a fixed seed (1 is bitwise identical).", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_nl_suite.csv" }, "extract": { "column": "DET" } } }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "pstar_frontier",
+      "name": "pstar_frontier",
+      "description": "Decomposition of marginal distortion against an external target marginal into the cost of the exact-sum constraint and the shape-family gap.",
+      "field": [
+        { "@type": "cr:Field", "@id": "pstar_frontier/family", "name": "family", "description": "Target marginal family (lognormal or pareto).", "dataType": "sc:Text", "source": { "fileObject": { "@id": "results_pstar_frontier.csv" }, "extract": { "column": "family" } } },
+        { "@type": "cr:Field", "@id": "pstar_frontier/cv_F", "name": "cv_F", "description": "Coefficient of variation of the target marginal.", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_pstar_frontier.csv" }, "extract": { "column": "cv_F" } } },
+        { "@type": "cr:Field", "@id": "pstar_frontier/MD_constrained", "name": "MD_constrained", "description": "Normalized 1-Wasserstein distance of the exact-sum engine sample to the target.", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_pstar_frontier.csv" }, "extract": { "column": "MD_constrained" } } },
+        { "@type": "cr:Field", "@id": "pstar_frontier/MD_unconstrained", "name": "MD_unconstrained", "description": "Same distance for an unconstrained same-family draw.", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_pstar_frontier.csv" }, "extract": { "column": "MD_unconstrained" } } },
+        { "@type": "cr:Field", "@id": "pstar_frontier/constraint_cost", "name": "constraint_cost", "description": "MD added by enforcing the exact sum (constrained minus unconstrained).", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_pstar_frontier.csv" }, "extract": { "column": "constraint_cost" } } },
+        { "@type": "cr:Field", "@id": "pstar_frontier/family_gap", "name": "family_gap", "description": "Shape-family mismatch above the finite-sample floor.", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_pstar_frontier.csv" }, "extract": { "column": "family_gap" } } },
+        { "@type": "cr:Field", "@id": "pstar_frontier/max_sum_err", "name": "max_sum_err", "description": "Largest absolute period sum error over the sweep (near zero).", "dataType": "sc:Float", "source": { "fileObject": { "@id": "results_pstar_frontier.csv" }, "extract": { "column": "max_sum_err" } } }
+      ]
+    }
+  ]
+}
