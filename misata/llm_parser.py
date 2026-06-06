@@ -622,17 +622,39 @@ Include reference tables with inline_data for lookup values and transactional ta
         ) from last_exc
 
     def _call_openai_compatible(self, messages: List[Dict], max_tokens: int, temperature: float) -> str:
-        """Call any OpenAI-compatible endpoint."""
-        kwargs: Dict = dict(
-            model=self.model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        """Call any OpenAI-compatible endpoint.
+
+        Newer OpenAI models (the gpt-5 family and the o-series reasoning models) reject the
+        legacy ``max_tokens`` parameter and only accept the model-default temperature, using
+        ``max_completion_tokens`` instead. Older models (gpt-4o, and Groq/Together-hosted
+        Llama) take ``max_tokens`` and a custom temperature. We try the legacy form first to
+        preserve existing behavior, and on the specific 400 that names the unsupported
+        parameter we retry with the modern form. This keeps one code path working across both
+        generations without hard-coding model names.
+        """
+        base: Dict = dict(model=self.model, messages=messages)
         # Gemini's OpenAI-compat layer doesn't support response_format yet
         if self.provider not in ("gemini", "ollama"):
-            kwargs["response_format"] = {"type": "json_object"}
-        response = self.client.chat.completions.create(**kwargs)
+            base["response_format"] = {"type": "json_object"}
+
+        try:
+            response = self.client.chat.completions.create(
+                **base, temperature=temperature, max_tokens=max_tokens)
+        except Exception as exc:
+            msg = str(exc).lower()
+            modern = ("max_completion_tokens" in msg or "max_tokens" in msg
+                      or "unsupported parameter" in msg or "temperature" in msg)
+            if not modern:
+                raise
+            # Modern models: use max_completion_tokens and drop the custom temperature.
+            # Optionally cap reasoning effort (set on the instance) so a simple extraction
+            # task stays fast and cheap instead of paying for deep reasoning it does not need.
+            extra: Dict = {}
+            effort = getattr(self, "reasoning_effort", None)
+            if effort:
+                extra["reasoning_effort"] = effort
+            response = self.client.chat.completions.create(
+                **base, max_completion_tokens=max_tokens, **extra)
         return response.choices[0].message.content
 
     def _call_anthropic(self, messages: List[Dict], max_tokens: int, temperature: float) -> str:
@@ -857,6 +879,32 @@ Include reference tables with inline_data for lookup values and transactional ta
                 start_date=c.get("start_date"),
                 curve_points=c.get("curve_points", [])
             ))
+
+        # Repair common LLM quirks in an outcome curve's time_column so a well-formed curve
+        # is not discarded over a malformed pointer. Two patterns recur across models: a
+        # dotted path ("order_items.order_id.order_date") and a non-date column (an integer
+        # "month" index). We resolve to the leaf name, then to a real date or datetime column
+        # in the curve's table, and coerce the referenced column to a date type only when the
+        # table offers no date column to point at. Curves that already reference a date column
+        # are left untouched.
+        for oc in outcome_curves:
+            col_objs = columns.get(oc.table, [])
+            types = {col.name: col.type for col in col_objs}
+            tc = oc.time_column or "date"
+            if "." in tc:
+                tc = tc.split(".")[-1]
+            date_cols = [n for n, ty in types.items() if ty in ("date", "datetime")]
+            if tc in types and types[tc] in ("date", "datetime"):
+                oc.time_column = tc
+            elif date_cols:
+                oc.time_column = date_cols[0]
+            elif tc in types:
+                for col in col_objs:
+                    if col.name == tc:
+                        col.type = "date"
+                oc.time_column = tc
+            else:
+                oc.time_column = tc
 
         return SchemaConfig(
             name=schema_dict.get("name", "Generated Dataset"),
