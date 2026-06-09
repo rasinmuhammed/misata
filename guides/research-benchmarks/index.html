@@ -6,35 +6,35 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Run Misata's offline benchmark harness for proof-backed comparisons against manual Faker baselines.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/export/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/research-benchmarks/">
       
       
-        <link rel="prev" href="../constraints/">
+        <link rel="prev" href="../anomaly-injection/">
       
       
-        <link rel="next" href="../validate/">
+        <link rel="next" href="../jupyter/">
       
       
         
       
       
-      <link rel="icon" href="../assets/logo.svg">
+      <link rel="icon" href="../../assets/logo.svg">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Export - Misata</title>
+        <title>Research Benchmarks - Misata</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="../assets/custom.css">
+      <link rel="stylesheet" href="../../assets/custom.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#export" class="md-skip">
+        <a href="#research-benchmarks" class="md-skip">
           Skip to content
         </a>
       
@@ -94,9 +94,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Export
+              Research Benchmarks
             
           </span>
         </div>
@@ -226,7 +226,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -245,7 +245,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
+      <a href="../../quickstart/" class="md-tabs__link">
         
   
   
@@ -266,7 +266,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../generation/" class="md-tabs__link">
+        <a href="../../generation/" class="md-tabs__link">
           
   
   
@@ -286,7 +286,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../localisation/" class="md-tabs__link">
+      <a href="../../localisation/" class="md-tabs__link">
         
   
   
@@ -305,7 +305,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../timeseries/" class="md-tabs__link">
+      <a href="../../timeseries/" class="md-tabs__link">
         
   
   
@@ -326,7 +326,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../domains/" class="md-tabs__link">
+        <a href="../../domains/" class="md-tabs__link">
           
   
   
@@ -346,7 +346,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../constraints/" class="md-tabs__link">
+      <a href="../../constraints/" class="md-tabs__link">
         
   
   
@@ -363,11 +363,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="./" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../../export/" class="md-tabs__link">
         
   
   
@@ -386,7 +384,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../validate/" class="md-tabs__link">
+      <a href="../../validate/" class="md-tabs__link">
         
   
   
@@ -405,7 +403,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../cli/" class="md-tabs__link">
+      <a href="../../cli/" class="md-tabs__link">
         
   
   
@@ -422,11 +420,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../guides/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -462,9 +462,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     Misata
@@ -491,7 +491,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -518,7 +518,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -580,7 +580,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../generation/" class="md-nav__link ">
+            <a href="../../generation/" class="md-nav__link ">
               
   
   
@@ -624,7 +624,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/story/" class="md-nav__link">
+      <a href="../../generation/story/" class="md-nav__link">
         
   
   
@@ -652,7 +652,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/yaml/" class="md-nav__link">
+      <a href="../../generation/yaml/" class="md-nav__link">
         
   
   
@@ -680,7 +680,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/database/" class="md-nav__link">
+      <a href="../../generation/database/" class="md-nav__link">
         
   
   
@@ -708,7 +708,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/dict/" class="md-nav__link">
+      <a href="../../generation/dict/" class="md-nav__link">
         
   
   
@@ -736,7 +736,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/llm/" class="md-nav__link">
+      <a href="../../generation/llm/" class="md-nav__link">
         
   
   
@@ -764,7 +764,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/incremental/" class="md-nav__link">
+      <a href="../../generation/incremental/" class="md-nav__link">
         
   
   
@@ -799,7 +799,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../localisation/" class="md-nav__link">
+      <a href="../../localisation/" class="md-nav__link">
         
   
   
@@ -826,7 +826,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../timeseries/" class="md-nav__link">
+      <a href="../../timeseries/" class="md-nav__link">
         
   
   
@@ -945,7 +945,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/" class="md-nav__link">
+      <a href="../../domains/" class="md-nav__link">
         
   
   
@@ -973,7 +973,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/saas/" class="md-nav__link">
+      <a href="../../domains/saas/" class="md-nav__link">
         
   
   
@@ -1001,7 +1001,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/ecommerce/" class="md-nav__link">
+      <a href="../../domains/ecommerce/" class="md-nav__link">
         
   
   
@@ -1029,7 +1029,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/fintech/" class="md-nav__link">
+      <a href="../../domains/fintech/" class="md-nav__link">
         
   
   
@@ -1057,7 +1057,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/healthcare/" class="md-nav__link">
+      <a href="../../domains/healthcare/" class="md-nav__link">
         
   
   
@@ -1085,7 +1085,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/hr/" class="md-nav__link">
+      <a href="../../domains/hr/" class="md-nav__link">
         
   
   
@@ -1113,7 +1113,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/logistics/" class="md-nav__link">
+      <a href="../../domains/logistics/" class="md-nav__link">
         
   
   
@@ -1141,7 +1141,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/marketplace/" class="md-nav__link">
+      <a href="../../domains/marketplace/" class="md-nav__link">
         
   
   
@@ -1169,7 +1169,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/social/" class="md-nav__link">
+      <a href="../../domains/social/" class="md-nav__link">
         
   
   
@@ -1197,7 +1197,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/realestate/" class="md-nav__link">
+      <a href="../../domains/realestate/" class="md-nav__link">
         
   
   
@@ -1225,7 +1225,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/pharma/" class="md-nav__link">
+      <a href="../../domains/pharma/" class="md-nav__link">
         
   
   
@@ -1253,7 +1253,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/fooddelivery/" class="md-nav__link">
+      <a href="../../domains/fooddelivery/" class="md-nav__link">
         
   
   
@@ -1281,7 +1281,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/edtech/" class="md-nav__link">
+      <a href="../../domains/edtech/" class="md-nav__link">
         
   
   
@@ -1309,7 +1309,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/gaming/" class="md-nav__link">
+      <a href="../../domains/gaming/" class="md-nav__link">
         
   
   
@@ -1337,7 +1337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/crm/" class="md-nav__link">
+      <a href="../../domains/crm/" class="md-nav__link">
         
   
   
@@ -1365,7 +1365,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/crypto/" class="md-nav__link">
+      <a href="../../domains/crypto/" class="md-nav__link">
         
   
   
@@ -1393,7 +1393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/insurance/" class="md-nav__link">
+      <a href="../../domains/insurance/" class="md-nav__link">
         
   
   
@@ -1421,7 +1421,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/travel/" class="md-nav__link">
+      <a href="../../domains/travel/" class="md-nav__link">
         
   
   
@@ -1449,7 +1449,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/streaming/" class="md-nav__link">
+      <a href="../../domains/streaming/" class="md-nav__link">
         
   
   
@@ -1484,7 +1484,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../constraints/" class="md-nav__link">
+      <a href="../../constraints/" class="md-nav__link">
         
   
   
@@ -1508,37 +1508,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Export
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../export/" class="md-nav__link">
         
   
   
@@ -1554,70 +1527,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#parquet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Parquet
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#duckdb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        DuckDB
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#json-lines" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        JSON Lines
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#document-generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Document generation
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1629,7 +1538,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../validate/" class="md-nav__link">
+      <a href="../../validate/" class="md-nav__link">
         
   
   
@@ -1656,7 +1565,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
+      <a href="../../cli/" class="md-nav__link">
         
   
   
@@ -1680,6 +1589,8 @@
       
   
   
+    
+  
   
   
     
@@ -1731,20 +1642,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../guides/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1762,13 +1676,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1788,7 +1702,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/faker-vs-sdv-vs-misata/" class="md-nav__link">
+      <a href="../faker-vs-sdv-vs-misata/" class="md-nav__link">
         
   
   
@@ -1816,7 +1730,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/multi-table-synthetic-data/" class="md-nav__link">
+      <a href="../multi-table-synthetic-data/" class="md-nav__link">
         
   
   
@@ -1844,7 +1758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/database-seeding-python/" class="md-nav__link">
+      <a href="../database-seeding-python/" class="md-nav__link">
         
   
   
@@ -1872,7 +1786,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/synthetic-data-for-bi-demos/" class="md-nav__link">
+      <a href="../synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -1900,7 +1814,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../python-synthetic-data-generator/" class="md-nav__link">
+      <a href="../../python-synthetic-data-generator/" class="md-nav__link">
         
   
   
@@ -1928,7 +1842,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/mimic/" class="md-nav__link">
+      <a href="../mimic/" class="md-nav__link">
         
   
   
@@ -1956,7 +1870,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/geospatial/" class="md-nav__link">
+      <a href="../geospatial/" class="md-nav__link">
         
   
   
@@ -1984,7 +1898,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/long-form-text/" class="md-nav__link">
+      <a href="../long-form-text/" class="md-nav__link">
         
   
   
@@ -2012,7 +1926,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/correlations/" class="md-nav__link">
+      <a href="../correlations/" class="md-nav__link">
         
   
   
@@ -2040,7 +1954,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/anomaly-injection/" class="md-nav__link">
+      <a href="../anomaly-injection/" class="md-nav__link">
         
   
   
@@ -2065,10 +1979,19 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../guides/research-benchmarks/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2084,6 +2007,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -2096,7 +2020,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/jupyter/" class="md-nav__link">
+      <a href="../jupyter/" class="md-nav__link">
         
   
   
@@ -2124,7 +2048,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/rest-api/" class="md-nav__link">
+      <a href="../rest-api/" class="md-nav__link">
         
   
   
@@ -2152,7 +2076,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/narrative-patterns/" class="md-nav__link">
+      <a href="../narrative-patterns/" class="md-nav__link">
         
   
   
@@ -2180,7 +2104,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/mcp/" class="md-nav__link">
+      <a href="../mcp/" class="md-nav__link">
         
   
   
@@ -2208,7 +2132,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/testing/" class="md-nav__link">
+      <a href="../testing/" class="md-nav__link">
         
   
   
@@ -2236,7 +2160,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/from-ddl/" class="md-nav__link">
+      <a href="../from-ddl/" class="md-nav__link">
         
   
   
@@ -2264,7 +2188,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/dbt-seed/" class="md-nav__link">
+      <a href="../dbt-seed/" class="md-nav__link">
         
   
   
@@ -2292,7 +2216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/streaming/" class="md-nav__link">
+      <a href="../streaming/" class="md-nav__link">
         
   
   
@@ -2340,58 +2264,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#parquet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Parquet
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#duckdb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        DuckDB
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#json-lines" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        JSON Lines
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#document-generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Document generation
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -2410,48 +2282,29 @@
   
 
 
-<h1 id="export">Export</h1>
-<h2 id="parquet">Parquet</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_parquet</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># writes data/users.parquet, data/orders.parquet, …</span>
+<h1 id="research-benchmarks">Research Benchmarks</h1>
+<p>Misata includes an offline benchmark harness for comparing a proof-backed Misata workflow with a hand-written Faker baseline.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>benchmarks/bench_research_moat.py
 </code></pre></div>
-<h2 id="duckdb">DuckDB</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_duckdb</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/dataset.duckdb&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># each table becomes a DuckDB table; query with SQL immediately</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kn">import</span><span class="w"> </span><span class="nn">duckdb</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">con</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;data/dataset.duckdb&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT plan, count(*) FROM users GROUP BY plan&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">df</span><span class="p">())</span>
-</code></pre></div>
-<h2 id="json-lines">JSON Lines</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">misata</span><span class="o">.</span><span class="n">to_jsonl</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="s2">&quot;data/&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># writes data/users.jsonl, data/orders.jsonl, …</span>
-</code></pre></div>
-<h2 id="document-generation">Document generation</h2>
-<p>Render one document per row from any table — invoices, patient reports, transaction receipts.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Built-in templates: invoice, patient_report, transaction_receipt, user_profile, generic</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">paths</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_documents</span><span class="p">(</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">tables</span><span class="p">,</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">template</span><span class="o">=</span><span class="s2">&quot;invoice&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">table</span><span class="o">=</span><span class="s2">&quot;orders&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">output_dir</span><span class="o">=</span><span class="s2">&quot;/tmp/invoices&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;html&quot;</span><span class="p">,</span>           <span class="c1"># &quot;html&quot; | &quot;markdown&quot; | &quot;txt&quot; | &quot;pdf&quot;</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Custom Jinja2 template</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">tmpl</span> <span class="o">=</span> <span class="s2">&quot;&lt;h1&gt;Order #{{ order_id }}&lt;/h1&gt;&lt;p&gt;Total: ${{ amount }}&lt;/p&gt;&quot;</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="n">paths</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_documents</span><span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="n">tmpl</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;orders&quot;</span><span class="p">,</span> <span class="n">output_dir</span><span class="o">=</span><span class="s2">&quot;/tmp/custom&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="c1"># List built-in templates</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">misata</span><span class="o">.</span><span class="n">list_document_templates</span><span class="p">())</span>
-</code></pre></div>
-<p>PDF output requires <code>pip install "misata[documents]"</code> (weasyprint).</p>
+<p>The harness reports:</p>
+<ul>
+<li>rows per second</li>
+<li>foreign-key orphan count</li>
+<li>reproducibility with a fixed seed</li>
+<li>scenario-control support</li>
+<li>Oracle report availability</li>
+<li>a simple setup-effort proxy</li>
+</ul>
+<p>The point is not to claim that one library is always faster. The point is to make Misata's research claim measurable: it generates relational data and a proof report from one high-level description, while manual baselines need custom glue code for schema, relationships, scenario logic, and checks.</p>
 
 
 
 
 
 
+
+  
+  
 
 
 
@@ -2534,10 +2387,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
