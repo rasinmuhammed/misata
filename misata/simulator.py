@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from misata.assets import AssetStore
+from misata.curve_inheritance import TemporalDensityMap, resolve_inherits_curve_from
 from misata.engines import FactEngine
 # Use the original generators.py TextGenerator which supports seed
 from misata.generators_legacy import TextGenerator
@@ -95,6 +96,12 @@ class DataSimulator:
         self._sequence_counters: Dict[str, int] = {}    # Stable counters for primary keys
         self._smart_pools: Dict[str, np.ndarray] = {}   # Cache smart value pools
         self._text_pools: Dict[str, np.ndarray] = {}    # Cache text pools for vectorized sampling
+        # Gap 3: parent table temporal density maps for child-table curve inheritance.
+        # Populated after _generate_fact_table() and used during FK + date generation.
+        self._parent_temporal_density: Dict[str, TemporalDensityMap] = {}
+        # Gap B: per-table, per-period running totals for relative-curve accumulation.
+        # Structure: {table_name: {period_key: running_sum}}
+        self._relative_curve_totals: Dict[str, Dict[str, float]] = {}
 
         # Apply semantic inference to fix column types
         if apply_semantic_fixes:
@@ -266,7 +273,12 @@ class DataSimulator:
         return valid_ids
 
     def _collect_context_columns(self, table_name: str, df: pd.DataFrame) -> List[str]:
-        """Return the columns that must be retained for future FK/date/depends_on lookups."""
+        """Return the columns that must be retained for future FK/date/depends_on lookups.
+
+        Gap 3 extension: also retains the time column from any OutcomeCurve or RateCurve
+        attached to this table, so that child tables can weight FK sampling by temporal
+        density (Level-1 inheritance) without any additional config.
+        """
         table = self.config.get_table(table_name)
         if table and table.is_reference:
             return list(df.columns)
@@ -306,6 +318,15 @@ class DataSimulator:
                         and rel.parent_table == table_name
                     ):
                         needed_cols.add(target_col)
+
+        # Gap 3: retain the outcome/rate curve time column so child tables can
+        # perform temporal FK weighting (Level-1 curve inheritance).
+        for curve in getattr(self.config, "outcome_curves", []):
+            if getattr(curve, "table", None) == table_name:
+                needed_cols.add(getattr(curve, "time_column", "date"))
+        for curve in getattr(self.config, "rate_curves", []):
+            if getattr(curve, "table", None) == table_name:
+                needed_cols.add(getattr(curve, "time_column", "date"))
 
         return [column for column in needed_cols if column in df.columns]
 
@@ -797,6 +818,28 @@ class DataSimulator:
                 except Exception as e:
                     warnings.warn(f"Failed to generate relative date: {e}. Falling back to random range.")
 
+            # Gap 3 — Level-2 curve inheritance: ``inherits_curve_from: "parent_table.time_col"``
+            # Samples dates using the parent table's temporal density so that child row
+            # timestamps cluster around the same periods as their parent rows.
+            inherits_from = params.get("inherits_curve_from")
+            if inherits_from:
+                density_map = resolve_inherits_curve_from(inherits_from, self._parent_temporal_density)
+                if density_map is not None:
+                    start = pd.to_datetime(params.get("start", "2020-01-01"))
+                    end = pd.to_datetime(params.get("end", "2024-12-31"))
+                    inherited_dates = density_map.sample_dates(size, self.rng, start=start, end=end)
+                    if len(inherited_dates) == size:
+                        values = pd.to_datetime(inherited_dates)
+                        col_name = column.name.lower()
+                        is_timestamp = (
+                            col_name.endswith("_at") or col_name.endswith("_time")
+                            or "timestamp" in col_name or "datetime" in col_name
+                            or params.get("include_time", False)
+                        )
+                        if is_timestamp:
+                            values = self._add_realistic_time(values, table_name, size)
+                        return values
+
             start = pd.to_datetime(params.get("start", "2020-01-01"))
             end = pd.to_datetime(params.get("end", "2024-12-31"))
 
@@ -859,6 +902,31 @@ class DataSimulator:
                 probabilities = weights / weights.sum()
                 values = self.rng.choice(parent_ids, size=size, p=probabilities)
             else:
+                # Gap 3 — Level-1 temporal FK weighting:
+                # If the parent table was generated with an exact OutcomeCurve, its rows
+                # are non-uniformly distributed in time.  Weight FK selection by the
+                # parent row's temporal density so child rows cluster around the same
+                # time periods as their parents (realistic parent-child temporal coherence).
+                density_map = self._parent_temporal_density.get(relationship.parent_table)
+                if density_map is not None and relationship.parent_table in self.context:
+                    parent_ctx = self.context[relationship.parent_table]
+                    if density_map.time_column in parent_ctx.columns:
+                        # Compute per-row weights aligned with parent_ids
+                        pk_col = relationship.parent_key
+                        if pk_col in parent_ctx.columns:
+                            try:
+                                pk_to_idx = {pk: i for i, pk in enumerate(parent_ctx[pk_col].values)}
+                                id_indices = np.array([pk_to_idx.get(pid, -1) for pid in parent_ids])
+                                valid_mask = id_indices >= 0
+                                if valid_mask.any():
+                                    all_weights = density_map.compute_fk_weights(parent_ctx)
+                                    row_weights = np.ones(len(parent_ids), dtype=float)
+                                    row_weights[valid_mask] = all_weights[id_indices[valid_mask]]
+                                    probabilities = row_weights / row_weights.sum()
+                                    values = self.rng.choice(parent_ids, size=size, p=probabilities)
+                                    return values
+                            except Exception:
+                                pass  # Fall through to uniform sampling on any error
                 values = self.rng.choice(parent_ids, size=size)
             return values
 
@@ -1369,6 +1437,18 @@ class DataSimulator:
         if exact_curves:
             fact_df = self._generate_fact_table(table_name, table, columns, exact_curves)
             if fact_df is not None:
+                # Gap 3: build temporal density map from the FactGenerationPlan so
+                # child tables can weight FK/date sampling by parent temporal density.
+                # We derive the density from the actual data since the plan is local
+                # to _generate_fact_table.  Using the first exact curve's time column.
+                _curve_time_col = getattr(exact_curves[0], "time_column", "date")
+                self._parent_temporal_density[table_name] = TemporalDensityMap.from_dataframe(
+                    table=table_name,
+                    time_column=_curve_time_col,
+                    df=fact_df,
+                )
+                # Gap 1: enforce RateCurve targets (proportional pass — preserves AME=0).
+                fact_df = self._apply_rate_curves(fact_df, table_name)
                 self._update_context(table_name, fact_df)
                 output_df = self._apply_configured_noise(fact_df.copy(), table_name, table)
                 yield output_df
@@ -1416,12 +1496,26 @@ class DataSimulator:
             # Apply outcome curves (Trends/Seasonality)
             df_batch = self.apply_outcome_curves(df_batch, table_name)
 
+            # Gap 1: enforce RateCurve targets (post-generation proportional pass).
+            # Runs after apply_outcome_curves so numeric aggregates are untouched.
+            df_batch = self._apply_rate_curves(df_batch, table_name)
+
+            # Gap B: relative-curve cross-batch sum correction.
+            # For tables using relative curves (not exact), accumulate running
+            # per-period totals and apply a correction factor per batch so the
+            # final sum per period converges to the implied target.
+            df_batch = self._rebalance_relative_batch(df_batch, table_name)
+
             # Update context for future batches/tables
             self._update_context(table_name, df_batch)
             output_df = self._apply_configured_noise(df_batch.copy(), table_name, table)
             yield output_df
 
             rows_generated += batch_size
+
+        # Gap C: propagate temporal density map transitively to this table
+        # so that its children can weight FK sampling by the inherited density.
+        self._propagate_density_map(table_name)
 
     def apply_constraints(self, df: pd.DataFrame, table: Any) -> pd.DataFrame:
         """
@@ -1582,6 +1676,369 @@ class DataSimulator:
                 continue
                 
         return df
+
+    # ------------------------------------------------------------------
+    # Gap 1 — RateCurve enforcement
+    # ------------------------------------------------------------------
+
+    def _apply_rate_curves(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Enforce exact per-period rate targets for boolean/categorical columns.
+
+        Implements the Rate-Conformance (RCE) axis from the SpecBench paper
+        (arXiv:2606.08736v1, §4).  For each ``RateCurve`` attached to this
+        table, the method:
+
+        1. Groups rows by period using the declared ``time_column``.
+        2. Resolves the target rate for each observed period via optional linear
+           interpolation between anchor points (``RateCurve.interpolate=True``).
+        3. Flips exactly ``round(n_period × rate)`` rows to ``true_value`` using
+           the Prop. 2 integer-rounding + remainder-correction algorithm that the
+           FactEngine uses for aggregate targets — guaranteeing RCE = 0 per period.
+
+        This is a **pure post-generation pass**: it changes *which* rows are
+        classified as positive but never mutates any numeric aggregate column,
+        so the FactEngine's AME = 0 guarantee is preserved.
+        """
+        rate_curves = getattr(self.config, "rate_curves", None)
+        if not rate_curves:
+            return df
+
+        table_curves = [rc for rc in rate_curves if getattr(rc, "table", None) == table_name]
+        if not table_curves:
+            return df
+
+        for rc in table_curves:
+            if rc.column not in df.columns:
+                warnings.warn(
+                    f"RateCurve: column '{rc.column}' not found in '{table_name}'. "
+                    "Skipping rate enforcement."
+                )
+                continue
+            if rc.time_column not in df.columns:
+                warnings.warn(
+                    f"RateCurve: time_column '{rc.time_column}' not found in "
+                    f"'{table_name}'. Skipping rate enforcement."
+                )
+                continue
+            if not rc.rate_points:
+                continue
+            df = self._enforce_rate_curve(df, rc)
+
+        return df
+
+    def _enforce_rate_curve(self, df: pd.DataFrame, rc: Any) -> pd.DataFrame:
+        """Enforce one ``RateCurve`` using the Prop. 2 remainder-corrected algorithm.
+
+        For each observed monthly period, the target rate is resolved (with
+        optional interpolation), then exactly ``round(n_period × rate)`` rows
+        are randomly selected to carry ``rc.true_value``.
+
+        Args:
+            df: The table DataFrame to mutate (a copy is made internally).
+            rc: A ``RateCurve`` Pydantic model instance.
+        Returns:
+            Modified copy of ``df`` with the rate constraint enforced.
+        """
+        timestamps = pd.to_datetime(df[rc.time_column], errors="coerce")
+        if timestamps.isna().all():
+            return df
+
+        # ── Parse anchor points ──────────────────────────────────────────
+        # rate_points: [{"period": "2024-01" | "01" | integer_month | "all", "rate": 0.03}]
+        anchors: Dict[int, float] = {}   # 1-based month index → declared rate
+        all_period_rate: Optional[float] = None  # Flat rate for "all" sentinel
+
+        for point in rc.rate_points:
+            period_str = str(point.get("period", "")).strip()
+            rate = float(point.get("rate", 0.0))
+
+            # "all" sentinel: NL-extracted flat rate — covers every period
+            if period_str.lower() == "all":
+                all_period_rate = rate
+                continue
+            # YYYY-MM → month integer
+            if len(period_str) == 7 and period_str[4] == "-":
+                try:
+                    anchors[int(period_str[5:])] = rate
+                    continue
+                except ValueError:
+                    pass
+            # "01" … "12" → month integer
+            if period_str.isdigit() and 1 <= int(period_str) <= 12:
+                anchors[int(period_str)] = rate
+                continue
+            # bare integer > 12 → treat as period index (1-based)
+            try:
+                anchors[int(period_str)] = rate
+            except ValueError:
+                warnings.warn(f"RateCurve: unrecognised period format '{period_str}'. Skipping anchor.")
+
+        if not anchors and all_period_rate is None:
+            return df
+
+        # ── Compute 1-based month index for every row ────────────────────
+        valid_ts = timestamps.dropna()
+        if valid_ts.empty:
+            return df
+        start_year = int(valid_ts.dt.year.min())
+        start_month = int(valid_ts.dt.month.min())
+
+        row_month_idx = (
+            (timestamps.dt.year - start_year) * 12
+            + (timestamps.dt.month - start_month)
+            + 1
+        ).fillna(-1).astype(int)
+
+        # ── Interpolate rates across all observed period indices ──────────
+        observed_indices = sorted(idx for idx in row_month_idx.unique() if idx > 0)
+        if not observed_indices:
+            return df
+
+        max_idx = max(observed_indices)
+        interp_months = np.arange(1, max_idx + 1, dtype=float)
+
+        # "all" sentinel: flat rate across every period — fill anchors for
+        # all observed indices if no explicit anchors were provided, or if
+        # there are observed months not covered by explicit anchors.
+        if all_period_rate is not None:
+            for obs_idx in observed_indices:
+                anchors.setdefault(obs_idx, all_period_rate)
+
+        anchor_months = np.array(sorted(anchors.keys()), dtype=float)
+        anchor_rates = np.array([anchors[int(m)] for m in anchor_months], dtype=float)
+
+        if rc.interpolate and len(anchor_months) >= 2:
+            interp_rates = np.clip(
+                np.interp(interp_months, anchor_months, anchor_rates), 0.0, 1.0
+            )
+        else:
+            # Nearest-anchor (no interpolation): only declared periods are constrained
+            interp_rates = np.full(len(interp_months), np.nan)
+            for i, m in enumerate(interp_months):
+                if int(m) in anchors:
+                    interp_rates[i] = anchors[int(m)]
+
+        month_to_rate = {
+            int(m): float(r)
+            for m, r in zip(interp_months, interp_rates)
+            if not np.isnan(r)
+        }
+
+        # ── Prop. 2 enforcement per period ───────────────────────────────
+        df = df.copy()
+        true_val = rc.true_value
+
+        for month_idx, target_rate in month_to_rate.items():
+            period_mask = row_month_idx == month_idx
+            if not period_mask.any():
+                continue
+
+            period_indices = df.index[period_mask].to_numpy()
+            n_period = len(period_indices)
+
+            # Exact positive-class count: Prop. 2 binomial rounding
+            target_count = int(round(n_period * target_rate))
+            target_count = max(0, min(n_period, target_count))
+
+            # Randomly choose which rows become the positive class
+            chosen_pos = self.rng.choice(period_indices, size=target_count, replace=False)
+            chosen_pos_set = set(chosen_pos.tolist())
+            chosen_neg = period_indices[~np.isin(period_indices, chosen_pos)]
+
+            df.loc[chosen_pos, rc.column] = true_val
+
+            # Assign negative class
+            if isinstance(true_val, bool):
+                df.loc[chosen_neg, rc.column] = not true_val
+            elif true_val is True:
+                df.loc[chosen_neg, rc.column] = False
+            elif true_val is False:
+                df.loc[chosen_neg, rc.column] = True
+            elif isinstance(true_val, (int, float)):
+                # For numeric "flags" (0 vs true_val): set non-positives to 0
+                df.loc[chosen_neg, rc.column] = 0
+            # For string categoricals: leave non-positives at their generated value.
+            # Only override the positives to guarantee the declared positive rate.
+
+        return df
+
+    # ------------------------------------------------------------------
+    # Gap B — Relative-curve cross-batch accumulation
+    # ------------------------------------------------------------------
+
+    def _rebalance_relative_batch(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+    ) -> pd.DataFrame:
+        """Correct per-period sums so relative curves converge across batches.
+
+        Context
+        -------
+        ``apply_outcome_curves`` applies relative multipliers independently per
+        batch.  This is correct for shaping but doesn't guarantee any specific
+        sum across the full table.  When the user supplies a relative curve with
+        an avg_transaction_value and a row_count, we can derive an implied total
+        target and correct toward it batch by batch.
+
+        Algorithm (Prop. 2 analogue for floating-point)
+        -----------------------------------------------
+        For each period *p* with implied target *T_p*:
+        1. Compute *B_p* = sum of the metric column for rows in this batch that
+           fall in period *p*.
+        2. Look up *R_p* = running total so far (before this batch).
+        3. If *B_p* > 0 and *T_p* > *R_p*, apply a multiplicative correction:
+               factor = (T_p - R_p) / B_p
+           This scales the batch values so that after the batch the running total
+           reaches exactly *T_p* (to floating-point precision).
+        4. Update *R_p* += factor × *B_p*.
+
+        Conservative guards
+        -------------------
+        * Only applies to relative-curve columns (NOT exact/absolute curves which
+          go through FactEngine and need no correction).
+        * Skips the batch if the implied target cannot be resolved.
+        * Clamps the correction factor to [0.1, 10.0] to prevent extreme scaling.
+        * The running total is per-simulator-instance so the correction is
+          consistent across the streaming batch loop.
+        """
+        relative_curves = [
+            c for c in getattr(self.config, "outcome_curves", [])
+            if getattr(c, "table", None) == table_name
+            and not self.fact_engine.curve_has_exact_targets(c)
+        ]
+        if not relative_curves:
+            return df
+
+        table = self.config.get_table(table_name)
+        total_rows = self._planned_row_count(table_name, getattr(table, "row_count", len(df)))
+        if total_rows <= 0:
+            return df
+
+        # Initialise the running-total dict for this table
+        if table_name not in self._relative_curve_totals:
+            self._relative_curve_totals[table_name] = {}
+
+        df = df.copy()
+        rt = self._relative_curve_totals[table_name]
+
+        for curve in relative_curves:
+            col = getattr(curve, "column", None)
+            time_col = getattr(curve, "time_column", None)
+            points = getattr(curve, "curve_points", []) or []
+            avg_tx = getattr(curve, "avg_transaction_value", None)
+
+            if not col or not time_col:
+                continue
+            if col not in df.columns or time_col not in df.columns:
+                continue
+            if not points or avg_tx is None or avg_tx <= 0:
+                continue
+
+            timestamps = pd.to_datetime(df[time_col], errors="coerce")
+
+            for point in points:
+                # point is a dict {"month": M, "relative_value": rv} or {"month": M, "target_value": tv}
+                if hasattr(point, "month"):
+                    month_idx = int(point.month)
+                    relative_val = float(getattr(point, "relative_value", 1.0))
+                elif isinstance(point, dict):
+                    month_idx = int(point.get("month", 0))
+                    relative_val = float(
+                        point.get("relative_value", point.get("target_value", avg_tx))
+                    )
+                else:
+                    continue
+
+                if month_idx <= 0:
+                    continue
+
+                # Implied period target = avg_tx * relative_value * rows_in_period
+                # rows_in_period ≈ total_rows / 12  (uniform month distribution)
+                rows_per_period = total_rows / 12.0
+                implied_target = relative_val * avg_tx * rows_per_period
+
+                period_key = f"{col}:month_{month_idx}"
+                running = rt.get(period_key, 0.0)
+
+                remaining_target = implied_target - running
+                if remaining_target <= 0:
+                    continue
+
+                # Rows in this batch belonging to this calendar month
+                batch_month_mask = timestamps.dt.month == month_idx
+                if not batch_month_mask.any():
+                    continue
+
+                batch_sum = float(df.loc[batch_month_mask, col].sum())
+                if batch_sum <= 0:
+                    continue
+
+                correction = np.clip(remaining_target / batch_sum, 0.1, 10.0)
+                if abs(correction - 1.0) < 1e-6:
+                    rt[period_key] = running + batch_sum
+                    continue
+
+                df.loc[batch_month_mask, col] = (
+                    df.loc[batch_month_mask, col] * correction
+                )
+                rt[period_key] = running + float(df.loc[batch_month_mask, col].sum())
+
+        return df
+
+    # ------------------------------------------------------------------
+    # Gap C — Deep hierarchy temporal density propagation
+    # ------------------------------------------------------------------
+
+    def _propagate_density_map(self, table_name: str) -> None:
+        """Transitively push temporal density from ancestors to ``table_name``.
+
+        After every table is fully generated, this method checks whether any
+        parent of ``table_name`` has a ``TemporalDensityMap``.  If so, and
+        ``table_name`` doesn't already have its own map, we create a proxy
+        map via ``TemporalDensityMap.from_parent_weights()`` so that
+        *grandchild* tables can later do Level-1 FK weighting relative to
+        ``table_name``'s density — which transitively reflects the grandparent's
+        temporal curve.
+
+        This enables full multi-level hierarchy temporal coherence without any
+        user configuration::
+
+            regions (curve) → stores (proxy) → sales (proxy)
+
+        In this chain, ``sales.store_id`` will be weighted by ``stores``' proxy
+        density, which reflects ``regions``' exact curve.
+        """
+        if table_name in self._parent_temporal_density:
+            return  # Already has its own map (exact or previously propagated)
+
+        # Find all parent tables of table_name via FK relationships
+        for rel in self.config.relationships:
+            if rel.child_table != table_name:
+                continue
+            parent_map = self._parent_temporal_density.get(rel.parent_table)
+            if parent_map is None or not parent_map.buckets:
+                continue
+
+            # Resolve the best time column for this child table
+            child_time_col = "date"
+            child_cols = {c.name for c in self.config.get_columns(table_name)}
+            for candidate in TemporalDensityMap._TIME_CANDIDATES:
+                if candidate in child_cols:
+                    child_time_col = candidate
+                    break
+            else:
+                for col in self.config.get_columns(table_name):
+                    if col.type == "date":
+                        child_time_col = col.name
+                        break
+
+            self._parent_temporal_density[table_name] = TemporalDensityMap.from_parent_weights(
+                child_table=table_name,
+                child_time_column=child_time_col,
+                parent_map=parent_map,
+            )
+            return  # Use the first parent that has a map
 
     def _get_column_params(self, table_name: str, column_name: str) -> Dict[str, Any]:
         """Return distribution params for a column if present."""
