@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0] - 2026-05-10
 
+### Research
+
+- Published **"Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark"** (arXiv:2606.08736v1) — the first peer-reviewed paper formalising Misata's exact-aggregate engine. Proves the mechanism is exactly conditional-sum sampling of a Gamma population (Lukacs' characterisation), contributes **SpecBench** (the first conformance benchmark for cold-start relational synthesis), and shows off-the-shelf imitation synthesisers miss declared monthly aggregates by 74–86% while the closed-form engine reaches exactly 0.
+
 ### Added
 
 #### Mimic mode — privacy-safe synthetic twins from real CSVs
