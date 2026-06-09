@@ -40,6 +40,7 @@ from misata.schema import (
     Column,
     Constraint,
     OutcomeCurve,
+    RateCurve,
     Relationship,
     ScenarioEvent,
     SchemaConfig,
@@ -151,16 +152,34 @@ relationships:
 #     modifier_type: multiply
 #     modifier_value: 1.5
 
-# ── Outcome curves (hit exact aggregate targets) ──────────────────────────────
+# ── Outcome curves (hit exact aggregate targets) ────────────────────────────
 # outcome_curves:
 #   - table: orders
 #     column: amount
-#     time_column: placed_at
-#     time_unit: month
-#     pattern_type: growth
+#     time_column: order_date
+#     time_unit: month           # day | week | month | quarter
+#     pattern_type: growth       # growth | seasonal | decline | flat
+#     avg_transaction_value: 75  # used to plan row counts (paper §3.1)
+#     concentration: 2.0         # Dirichlet α — controls per-row dispersion (§3.2)
+#     start_date: "2024-01-01"   # override start date inferred from time_column
+#     intra_period_pattern: uniform   # uniform | weekday_heavy | weekend_heavy
 #     curve_points:
-#       - {period: "2022-01", value: 10000}
+#       - {period: "2024-01", value: 10000}   # exact monthly aggregate target
+#       - {period: "2024-06", value: 45000}
 #       - {period: "2024-12", value: 120000}
+#
+# ── Rate curves (hit exact per-period rate targets) ──────────────────────────
+# rate_curves:
+#   - table: transactions
+#     column: is_fraud
+#     time_column: transaction_date
+#     time_unit: quarter         # day | week | month | quarter
+#     true_value: true           # value counted as the positive class
+#     interpolate: true          # linearly interpolate rates between anchors
+#     rate_points:
+#       - {period: "2024-01", rate: 0.02}   # 2% fraud rate in January
+#       - {period: "2024-06", rate: 0.04}   # 4% by June
+#       - {period: "2024-12", rate: 0.05}   # 5% by December
 """
 
 
@@ -280,8 +299,25 @@ def _parse_curve(raw: Dict[str, Any]) -> OutcomeCurve:
         time_column=raw.get("time_column", "date"),
         time_unit=raw.get("time_unit", "month"),
         pattern_type=raw.get("pattern_type", "seasonal"),
-        curve_points=list(raw.get("curve_points", [])),
+        intra_period_pattern=raw.get("intra_period_pattern", "uniform"),
+        avg_transaction_value=raw.get("avg_transaction_value"),
+        concentration=float(raw.get("concentration", 2.0)),
+        start_date=raw.get("start_date"),
         description=raw.get("description"),
+        curve_points=list(raw.get("curve_points", [])),
+    )
+
+
+def _parse_rate_curve(raw: Dict[str, Any]) -> RateCurve:
+    return RateCurve(
+        table=raw["table"],
+        column=raw["column"],
+        time_column=raw.get("time_column", "date"),
+        time_unit=raw.get("time_unit", "month"),
+        true_value=raw.get("true_value", True),
+        interpolate=bool(raw.get("interpolate", True)),
+        description=raw.get("description"),
+        rate_points=list(raw.get("rate_points", [])),
     )
 
 
@@ -365,6 +401,9 @@ def load_yaml_schema(
     # Outcome curves
     outcome_curves = [_parse_curve(c) for c in (raw.get("outcome_curves") or [])]
 
+    # Rate curves
+    rate_curves = [_parse_rate_curve(c) for c in (raw.get("rate_curves") or [])]
+
     return SchemaConfig(
         name=name,
         domain=domain,
@@ -373,6 +412,7 @@ def load_yaml_schema(
         relationships=relationships,
         events=events,
         outcome_curves=outcome_curves,
+        rate_curves=rate_curves,
         seed=file_seed,
     )
 
@@ -458,9 +498,34 @@ def save_yaml_schema(
                 "time_column": c.time_column,
                 "time_unit": c.time_unit,
                 "pattern_type": c.pattern_type,
+                **({"avg_transaction_value": c.avg_transaction_value}
+                   if c.avg_transaction_value is not None else {}),
+                **({"concentration": c.concentration}
+                   if c.concentration != 2.0 else {}),
+                **({"start_date": c.start_date}
+                   if c.start_date is not None else {}),
+                **({"intra_period_pattern": c.intra_period_pattern}
+                   if c.intra_period_pattern not in (None, "uniform") else {}),
                 "curve_points": c.curve_points,
             }
             for c in schema.outcome_curves
+        ]
+
+    # Rate curves
+    if getattr(schema, "rate_curves", None):
+        doc["rate_curves"] = [
+            {
+                "table": rc.table,
+                "column": rc.column,
+                "time_column": rc.time_column,
+                "time_unit": rc.time_unit,
+                **({"true_value": rc.true_value}
+                   if rc.true_value is not True else {}),
+                **({"interpolate": rc.interpolate}
+                   if not rc.interpolate else {}),
+                "rate_points": rc.rate_points,
+            }
+            for rc in schema.rate_curves
         ]
 
     path.write_text(

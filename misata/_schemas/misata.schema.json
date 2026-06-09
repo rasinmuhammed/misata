@@ -80,6 +80,11 @@
       "description": "Aggregate target curves (e.g. monthly MRR shape) the generator must hit.",
       "items": { "$ref": "#/$defs/outcome_curve" }
     },
+    "rate_curves": {
+      "type": "array",
+      "description": "Per-period rate constraints for boolean/categorical columns (e.g. fraud rate rising from 2% to 6%).",
+      "items": { "$ref": "#/$defs/rate_curve" }
+    },
     "noise": {
       "$ref": "#/$defs/noise_config",
       "description": "Optional noise injection rules for ML-realistic imperfections."
@@ -497,6 +502,48 @@
         "typo_columns": { "type": "array", "items": { "type": "string" } },
         "protected_columns": { "type": "array", "items": { "type": "string" } },
         "exact_duplicates": { "type": "boolean" }
+      }
+    },
+    "rate_curve": {
+      "type": "object",
+      "required": ["table", "column", "rate_points"],
+      "properties": {
+        "table": { "type": "string", "description": "Table containing the column to constrain." },
+        "column": { "type": "string", "description": "Boolean or categorical column to set the rate on." },
+        "time_column": { "type": "string", "description": "Date column used to bucket rows into periods. Defaults to 'date'." },
+        "time_unit": {
+          "type": "string",
+          "enum": ["day", "week", "month", "quarter"],
+          "description": "Granularity of each period bucket. Defaults to 'month'."
+        },
+        "true_value": {
+          "description": "The value counted as the positive class."
+        },
+        "interpolate": {
+          "type": "boolean",
+          "description": "If true, rates between anchor points are linearly interpolated."
+        },
+        "description": { "type": "string" },
+        "rate_points": {
+          "type": "array",
+          "description": "List of {period, rate} anchor points.",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["period", "rate"],
+            "properties": {
+              "period": {
+                "description": "Period label: 'YYYY-MM', 'all', or a 1-12 integer month index."
+              },
+              "rate": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Target rate (proportion) for the positive class in this period."
+              }
+            }
+          }
+        }
       }
     },
     "realism_config": {

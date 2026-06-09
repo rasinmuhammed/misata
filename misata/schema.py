@@ -275,6 +275,52 @@ class OutcomeCurve(BaseModel):
     curve_points: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class RateCurve(BaseModel):
+    """Declares an exact rate target for a boolean or categorical column per period.
+
+    This covers the rate-conformance (RCE) axis from the SpecBench paper —
+    orthogonal to the aggregate (AME) axis captured by ``OutcomeCurve``.
+
+    Example — exactly 3% fraud in Q1 rising to 5% by Q4::
+
+        RateCurve(
+            table="transactions",
+            column="is_fraud",
+            time_column="transaction_date",
+            time_unit="month",
+            rate_points=[
+                {"period": "2024-01", "rate": 0.03},
+                {"period": "2024-06", "rate": 0.04},
+                {"period": "2024-12", "rate": 0.05},
+            ],
+        )
+
+    Attributes:
+        table:        Table containing the column to constrain.
+        column:       Boolean or categorical column to set the rate on.
+        time_column:  Date/time column used to bucket rows into periods.
+        time_unit:    Granularity of each period bucket.
+        true_value:   The value counted as the "positive" class (default ``True``).
+        interpolate:  When True, rates between declared anchor points are
+                      linearly interpolated. When False, only declared periods
+                      are constrained and the rest are left at their generated
+                      distribution.
+        description:  Human-readable description of what this rate curve models.
+        rate_points:  List of ``{"period": "YYYY-MM", "rate": 0.03}`` dicts.
+                      ``period`` accepts ``"YYYY-MM"`` (month), ``"YYYY-Qn"``
+                      (quarter), or an integer month index.
+    """
+
+    table: str
+    column: str
+    time_column: str = "date"
+    time_unit: Literal["day", "week", "month", "quarter"] = "month"
+    true_value: Any = True
+    interpolate: bool = True
+    description: Optional[str] = None
+    rate_points: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class NoiseConfig(BaseModel):
     """
     Configuration for optional realism noise injection.
@@ -365,6 +411,7 @@ class SchemaConfig(BaseModel):
     relationships: List[Relationship] = Field(default_factory=list)
     events: List[ScenarioEvent] = Field(default_factory=list)
     outcome_curves: List[OutcomeCurve] = Field(default_factory=list)
+    rate_curves: List[RateCurve] = Field(default_factory=list)
     noise_config: Optional[NoiseConfig] = None
     realism: Optional[RealismConfig] = None
     seed: Optional[int] = None

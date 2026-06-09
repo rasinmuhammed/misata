@@ -409,6 +409,8 @@ from misata.schema import (
     Column,
     Constraint,
     NoiseConfig,
+    OutcomeCurve,
+    RateCurve,
     RealismConfig,
     Relationship,
     ScenarioEvent,
@@ -419,6 +421,13 @@ from misata.simulator import DataSimulator, GenerationResult
 from misata.story_parser import StoryParser, DetectionReport
 from misata.llm_parser import LLMSchemaGenerator
 from misata.validation import SchemaValidationError, validate_schema, validate_data, validate_csv, CsvValidationReport
+from misata.outcome_builder import OutcomeCurveBuilder, RateCurveBuilder
+from misata.conformance import (
+    conformance_preview,
+    ConformancePreview,
+    CurvePreview,
+    PeriodPreview,
+)
 from misata.timeseries import (
     generate_timeseries,
     TimeSeriesConfig,
@@ -547,6 +556,8 @@ __all__ = [
     "Column",
     "Constraint",
     "NoiseConfig",
+    "OutcomeCurve",
+    "RateCurve",
     "RealismConfig",
     "Relationship",
     "ScenarioEvent",
@@ -555,6 +566,13 @@ __all__ = [
     "DataSimulator",
     "GenerationResult",
     "FactEngine",
+    # Outcome curve SDK
+    "OutcomeCurveBuilder",
+    "RateCurveBuilder",
+    "conformance_preview",
+    "ConformancePreview",
+    "CurvePreview",
+    "PeriodPreview",
     # Parsers
     "StoryParser",
     "DetectionReport",
