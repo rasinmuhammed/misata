@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from misata.schema import Column, OutcomeCurve, Relationship, ScenarioEvent, SchemaConfig, Table
+from misata.schema import Column, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 
 
 @dataclass
@@ -674,6 +674,225 @@ class StoryParser:
             curve_points=curve_points,
         )
 
+    # ── Rate-noun → (candidate column names, true_value) ──────────────────
+    # Each entry maps a natural-language rate noun to the boolean column names
+    # that domain templates may produce, plus the value that represents the
+    # positive class.  The simulator's _enforce_rate_curve picks the first
+    # candidate column name that actually exists in the generated table.
+    RATE_NOUN_MAP: Dict[str, Dict[str, Any]] = {
+        "fraud":       {"columns": ["is_fraud", "is_fraudulent", "fraud"], "true_value": True},
+        "fraudulent":  {"columns": ["is_fraudulent", "is_fraud"],          "true_value": True},
+        "churn":       {"columns": ["is_churned", "churned"],               "true_value": True},
+        "churned":     {"columns": ["is_churned", "churned"],               "true_value": True},
+        "defect":      {"columns": ["is_defective", "defective"],           "true_value": True},
+        "defective":   {"columns": ["is_defective", "defective"],           "true_value": True},
+        "late":        {"columns": ["is_late", "late", "is_delayed"],       "true_value": True},
+        "delayed":     {"columns": ["is_delayed", "is_late"],               "true_value": True},
+        "default":     {"columns": ["is_defaulted", "defaulted"],           "true_value": True},
+        "defaulted":   {"columns": ["is_defaulted", "defaulted"],           "true_value": True},
+        "cancelled":   {"columns": ["is_cancelled", "cancelled", "status"], "true_value": True},
+        "returned":    {"columns": ["is_returned", "returned"],              "true_value": True},
+        "active":      {"columns": ["is_active", "active"],                 "true_value": True},
+        "inactive":    {"columns": ["is_active", "active"],                 "true_value": False},
+    }
+
+    # Column names considered as the "time" axis, in priority order.
+    _TIME_COLUMN_CANDIDATES = ["date", "created_at", "transaction_date", "order_date",
+                                "event_date", "signup_date", "timestamp", "payment_date"]
+
+    def _resolve_rate_time_column(self, schema: SchemaConfig, table_name: str) -> str:
+        """Return the most plausible time column for a given table in the schema."""
+        cols = {c.name for c in schema.get_columns(table_name)}
+        for candidate in self._TIME_COLUMN_CANDIDATES:
+            if candidate in cols:
+                return candidate
+        # Fallback: first date-typed column
+        for col in schema.get_columns(table_name):
+            if col.type == "date":
+                return col.name
+        return "date"
+
+    def _extract_rate_curves(self, story: str, schema: SchemaConfig) -> List[RateCurve]:
+        """Extract RateCurve constraints from natural-language stories.
+
+        Recognises three pattern families:
+
+        1. **Flat rate**: ``"2% fraud rate"`` → single anchor covering all periods.
+        2. **Period-specific**: ``"3% fraud in Q1"`` → one anchor at month 2 (Q1 midpoint).
+        3. **Rising / falling range**: ``"3% fraud in Q1 rising to 8% by Q4"`` →
+           two anchor points with ``interpolate=True``.
+
+        The method is deliberately conservative — it only emits a RateCurve when
+        the rate noun maps to a known boolean column that exists (or will exist) in
+        the schema, and the detected rate is in (0, 1).  Ambiguous or unparseable
+        patterns are silently skipped.
+
+        Args:
+            story:  Raw user story text.
+            schema: The SchemaConfig already built by the domain builder.
+
+        Returns:
+            List of ``RateCurve`` objects to attach to ``schema.rate_curves``.
+        """
+        story_lower = story.lower()
+        curves: List[RateCurve] = []
+
+        # Quarter → representative month index for anchor points.
+        _Q_MID = {"q1": 2, "q2": 5, "q3": 8, "q4": 11}
+        _Q_LAST = {"q1": 3, "q2": 6, "q3": 9, "q4": 12}
+
+        _MONTH_RE = (
+            r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?"
+            r"|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?"
+            r"|nov(?:ember)?|dec(?:ember)?"
+        )
+        _Q_RE = r"q[1-4]"
+        _PERIOD_RE = rf"(?:{_MONTH_RE}|{_Q_RE})"
+
+        def _period_to_month(tok: str) -> int:
+            tok = tok.lower()
+            if tok in _Q_MID:
+                return _Q_MID[tok]
+            if tok in _Q_LAST:
+                return _Q_LAST[tok]
+            return self.MONTHS.get(tok[:3], self.MONTHS.get(tok, 1))
+
+        def _end_period_to_month(tok: str) -> int:
+            """Use the LAST month of a quarter as the end anchor."""
+            tok = tok.lower()
+            if tok in _Q_LAST:
+                return _Q_LAST[tok]
+            return self.MONTHS.get(tok[:3], self.MONTHS.get(tok, 12))
+
+        # Try each known rate noun in the story
+        for noun, spec in self.RATE_NOUN_MAP.items():
+            # Must appear in the story
+            if not re.search(rf"\b{re.escape(noun)}\b", story_lower):
+                continue
+
+            # Find the target table and column in the schema
+            target_table: Optional[str] = None
+            target_col: Optional[str] = None
+            for table in schema.tables:
+                col_names = {c.name for c in schema.get_columns(table.name)}
+                for cand in spec["columns"]:
+                    if cand in col_names:
+                        target_table = table.name
+                        target_col = cand
+                        break
+                if target_col:
+                    break
+
+            if target_table is None or target_col is None:
+                continue  # noun present but column not in schema — skip
+
+            time_col = self._resolve_rate_time_column(schema, target_table)
+
+            # ── Pattern 3: rising / falling range ─────────────────────────
+            # "3% fraud in Q1 rising/climbing/growing/dropping to 8% by Q4"
+            range_match = re.search(
+                rf"(\d+(?:\.\d+)?)%\s*(?:[\w\s]{{0,12}})?{re.escape(noun)}[\w\s]{{0,30}}?"
+                rf"(?:in|during|at)?\s*({_PERIOD_RE})\s*"
+                rf"(?:rising|climbing|growing|increasing|falling|dropping|declining)\s*to\s*"
+                rf"(\d+(?:\.\d+)?)%\s*(?:by|in|at)?\s*({_PERIOD_RE})",
+                story_lower,
+                re.IGNORECASE,
+            )
+            if not range_match:
+                # Also try reversed noun-first form: "fraud rising from 3% in Q1 to 8% by Q4"
+                range_match = re.search(
+                    rf"{re.escape(noun)}[\w\s]{{0,20}}?"
+                    rf"(?:from)?\s*(\d+(?:\.\d+)?)%\s*(?:in|at)?\s*({_PERIOD_RE})\s*"
+                    rf"(?:to|through|until)\s*(\d+(?:\.\d+)?)%\s*(?:by|in|at)?\s*({_PERIOD_RE})",
+                    story_lower,
+                    re.IGNORECASE,
+                )
+
+            if range_match:
+                r1 = float(range_match.group(1)) / 100.0
+                p1 = _period_to_month(range_match.group(2))
+                r2 = float(range_match.group(3)) / 100.0
+                p2 = _end_period_to_month(range_match.group(4))
+                if 0 < r1 <= 1 and 0 < r2 <= 1 and p1 != p2:
+                    curves.append(RateCurve(
+                        table=target_table,
+                        column=target_col,
+                        time_column=time_col,
+                        true_value=spec["true_value"],
+                        interpolate=True,
+                        description=f"NL-extracted: {noun} {r1*100:.1f}%→{r2*100:.1f}%",
+                        rate_points=[
+                            {"period": str(p1), "rate": round(r1, 6)},
+                            {"period": str(p2), "rate": round(r2, 6)},
+                        ],
+                    ))
+                    continue  # Don't also add a flat anchor for the same noun
+
+            # ── Pattern 2: single period anchor ───────────────────────────
+            # "3% fraud in Q1" / "fraud rate of 5% in January"
+            period_match = re.search(
+                rf"(\d+(?:\.\d+)?)%\s*(?:[\w\s]{{0,12}})?{re.escape(noun)}[\w\s]{{0,20}}?"
+                rf"(?:in|during|at|for)?\s*({_PERIOD_RE})",
+                story_lower,
+                re.IGNORECASE,
+            )
+            if not period_match:
+                period_match = re.search(
+                    rf"{re.escape(noun)}[\w\s]{{0,20}}?"
+                    rf"(?:of|at|=)?\s*(\d+(?:\.\d+)?)%\s*(?:in|during|at)?\s*({_PERIOD_RE})",
+                    story_lower,
+                    re.IGNORECASE,
+                )
+
+            if period_match:
+                r = float(period_match.group(1)) / 100.0
+                p = _period_to_month(period_match.group(2))
+                if 0 < r <= 1:
+                    curves.append(RateCurve(
+                        table=target_table,
+                        column=target_col,
+                        time_column=time_col,
+                        true_value=spec["true_value"],
+                        interpolate=False,
+                        description=f"NL-extracted: {noun} {r*100:.1f}% at period {p}",
+                        rate_points=[{"period": str(p), "rate": round(r, 6)}],
+                    ))
+                    continue
+
+            # ── Pattern 1: flat rate — no period qualifier ─────────────────
+            # "2% fraud rate" / "fraud rate of 2%" / "2% fraudulent transactions"
+            flat_match = re.search(
+                rf"(\d+(?:\.\d+)?)%\s*(?:[\w]{{0,15}}\s*){{0,3}}{re.escape(noun)}",
+                story_lower,
+                re.IGNORECASE,
+            ) or re.search(
+                rf"{re.escape(noun)}\s+(?:rate\s+)?(?:of\s+)?(\d+(?:\.\d+)?)%",
+                story_lower,
+                re.IGNORECASE,
+            )
+            if flat_match:
+                r = float(flat_match.group(1)) / 100.0
+                if 0 < r <= 1:
+                    curves.append(RateCurve(
+                        table=target_table,
+                        column=target_col,
+                        time_column=time_col,
+                        true_value=spec["true_value"],
+                        interpolate=False,
+                        description=f"NL-extracted: flat {noun} rate {r*100:.1f}%",
+                        rate_points=[{"period": "all", "rate": round(r, 6)}],
+                    ))
+
+        # Deduplicate: keep the most complex curve (most anchor points) per
+        # (table, column) pair in case multiple patterns matched.
+        seen: Dict[tuple, RateCurve] = {}
+        for rc in curves:
+            key = (rc.table, rc.column)
+            existing = seen.get(key)
+            if existing is None or len(rc.rate_points) > len(existing.rate_points):
+                seen[key] = rc
+        return list(seen.values())
+
     def parse(self, story: str, default_rows: int = 10000) -> SchemaConfig:
         """
         Parse a natural language story into a SchemaConfig.
@@ -763,6 +982,18 @@ class StoryParser:
                 f"Story also matched: {other_domains}. The highest-scoring domain won; "
                 "name the desired domain literally (e.g. 'fintech') if you want a different one."
             )
+
+        # Gap A: extract RateCurve constraints from the story and attach them
+        # to the schema.  This runs AFTER the domain builder so it can resolve
+        # column names against the produced table definitions.
+        detected_rate_curves = self._extract_rate_curves(story, schema)
+        if detected_rate_curves:
+            existing = list(getattr(schema, "rate_curves", []) or [])
+            # Use model_copy to stay immutable; fall back to object.__setattr__
+            try:
+                schema = schema.model_copy(update={"rate_curves": existing + detected_rate_curves})
+            except Exception:
+                object.__setattr__(schema, "rate_curves", existing + detected_rate_curves)
 
         # Cache the produced schema so detection_report() can preview tables
         self._last_schema = schema
