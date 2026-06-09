@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: >-
+  If you use Misata in your research or build on its exact-aggregate
+  engine, please cite the paper below.
+title: Misata
+type: software
+authors:
+  - family-names: Rasin
+    given-names: Muhammed
+    orcid: "https://orcid.org/0009-0009-3059-9793"
+repository-code: "https://github.com/rasinmuhammed/misata"
+url: "https://pypi.org/project/misata/"
+license: MIT
+version: 0.8.0
+
+preferred-citation:
+  type: article
+  title: >-
+    Declarative Outcome-Conformant Synthesis: Exact, Closed-Form
+    Specification Satisfaction and a Conformance Benchmark
+  authors:
+    - family-names: Rasin
+      given-names: Muhammed
+  year: 2026
+  url: "https://arxiv.org/abs/2606.08736"
+  identifiers:
+    - type: url
+      value: "https://arxiv.org/abs/2606.08736v1"
+      description: arXiv preprint
+  abstract: >-
+    We study a capability the dominant paradigm in synthetic tabular data
+    does not provide: exact satisfaction of a declared analytical outcome
+    with no source data. We name this task outcome-conformant synthesis,
+    argue its evaluation axis is conformance rather than fidelity, and show
+    the two axes are orthogonal. We contribute (1) a formal account showing
+    the exact-aggregate engine is exactly conditional-sum sampling of a
+    Gamma population via Lukacs' characterisation; (2) SpecBench, the first
+    benchmark to measure conformance to analytical outcomes for cold-start
+    relational synthesis; and (3) a closed-form, deterministic reference
+    system. Off-the-shelf learned synthesisers miss declared monthly
+    aggregates by 74–86%; a closed-form generator reaches exactly 0.
+  keywords:
+    - synthetic data
+    - outcome-conformant synthesis
+    - exact aggregate generation
+    - cold-start data generation
+    - SpecBench

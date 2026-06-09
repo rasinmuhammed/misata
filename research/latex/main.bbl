@@ -1,0 +1,224 @@
+\begin{thebibliography}{31}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[{\AA}gren and {\'U}beda~Sosa(2024)]{hctgan2024}
+W.~{\AA}gren and V.~{\'U}beda~Sosa.
+\newblock Hierarchical conditional tabular {GAN} for multi-tabular synthetic
+  data generation.
+\newblock 2024.
+\newblock Preprint, arXiv:2411.07009.
+
+\bibitem[Aitchison(1986)]{aitchison1986compositional}
+J.~Aitchison.
+\newblock \emph{The Statistical Analysis of Compositional Data}.
+\newblock Chapman \& Hall, London, 1986.
+\newblock ISBN 0-412-28060-4.
+
+\bibitem[Arasu et~al.(2011)Arasu, Kaushik, and Li]{arasu2011datasynth}
+A.~Arasu, R.~Kaushik, and J.~Li.
+\newblock {DataSynth}: Generating synthetic data using declarative constraints.
+\newblock \emph{Proc. VLDB Endowment (PVLDB)}, 4\penalty0 (12), 2011.
+\newblock \doi{10.14778/3402755.3402785}.
+
+\bibitem[Armend{\'a}riz and Loulakis(2011)]{armendariz2011condensation}
+I.~Armend{\'a}riz and M.~Loulakis.
+\newblock Conditional distribution of heavy tailed random variables on large
+  deviations of their sum.
+\newblock \emph{Stochastic Processes and their Applications}, 121\penalty0
+  (5):\penalty0 1138--1147, 2011.
+
+\bibitem[Balinski and Young(1982)]{balinski1982fair}
+M.~L. Balinski and H.~P. Young.
+\newblock \emph{Fair Representation: Meeting the Ideal of One Man, One Vote}.
+\newblock Yale University Press, 1982.
+\newblock ISBN 0-300-02724-9.
+
+\bibitem[Binnig et~al.(2007)Binnig, Kossmann, Lo, and
+  {\"O}zsu]{binnig2007qagen}
+C.~Binnig, D.~Kossmann, E.~Lo, and M.~T. {\"O}zsu.
+\newblock {QAGen}: Generating query-aware test databases.
+\newblock In \emph{Proc. ACM SIGMOD Int. Conf. on Management of Data}, pages
+  341--352, Beijing, China, 2007.
+\newblock \doi{10.1145/1247480.1247520}.
+
+\bibitem[Chow and Lin(1971)]{chowlin1971}
+G.~C. Chow and A.-l. Lin.
+\newblock Best linear unbiased interpolation, distribution, and extrapolation
+  of time series by related series.
+\newblock \emph{The Review of Economics and Statistics}, 53\penalty0
+  (4):\penalty0 372--375, 1971.
+
+\bibitem[Chundawat et~al.(2022)Chundawat, Tarun, Mandal, Lahoti, and
+  Narang]{tabsyndex2022}
+V.~S. Chundawat, A.~K. Tarun, M.~Mandal, M.~Lahoti, and P.~Narang.
+\newblock {TabSynDex}: A universal metric for robust evaluation of synthetic
+  tabular data.
+\newblock 2022.
+\newblock Preprint, arXiv:2207.05295.
+
+\bibitem[Cox(1987)]{cox1987rounding}
+L.~H. Cox.
+\newblock A constructive procedure for unbiased controlled rounding.
+\newblock \emph{Journal of the American Statistical Association}, 82\penalty0
+  (398):\penalty0 520--524, 1987.
+
+\bibitem[{DataCebo}()]{sdgym}
+{DataCebo}.
+\newblock {SDGym} and {SDMetrics}.
+\newblock software + documentation.
+
+\bibitem[Deming and Stephan(1940)]{deming1940ipf}
+W.~E. Deming and F.~F. Stephan.
+\newblock On a least squares adjustment of a sampled frequency table when the
+  expected marginal totals are known.
+\newblock \emph{The Annals of Mathematical Statistics}, 11\penalty0
+  (4):\penalty0 427--444, 1940.
+\newblock \doi{10.1214/aoms/1177731829}.
+
+\bibitem[Denton(1971)]{denton1971}
+F.~T. Denton.
+\newblock Adjustment of monthly or quarterly series to annual totals: An
+  approach based on quadratic minimization.
+\newblock \emph{Journal of the American Statistical Association}, 66\penalty0
+  (333):\penalty0 99--102, 1971.
+
+\bibitem[Esteban et~al.(2017)Esteban, Hyland, and R{\"a}tsch]{esteban2017tstr}
+C.~Esteban, S.~L. Hyland, and G.~R{\"a}tsch.
+\newblock Real-valued (medical) time series generation with recurrent
+  conditional gans.
+\newblock 2017.
+\newblock Preprint, arXiv:1706.02633.
+
+\bibitem[Golchi and Campbell(2016)]{golchi2016scmc}
+S.~Golchi and D.~A. Campbell.
+\newblock Sequentially constrained monte carlo.
+\newblock \emph{Computational Statistics \& Data Analysis}, 97:\penalty0
+  98--113, 2016.
+
+\bibitem[Hudovernik et~al.(2025)Hudovernik, Xu, Shi, {\v{S}}ubelj, Ermon,
+  {\v{S}}trumbelj, and Leskovec]{reldiff2025}
+V.~Hudovernik, M.~Xu, J.~Shi, L.~{\v{S}}ubelj, S.~Ermon, E.~{\v{S}}trumbelj,
+  and J.~Leskovec.
+\newblock {RelDiff}: Relational data generative modeling with graph-based
+  diffusion models.
+\newblock 2025.
+\newblock Preprint, arXiv:2506.00710.
+
+\bibitem[Kotelnikov et~al.(2023)Kotelnikov, Baranchuk, Rubachev, and
+  Babenko]{kotelnikov2023tabddpm}
+A.~Kotelnikov, D.~Baranchuk, I.~Rubachev, and A.~Babenko.
+\newblock {TabDDPM}: Modelling tabular data with diffusion models.
+\newblock In \emph{Proc. 40th Int. Conf. on Machine Learning (ICML), PMLR},
+  volume 202, pages 17564--17579, 2023.
+
+\bibitem[Lautrup et~al.(2025)Lautrup, Hyrup, Zimek, and
+  Schneider-Kamp]{syntheval2024}
+A.~D. Lautrup, T.~Hyrup, A.~Zimek, and P.~Schneider-Kamp.
+\newblock {SynthEval}: A framework for detailed utility and privacy evaluation
+  of tabular synthetic data.
+\newblock \emph{Data Mining and Knowledge Discovery}, 39\penalty0 (1), 2025.
+
+\bibitem[Li et~al.(2023)Li, Zhao, Abdollahzadeh, Sikdar, and Tay]{irg2024}
+J.~Li, Z.~Zhao, M.~Abdollahzadeh, B.~Sikdar, and Y.~C. Tay.
+\newblock {IRG}: Modular synthetic relational database generation with complex
+  relational schemas.
+\newblock 2023.
+\newblock \doi{10.1145/3770854.3780313}.
+\newblock Preprint, arXiv:2312.15187.
+
+\bibitem[Liu et~al.(2025)Liu, Zheng, and Zhang]{structsynth2025}
+S.~Liu, Y.~Zheng, and Y.~Zhang.
+\newblock {StructSynth}: Leveraging {LLMs} for structure-aware tabular data
+  synthesis in low-data regimes.
+\newblock 2025.
+\newblock Preprint, arXiv:2508.02601.
+
+\bibitem[Lo et~al.(2010)Lo, Binnig, Kossmann, {\"O}zsu, and
+  Hon]{lo2010framework}
+E.~Lo, C.~Binnig, D.~Kossmann, M.~T. {\"O}zsu, and W.-K. Hon.
+\newblock A framework for testing {DBMS} features.
+\newblock \emph{The VLDB Journal}, 19\penalty0 (2):\penalty0 203--230, 2010.
+\newblock \doi{10.1007/s00778-009-0157-y}.
+
+\bibitem[Long et~al.(2025)Long, Xu, and Brintrup]{llmtablogic2026}
+Y.~Long, L.~Xu, and A.~Brintrup.
+\newblock {LLM-TabLogic}: Preserving inter-column logical relationships in
+  synthetic tabular data via prompt-guided latent diffusion.
+\newblock 2025.
+\newblock Preprint, arXiv:2503.02161.
+
+\bibitem[Lukacs(1955)]{lukacs1955gamma}
+E.~Lukacs.
+\newblock A characterization of the gamma distribution.
+\newblock \emph{The Annals of Mathematical Statistics}, 26\penalty0
+  (2):\penalty0 319--324, 1955.
+
+\bibitem[Nguyen et~al.(2025)Nguyen, Schafft, Hale, and Alfaro]{fastgen2025}
+A.~Nguyen, S.~Schafft, N.~Hale, and J.~Alfaro.
+\newblock {FASTGEN}: Fast and cost-effective synthetic tabular data generation
+  with {LLMs}.
+\newblock 2025.
+\newblock Preprint, arXiv:2507.15839.
+
+\bibitem[{NVIDIA (formerly Gretel)}(2025)]{nemo_data_designer}
+{NVIDIA (formerly Gretel)}.
+\newblock {NeMo} data designer, 2025.
+\newblock Apache-2.0; software + documentation.
+
+\bibitem[Patki et~al.(2016)Patki, Wedge, and Veeramachaneni]{patki2016sdv}
+N.~Patki, R.~Wedge, and K.~Veeramachaneni.
+\newblock The synthetic data vault.
+\newblock In \emph{IEEE Int. Conf. on Data Science and Advanced Analytics
+  (DSAA)}, pages 399--410, 2016.
+\newblock \doi{10.1109/DSAA.2016.49}.
+
+\bibitem[Sanghi et~al.(2022)Sanghi, Ahmed, and
+  Haritsa]{projectioncompliant2022}
+A.~Sanghi, S.~Ahmed, and J.~R. Haritsa.
+\newblock Projection-compliant database generation.
+\newblock \emph{Proc. VLDB Endowment (PVLDB)}, 15\penalty0 (5):\penalty0
+  998--1010, 2022.
+\newblock \doi{10.14778/3510397.3510398}.
+
+\bibitem[Sidorenko et~al.(2025)Sidorenko, Platzer, Scriminaci, and
+  Tiwald]{multidim_benchmark2025}
+A.~Sidorenko, M.~Platzer, M.~Scriminaci, and P.~Tiwald.
+\newblock Benchmarking synthetic tabular data: A multi-dimensional evaluation
+  framework.
+\newblock 2025.
+\newblock Preprint, arXiv:2504.01908.
+
+\bibitem[Szavits-Nossan et~al.(2014)Szavits-Nossan, Evans, and
+  Majumdar]{szavits2014condensation}
+J.~Szavits-Nossan, M.~R. Evans, and S.~N. Majumdar.
+\newblock Condensation transition in joint large deviations of linear
+  statistics.
+\newblock \emph{Journal of Physics A: Mathematical and Theoretical},
+  47\penalty0 (45):\penalty0 455004, 2014.
+
+\bibitem[Xu et~al.(2019)Xu, Skoularidou, Cuesta-Infante, and
+  Veeramachaneni]{xu2019ctgan}
+L.~Xu, M.~Skoularidou, A.~Cuesta-Infante, and K.~Veeramachaneni.
+\newblock Modeling tabular data using conditional {GAN}.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, pages 7335--7345, 2019.
+
+\bibitem[Yao et~al.(2025)Yao, Kr{\v{c}}o, Ganev, and
+  de~Montjoye]{dcrdelusion2025}
+Z.~Yao, N.~Kr{\v{c}}o, G.~Ganev, and Y.-A. de~Montjoye.
+\newblock The {DCR} delusion: Measuring the privacy risk of synthetic data.
+\newblock 2025.
+\newblock Preprint, arXiv:2505.01524.
+
+\bibitem[Zhang et~al.(2026)]{rddg2026}
+C.~Zhang et~al.
+\newblock Self-reinforcing controllable synthesis of rare relational data via
+  bayesian calibration.
+\newblock 2026.
+\newblock Preprint, arXiv:2604.16817.
+
+\end{thebibliography}

@@ -1,0 +1,70 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{microtype}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\footnotesize}
+\AtBeginEnvironment{tabular}{\footnotesize}
+\setlength{\tabcolsep}{4pt}
+\usepackage[hidelinks]{hyperref}
+\setcounter{secnumdepth}{0}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+\title{Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark}
+\author{Muhammed Rasin\\ Independent Researcher\\ \texttt{rasinbinabdulla@gmail.com}}
+\date{}
+\begin{document}
+\maketitle
+\begin{abstract}
+We study a capability the dominant paradigm in synthetic tabular data does not
+provide: exact satisfaction of a declared analytical outcome with no source data. Imitation
+methods (copulas, GANs, diffusion, the Synthetic Data Vault) learn a real distribution and
+sample from it, and they are judged on fidelity to real data. A large and practical class of
+needs is different. The goal is to generate data with no source data, a cold start, that
+reproduces a declared outcome (a revenue curve, a churn rate, a group-wise distribution)
+across a relational schema. Off-the-shelf imitation tools offer no interface for such targets,
+and, the structural point, no sampler can hit an exact aggregate, because sampling has
+variance. We make this concrete: on a real public dataset, off-the-shelf learned synthesizers
+trained on that very data miss the declared monthly aggregate by 74 to 86 percent; the
+strongest steelman, a GaussianCopula trained per period, cuts the miss to about 19 percent and
+still cannot reach 0. A closed-form generator reaches exactly 0. We name this task
+outcome-conformant synthesis, argue its evaluation axis is conformance rather than fidelity,
+and show the two axes are orthogonal: a generator's standing on one says nothing about its
+standing on the other. We contribute three things. First, a formal account: a widely-used
+family of exact-aggregate generators is exactly conditional-sum sampling of a Gamma
+population (via Lukacs' characterization), which gives closed-form aggregate exactness, a
+closed-form marginal coefficient of variation, an exact distortion bound, and a
+scale-invariance property. The same identity lets us map the boundary the method does not
+cross. We show, with the control whose absence invalidated an earlier draft, that enforcing
+the exact aggregate costs at most 0.006 in normalized 1-Wasserstein distance to an arbitrary
+external target marginal, anywhere from light to heavy tails; the entire residual gap to that
+target, up to 0.89 for a heavy Pareto, is shape-family mismatch that an unconstrained draw
+incurs identically. The open problem is therefore a shape-family problem, not a constraint
+problem, and we say which is which. Second, SpecBench. Query-aware test-data work already
+measures conformance of a sort, to declared query-output cardinalities; to our knowledge
+SpecBench is the first benchmark to measure conformance to analytical outcomes (aggregate
+curves, rates, group-wise distributions) for cold-start relational synthesis, with each metric
+operationalizing a result from the analysis. Third, a closed-form, deterministic reference system. We state the scope up
+front: exact aggregation alone is trivial (a rescale ties it given a hand-built schema); the
+contribution is exact conformance jointly with closed-form marginals, foreign-key and temporal
+integrity, determinism, and zero source data, plus a benchmark that measures them together. The
+natural-language capability is a bounded convenience: a rule-based parser covers a curated set
+of domains, and two language-model front-ends (an open-weights model and a recent OpenAI
+flagship) each cover all 18 with full conformance once a deterministic bridge repair is in
+place. The exactness lives in the engine downstream, not in any model. We concede fidelity to
+imitation where real data exists.
+\end{abstract}
+\input{body.tex}
+\bibliographystyle{abbrvnat}
+\bibliography{references}
+\end{document}
