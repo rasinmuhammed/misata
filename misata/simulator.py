@@ -1515,7 +1515,13 @@ class DataSimulator:
 
             # Apply business rule constraints
             df_batch = self.apply_constraints(df_batch, table)
-            
+
+            # Re-apply formulas AFTER constraints: a constraint may change a base column
+            # (e.g. cap daily hours), and any formula derived from it (billed = hours * rate)
+            # must reflect the constrained value, not the pre-constraint one. Formulas are
+            # idempotent, so re-running is safe when nothing changed.
+            df_batch = self._apply_formula_columns(df_batch, table_name)
+
             # Apply per-column anomaly injection
             df_batch = self._apply_anomalies(df_batch, table_name)
 
