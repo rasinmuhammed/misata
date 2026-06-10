@@ -328,6 +328,20 @@ class DataSimulator:
             if getattr(curve, "table", None) == table_name:
                 needed_cols.add(getattr(curve, "time_column", "date"))
 
+        # Enterprise coherence: retain any column that a child-table FORMULA references
+        # via `@this_table.column` (e.g. timesheets.billed = hours * @employees.hourly_rate
+        # needs employees.hourly_rate in context, not just the PK). Without this the lookup
+        # falls back to 0 and the derived value is wrong.
+        import re as _re
+        for child_table in self.config.tables:
+            for col in self.config.get_columns(child_table.name):
+                formula = col.distribution_params.get("formula")
+                if not formula:
+                    continue
+                for ref_table, ref_col in _re.findall(r"@(\w+)\.(\w+)", formula):
+                    if ref_table == table_name:
+                        needed_cols.add(ref_col)
+
         return [column for column in needed_cols if column in df.columns]
 
     def generate_column(
