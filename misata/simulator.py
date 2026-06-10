@@ -2430,33 +2430,54 @@ class DataSimulator:
         sorted_tables = self.topological_sort()
         cascade_events = [e for e in (self.config.events or []) if e.propagate_to]
 
-        # Identify which tables must be buffered for cascade resolution
+        # Cross-table roll-ups: parent summary columns computed from child facts so the data
+        # reconciles under a JOIN. Both the parent (target) and the child (source) must be
+        # buffered together for the post-generation pass.
+        from misata.rollups import (collect_declared_rollups, infer_rollups,
+                                     apply_rollups)
+        rollup_specs = collect_declared_rollups(self.config)
+        try:
+            rollup_specs = rollup_specs + infer_rollups(self.config)
+        except Exception:
+            pass  # inference is best-effort; never block generation
+        rollup_tables: set = set()
+        for s in rollup_specs:
+            rollup_tables.add(s.parent_table)
+            rollup_tables.add(s.from_table)
+
+        # Identify which tables must be buffered (cascade resolution OR roll-ups)
         cascade_tables: set = set()
         for event in cascade_events:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
+        buffer_tables = cascade_tables | rollup_tables
 
         buffered: Dict[str, pd.DataFrame] = {}
         streamed: list = []   # tables already yielded (order record for phase 3)
 
         # Phase 1 — generate in dependency order
         for table_name in sorted_tables:
-            if table_name in cascade_tables:
-                # Buffer: collect all batches for cascade pass
+            if table_name in buffer_tables:
+                # Buffer: collect all batches for the post-generation passes
                 batches = []
                 for batch in self.generate_batches(table_name):
                     batches.append(batch)
                 if batches:
                     buffered[table_name] = pd.concat(batches, ignore_index=True)
             else:
-                # Stream immediately — no cascade involvement
+                # Stream immediately — no post-pass involvement
                 for batch in self.generate_batches(table_name):
                     yield table_name, batch
                 streamed.append(table_name)
 
-        # Phase 2 — apply cascades to buffered tables
+        # Phase 2 — apply cascades, then roll-ups, to buffered tables
         for event in cascade_events:
             self.propagate_event_cascade(buffered, event)
+        if rollup_specs:
+            try:
+                apply_rollups(buffered, rollup_specs)
+            except Exception:
+                pass  # a roll-up failure must never corrupt an otherwise-valid run
 
         # Phase 3 — yield buffered tables in original dependency order
         for table_name in sorted_tables:
