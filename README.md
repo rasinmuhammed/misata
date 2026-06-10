@@ -33,7 +33,7 @@ Built for:
 
 ## Research
 
-Misata's exact-aggregate engine is backed by an entry-level preprint arXiv paper:
+Misata's exact-aggregate engine is backed by an arXiv preprint:
 
 > **Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark**  
 > Muhammed Rasin — arXiv:2606.08736 (2026)  
@@ -492,6 +492,10 @@ misata.generate("Fintech payments — strong Q4, dip in Q1")
 ---
 
 ## What makes Misata different
+
+Comparison reflects each tool's documented, out-of-the-box behavior as of late 2025; all
+of these are capable libraries built for different goals, and a "—" means "not a built-in
+feature," not "impossible."
 
 | | Faker | Synth | syda | SDV | **Misata** |
 |:--|:--:|:--:|:--:|:--:|:--:|
