@@ -526,12 +526,29 @@ class StoryParser:
 
         return anchors
 
+    def _extract_explicit_year(self, story: str) -> Optional[int]:
+        """Return a year only if the story literally names a plausible calendar year.
+
+        A four-digit ``20xx`` is only a year when it is not immediately a count of
+        something: "2000 customers" / "2015 orders" are scale figures, not years, and must
+        never silently date a dataset to the year 2000. Returns ``None`` when no real year
+        is present, so callers can fall back to a column's own date range.
+        """
+        count_noun = (r"(?:customers?|users?|orders?|rows?|records?|transactions?|"
+                      r"subscribers?|patients?|employees?|items?|products?|sessions?|"
+                      r"players?|accounts?|clients?|people|listings?|deals?|policies|"
+                      r"claims?|trips?|bookings?|shipments?|drivers?|sellers?|buyers?)")
+        cleaned = re.sub(r"\b(20\d{2})\s+" + count_noun, " ", story, flags=re.IGNORECASE)
+        this_year = datetime.now().year
+        for m in re.finditer(r"\b(20\d{2})\b", cleaned):
+            y = int(m.group(1))
+            if 2000 <= y <= this_year + 1:
+                return y
+        return None
+
     def _extract_reference_year(self, story: str) -> int:
-        """Choose a year for generated monthly targets."""
-        match = re.search(r"\b(20\d{2})\b", story)
-        if match:
-            return int(match.group(1))
-        return datetime.now().year
+        """Concrete year for callers that need one; the current year when none is named."""
+        return self._extract_explicit_year(story) or datetime.now().year
 
     def _extract_intra_period_pattern(self, story: str) -> str:
         """Detect sub-bucket patterns like weekday_heavy or end_heavy."""
@@ -658,7 +675,11 @@ class StoryParser:
             for m, v in zip(months, interpolated)
         ]
 
-        year = self._extract_reference_year(story)
+        # Only pin an explicit start_date when the story actually named a year. Otherwise
+        # leave it unset so the FactEngine aligns the curve to the metric column's own date
+        # range (e.g. an orders table dated 2022-2024), keeping child dates coherent with
+        # their parents instead of defaulting to an unrelated year.
+        explicit_year = self._extract_explicit_year(story)
         intra_pattern = self._extract_intra_period_pattern(story)
         return OutcomeCurve(
             table=table,
@@ -670,7 +691,7 @@ class StoryParser:
             intra_period_pattern=intra_pattern,
             description=story,
             avg_transaction_value=avg_transaction_value,
-            start_date=f"{year}-01-01",
+            start_date=f"{explicit_year}-01-01" if explicit_year else None,
             curve_points=curve_points,
         )
 

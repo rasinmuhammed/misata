@@ -928,6 +928,7 @@ def apply_realism_rules(
     # ── Identity consistency ──
     _fix_email_from_name(df, columns, _rng)
     _fix_slug_from_name(df, columns)
+    _fix_category_from_product_name(df, columns, table_name)
 
     # ── Status consistency ──
     _apply_status_end_date(df, columns, _rng)
@@ -1094,6 +1095,77 @@ def _fix_email_from_name(df: pd.DataFrame, columns: set[str], rng: np.random.Gen
         stem = f"{first}{separators[i]}{last}".strip(".")
         emails.append(f"{stem}@{domain_choices[i]}")
     df["email"] = emails
+
+
+_NAME_TO_POOL: Dict[str, str] = {}
+for _pool, _names in PRODUCT_NAME_POOLS.items():
+    for _n in _names:
+        _NAME_TO_POOL[_n] = _pool
+
+
+def _fix_category_from_product_name(df: pd.DataFrame, columns: set[str], table_name: str = "") -> None:
+    """Make a product's ``category`` consistent with its ``name``.
+
+    Names and categories are generated independently, so a "Portable Bluetooth Speaker"
+    can land in "clothing" — an obvious tell that the data is fake. When the name comes
+    from a known product pool, we set the category to that pool, mapped onto whatever
+    category vocabulary the table actually uses (so the engine's "home" maps to a schema's
+    "home & garden"). Only runs on product/item tables, and only rewrites rows whose name
+    is a recognized product name; anything else is left untouched.
+    """
+    if "category" not in columns or "name" not in columns:
+        return
+    tl = table_name.lower()
+    if "product" not in tl and "item" not in tl:
+        return
+
+    existing_cats = [str(c) for c in df["category"].dropna().unique()]
+    if not existing_cats:
+        return
+
+    # Map each canonical pool ("electronics", "home", ...) to the closest category label
+    # actually present in this table, so we never introduce an out-of-vocabulary value.
+    def _closest_cat(pool: str) -> Optional[str]:
+        pool_l = pool.lower()
+        for c in existing_cats:
+            cl = c.lower()
+            if cl == pool_l or pool_l in cl or cl in pool_l:
+                return c
+        # token overlap (e.g. "home" vs "home & garden")
+        for c in existing_cats:
+            if pool_l in c.lower().split():
+                return c
+        return None
+
+    pool_to_cat = {p: _closest_cat(p) for p in PRODUCT_NAME_POOLS}
+    # Pools that this table's category vocabulary CAN represent.
+    representable = {p for p, c in pool_to_cat.items() if c is not None}
+
+    names = df["name"].tolist()
+    cats = df["category"].tolist()
+    for i, nm in enumerate(names):
+        nm = str(nm)
+        pool = _NAME_TO_POOL.get(nm)
+        if pool is None:
+            continue
+        mapped = pool_to_cat.get(pool)
+        if mapped is not None:
+            # Name's pool is representable: set the category to match the name.
+            cats[i] = mapped
+        elif representable:
+            # Name's pool (e.g. "food") has no category in this store. Rather than leave a
+            # mismatch, swap the NAME to a product from a representable pool, deterministically
+            # chosen from the row's current category so the (name, category) pair is coherent.
+            cur = str(cats[i]).lower()
+            target_pool = next(
+                (p for p in representable
+                 if p in cur or cur in p or p in cur.split()),
+                sorted(representable)[0],
+            )
+            pool_names = PRODUCT_NAME_POOLS[target_pool]
+            names[i] = pool_names[hash(nm) % len(pool_names)]
+    df["name"] = names
+    df["category"] = cats
 
 
 def _fix_slug_from_name(df: pd.DataFrame, columns: set[str]) -> None:
