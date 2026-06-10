@@ -1949,52 +1949,74 @@ class DataSimulator:
 
             timestamps = pd.to_datetime(df[time_col], errors="coerce")
 
+            # Build a per-month relative factor for ALL 12 months by linear interpolation
+            # between control points (previously only control-point months were corrected,
+            # which left interpolated months uncorrected and drifted the shape in multi-batch
+            # streaming). Control points outside [1,12] are ignored.
+            ctrl: Dict[int, float] = {}
             for point in points:
-                # point is a dict {"month": M, "relative_value": rv} or {"month": M, "target_value": tv}
                 if hasattr(point, "month"):
-                    month_idx = int(point.month)
-                    relative_val = float(getattr(point, "relative_value", 1.0))
+                    m = int(point.month); rv = float(getattr(point, "relative_value", 1.0))
                 elif isinstance(point, dict):
-                    month_idx = int(point.get("month", 0))
-                    relative_val = float(
-                        point.get("relative_value", point.get("target_value", avg_tx))
-                    )
+                    m = int(point.get("month", 0))
+                    rv = float(point.get("relative_value", point.get("target_value", 1.0)))
                 else:
                     continue
+                if 1 <= m <= 12:
+                    ctrl[m] = rv
+            if not ctrl:
+                continue
+            ctrl_months = sorted(ctrl)
+            month_factor: Dict[int, float] = {}
+            for m in range(1, 13):
+                if m in ctrl:
+                    month_factor[m] = ctrl[m]
+                elif m <= ctrl_months[0]:
+                    month_factor[m] = ctrl[ctrl_months[0]]
+                elif m >= ctrl_months[-1]:
+                    month_factor[m] = ctrl[ctrl_months[-1]]
+                else:
+                    lo = max(c for c in ctrl_months if c <= m)
+                    hi = min(c for c in ctrl_months if c >= m)
+                    frac = (m - lo) / (hi - lo)
+                    month_factor[m] = ctrl[lo] + frac * (ctrl[hi] - ctrl[lo])
 
-                if month_idx <= 0:
-                    continue
+            # Implied per-row mean for a month = avg_tx * (month_factor / mean_factor), so the
+            # overall table mean stays ~avg_tx and only the SHAPE follows the curve. The
+            # per-month target is that mean times the month's ACTUAL accumulated row count
+            # (tracked across batches), not a uniform total_rows/12 assumption.
+            mean_factor = sum(month_factor.values()) / 12.0
+            if mean_factor <= 0:
+                continue
 
-                # Implied period target = avg_tx * relative_value * rows_in_period
-                # rows_in_period ≈ total_rows / 12  (uniform month distribution)
-                rows_per_period = total_rows / 12.0
-                implied_target = relative_val * avg_tx * rows_per_period
+            count_key_prefix = f"{col}:cnt_month_"
+            sum_key_prefix = f"{col}:sum_month_"
 
-                period_key = f"{col}:month_{month_idx}"
-                running = rt.get(period_key, 0.0)
-
-                remaining_target = implied_target - running
-                if remaining_target <= 0:
-                    continue
-
-                # Rows in this batch belonging to this calendar month
+            for month_idx in range(1, 13):
                 batch_month_mask = timestamps.dt.month == month_idx
-                if not batch_month_mask.any():
+                n_batch = int(batch_month_mask.sum())
+                if n_batch == 0:
                     continue
-
                 batch_sum = float(df.loc[batch_month_mask, col].sum())
                 if batch_sum <= 0:
                     continue
 
-                correction = np.clip(remaining_target / batch_sum, 0.1, 10.0)
-                if abs(correction - 1.0) < 1e-6:
-                    rt[period_key] = running + batch_sum
-                    continue
+                ckey = count_key_prefix + str(month_idx)
+                skey = sum_key_prefix + str(month_idx)
+                prev_count = rt.get(ckey, 0.0)
+                prev_sum = rt.get(skey, 0.0)
 
-                df.loc[batch_month_mask, col] = (
-                    df.loc[batch_month_mask, col] * correction
-                )
-                rt[period_key] = running + float(df.loc[batch_month_mask, col].sum())
+                new_count = prev_count + n_batch
+                per_row_target = avg_tx * (month_factor[month_idx] / mean_factor)
+                cumulative_target = per_row_target * new_count
+
+                remaining = cumulative_target - prev_sum
+                correction = np.clip(remaining / batch_sum, 0.1, 10.0) if remaining > 0 else 1.0
+                if abs(correction - 1.0) > 1e-9:
+                    df.loc[batch_month_mask, col] = df.loc[batch_month_mask, col] * correction
+
+                rt[ckey] = new_count
+                rt[skey] = prev_sum + float(df.loc[batch_month_mask, col].sum())
 
         return df
 
