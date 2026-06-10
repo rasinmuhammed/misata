@@ -156,3 +156,41 @@ class TestEnterpriseViaDict:
         rev = t["timesheets"].groupby("project_id")["billed_usd"].sum()
         pm = t["projects"].set_index("project_id")
         assert (pm["revenue_usd"] - rev.reindex(pm.index).fillna(0)).abs().max() < 0.01
+
+
+class TestPharmaDomainFromOneSentence:
+    """The flagship: a full, coherent pharma CRO from a single natural-language sentence."""
+
+    def setup_method(self):
+        self.t = misata.generate(
+            "A pharmaceutical CRO with 60 employees, 20 clinical research projects, and clients",
+            rows=3000, seed=5)
+
+    def test_produces_full_company(self):
+        for tbl in ("clients", "employees", "research_projects", "timesheets"):
+            assert tbl in self.t and len(self.t[tbl]) > 0
+
+    def test_fk_integrity(self):
+        t = self.t
+        for parent, child, key in [("clients", "research_projects", "client_id"),
+                                   ("employees", "timesheets", "employee_id"),
+                                   ("research_projects", "timesheets", "project_id")]:
+            assert (~t[child][key].isin(set(t[parent][key]))).sum() == 0
+
+    def test_billed_and_revenue_reconcile(self):
+        t = self.t
+        m = t["timesheets"].merge(t["employees"][["employee_id", "hourly_rate"]], on="employee_id")
+        assert (m["billed_usd"] - m["hours"] * m["hourly_rate"]).abs().max() < 0.01
+        rev = t["timesheets"].groupby("project_id")["billed_usd"].sum()
+        pm = t["research_projects"].set_index("project_id")
+        assert (pm["revenue_usd"] - rev.reindex(pm.index).fillna(0)).abs().max() < 0.01
+
+    def test_timesheets_within_project_window(self):
+        d = self.t["timesheets"].merge(
+            self.t["research_projects"][["project_id", "start_date"]], on="project_id")
+        delta = (pd.to_datetime(d["date"]) - pd.to_datetime(d["start_date"])).dt.days
+        assert (delta >= 0).all()
+
+    def test_daily_hours_capped(self):
+        daily = self.t["timesheets"].groupby(["employee_id", "date"])["hours"].sum()
+        assert daily.max() <= 24.01

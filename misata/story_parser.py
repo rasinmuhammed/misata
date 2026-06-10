@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from misata.schema import Column, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
+from misata.schema import Column, Constraint, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 
 
 @dataclass
@@ -1331,64 +1331,102 @@ class StoryParser:
         )
 
     def _build_pharma_schema(self, story: str, default_rows: int) -> SchemaConfig:
-        """Build a Pharma services-specific schema."""
-        num_projects = self.scale_params.get("projects", max(1, default_rows // 100))
+        """Build a fully interconnected pharma CRO (contract research org).
+
+        This is the flagship enterprise-simulation schema: a complete company whose numbers
+        reconcile end to end. ``timesheets.billed_usd = hours * @employees.hourly_rate``
+        (cross-table formula), ``projects.revenue_usd = sum(timesheets.billed_usd)`` and
+        ``projects.total_hours = sum(timesheets.hours)`` (roll-ups), timesheet dates fall
+        within each project's window (``relative_to``), and no employee logs more than 24h
+        on a day (capacity ``sum_limit``). Run a JOIN and the totals add up.
+        """
         num_timesheets = default_rows
+        num_clients = self.scale_params.get("clients", max(3, default_rows // 250))
+        num_projects = self.scale_params.get("projects", max(2, default_rows // 100))
+        num_employees = self.scale_params.get(
+            "employees", self.scale_params.get("users", max(5, default_rows // 40))
+        )
+
+        daily_cap = Constraint(
+            name="max_daily_hours", type="sum_limit", column="hours",
+            group_by=["employee_id", "date"], value=24, action="cap",
+        )
 
         tables = [
+            Table(name="clients", row_count=num_clients),
+            Table(name="employees", row_count=num_employees),
             Table(name="research_projects", row_count=num_projects),
-            Table(name="timesheets", row_count=num_timesheets),
+            Table(name="timesheets", row_count=num_timesheets, constraints=[daily_cap]),
         ]
 
         columns = {
+            "clients": [
+                Column(name="client_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_clients + 1}),
+                Column(name="company", type="text", distribution_params={"text_type": "company"}),
+                Column(name="country", type="text", distribution_params={"text_type": "country"}),
+            ],
+            "employees": [
+                Column(name="employee_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_employees + 1}),
+                Column(name="name", type="text", distribution_params={"text_type": "name"}),
+                Column(name="role", type="categorical", distribution_params={
+                    "choices": ["Research Associate", "Clinical Scientist",
+                                "Biostatistician", "Project Manager", "Regulatory Affairs"],
+                    "probabilities": [0.35, 0.25, 0.15, 0.15, 0.10]}),
+                Column(name="hire_date", type="date",
+                       distribution_params={"start": "2018-01-01", "end": "2023-06-30"}),
+                Column(name="hourly_rate", type="float", distribution_params={
+                    "distribution": "normal", "mean": 95, "std": 30,
+                    "min": 45, "max": 250, "decimals": 2}),
+            ],
             "research_projects": [
-                Column(name="project_id", type="int", unique=True, distribution_params={"min": 1, "max": num_projects + 1}),
-                Column(name="project_name", type="text", distribution_params={"text_type": "research_project_name"}),
-                Column(
-                    name="start_date",
-                    type="date",
-                    distribution_params={"start": "2022-01-01", "end": "2024-01-01"},
-                ),
-                Column(
-                    name="status",
-                    type="categorical",
-                    distribution_params={
-                        "choices": ["planning", "active", "completed", "on-hold"],
-                        "probabilities": [0.1, 0.5, 0.3, 0.1],
-                    },
-                ),
+                Column(name="project_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_projects + 1}),
+                Column(name="client_id", type="foreign_key", distribution_params={}),
+                Column(name="project_name", type="text",
+                       distribution_params={"text_type": "research_project_name"}),
+                Column(name="phase", type="categorical", distribution_params={
+                    "choices": ["Phase I", "Phase II", "Phase III", "Phase IV"],
+                    "probabilities": [0.3, 0.3, 0.25, 0.15]}),
+                Column(name="start_date", type="date",
+                       distribution_params={"start": "2022-01-01", "end": "2024-01-01"}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["planning", "active", "completed", "on-hold"],
+                    "probabilities": [0.1, 0.5, 0.3, 0.1]}),
+                # Roll-ups: project totals derive from the real timesheet rows.
+                Column(name="total_hours", type="float", distribution_params={
+                    "rollup": {"from_table": "timesheets", "fk": "project_id",
+                               "agg": "sum", "column": "hours"}}),
+                Column(name="revenue_usd", type="float", distribution_params={
+                    "rollup": {"from_table": "timesheets", "fk": "project_id",
+                               "agg": "sum", "column": "billed_usd"}}),
             ],
             "timesheets": [
-                Column(name="entry_id", type="int", unique=True, distribution_params={"min": 1, "max": num_timesheets + 1}),
+                Column(name="entry_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_timesheets + 1}),
+                Column(name="employee_id", type="foreign_key", distribution_params={}),
                 Column(name="project_id", type="foreign_key", distribution_params={}),
-                Column(name="employee_name", type="text", distribution_params={"text_type": "name"}),
-                Column(
-                    name="date",
-                    type="date",
-                    distribution_params={"start": "2022-01-01", "end": "2024-12-31"},
-                ),
-                Column(
-                    name="hours",
-                    type="float",
-                    distribution_params={
-                        "distribution": "normal",
-                        "mean": 7.5,
-                        "std": 1.5,
-                        "min": 0.5,
-                        "max": 12.0,
-                        "decimals": 1,
-                    },
-                ),
+                # Dates fall within the project's window, not an unrelated range.
+                Column(name="date", type="date", distribution_params={
+                    "relative_to": "research_projects.start_date",
+                    "min_delta_days": 0, "max_delta_days": 540}),
+                Column(name="hours", type="float", distribution_params={
+                    "distribution": "normal", "mean": 7.5, "std": 1.5,
+                    "min": 0.5, "max": 12.0, "decimals": 1}),
+                # Cross-table formula: what we bill the client for this entry.
+                Column(name="billed_usd", type="float", distribution_params={
+                    "formula": "hours * @employees.hourly_rate"}),
             ],
         }
 
         relationships = [
-            Relationship(
-                parent_table="research_projects",
-                child_table="timesheets",
-                parent_key="project_id",
-                child_key="project_id",
-            ),
+            Relationship(parent_table="clients", child_table="research_projects",
+                         parent_key="client_id", child_key="client_id"),
+            Relationship(parent_table="employees", child_table="timesheets",
+                         parent_key="employee_id", child_key="employee_id"),
+            Relationship(parent_table="research_projects", child_table="timesheets",
+                         parent_key="project_id", child_key="project_id"),
         ]
 
         outcome_curve = self._build_absolute_monthly_curve(
@@ -1400,7 +1438,7 @@ class StoryParser:
         )
 
         return SchemaConfig(
-            name="Pharma Services Dataset",
+            name="Pharma CRO Dataset",
             description=f"Generated from story: {story}",
             domain="pharma",
             tables=tables,
