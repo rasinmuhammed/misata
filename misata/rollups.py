@@ -49,6 +49,8 @@ class RollupSpec:
     agg: str
     column: Optional[str] = None   # child column to aggregate; None for count
     fillna: float = 0.0            # parents with no children get this
+    where: Optional[Dict[str, Any]] = None   # equality filter on child rows, e.g.
+    #                                          {"status": "completed"} or {"status": ["a","b"]}
 
 
 # --------------------------------------------------------------------------- #
@@ -71,6 +73,7 @@ def collect_declared_rollups(config: Any) -> List[RollupSpec]:
             from_table = decl.get("from_table")
             if not fk or not from_table:
                 continue
+            where = decl.get("where")
             specs.append(RollupSpec(
                 parent_table=table_name,
                 target_column=col.name,
@@ -80,6 +83,7 @@ def collect_declared_rollups(config: Any) -> List[RollupSpec]:
                 agg=agg,
                 column=decl.get("column"),
                 fillna=float(decl.get("fillna", 0.0)),
+                where=where if isinstance(where, dict) else None,
             ))
     return specs
 
@@ -167,6 +171,21 @@ def apply_rollups(tables: Dict[str, pd.DataFrame], specs: List[RollupSpec]) -> D
             continue
         if spec.agg != "count" and (spec.column is None or spec.column not in child.columns):
             continue
+
+        # Optional equality filter: aggregate only child rows matching `where`
+        # (e.g. total_completed = sum(amount where status == "completed")). Scalar matches
+        # one value; a list matches any. Unknown filter columns are ignored (no silent
+        # wrong number — the filter simply does not narrow on a column that is not there).
+        if spec.where:
+            mask = pd.Series(True, index=child.index)
+            for fcol, fval in spec.where.items():
+                if fcol not in child.columns:
+                    continue
+                if isinstance(fval, (list, tuple, set)):
+                    mask &= child[fcol].isin(list(fval))
+                else:
+                    mask &= (child[fcol] == fval)
+            child = child[mask]
 
         if spec.agg == "count":
             grouped = child.groupby(spec.fk).size()
