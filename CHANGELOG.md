@@ -5,6 +5,39 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0.3] - unreleased
+
+Enterprise simulation release. Misata can now generate a complete, internally-consistent
+company dataset where every number ties together — the kind of deeply interconnected data
+no other synthetic-data library produces. 653 tests, 0 failures.
+
+### Added
+
+- **Flagship pharma CRO domain.** `misata.generate("A pharmaceutical CRO with 60
+  employees, 20 clinical research projects, and clients")` now produces a full four-table
+  company (clients → projects → employees → timesheets) whose figures reconcile end to
+  end: `timesheets.billed_usd = hours * employee.hourly_rate`, `projects.revenue_usd =
+  sum(billed)`, `projects.total_hours = sum(hours)`, timesheet dates inside each project's
+  window, and a 24h/day capacity cap. Run a `GROUP BY ... JOIN` and the totals add up.
+- **`from_dict_schema` full feature passthrough.** The plain-dict entry point (used by
+  LLMs and non-Python callers) now exposes the complete engine: `distribution` and its
+  shape parameters (`mu`/`sigma`/`mean`/`std`/`alpha`/...), `probabilities`, `formula`,
+  `depends_on`, `mapping`, `zero_inflate`, `rollup`, `references`, `relative_to`,
+  `null_if`, and boolean `probability`. Previously these were silently dropped, so a dict
+  schema lost its distributions, exact percentages, and formulas.
+
+### Fixed
+
+- **Cross-table formula resolution.** `@parent.column` lookups (e.g. `hours *
+  @employees.hourly_rate`) now resolve the parent's real primary key (`employee_id`,
+  `customer_id`) instead of a hardcoded `id`, and the generation context retains the
+  parent columns a child formula references. These lookups previously returned 0 / garbage
+  on any schema not keyed on a literal `id`.
+- **Constraint → formula ordering.** Formula columns are re-applied after business-rule
+  constraints, so a derived value stays consistent when a constraint changes its inputs.
+  Before this fix, a capacity cap that reduced `hours` left `billed_usd` computed from the
+  pre-cap value, and the revenue roll-up summed the stale figures.
+
 ## [0.8.0.2] - 2026-06-10
 
 Realism and correctness release. Focus: making generated relational data *reconcile* the
