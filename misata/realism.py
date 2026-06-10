@@ -1047,27 +1047,53 @@ def _apply_plan_price_mapping(df: pd.DataFrame, columns: set[str]) -> None:
 # ─── IDENTITY RULES ──────────────────────────────────────────────────────────
 
 def _fix_email_from_name(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
-    """Compose email from first_name + last_name for consistency."""
-    if {"first_name", "last_name", "email"}.issubset(columns):
-        domains = [
-            "gmail.com", "yahoo.com", "outlook.com", "protonmail.com",
-            "icloud.com", "hotmail.com", "aol.com", "mail.com",
-        ]
-        domain_choices = rng.choice(domains, size=len(df))
-        separators = rng.choice([".", "_", ""], size=len(df), p=[0.6, 0.2, 0.2])
+    """Make ``email`` consistent with the person's name.
 
-        emails = []
-        for i in range(len(df)):
-            first = str(df.iloc[i]["first_name"]).lower().strip()
-            last = str(df.iloc[i]["last_name"]).lower().strip()
-            # Remove special chars
-            first = re.sub(r'[^a-z]', '', first)
-            last = re.sub(r'[^a-z]', '', last)
-            sep = separators[i]
-            domain = domain_choices[i]
-            emails.append(f"{first}{sep}{last}@{domain}")
+    A mismatched name/email (``"Brian Scott"`` with ``carol.stewart@...``) is the single
+    most obvious tell that a dataset is fake, so this runs on every generation. It handles
+    both the split-name schema (``first_name`` + ``last_name``) and the common single
+    ``name`` column. Non-person ``name`` columns (e.g. a product or company ``name``) are
+    left alone: we only rewrite when the values look like personal names.
+    """
+    if "email" not in columns:
+        return
 
-        df["email"] = emails
+    domains = [
+        "gmail.com", "yahoo.com", "outlook.com", "protonmail.com",
+        "icloud.com", "hotmail.com", "aol.com", "mail.com",
+    ]
+
+    def _clean(part: str) -> str:
+        return re.sub(r"[^a-z]", "", str(part).lower().strip())
+
+    if {"first_name", "last_name"}.issubset(columns):
+        firsts = df["first_name"].astype(str)
+        lasts = df["last_name"].astype(str)
+    elif "name" in columns:
+        # Only treat as personal names if most rows look like "First Last" (2+ tokens).
+        name_series = df["name"].astype(str)
+        looks_personal = name_series.str.strip().str.split().str.len().ge(2).mean()
+        if looks_personal < 0.6:
+            return
+        parts = name_series.str.strip().str.split()
+        firsts = parts.str[0]
+        lasts = parts.str[-1]
+    else:
+        return
+
+    n = len(df)
+    domain_choices = rng.choice(domains, size=n)
+    separators = rng.choice([".", "_", ""], size=n, p=[0.6, 0.2, 0.2])
+    emails = []
+    for i in range(n):
+        first = _clean(firsts.iloc[i])
+        last = _clean(lasts.iloc[i])
+        if not first and not last:
+            emails.append(df.iloc[i]["email"])   # keep original if name is unusable
+            continue
+        stem = f"{first}{separators[i]}{last}".strip(".")
+        emails.append(f"{stem}@{domain_choices[i]}")
+    df["email"] = emails
 
 
 def _fix_slug_from_name(df: pd.DataFrame, columns: set[str]) -> None:
