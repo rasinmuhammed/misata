@@ -46,7 +46,7 @@ distribution) across a relational schema. Off-the-shelf imitation tools provide 
 interface for such targets; and — the structural point — **no sampler can hit an exact
 aggregate**, because sampling has variance. We make this precise: on a real public
 dataset, off-the-shelf learned synthesizers trained *on that very data* miss the declared
-monthly aggregate by **74–87%**; the strongest steelman (a GaussianCopula trained
+monthly aggregate by **74–86%**; the strongest steelman (a GaussianCopula trained
 *per period*, the fix a reviewer would demand) cuts the miss to **~19%** but still cannot
 reach **0** — exactness is unattainable by sampling. A closed-form generator attains
 **exactly 0** (to the half-cent, deterministically). We name this task
@@ -112,7 +112,7 @@ outcomes*; success is *exact conformance*. Imitation struggles here on two count
 off-the-shelf tools provide no interface to accept a target (cold-start = 0 capability),
 and — even when *conditioned* per period (the obvious fix) — a sampler cannot produce an
 *exact* aggregate, only an approximation with variance. §6 shows this concretely:
-off-the-shelf learned methods miss real-data outcomes by 74–87%; a per-period-conditioned
+off-the-shelf learned methods miss real-data outcomes by 74–86%; a per-period-conditioned
 steelman still misses by ~19% and never reaches 0; closed-form generation reaches exactly
 0. The structural statement is about *exactness*, not about whether imitation can be
 coaxed to approximate.
