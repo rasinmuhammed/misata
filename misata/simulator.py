@@ -762,6 +762,18 @@ class DataSimulator:
                 values = np.maximum(values, params["min"])
             if "max" in params:
                 values = np.minimum(values, params["max"])
+
+            # Zero inflation: a fraction of rows are *structural* zeros, applied AFTER the
+            # min clamp so a structural 0 is not lifted to `min`. Real monetary/usage columns
+            # often have a spike at 0 (free-tier MRR, no-spend months, dormant accounts) on
+            # top of a positive continuous tail — a uniformly-positive column reads as fake.
+            zi = params.get("zero_inflate")
+            if zi:
+                p_zero = float(zi if isinstance(zi, (int, float)) else zi.get("p", 0.0))
+                if 0.0 < p_zero < 1.0:
+                    zero_mask = self.rng.random(size) < p_zero
+                    values = np.where(zero_mask, 0.0, values)
+
             if "decimals" in params:
                 values = np.round(values, params["decimals"])
 
