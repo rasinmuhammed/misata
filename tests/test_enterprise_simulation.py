@@ -194,3 +194,59 @@ class TestPharmaDomainFromOneSentence:
     def test_daily_hours_capped(self):
         daily = self.t["timesheets"].groupby(["employee_id", "date"])["hours"].sum()
         assert daily.max() <= 24.01
+
+
+class TestDeepCustomSchema:
+    """Fully custom domain Misata has no built-in knowledge of, 6 tables, per-table sizing.
+    Proves there is no table-count limit and the chain holds across more hops."""
+
+    def _energy(self):
+        return misata.from_dict_schema({
+            "regions": {"rows": 4, "region_id": {"type": "integer", "primary_key": True}},
+            "contracts": {"rows": 30, "contract_id": {"type": "integer", "primary_key": True}},
+            "sites": {"rows": 50,
+                      "site_id": {"type": "integer", "primary_key": True},
+                      "region_id": {"type": "integer", "foreign_key": {"table": "regions", "column": "region_id"}},
+                      "contract_id": {"type": "integer", "foreign_key": {"table": "contracts", "column": "contract_id"}},
+                      "commissioned": {"type": "date", "start": "2015-01-01", "end": "2022-12-31"},
+                      "total_downtime_hrs": {"type": "float", "rollup": {
+                          "from_table": "maintenance_logs", "fk": "site_id", "agg": "sum", "column": "downtime_hrs"}}},
+            "turbines": {"rows": 300,
+                         "turbine_id": {"type": "integer", "primary_key": True},
+                         "site_id": {"type": "integer", "foreign_key": {"table": "sites", "column": "site_id"}}},
+            "technicians": {"rows": 40,
+                            "technician_id": {"type": "integer", "primary_key": True},
+                            "hourly_rate": {"type": "float", "distribution": "normal", "mean": 70, "std": 15, "min": 40}},
+            "maintenance_logs": {"rows": 5000,
+                                 "log_id": {"type": "integer", "primary_key": True},
+                                 "turbine_id": {"type": "integer", "foreign_key": {"table": "turbines", "column": "turbine_id"}},
+                                 "site_id": {"type": "integer", "foreign_key": {"table": "sites", "column": "site_id"}},
+                                 "technician_id": {"type": "integer", "foreign_key": {"table": "technicians", "column": "technician_id"}},
+                                 "service_date": {"type": "date", "relative_to": "sites.commissioned",
+                                                  "min_delta_days": 30, "max_delta_days": 2000},
+                                 "downtime_hrs": {"type": "float", "distribution": "lognormal", "mu": 1.0, "sigma": 0.6, "min": 0.5, "max": 48},
+                                 "labor_cost_usd": {"type": "float", "formula": "downtime_hrs * @technicians.hourly_rate"}},
+        })
+
+    def test_per_table_row_counts(self):
+        t = misata.generate_from_schema(self._energy())
+        assert len(t["regions"]) == 4
+        assert len(t["sites"]) == 50
+        assert len(t["maintenance_logs"]) == 5000
+
+    def test_six_table_fk_integrity(self):
+        t = misata.generate_from_schema(self._energy())
+        edges = [("regions", "sites", "region_id"), ("contracts", "sites", "contract_id"),
+                 ("sites", "turbines", "site_id"), ("sites", "maintenance_logs", "site_id"),
+                 ("turbines", "maintenance_logs", "turbine_id"),
+                 ("technicians", "maintenance_logs", "technician_id")]
+        for parent, child, key in edges:
+            assert (~t[child][key].isin(set(t[parent][key]))).sum() == 0
+
+    def test_chain_reconciles_across_six_tables(self):
+        t = misata.generate_from_schema(self._energy())
+        ml = t["maintenance_logs"].merge(t["technicians"][["technician_id", "hourly_rate"]], on="technician_id")
+        assert (ml["labor_cost_usd"] - ml["downtime_hrs"] * ml["hourly_rate"]).abs().max() < 0.01
+        dt = t["maintenance_logs"].groupby("site_id")["downtime_hrs"].sum()
+        sm = t["sites"].set_index("site_id")
+        assert (sm["total_downtime_hrs"] - dt.reindex(sm.index).fillna(0)).abs().max() < 0.01

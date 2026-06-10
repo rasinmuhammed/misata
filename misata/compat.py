@@ -265,6 +265,16 @@ def from_dict_schema(
             or None
         )
 
+        # Per-table row count: lets a 6-table schema say "4 regions, 50 sites, 5000 logs"
+        # instead of forcing one global count on every table. Accept several spellings;
+        # fall back to the global row_count when none is given.
+        table_rows = row_count
+        for rows_key in ("__rows__", "__row_count__", "rows", "row_count"):
+            val = table_def.get(rows_key)
+            if isinstance(val, int) and val > 0:
+                table_rows = val
+                break
+
         pk_col = _detect_pk(table_def)
         table_cols: List[Column] = []
 
@@ -286,7 +296,7 @@ def from_dict_schema(
             if col is not None:
                 table_cols.append(col)
 
-        tables.append(Table(name=table_name, row_count=row_count, description=table_desc))
+        tables.append(Table(name=table_name, row_count=table_rows, description=table_desc))
         columns_map[table_name] = table_cols
 
     return SchemaConfig(
