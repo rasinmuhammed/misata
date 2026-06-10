@@ -5,11 +5,53 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0.2] - 2026-06-10
+
+Realism and correctness release. Focus: making generated relational data *reconcile* the
+way real data does, and closing a multi-batch correctness gap. 633 tests, 0 failures.
+
+### Added
+
+- **Cross-table aggregate roll-ups** (`misata/rollups.py`) — parent summary columns now
+  reconcile with child rows: `customers.total_spent` equals `sum(orders.amount)` per
+  customer, surviving a `GROUP BY ... JOIN`. Declare on a column via
+  `distribution_params={"rollup": {"from_table": "orders", "fk": "customer_id",
+  "agg": "sum", "column": "amount"}}`. Aggregations: `sum`, `count`, `mean`, `max`, `min`.
+  Optional `where` filter (`{"status": "completed"}`, scalar or list). Exact
+  reconciliation, FK-safe, deterministic.
+- **Zero-config roll-up inference** — when a parent column name explicitly names a child
+  table (`num_orders`, `total_orders`), the roll-up is inferred automatically. Deliberately
+  conservative: declines on ambiguous names (`total_sales`, `stock_count`) rather than
+  produce a wrong number, so there are no false positives on the built-in domains.
+- **Zero-inflated distributions** — `distribution_params={"zero_inflate": 0.3}` injects a
+  spike of structural zeros (free-tier, no-spend periods) on top of any base distribution,
+  applied after the `min` clamp so structural zeros are not lifted. Opt-in; not
+  auto-applied to curated domains that already model semantic zeros.
+
+### Fixed
+
+- **Relative-curve cross-batch convergence** — relative outcome curves
+  (`relative_value` control points) now hold their shape *exactly* regardless of
+  `batch_size`. Previously, generating a >10k-row table in multiple batches drifted the
+  shape (e.g. a 4× December/January ratio fell to ~3.5× at small batch sizes). Per-month
+  factors are now interpolated for all months and corrected against actual accumulated row
+  counts.
+- **YAML round-trip for generation features** — `rollup`, `zero_inflate`, `depends_on`,
+  `mapping`, `formula`, and `inherits_curve_from` now survive
+  `save_yaml_schema` → `load_yaml_schema`. They were previously dropped on load, silently
+  disabling these features for schemas committed to `misata.yaml`.
+
+### Notes
+
+- The accompanying arXiv preprint (arXiv:2606.08736v1) describes the exact-aggregate
+  engine; this release extends it from temporal aggregate conformance toward *relational*
+  aggregate coherence (parent/child roll-ups).
+
 ## [0.8.0] - 2026-05-10
 
 ### Research
 
-- Published **"Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark"** (arXiv:2606.08736v1) — the first peer-reviewed paper formalising Misata's exact-aggregate engine. Proves the mechanism is exactly conditional-sum sampling of a Gamma population (Lukacs' characterisation), contributes **SpecBench** (the first conformance benchmark for cold-start relational synthesis), and shows off-the-shelf imitation synthesisers miss declared monthly aggregates by 74–86% while the closed-form engine reaches exactly 0.
+- Posted **"Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark"** (arXiv:2606.08736v1) — an arXiv preprint formalising Misata's exact-aggregate engine. Shows the mechanism is exactly conditional-sum sampling of a Gamma population (Lukacs' characterisation), contributes **SpecBench** (a conformance benchmark for cold-start relational synthesis), and reports that off-the-shelf imitation synthesisers miss declared monthly aggregates by 74–86% (per-period-conditioned ~19%) while the closed-form engine reaches exactly 0.
 
 ### Added
 

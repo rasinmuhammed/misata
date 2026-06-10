@@ -380,6 +380,47 @@ Constraints can also be declared in `misata.yaml` — they run at generation tim
 
 ---
 
+## Cross-table roll-ups
+
+Make parent summary columns reconcile with child rows, so the data survives a `GROUP BY ... JOIN`. A `customers.total_spent` column generated independently of that customer's actual orders is a giveaway that data is fake; a roll-up computes it from the real child rows.
+
+```python
+schema = misata.from_dict_schema({
+    "name": "shop",
+    "tables": {
+        "customers": {
+            "rows": 500,
+            "columns": {
+                "customer_id": {"type": "int", "unique": True},
+                # total_spent = sum(orders.amount) per customer
+                "total_spent": {"type": "float", "rollup": {
+                    "from_table": "orders", "fk": "customer_id",
+                    "agg": "sum", "column": "amount"}},
+                # completed_spend = sum(amount) where status == "completed"
+                "completed_spend": {"type": "float", "rollup": {
+                    "from_table": "orders", "fk": "customer_id", "agg": "sum",
+                    "column": "amount", "where": {"status": "completed"}}},
+            },
+        },
+        "orders": {
+            "rows": 3000,
+            "columns": {
+                "order_id": {"type": "int", "unique": True},
+                "customer_id": {"type": "foreign_key", "references": "customers.customer_id"},
+                "amount": {"type": "float", "distribution": "lognormal", "mu": 4, "sigma": 0.5, "min": 1},
+                "status": {"type": "categorical", "choices": ["completed", "cancelled", "pending"]},
+            },
+        },
+    },
+})
+tables = misata.generate_from_schema(schema)
+# tables["customers"]["total_spent"] reconciles exactly with the orders table.
+```
+
+Aggregations: `sum`, `count`, `mean`, `max`, `min`. When a parent column name explicitly names a child table (`num_orders`, `total_orders`), the roll-up is inferred automatically with no declaration. Roll-ups survive the `misata.yaml` round-trip and run at generation time.
+
+---
+
 ## Export
 
 ```python
@@ -551,7 +592,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
+633 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
 
 ---
 
