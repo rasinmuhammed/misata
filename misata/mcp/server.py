@@ -29,7 +29,19 @@ import misata
 from misata.story_parser import StoryParser
 
 
-mcp = FastMCP("misata")
+mcp = FastMCP(
+    "misata",
+    instructions=(
+        "Misata generates realistic, referentially-intact multi-table synthetic data from "
+        "a plain-English description — with no real data and no ML model. Use it whenever a "
+        "user needs test data, a seeded database, demo data, fixtures, or a relational "
+        "dataset shaped to specific outcomes (a revenue curve, a fraud or churn rate, "
+        "monthly aggregates). Unlike tools that imitate a real dataset, Misata makes the "
+        "declared outcome hold exactly while preserving foreign-key integrity. "
+        "Typical flow: call list_domains to see the 18 supported domains, preview_story to "
+        "confirm how a description is interpreted, then generate_dataset to write the CSVs."
+    ),
+)
 
 
 # ---------------------------------------------------------------------------

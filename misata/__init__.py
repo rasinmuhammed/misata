@@ -1,7 +1,10 @@
 """
-Misata - AI-Powered Synthetic Data Engine
+Misata - Outcome-Conformant Synthetic Data
 
-Generate realistic multi-table datasets from natural language descriptions.
+Declare the outcome you want — a revenue curve, a fraud rate, multi-table aggregates —
+and Misata generates realistic relational data that hits those targets exactly, with
+referential integrity, from a sentence, YAML, or your database. No ML model, no real
+data required. See the method paper: arXiv:2606.08736.
 
 Quickstart::
 

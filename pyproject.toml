@@ -1,7 +1,7 @@
 [project]
 name = "misata"
 version = "0.8.0.2"
-description = "Python synthetic data generator for realistic multi-table test data, database seeding, and scenario simulation"
+description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare — exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
 ]
@@ -12,18 +12,27 @@ keywords = [
     "synthetic-data",
     "synthetic-data-python",
     "python-synthetic-data",
-    "data-generation", 
+    "data-generation",
     "fake-data",
     "test-data-generator",
     "database-seeding",
     "mock-data",
     "tabular-data",
     "multi-table",
+    "relational-data",
+    "referential-integrity",
+    "outcome-conformant",
+    "data-conformance",
     "scenario-simulation",
+    "pytest-fixtures",
+    "dbt",
     "machine-learning",
     "testing",
+    "mcp",
+    "mcp-server",
     "llm",
     "ai",
+    "ai-agents",
     "database",
 ]
 classifiers = [
