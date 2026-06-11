@@ -7,13 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0.4] - 2026-06-11
 
-Patch release. 759 tests, 0 failures.
+Patch release. 761 tests, 0 failures.
 
 ### Fixed
 
 - **`pattern` and `text_type` now reach the engine from dict schemas.** `from_dict_schema`
   dropped both keys, so the pattern codes shipped in 0.8.0.3 and explicit semantic text
   types were unreachable for Studio, MCP agents, and any non-Python caller.
+- **Thousands separators in stories.** "A fintech with 2,000 customers" previously
+  parsed the scale as 0 (the regex stopped at the comma) and crashed generation.
+  Scale extraction now accepts `2,000`, `20,000`, and `1.5M` alike.
 - **Declared `text_type` wins over column-name inference.** A column named `contact`
   declared as `person_name` previously generated description text because name-based
   inference outranked the explicit declaration. The schema's word is now final; inference

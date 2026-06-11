@@ -141,3 +141,19 @@ def test_dict_order_breaks_score_ties():
     parser.parse("food delivery with restaurants and orders")
     report = parser.detection_report()
     assert report.domain == "fooddelivery"
+
+
+def test_scale_accepts_thousands_separators():
+    """'2,000 customers' must parse as 2000, not 0 from the post-comma digits."""
+    parser = StoryParser()
+    parser.parse("A fintech with 2,000 customers and 20,000 transactions")
+    report = parser.detection_report()
+    assert report.scale_params.get("users") == 2_000
+    assert report.scale_params.get("transactions") == 20_000
+
+
+def test_scale_accepts_decimal_suffix_numbers():
+    parser = StoryParser()
+    parser.parse("A marketplace with 1.5M users")
+    report = parser.detection_report()
+    assert report.scale_params.get("users") == 1_500_000
