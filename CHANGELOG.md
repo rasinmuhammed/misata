@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0.5] - 2026-06-11
 
-Mimic realism release. 773 tests, 0 failures.
+Mimic realism release. 776 tests, 0 failures.
 
 ### Fixed
 
@@ -28,6 +28,10 @@ Mimic realism release. 773 tests, 0 failures.
 - **Weighted pattern lists.** `pattern` accepts a list with optional `pattern_weights`,
   drawing one shape per row; `[a-z]` classes now expand in patterns. Both reachable from
   dict schemas.
+- **Outcome curves in dict schemas.** `__outcome_curves__` and `__rate_curves__` as
+  top-level directives: declared aggregate and rate targets are now reachable from the
+  plain-dict contract (Studio, MCP agents, non-Python callers), validated at
+  schema-compile time, hit exactly at generation time.
 
 ## [0.8.0.4] - 2026-06-11
 
