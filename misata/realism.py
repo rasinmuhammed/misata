@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from misata.domain_capsule import DomainCapsule
+from misata.people import PersonSampler, lookup_gender, lookup_surname_culture
 from misata.vocab_seeds import (
     CITIES_BY_COUNTRY,
     FIRST_NAMES,
@@ -73,6 +74,13 @@ class RealisticTextGenerator:
         self.capsule = capsule
         self.locale = locale or "en_US"
         self._faker = None  # lazy
+        # Per-(table, size) joint person frames so first_name, last_name and
+        # gender for the same table come from ONE draw of (culture, gender,
+        # first, last) — never independent samples that produce "Pablo, Female"
+        # or "Wei Gonzalez".
+        self._person_frames: dict = {}
+        from misata.microtext import MicrotextGenerator
+        self.microtext = MicrotextGenerator(self.rng)
 
     def _get_faker(self):
         if self._faker is None:
@@ -116,17 +124,23 @@ class RealisticTextGenerator:
         if semantic == "first_name":
             if faker and not _has_capsule_vocab("first_name"):
                 return np.array([faker.first_name() for _ in range(size)])
-            return self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+            if _has_capsule_vocab("first_name"):
+                return self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+            return self._person_frame(table_name, size)["first"]
         if semantic == "last_name":
             if faker and not _has_capsule_vocab("last_name"):
                 return np.array([faker.last_name() for _ in range(size)])
-            return self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+            if _has_capsule_vocab("last_name"):
+                return self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+            return self._person_frame(table_name, size)["last"]
         if semantic == "person_name":
             if faker and not _has_capsule_vocab("first_name"):
                 return np.array([faker.name() for _ in range(size)])
-            first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
-            last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
-            return np.array([f"{f} {l}" for f, l in zip(first, last)])
+            if _has_capsule_vocab("first_name"):
+                first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
+                last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+                return np.array([f"{f} {l}" for f, l in zip(first, last)])
+            return self._person_frame(table_name, size)["full"]
         if semantic == "email":
             # Use names already generated in this row when available
             _PROVIDERS = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com", "hotmail.com"]
@@ -136,6 +150,9 @@ class RealisticTextGenerator:
                 last  = table_data["last_name"].astype(str).values[:size] if "last_name" in table_data.columns else np.array([""] * size)
             elif faker and not _has_capsule_vocab("first_name"):
                 return np.array([faker.email() for _ in range(size)])
+            elif not _has_capsule_vocab("first_name"):
+                frame = self._person_frame(table_name, size)
+                first, last = frame["first"], frame["last"]
             else:
                 first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
                 last  = self.rng.choice(self._vocabulary("last_name",  LAST_NAMES),  size=size)
@@ -227,8 +244,8 @@ class RealisticTextGenerator:
                 for country in countries
             ])
         if semantic == "username":
-            first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
-            last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
+            frame = self._person_frame(table_name, size)
+            first, last = frame["first"], frame["last"]
             return np.array([
                 f"{re.sub(r'[^a-z]', '', f.lower())}{re.sub(r'[^a-z]', '', l.lower())}{int(self.rng.integers(1, 999)):03d}"
                 for f, l in zip(first, last)
@@ -269,7 +286,7 @@ class RealisticTextGenerator:
         if semantic == "postal_code":
             return self._generate_postal_code(size=size)
         if semantic == "short_review_title":
-            return self._generate_short_review_title(size=size)
+            return self._generate_short_review_title(size=size, table_data=table_data)
         if semantic == "review":
             return self._generate_review(size=size, table_data=table_data)
         if semantic == "support_ticket":
@@ -417,64 +434,23 @@ class RealisticTextGenerator:
             codes.append(f"{prefix}{suffix}")
         return np.array(codes)
 
-    def _generate_short_review_title(self, *, size: int) -> np.ndarray:
-        _TITLES = [
-            "Amazing experience!", "Exceeded all expectations", "Not worth the price",
-            "Would definitely recommend", "Decent but could be better", "Absolutely loved it",
-            "Disappointing — expected more", "Great value for money", "Hidden gem!",
-            "Perfect getaway", "Good but not great", "Will come back for sure",
-            "Highly recommend!", "Average at best", "Unforgettable trip",
-            "A little overrated", "Fantastic service", "Nothing special",
-            "Best booking I've made", "Smooth experience from start to finish",
-            "Had some issues but resolved quickly", "Exactly as described",
-            "Beautiful property, great staff", "Comfortable and convenient",
-            "Good location, mediocre service", "Way better than expected",
-            "Solid choice for the price", "Great views, small rooms",
-            "Friendly staff, dated rooms", "Outstanding in every way",
-        ]
-        return np.array([self.rng.choice(_TITLES) for _ in range(size)])
+    def _generate_short_review_title(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:
+        return self.microtext.review_titles(size, ratings=self._ratings_from(table_data, size))
 
-    def _generate_review(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:  # noqa: ARG002
-        _POS = [
-            "Absolutely loved it! {detail} Will definitely come back.",
-            "Great experience overall. {detail} Highly recommend.",
-            "{detail} Five stars from me — exceeded expectations.",
-            "Really impressed. {detail} Could not ask for more.",
-            "Solid product. {detail} Does exactly what it promises.",
-            "One of the best I've tried. {detail} Worth every penny.",
-        ]
-        _NEU = [
-            "Decent, but nothing special. {detail} Might try again.",
-            "It was okay. {detail} Has potential but needs work.",
-            "Mixed feelings. {detail} Some good, some not so good.",
-            "Average experience. {detail} Room for improvement.",
-        ]
-        _NEG = [
-            "Disappointing. {detail} Expected much better.",
-            "Would not recommend. {detail} Fell short of expectations.",
-            "Had some issues. {detail} Needs significant improvement.",
-            "Not what I was hoping for. {detail} Pretty underwhelming.",
-        ]
-        _DETAILS = [
-            "The quality was noticeable from the start.",
-            "Delivery was fast and packaging was great.",
-            "Customer service was responsive and helpful.",
-            "The interface is intuitive and easy to use.",
-            "Setup took only a few minutes.",
-            "Works exactly as described.",
-            "Had a minor issue at first but it resolved quickly.",
-            "The build quality feels premium.",
-            "Instructions could be clearer.",
-            "Pricing is fair for what you get.",
-        ]
-        sentiments = self.rng.choice(["pos", "neu", "neg"], size=size, p=[0.65, 0.22, 0.13])
-        result = []
-        for s in sentiments:
-            pool = _POS if s == "pos" else (_NEU if s == "neu" else _NEG)
-            template = str(self.rng.choice(pool))
-            detail = str(self.rng.choice(_DETAILS))
-            result.append(template.format(detail=detail))
-        return np.array(result)
+    def _ratings_from(self, table_data: Optional[pd.DataFrame], size: int):
+        """The row's own rating column, if one has been generated already."""
+        if table_data is None:
+            return None
+        for col in ("rating", "stars", "score", "rating_given"):
+            if col in table_data.columns:
+                return table_data[col].values[:size]
+        return None
+
+    def _generate_review(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:
+        # Sentiment is conditioned on the row's rating: a 1-star review reads
+        # angry, a 5-star review reads delighted. Without a rating column the
+        # grammar falls back to the J-shaped marginal real review sites show.
+        return self.microtext.reviews(size, ratings=self._ratings_from(table_data, size))
 
     def _generate_support_ticket(self, *, size: int) -> np.ndarray:
         _ISSUES = [
@@ -555,8 +531,16 @@ class RealisticTextGenerator:
 
     def _generate_comment_body(self, *, size: int) -> np.ndarray:
         from misata.vocab_seeds import COMMENT_BODIES
-        pool = self._vocabulary("comment_body", COMMENT_BODIES)
-        return np.array([self.rng.choice(pool) for _ in range(size)])
+        pool = self._vocabulary("comment_body", [])
+        if pool:  # capsule/asset-store vocabulary takes priority
+            return np.array([self.rng.choice(pool) for _ in range(size)])
+        # Grammar comments compose combinatorially; blend in the curated pool
+        # for extra surface variety.
+        generated = self.microtext.comments(size)
+        from_pool = self.rng.random(size) < 0.3
+        if from_pool.any():
+            generated[from_pool] = self.rng.choice(COMMENT_BODIES, size=int(from_pool.sum()))
+        return generated
 
     def _generate_research_project_name(self, *, size: int) -> np.ndarray:
         from misata.vocab_seeds import RESEARCH_PROJECT_NAMES
@@ -690,6 +674,20 @@ class RealisticTextGenerator:
             slug = re.sub(r"\s+", "-", slug).strip("-")
             slugs.append(slug or "site")
         return np.array(slugs)
+
+    def _person_frame(self, table_name: str, size: int) -> dict:
+        """One joint (culture, gender, first, last) draw per table.
+
+        Every person-ish column in the same table (first_name, last_name,
+        full name, username, email fallback) reads from the same frame, so
+        cross-column dependence is exact by construction.
+        """
+        key = (table_name, size)
+        frame = self._person_frames.get(key)
+        if frame is None:
+            frame = PersonSampler(self.rng).sample(size)
+            self._person_frames[key] = frame
+        return frame
 
     def _vocabulary(self, name: str, fallback: Iterable[str]) -> list[str]:
         if self.capsule is not None:
@@ -926,14 +924,128 @@ def apply_realism_rules(
     _apply_plan_price_mapping(df, columns)
 
     # ── Identity consistency ──
+    _fix_gender_name_coherence(df, columns, _rng)   # before email: email derives from the fixed name
     _fix_email_from_name(df, columns, _rng)
     _fix_slug_from_name(df, columns)
     _fix_category_from_product_name(df, columns, table_name)
+
+    # ── Geographic consistency ──
+    _fix_route_geo(df, columns, _rng)
+
+    # ── Text/sentiment consistency ──
+    _fix_review_sentiment(df, columns, _rng)
 
     # ── Status consistency ──
     _apply_status_end_date(df, columns, _rng)
 
     return df
+
+
+# ─── TEXT / SENTIMENT RULES ──────────────────────────────────────────────────
+
+_REVIEW_TEXT_COLS = ("review", "review_text", "review_body", "feedback_text")
+_RATING_COLS = ("rating", "stars", "score", "rating_given")
+
+
+def _fix_review_sentiment(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
+    """Make review text agree with the row's rating — regardless of the
+    order columns were generated in.
+
+    A five-star review that reads "disappointing" is both a realism tell and
+    a conformance violation. Text is regenerated FROM the rating via the
+    seeded grammar, making sentiment↔rating an invariant the Oracle layer
+    can verify with a lexicon check.
+    """
+    rating_col = next((c for c in _RATING_COLS if c in columns), None)
+    if rating_col is None:
+        return
+
+    from misata.microtext import MicrotextGenerator
+
+    text_col = next((c for c in _REVIEW_TEXT_COLS if c in columns), None)
+    # plain "title" is too generic to rewrite blindly; review_title is safe
+    title_col = "review_title" if "review_title" in columns else None
+    if text_col is None and title_col is None:
+        return
+
+    gen = MicrotextGenerator(rng)
+    ratings = df[rating_col].values
+    if text_col is not None:
+        df[text_col] = gen.reviews(len(df), ratings=ratings)
+    if title_col is not None:
+        df[title_col] = gen.review_titles(len(df), ratings=ratings)
+
+
+# ─── GEOGRAPHIC RULES ─────────────────────────────────────────────────────────
+
+_ORIGIN_COLS = ("origin_city", "origin", "from_city", "source_city")
+_DEST_COLS = ("destination_city", "destination", "to_city", "dest_city")
+_DISTANCE_COLS = ("distance_km", "distance")
+_TRAVEL_COLS = ("estimated_hours", "duration_hours", "travel_hours", "transit_hours")
+
+
+def _fix_route_geo(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
+    """Make route distances and travel times agree with the named cities.
+
+    Distance between two real cities is a fact, not a distribution:
+    "Chicago → San Diego, 145 km" is an instant fake-data tell. For city
+    pairs with known coordinates we set ``distance = haversine × road
+    circuity`` and ``hours = distance / effective speed + handling`` —
+    deterministic, so conformance is verifiable. Unknown cities are left
+    untouched, and same-city routes get a different known destination first.
+    """
+    from misata.geo import (
+        CITY_COORDS,
+        EFFECTIVE_SPEED_KMH,
+        HANDLING_OVERHEAD_H,
+        ROAD_CIRCUITY,
+        haversine_km,
+    )
+
+    origin_col = next((c for c in _ORIGIN_COLS if c in columns), None)
+    dest_col = next((c for c in _DEST_COLS if c in columns), None)
+    if origin_col is None or dest_col is None:
+        return
+
+    origins = df[origin_col].astype(str)
+    dests = df[dest_col].astype(str)
+
+    # A route to itself is its own tell; re-pick from the cities this table
+    # already uses (keeps the vocabulary stable) or the known-city pool.
+    same = (origins == dests).values
+    if same.any():
+        pool = [c for c in pd.unique(pd.concat([origins, dests])) if c in CITY_COORDS]
+        if len(pool) > 1:
+            for i in np.flatnonzero(same):
+                alternatives = [c for c in pool if c != origins.iloc[i]]
+                df.iloc[i, df.columns.get_loc(dest_col)] = rng.choice(alternatives)
+            dests = df[dest_col].astype(str)
+
+    known = origins.map(CITY_COORDS.__contains__).values & dests.map(
+        CITY_COORDS.__contains__
+    ).values
+    if not known.any():
+        return
+
+    o_coords = np.array([CITY_COORDS[c] for c in origins.values[known]])
+    d_coords = np.array([CITY_COORDS[c] for c in dests.values[known]])
+    road_km = np.round(
+        haversine_km(o_coords[:, 0], o_coords[:, 1], d_coords[:, 0], d_coords[:, 1])
+        * ROAD_CIRCUITY,
+        1,
+    )
+
+    distance_col = next((c for c in _DISTANCE_COLS if c in columns), None)
+    if distance_col is not None:
+        vals = df[distance_col].to_numpy(dtype=float, copy=True)
+        vals[known] = road_km
+        df[distance_col] = vals
+
+    travel_col = next((c for c in _TRAVEL_COLS if c in columns), None)
+    if travel_col is not None:
+        vals = df[travel_col].to_numpy(dtype=float, copy=True)
+        vals[known] = np.round(road_km / EFFECTIVE_SPEED_KMH + HANDLING_OVERHEAD_H, 1)
+        df[travel_col] = vals
 
 
 # ─── TEMPORAL RULES ───────────────────────────────────────────────────────────
@@ -1046,6 +1158,67 @@ def _apply_plan_price_mapping(df: pd.DataFrame, columns: set[str]) -> None:
 
 
 # ─── IDENTITY RULES ──────────────────────────────────────────────────────────
+
+def _fix_gender_name_coherence(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
+    """Make first names agree with a schema-declared ``gender``/``sex`` column.
+
+    Direction matters: the declared gender DISTRIBUTION is part of the spec
+    (it may carry explicit probabilities), so we keep gender and re-draw the
+    first name — from the same culture as the row's surname, so the repair
+    never reintroduces a "Wei Gonzalez". Non-binary/other genders keep their
+    name as-is (any name is valid). Unknown first names (capsule/locale
+    vocabularies we have no gender map for) are left untouched.
+    """
+    gender_col = next((c for c in ("gender", "sex") if c in columns), None)
+    if gender_col is None:
+        return
+
+    if "first_name" in columns:
+        firsts = df["first_name"].astype(str)
+        name_col = "first_name"
+    elif "name" in columns:
+        name_series = df["name"].astype(str)
+        if name_series.str.strip().str.split().str.len().ge(2).mean() < 0.6:
+            return  # not personal names
+        firsts = name_series.str.strip().str.split().str[0]
+        name_col = "name"
+    else:
+        return
+
+    declared = df[gender_col].astype(str).str.lower().str.strip()
+    binary = declared.isin(["male", "female", "m", "f", "man", "woman"])
+    declared_norm = declared.str[0].map({"m": "male", "f": "female"})
+
+    name_gender = firsts.map(lambda n: lookup_gender(n) or "")
+    mismatch = binary & (name_gender != "") & (name_gender != declared_norm)
+    if not mismatch.any():
+        return
+
+    if "last_name" in columns:
+        lasts = df.loc[mismatch, "last_name"].astype(str)
+    elif name_col == "name":
+        lasts = df.loc[mismatch, "name"].astype(str).str.strip().str.split().str[-1]
+    else:
+        lasts = pd.Series("", index=df.index[mismatch])
+
+    cultures = lasts.map(lookup_surname_culture).values
+    sampler = PersonSampler(rng)
+    new_firsts = sampler.replacement_first_names(
+        declared_norm[mismatch].values, cultures
+    )
+
+    if name_col == "first_name":
+        df.loc[mismatch, "first_name"] = new_firsts
+        if "name" in columns:
+            last_part = df.loc[mismatch, "last_name"].astype(str) if "last_name" in columns else ""
+            df.loc[mismatch, "name"] = [
+                f"{f} {l}".strip() for f, l in zip(new_firsts, last_part)
+            ]
+    else:
+        df.loc[mismatch, "name"] = [
+            f"{f} {l}".strip() for f, l in zip(new_firsts, lasts)
+        ]
+
 
 def _fix_email_from_name(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """Make ``email`` consistent with the person's name.

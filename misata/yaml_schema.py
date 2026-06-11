@@ -257,7 +257,7 @@ def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
     # Generation features that may appear on any column type (0.8.0.2): pass them through
     # so they survive load. These are validated at generation time, not here.
     for k in ("rollup", "zero_inflate", "depends_on", "mapping", "formula",
-              "inherits_curve_from"):
+              "inherits_curve_from", "quantize"):
         if col_def.get(k) is not None:
             params[k] = col_def[k]
 
@@ -562,7 +562,7 @@ def _column_to_dict(col: Column) -> Dict[str, Any]:
     for k in ("min", "max", "decimals", "distribution", "text_type", "start", "end",
               # 0.8.0.2 generation features must survive the YAML round-trip
               "rollup", "zero_inflate", "depends_on", "mapping", "formula",
-              "inherits_curve_from"):
+              "inherits_curve_from", "quantize"):
         if k in p:
             d[k] = p[k]
     if "choices" in p:
