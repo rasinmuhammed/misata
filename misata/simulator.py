@@ -119,6 +119,11 @@ class DataSimulator:
         realism = getattr(self.config, "realism", None)
         asset_store = AssetStore(getattr(realism, "asset_store_dir", None))
         self.domain_capsule = SemanticVocabularyGenerator(asset_store=asset_store).build_capsule(self.config)
+        # User-supplied capsule file: its vocabularies beat built-in pools.
+        capsule_file = getattr(realism, "capsule_file", None)
+        if capsule_file:
+            from misata.capsules import load_capsule, merge_into
+            self.domain_capsule = merge_into(self.domain_capsule, load_capsule(capsule_file))
         # Resolve locale: schema.realism.locale → schema.domain hint → default en_US
         self.locale = getattr(realism, "locale", None) or "en_US"
         self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule, locale=self.locale)
@@ -131,6 +136,24 @@ class DataSimulator:
             self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
     
+    def _capsule_vocab_for_column(self, column_name: str):
+        """User-capsule vocabulary keyed by column name, else None.
+
+        Only non-default provenance counts: built-in fallback pools must not
+        hijack column-name matches.
+        """
+        capsule = self.domain_capsule
+        if capsule is None:
+            return None
+        key = column_name.lower()
+        values = capsule.vocabularies.get(key)
+        if not values:
+            return None
+        provenances = capsule.provenance.get(key, [])
+        if any(getattr(p, "source_name", "") != "misata-defaults" for p in provenances):
+            return values
+        return None
+
     def _generate_unique_text(self, text_type: str, size: int) -> np.ndarray:
         """Generate exactly `size` distinct text values for a unique column."""
         _note_fn = lambda: str(self.realistic_text.microtext.notes(1)[0])  # noqa: E731
@@ -1008,6 +1031,13 @@ class DataSimulator:
         # TEXT
         elif column.type == "text":
             text_type = params.get("text_type", "sentence")
+            # User capsule vocabularies keyed by this column's name take top
+            # priority: a capsule that defines "species" drives any species
+            # column. Built-in fallback vocab (misata-defaults) never
+            # short-circuits here.
+            capsule_vocab = self._capsule_vocab_for_column(column.name)
+            if capsule_vocab is not None:
+                return self.rng.choice(capsule_vocab, size=size)
             # Pattern-based codes (SKUs, reference numbers, ticket ids):
             # ``pattern: "REC-\\d{5}"`` expands via the locale-pack pattern
             # syntax (\d, [A-Z], literals, {n} repeats).
