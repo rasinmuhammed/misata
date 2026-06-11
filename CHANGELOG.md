@@ -5,6 +5,30 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0.5] - 2026-06-11
+
+Mimic realism release. 773 tests, 0 failures.
+
+### Fixed
+
+- **Code columns survive mimicry.** Alphanumeric identifier columns (Titanic's Ticket
+  "A/5 21171", Cabin "C85") previously fell through to prose generation and came back as
+  product-description sentences. The profiler now detects code-shaped columns, infers
+  their character-class skeletons, and reproduces them as weighted patterns: same shapes,
+  zero verbatim values copied.
+- **Mimicked floats keep their cents.** `_infer_decimals` searched for a literal
+  backslash-dot and never matched, so every profiled float column was generated with 0
+  decimals. A mimicked Fare of 7.25 stayed 7.25-shaped again.
+- **No charm-price quantization on profiled columns.** The fitted distribution from real
+  data is ground truth; mimic now opts out of semantic quantization so a 7.25 fare cannot
+  become 7.00.
+
+### Added
+
+- **Weighted pattern lists.** `pattern` accepts a list with optional `pattern_weights`,
+  drawing one shape per row; `[a-z]` classes now expand in patterns. Both reachable from
+  dict schemas.
+
 ## [0.8.0.4] - 2026-06-11
 
 Patch release. 761 tests, 0 failures.

@@ -613,7 +613,12 @@ class RealisticTextGenerator:
             elif token == "[":
                 end = pattern.find("]", i)
                 body = pattern[i + 1:end] if end != -1 else "A-Z"
-                char_type = "letter" if "A-Z" in body else "literal"
+                if "A-Z" in body:
+                    char_type = "letter"
+                elif "a-z" in body:
+                    char_type = "lower"
+                else:
+                    char_type = "literal"
                 i = end + 1 if end != -1 else i + 1
             elif token == "\\" and i + 1 < len(pattern):
                 output += pattern[i + 1]
@@ -638,6 +643,8 @@ class RealisticTextGenerator:
                 output += "".join(str(int(self.rng.integers(0, 10))) for _ in range(repeat))
             elif char_type == "letter":
                 output += "".join(chr(int(self.rng.integers(65, 91))) for _ in range(repeat))
+            elif char_type == "lower":
+                output += "".join(chr(int(self.rng.integers(97, 123))) for _ in range(repeat))
 
         return output
 

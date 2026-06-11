@@ -95,6 +95,75 @@ def _detect_text_semantic(col_name: str, series: pd.Series) -> str:
     return "description"
 
 
+_CODE_CHARSET_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ./_-]*$")
+
+
+def _looks_like_code(series: pd.Series) -> bool:
+    """Alphanumeric identifier columns: ticket numbers, cabin codes, SKUs.
+
+    Short tokens, identifier charset, mostly containing digits, at most one
+    space. These must never fall through to prose text generation — a Cabin
+    column full of marketing sentences is the loudest fake-data tell there is.
+    """
+    sample = _sample_non_null(series.astype(str)).str.strip()
+    if len(sample) < 5:
+        return False
+    return (
+        (sample.str.len().between(1, 16)).mean() > 0.9
+        and sample.str.match(_CODE_CHARSET_RE).mean() > 0.9
+        and sample.str.contains(r"\d").mean() > 0.6
+        and (sample.str.count(" ") <= 1).mean() > 0.9
+    )
+
+
+def _shape_of(value: str) -> str:
+    """Collapse a code into its character-class skeleton: C85 → 'Ldd'."""
+    out = []
+    for ch in value:
+        if ch.isdigit():
+            out.append("d")
+        elif ch.isalpha():
+            out.append("L" if ch.isupper() else "l")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _shape_to_pattern(shape: str) -> str:
+    """Turn a skeleton into the engine's pattern syntax: 'Ldd' → '[A-Z]\\d{2}'."""
+    out = ""
+    i = 0
+    while i < len(shape):
+        ch = shape[i]
+        j = i
+        while j < len(shape) and shape[j] == ch:
+            j += 1
+        n = j - i
+        rep = f"{{{n}}}" if n > 1 else ""
+        if ch == "d":
+            out += r"\d" + rep
+        elif ch == "L":
+            out += "[A-Z]" + rep
+        elif ch == "l":
+            out += "[a-z]" + rep
+        else:
+            literal = ("\\" + ch) if ch in "[]{}\\" else ch
+            out += literal * n
+        i = j
+    return out
+
+
+def _infer_code_patterns(series: pd.Series, top_n: int = 5) -> Dict[str, Any]:
+    """Most frequent code shapes as weighted engine patterns."""
+    sample = _sample_non_null(series.astype(str), 500).str.strip()
+    shapes = sample.map(_shape_of).value_counts(normalize=True).head(top_n)
+    total = float(shapes.sum())
+    return {
+        "pattern": [_shape_to_pattern(s) for s in shapes.index],
+        "pattern_weights": [round(float(p) / total, 6) for p in shapes.values],
+    }
+
+
 def _fit_numeric(series: pd.Series, is_int: bool) -> Dict[str, Any]:
     s = series.dropna().astype(float)
     if len(s) == 0:
@@ -139,7 +208,7 @@ def _fit_numeric(series: pd.Series, is_int: bool) -> Dict[str, Any]:
 
 def _infer_decimals(s: pd.Series) -> int:
     sample = s.dropna().head(100).astype(str)
-    dots = sample[sample.str.contains(r"\.", regex=False)]
+    dots = sample[sample.str.contains(".", regex=False)]
     if dots.empty:
         return 0
     return int(dots.str.split(".").str[1].str.len().median())
@@ -259,6 +328,11 @@ class DataProfiler:
                 col = Column(name=col_name, type=col_type, distribution_params=params)
             else:
                 params = _fit_numeric(series, is_int)
+                # The fitted distribution (including decimals) is the ground
+                # truth from real data; semantic quantization (charm prices,
+                # duration grids) would distort it — a mimicked Fare of 7.25
+                # must not become 7.00.
+                params["quantize"] = False
                 col_type = "int" if is_int else "float"
                 col = Column(name=col_name, type=col_type, distribution_params=params)
             return col
@@ -275,7 +349,12 @@ class DataProfiler:
         else:
             # High-cardinality text — detect semantic type
             semantic = _detect_text_semantic(col_name, series_str)
-            params = {"text_type": semantic}
+            if semantic == "description" and _looks_like_code(non_null):
+                # No semantic match + identifier shape → reproduce the codes
+                # structurally (Ticket "A/5 21171" stays a ticket, not prose).
+                params = _infer_code_patterns(non_null)
+            else:
+                params = {"text_type": semantic}
             col = Column(name=col_name, type="text", distribution_params=params)
 
         if null_rate > 0.005:
