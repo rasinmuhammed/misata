@@ -312,6 +312,8 @@ class StoryParser:
         if not all_matches:
             self._matched_keywords = []
             self._near_misses = {}
+            self._domain_score = 0
+            self._literal_domain_hit = False
             return None
 
         # Highest score wins; ties broken by DOMAIN_KEYWORDS order (precedence).
@@ -322,6 +324,8 @@ class StoryParser:
         )
         self._matched_keywords = all_matches[winner]
         self._near_misses = {d: kws for d, kws in all_matches.items() if d != winner}
+        self._domain_score = scores[winner]
+        self._literal_domain_hit = winner in story_lower
         return winner
 
     def _extract_scale(self, story: str) -> Dict[str, int]:
@@ -933,6 +937,26 @@ class StoryParser:
         """
         # Extract information from story
         self.detected_domain = self._detect_domain(story)
+
+        # Confidence gate: one or two incidental keyword hits ("delivery" in a
+        # drone-fleet story matching the logistics template) are how
+        # confabulation happens — the template's tables replace what the user
+        # actually described. A weak, non-literal match loses to compositional
+        # synthesis when the story itself names three or more entities.
+        if (
+            self.detected_domain is not None
+            and getattr(self, "_domain_score", 99) <= 2
+            and not getattr(self, "_literal_domain_hit", True)
+        ):
+            from misata.composer import extract_entities
+            if len(extract_entities(story)) >= 3:
+                self._near_misses = {
+                    self.detected_domain: self._matched_keywords,
+                    **self._near_misses,
+                }
+                self.detected_domain = None
+                self._matched_keywords = []
+
         self.scale_params = self._extract_scale(story)
         self.temporal_events = self._extract_temporal_events(story)
 
@@ -981,7 +1005,30 @@ class StoryParser:
         elif self.detected_domain == "streaming":
             schema = self._build_streaming_schema(story, default_rows)
         else:
-            schema = self._build_generic_schema(story, default_rows)
+            # No built-in domain matched. Before collapsing to a single
+            # generic table, try compositional synthesis: plural noun phrases
+            # become tables, archetypes (person/asset/place/event/document)
+            # provide honest structural columns and FK wiring. It never
+            # invents domain semantics — the warning says exactly what it did.
+            from misata.composer import compose_schema
+            composed = compose_schema(story, default_rows)
+            if composed is not None and len(composed.tables) >= 2:
+                schema = composed
+                self._composed_structurally = True
+                import warnings as _warnings
+                _warnings.warn(
+                    "StoryParser could not match a built-in domain, so it composed a "
+                    "structural schema from the story's entities: "
+                    f"{', '.join(t.name for t in composed.tables)}. "
+                    "Columns are structural (ids, names, dates, statuses, FKs), not "
+                    "domain-specific. For domain-specific columns, pass a schema dict "
+                    "to from_dict_schema or use LLMSchemaGenerator.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            else:
+                self._composed_structurally = False
+                schema = self._build_generic_schema(story, default_rows)
 
         # Inject detected locale into realism config
         if self.detected_locale:
@@ -993,10 +1040,18 @@ class StoryParser:
         # Build detection warnings (consumed by detection_report())
         self._detection_warnings = []
         if self.detected_domain is None:
-            self._detection_warnings.append(
-                "No domain detected. Falling back to a generic single-table schema. "
-                "Add a domain keyword (e.g. 'saas', 'fintech', 'ecommerce') for a richer schema."
-            )
+            if getattr(self, "_composed_structurally", False):
+                self._detection_warnings.append(
+                    "No built-in domain matched; composed a structural schema from the "
+                    f"story's entities ({', '.join(t.name for t in schema.tables)}). "
+                    "Columns are structural, not domain-specific — pass a schema dict "
+                    "or use LLMSchemaGenerator for domain-specific columns."
+                )
+            else:
+                self._detection_warnings.append(
+                    "No domain detected. Falling back to a generic single-table schema. "
+                    "Add a domain keyword (e.g. 'saas', 'fintech', 'ecommerce') for a richer schema."
+                )
         if self._near_misses:
             other_domains = ", ".join(self._near_misses.keys())
             self._detection_warnings.append(
