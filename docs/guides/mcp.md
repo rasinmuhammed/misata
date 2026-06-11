@@ -77,17 +77,20 @@ The command is always `misata-mcp`. Refer to your editor's MCP documentation for
 
 ## What the agent can do
 
-The server exposes five tools:
+The server exposes six tools:
 
 | Tool | Purpose |
 |:--|:--|
+| `generate_from_schema` | **Primary.** The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof — per-relationship orphan counts, exact roll-ups, seeded reproducibility |
+| `generate_dataset` | Story-based generation: Misata's own parser designs the schema from one sentence |
 | `list_domains` | List all 18 built-in domains with a sample story for each |
 | `preview_story` | Detect domain, scale, locale, and table layout — zero rows generated |
 | `inspect_schema` | Return the full schema (tables, columns, FK relationships) as structured JSON |
-| `generate_dataset` | Generate CSV files on disk and return paths + 5-row sample for each table |
 | `validate_yaml` | Two-layer validation (structural JSON Schema + semantic coherence checks) of a `misata.yaml` |
 
-`generate_dataset` writes CSVs to a temp directory by default. The agent gets back file paths and a small preview — it never has to dump millions of rows into the chat context.
+The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a `species` column; Misata is good at guaranteeing the math — FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. `generate_from_schema`'s tool description teaches the agent the full schema-dict language (per-table `__rows__`, distributions, formulas with `@parent.column` references, exact roll-ups, pattern codes), so any MCP-capable model can drive everything Misata's engine supports.
+
+Both generation tools write CSVs to a temp directory by default. The agent gets back file paths and a small preview — it never has to dump millions of rows into the chat context.
 
 ---
 
@@ -208,6 +211,51 @@ Returns the full parsed schema as structured data, including table names, column
 
 ---
 
+### `generate_from_schema`
+
+The primary tool: the agent supplies a schema dict it designed itself, Misata generates the data and proves the integrity. Supports per-table row counts, the full distribution set, derived columns (`formula`, including cross-table `@parent.column` references), exact roll-ups, FK declarations, and pattern-based codes.
+
+**Input:**
+```json
+{
+  "schema": {
+    "customers": {
+      "__rows__": 500,
+      "id":             {"type": "integer", "primary_key": true},
+      "name":           {"type": "string"},
+      "lifetime_value": {"rollup": {"from_table": "orders", "fk": "customer_id",
+                                    "agg": "sum", "column": "total"}}
+    },
+    "orders": {
+      "__rows__": 5000,
+      "id":          {"type": "integer", "primary_key": true},
+      "customer_id": {"type": "integer", "foreign_key": {"table": "customers", "column": "id"}},
+      "quantity":    {"type": "integer", "min": 1, "max": 5},
+      "unit_price":  {"type": "float", "distribution": "lognormal", "mean": 40, "std": 25},
+      "total":       {"formula": "quantity * unit_price"},
+      "placed_at":   {"type": "datetime"}
+    }
+  },
+  "seed": 7
+}
+```
+
+**Output:** the same file/preview envelope as `generate_dataset`, plus:
+```json
+{
+  "integrity": {
+    "verified": true,
+    "relationships": [
+      {"relationship": "orders.customer_id → customers.id", "intact": true, "orphans": 0}
+    ]
+  }
+}
+```
+
+The agent can tell you: *"Generated and verified: 0 orphaned foreign keys, and every customer's `lifetime_value` reconciles exactly with their orders."*
+
+---
+
 ### `generate_dataset`
 
 Generates a full dataset and writes one CSV per table to `output_dir` (defaults to a temp directory).
@@ -286,7 +334,7 @@ Two-layer validation of a `misata.yaml` string: structural (JSON Schema) then se
 
 ## Error handling
 
-All five tools return a consistent `{"ok": true/false, ...}` envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:
+All six tools return a consistent `{"ok": true/false, ...}` envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:
 
 ```json
 {

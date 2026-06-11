@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.0.2"
+__version__ = "0.8.0.3"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -205,6 +205,7 @@ def generate(
     min_quality_score: "Optional[float]" = None,
     max_retries: int = 3,
     smart_correlations: bool = False,
+    capsule: "Optional[str]" = None,
 ) -> "Dict[str, Any]":
     """One-liner: story → dict of DataFrames.
 
@@ -245,6 +246,9 @@ def generate(
     if seed is not None:
         schema.seed = seed
 
+    if capsule is not None:
+        _attach_capsule(schema, capsule)
+
     if smart_correlations:
         _infer_correlations(schema)
 
@@ -270,12 +274,22 @@ def generate(
     return best_tables  # type: ignore[return-value]
 
 
+def _attach_capsule(schema: "SchemaConfig", capsule_path: str) -> None:
+    """Point the schema's realism config at a capsule file (see misata.capsules)."""
+    from misata.schema import RealismConfig
+
+    if schema.realism is None:
+        object.__setattr__(schema, "realism", RealismConfig())
+    object.__setattr__(schema.realism, "capsule_file", str(capsule_path))
+
+
 def generate_from_schema(
     schema: "SchemaConfig",
     custom_generators: "Optional[Dict[str, Dict[str, Any]]]" = None,
     min_quality_score: "Optional[float]" = None,
     max_retries: int = 3,
     smart_correlations: bool = False,
+    capsule: "Optional[str]" = None,
 ) -> "Dict[str, Any]":
     """Generate data from an already-built SchemaConfig.
 
@@ -305,6 +319,9 @@ def generate_from_schema(
     if smart_correlations:
         schema = copy.deepcopy(schema)
         _infer_correlations(schema)
+
+    if capsule is not None:
+        _attach_capsule(schema, capsule)
 
     if min_quality_score is None:
         return _run_simulation(schema, custom_generators=custom_generators)

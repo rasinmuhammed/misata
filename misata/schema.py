@@ -363,6 +363,9 @@ class RealismConfig(BaseModel):
     locale: Optional[str] = None
     era: Optional[str] = None
     asset_store_dir: Optional[str] = None
+    # Path to a shareable capsule JSON (see misata.capsules). Its
+    # vocabularies override built-in pools for matching semantic names.
+    capsule_file: Optional[str] = None
 
     @field_validator("row_count_overrides")
     @classmethod

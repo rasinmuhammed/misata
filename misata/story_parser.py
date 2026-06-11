@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from misata.schema import Column, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
+from misata.schema import Column, Constraint, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 
 
 @dataclass
@@ -312,6 +312,8 @@ class StoryParser:
         if not all_matches:
             self._matched_keywords = []
             self._near_misses = {}
+            self._domain_score = 0
+            self._literal_domain_hit = False
             return None
 
         # Highest score wins; ties broken by DOMAIN_KEYWORDS order (precedence).
@@ -322,6 +324,8 @@ class StoryParser:
         )
         self._matched_keywords = all_matches[winner]
         self._near_misses = {d: kws for d, kws in all_matches.items() if d != winner}
+        self._domain_score = scores[winner]
+        self._literal_domain_hit = winner in story_lower
         return winner
 
     def _extract_scale(self, story: str) -> Dict[str, int]:
@@ -933,6 +937,26 @@ class StoryParser:
         """
         # Extract information from story
         self.detected_domain = self._detect_domain(story)
+
+        # Confidence gate: one or two incidental keyword hits ("delivery" in a
+        # drone-fleet story matching the logistics template) are how
+        # confabulation happens — the template's tables replace what the user
+        # actually described. A weak, non-literal match loses to compositional
+        # synthesis when the story itself names three or more entities.
+        if (
+            self.detected_domain is not None
+            and getattr(self, "_domain_score", 99) <= 2
+            and not getattr(self, "_literal_domain_hit", True)
+        ):
+            from misata.composer import extract_entities
+            if len(extract_entities(story)) >= 3:
+                self._near_misses = {
+                    self.detected_domain: self._matched_keywords,
+                    **self._near_misses,
+                }
+                self.detected_domain = None
+                self._matched_keywords = []
+
         self.scale_params = self._extract_scale(story)
         self.temporal_events = self._extract_temporal_events(story)
 
@@ -981,7 +1005,30 @@ class StoryParser:
         elif self.detected_domain == "streaming":
             schema = self._build_streaming_schema(story, default_rows)
         else:
-            schema = self._build_generic_schema(story, default_rows)
+            # No built-in domain matched. Before collapsing to a single
+            # generic table, try compositional synthesis: plural noun phrases
+            # become tables, archetypes (person/asset/place/event/document)
+            # provide honest structural columns and FK wiring. It never
+            # invents domain semantics — the warning says exactly what it did.
+            from misata.composer import compose_schema
+            composed = compose_schema(story, default_rows)
+            if composed is not None and len(composed.tables) >= 2:
+                schema = composed
+                self._composed_structurally = True
+                import warnings as _warnings
+                _warnings.warn(
+                    "StoryParser could not match a built-in domain, so it composed a "
+                    "structural schema from the story's entities: "
+                    f"{', '.join(t.name for t in composed.tables)}. "
+                    "Columns are structural (ids, names, dates, statuses, FKs), not "
+                    "domain-specific. For domain-specific columns, pass a schema dict "
+                    "to from_dict_schema or use LLMSchemaGenerator.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            else:
+                self._composed_structurally = False
+                schema = self._build_generic_schema(story, default_rows)
 
         # Inject detected locale into realism config
         if self.detected_locale:
@@ -993,10 +1040,18 @@ class StoryParser:
         # Build detection warnings (consumed by detection_report())
         self._detection_warnings = []
         if self.detected_domain is None:
-            self._detection_warnings.append(
-                "No domain detected. Falling back to a generic single-table schema. "
-                "Add a domain keyword (e.g. 'saas', 'fintech', 'ecommerce') for a richer schema."
-            )
+            if getattr(self, "_composed_structurally", False):
+                self._detection_warnings.append(
+                    "No built-in domain matched; composed a structural schema from the "
+                    f"story's entities ({', '.join(t.name for t in schema.tables)}). "
+                    "Columns are structural, not domain-specific — pass a schema dict "
+                    "or use LLMSchemaGenerator for domain-specific columns."
+                )
+            else:
+                self._detection_warnings.append(
+                    "No domain detected. Falling back to a generic single-table schema. "
+                    "Add a domain keyword (e.g. 'saas', 'fintech', 'ecommerce') for a richer schema."
+                )
         if self._near_misses:
             other_domains = ", ".join(self._near_misses.keys())
             self._detection_warnings.append(
@@ -1331,64 +1386,102 @@ class StoryParser:
         )
 
     def _build_pharma_schema(self, story: str, default_rows: int) -> SchemaConfig:
-        """Build a Pharma services-specific schema."""
-        num_projects = self.scale_params.get("projects", max(1, default_rows // 100))
+        """Build a fully interconnected pharma CRO (contract research org).
+
+        This is the flagship enterprise-simulation schema: a complete company whose numbers
+        reconcile end to end. ``timesheets.billed_usd = hours * @employees.hourly_rate``
+        (cross-table formula), ``projects.revenue_usd = sum(timesheets.billed_usd)`` and
+        ``projects.total_hours = sum(timesheets.hours)`` (roll-ups), timesheet dates fall
+        within each project's window (``relative_to``), and no employee logs more than 24h
+        on a day (capacity ``sum_limit``). Run a JOIN and the totals add up.
+        """
         num_timesheets = default_rows
+        num_clients = self.scale_params.get("clients", max(3, default_rows // 250))
+        num_projects = self.scale_params.get("projects", max(2, default_rows // 100))
+        num_employees = self.scale_params.get(
+            "employees", self.scale_params.get("users", max(5, default_rows // 40))
+        )
+
+        daily_cap = Constraint(
+            name="max_daily_hours", type="sum_limit", column="hours",
+            group_by=["employee_id", "date"], value=24, action="cap",
+        )
 
         tables = [
+            Table(name="clients", row_count=num_clients),
+            Table(name="employees", row_count=num_employees),
             Table(name="research_projects", row_count=num_projects),
-            Table(name="timesheets", row_count=num_timesheets),
+            Table(name="timesheets", row_count=num_timesheets, constraints=[daily_cap]),
         ]
 
         columns = {
+            "clients": [
+                Column(name="client_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_clients + 1}),
+                Column(name="company", type="text", distribution_params={"text_type": "company"}),
+                Column(name="country", type="text", distribution_params={"text_type": "country"}),
+            ],
+            "employees": [
+                Column(name="employee_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_employees + 1}),
+                Column(name="name", type="text", distribution_params={"text_type": "name"}),
+                Column(name="role", type="categorical", distribution_params={
+                    "choices": ["Research Associate", "Clinical Scientist",
+                                "Biostatistician", "Project Manager", "Regulatory Affairs"],
+                    "probabilities": [0.35, 0.25, 0.15, 0.15, 0.10]}),
+                Column(name="hire_date", type="date",
+                       distribution_params={"start": "2018-01-01", "end": "2023-06-30"}),
+                Column(name="hourly_rate", type="float", distribution_params={
+                    "distribution": "normal", "mean": 95, "std": 30,
+                    "min": 45, "max": 250, "decimals": 2}),
+            ],
             "research_projects": [
-                Column(name="project_id", type="int", unique=True, distribution_params={"min": 1, "max": num_projects + 1}),
-                Column(name="project_name", type="text", distribution_params={"text_type": "research_project_name"}),
-                Column(
-                    name="start_date",
-                    type="date",
-                    distribution_params={"start": "2022-01-01", "end": "2024-01-01"},
-                ),
-                Column(
-                    name="status",
-                    type="categorical",
-                    distribution_params={
-                        "choices": ["planning", "active", "completed", "on-hold"],
-                        "probabilities": [0.1, 0.5, 0.3, 0.1],
-                    },
-                ),
+                Column(name="project_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_projects + 1}),
+                Column(name="client_id", type="foreign_key", distribution_params={}),
+                Column(name="project_name", type="text",
+                       distribution_params={"text_type": "research_project_name"}),
+                Column(name="phase", type="categorical", distribution_params={
+                    "choices": ["Phase I", "Phase II", "Phase III", "Phase IV"],
+                    "probabilities": [0.3, 0.3, 0.25, 0.15]}),
+                Column(name="start_date", type="date",
+                       distribution_params={"start": "2022-01-01", "end": "2024-01-01"}),
+                Column(name="status", type="categorical", distribution_params={
+                    "choices": ["planning", "active", "completed", "on-hold"],
+                    "probabilities": [0.1, 0.5, 0.3, 0.1]}),
+                # Roll-ups: project totals derive from the real timesheet rows.
+                Column(name="total_hours", type="float", distribution_params={
+                    "rollup": {"from_table": "timesheets", "fk": "project_id",
+                               "agg": "sum", "column": "hours"}}),
+                Column(name="revenue_usd", type="float", distribution_params={
+                    "rollup": {"from_table": "timesheets", "fk": "project_id",
+                               "agg": "sum", "column": "billed_usd"}}),
             ],
             "timesheets": [
-                Column(name="entry_id", type="int", unique=True, distribution_params={"min": 1, "max": num_timesheets + 1}),
+                Column(name="entry_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": num_timesheets + 1}),
+                Column(name="employee_id", type="foreign_key", distribution_params={}),
                 Column(name="project_id", type="foreign_key", distribution_params={}),
-                Column(name="employee_name", type="text", distribution_params={"text_type": "name"}),
-                Column(
-                    name="date",
-                    type="date",
-                    distribution_params={"start": "2022-01-01", "end": "2024-12-31"},
-                ),
-                Column(
-                    name="hours",
-                    type="float",
-                    distribution_params={
-                        "distribution": "normal",
-                        "mean": 7.5,
-                        "std": 1.5,
-                        "min": 0.5,
-                        "max": 12.0,
-                        "decimals": 1,
-                    },
-                ),
+                # Dates fall within the project's window, not an unrelated range.
+                Column(name="date", type="date", distribution_params={
+                    "relative_to": "research_projects.start_date",
+                    "min_delta_days": 0, "max_delta_days": 540}),
+                Column(name="hours", type="float", distribution_params={
+                    "distribution": "normal", "mean": 7.5, "std": 1.5,
+                    "min": 0.5, "max": 12.0, "decimals": 1}),
+                # Cross-table formula: what we bill the client for this entry.
+                Column(name="billed_usd", type="float", distribution_params={
+                    "formula": "hours * @employees.hourly_rate"}),
             ],
         }
 
         relationships = [
-            Relationship(
-                parent_table="research_projects",
-                child_table="timesheets",
-                parent_key="project_id",
-                child_key="project_id",
-            ),
+            Relationship(parent_table="clients", child_table="research_projects",
+                         parent_key="client_id", child_key="client_id"),
+            Relationship(parent_table="employees", child_table="timesheets",
+                         parent_key="employee_id", child_key="employee_id"),
+            Relationship(parent_table="research_projects", child_table="timesheets",
+                         parent_key="project_id", child_key="project_id"),
         ]
 
         outcome_curve = self._build_absolute_monthly_curve(
@@ -1400,7 +1493,7 @@ class StoryParser:
         )
 
         return SchemaConfig(
-            name="Pharma Services Dataset",
+            name="Pharma CRO Dataset",
             description=f"Generated from story: {story}",
             domain="pharma",
             tables=tables,

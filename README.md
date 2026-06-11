@@ -76,7 +76,7 @@ pip install "misata[mcp]"        # MCP server — expose Misata to Claude, Curso
 
 ## Use Misata from Claude / Cursor / Windsurf (MCP)
 
-Misata ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server. Once configured, any MCP-compatible AI assistant can generate realistic synthetic data for you from natural language — no Python required on your end.
+Misata ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server with a clear division of labour: **the AI agent designs the schema, Misata guarantees the math.** Agents are good at knowing that a veterinary clinic needs a `species` column; Misata is good at making 50 000 rows where every foreign key resolves, every roll-up reconciles to the cent, and the same seed reproduces byte-identical output. The primary tool, `generate_from_schema`, accepts the agent's schema dict and returns the data **plus an integrity proof** — per-relationship orphan counts the agent can show you.
 
 **1. Install:**
 
@@ -100,11 +100,11 @@ Restart Claude Desktop. Then just ask:
 
 > *"Generate a fintech dataset with 1 000 customers, payments, and a 2% fraud rate."*
 
-> *"Show me what tables Misata would produce for an HR system with 200 employees."*
+> *"Design a clinical-trials database — sites, patients, visits, adverse events — and generate 100k rows."*
 
 > *"I need SaaS data: MRR from $50k in January, doubled by December, with a Q3 slump."*
 
-Claude calls Misata, writes CSVs to disk, and returns the file paths plus a preview of each table. See the [MCP guide](docs/guides/mcp.md) for Cursor/Windsurf/Zed setup and all five available tools.
+The agent designs whatever tables the request needs (any domain — it isn't limited to Misata's built-ins), calls Misata, writes CSVs to disk, and reports back with previews and the verified integrity summary. See the [MCP guide](docs/guides/mcp.md) for Cursor/Windsurf/Zed setup and all six available tools.
 
 ---
 
@@ -293,6 +293,64 @@ tables = misata.generate("A fintech company with 1000 customers", seed=1)
 tables = misata.generate_more(tables, schema, n=1000, seed=2)
 print(len(tables["customers"]))  # 2000
 ```
+
+---
+
+## Realism that survives inspection
+
+Synthetic data rarely fails on the big numbers — it fails on the small tells a reviewer spots in five seconds. Misata kills each tell with a specific, deterministic mechanism. No LLM is involved; everything is seeded and reproducible.
+
+| The tell | The mechanism |
+|:--|:--|
+| `Pablo Müller, Female` — names, genders, and cultures drawn independently | **Joint identity sampling**: `(culture, gender, first, last)` is one draw from culture-keyed pools, with a measured 6% cross-culture intermix (real populations aren't endogamous). Emails derive from the final name. |
+| `appointment_date: 2022-08-29 06:36:12.995319155` — nanosecond precision, 6 AM, a Sunday | **Temporal profiles**: scheduled events snap to 15-minute grids in business hours with weekends damped; signups follow waking-hour rhythms; only machine events (logs, clicks) keep sub-second precision; birth dates are dates. |
+| Every category equally likely | **Zipf–Mandelbrot marginals**: unweighted categoricals follow the rank-frequency power law real statuses, countries, and categories follow — with the dominant value varying per column. Declared probabilities always win. |
+| `Chicago → San Diego, 145.6 km` | **Geographic facts**: distances between named cities are computed (haversine × road circuity) from 289 embedded city coordinates, and travel times follow from distances. Facts, not distributions — so the Oracle can verify them. |
+| A five-star review that reads "disappointing" — or lorem ipsum | **Grammar microtext**: review text is generated *from* the row's rating by a seeded grammar (1★ reads angry, 5★ reads delighted — a verifiable invariant), and free-text notes come from a business-note grammar. Lorem ipsum cannot reach output. |
+| A 19-minute appointment, a price of $43.27 | **Numeric quantization**: scheduled durations snap to the slot grids calendars actually offer (15/30/45/60), retail prices end in .99/.95/.00, ages are integers. Measured quantities are left alone. |
+
+```python
+tables = misata.generate("A hospital with 300 patients, doctors and appointments", seed=7)
+# patients:     Tae-yang Ahn (Male) · Valentina Esposito (Female) · pooja.kapoor@icloud.com
+# appointments: 2023-03-08 14:00:00 · 2022-07-21 09:15:00 — 15-min grid, business hours, 2% weekends
+```
+
+---
+
+## Unknown domains: composed, not confabulated
+
+The 18 built-in domains are templates. For everything else, Misata refuses to fake understanding — and refuses to give up. A compositional synthesizer derives **structure** from your sentence: plural noun phrases become tables, "80 beekeepers" binds a row count, and a small archetype lattice (person / asset / place / event / document) provides honest structural columns and foreign-key wiring.
+
+```python
+tables = misata.generate(
+    "A beekeeping cooperative with 12 apiaries, 80 beekeepers, hives, inspections and honey harvests"
+)
+# beekeepers:  beekeeper_id, first_name, last_name, email, joined_at, status
+# inspections: inspection_id, beekeeper_id, apiary_id, hive_id, inspection_date, status
+# → full FK integrity, profiled timestamps, Zipfian statuses — from one sentence, no LLM
+```
+
+What it will *not* do is invent domain semantics: unknown entities get structural columns (reference codes, statuses, dates) and the detection report says exactly that, pointing to the two upgrade paths — a schema dict, or an LLM. The same gate also prevents confabulation: a story that only weakly matches a built-in template (one incidental keyword) is composed from its own entities instead of being forced into the wrong template.
+
+---
+
+## Capsules: teach Misata a domain once
+
+A capsule is one shareable JSON file of domain vocabularies — the species, treatments, and model names a domain calls things — with provenance for every list. Intelligence is spent **once**, at creation; generation stays deterministic, offline, and free.
+
+```bash
+# Mine a capsule from example data you already have — no LLM, no key
+misata capsule create --domain veterinary --from-csv ./samples/ -o vet.capsule.json
+misata capsule show vet.capsule.json
+```
+
+```python
+# Vocabularies override built-in pools for matching columns
+tables = misata.generate("a veterinary clinic with patients and visits",
+                         capsule="vet.capsule.json")
+```
+
+Capsules can also be written by an LLM once and reviewed before use (`capsule_from_llm`, BYO key — Groq's free tier works), or written by hand: it's JSON. Because a capsule is a file, it's a community artifact — share it via git, a gist, or HF datasets.
 
 ---
 
@@ -488,7 +546,7 @@ print(bundle.privacy_report.pii_risk)    # column-level PII exposure analysis
 | Travel | travel, hotel, flights, bookings | users, hotels, flights, bookings, reviews |
 | Streaming | streaming, netflix, subscribers, watch history | subscribers, content, watch_history, ratings |
 
-No keyword match → generic single-table schema with smart column inference.
+No keyword match → the compositional synthesizer builds a structural multi-table schema from your sentence's own entities (see *Unknown domains* above); stories with no entities at all fall back to a generic single table with smart column inference.
 
 ---
 
@@ -497,7 +555,7 @@ No keyword match → generic single-table schema with smart column inference.
 ```
 story / YAML / dict / DB introspection / MCP tool call
               ↓
-        StoryParser  ·  locale detection  ·  load_yaml_schema  ·  schema_from_db
+        StoryParser  ·  compositional synthesizer  ·  locale detection  ·  load_yaml_schema  ·  schema_from_db
               ↓
         DetectionReport  (domain, confidence, near_misses, table_preview, warnings)
               ↓
@@ -509,7 +567,9 @@ story / YAML / dict / DB introspection / MCP tool call
           ├─ constraint engine (inequality, range, ratio, sum, unique)
           ├─ outcome curves (monthly targets from narrative control points)
           ├─ Iman-Conover correlation engine (Cholesky, preserves marginals)
-          └─ RealisticTextGenerator (Faker locale + Kaggle vocabulary assets)
+          ├─ realism core (joint identities, temporal profiles, Zipf marginals,
+          │                geo facts, grammar microtext, numeric quantization)
+          └─ RealisticTextGenerator (capsules + Faker locale + vocabulary assets)
               ↓
         {table_name: DataFrame}
               ↓
@@ -530,7 +590,7 @@ misata.generate("SaaS startup — MRR 10x growth over the year")
 misata.generate("Fintech payments — strong Q4, dip in Q1")
 ```
 
-**Realism rules** — `cost` is always less than `price`. `delivered_at` is always after `shipped_at`. `hire_date` is after `date_of_birth` + 18 years and never in the future. `tenure_years` is derived on the same row from `hire_date`. Email addresses derive from first and last name columns.
+**Realism rules** — `cost` is always less than `price`. `delivered_at` is always after `shipped_at`. `hire_date` is after `date_of_birth` + 18 years and never in the future. `tenure_years` is derived on the same row from `hire_date`. Email addresses derive from first and last name columns, names agree with declared genders, route distances agree with their cities, and review text agrees with its star rating.
 
 ---
 
@@ -546,6 +606,11 @@ feature," not "impossible."
 | Story auto-detects locale + country stats | — | — | — | — | **Yes** |
 | 18 built-in domain schemas (SaaS → streaming) | — | — | — | — | **Yes** |
 | Narrative curves (Q4 push, Black Friday, 10×) | — | — | — | — | **Yes** |
+| Unknown domains composed from the sentence itself | — | — | — | — | **Yes** |
+| Coherent identities (name ↔ gender ↔ email agree) | — | — | — | — | **Yes** |
+| Review text provably matches its star rating | — | — | — | — | **Yes** |
+| Real city distances on route tables | — | — | — | — | **Yes** |
+| Shareable domain vocabulary capsules | — | — | — | — | **Yes** |
 | Mimic mode — clone distributions from a CSV | — | — | — | **Yes** | **Yes** |
 | Pairwise correlation enforcement (Iman-Conover) | — | — | — | **Yes** | **Yes** |
 | Geospatial columns (lat, lng, postal_code) | — | — | — | — | **Yes** |
@@ -594,7 +659,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-633 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
+757 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
 
 ---
 

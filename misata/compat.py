@@ -128,6 +128,8 @@ def _col_from_dict(
     if misata_type == "categorical":
         choices = [str(c) for c in enum] if enum else ["Unknown"]
         params["choices"] = choices
+        if col_def.get("probabilities") is not None:
+            params["probabilities"] = list(col_def["probabilities"])
 
     elif misata_type in ("int", "float"):
         if col_def.get("min") is not None:
@@ -148,8 +150,30 @@ def _col_from_dict(
             params["text_type"] = raw_type
 
     elif misata_type in ("date", "datetime"):
-        params["start"] = col_def.get("min_date", "2020-01-01")
-        params["end"] = col_def.get("max_date", "2024-12-31")
+        params["start"] = col_def.get("min_date", col_def.get("start", "2020-01-01"))
+        params["end"] = col_def.get("max_date", col_def.get("end", "2024-12-31"))
+
+    elif misata_type == "boolean":
+        if col_def.get("probability") is not None:
+            params["probability"] = col_def["probability"]
+
+    # ── Full generation-feature passthrough ──────────────────────────────────
+    # Everything the engine supports must be reachable from a plain dict, not just
+    # hand-built Column objects. Without this, an LLM or non-Python user silently loses
+    # their distributions, exact percentages, formulas, and cross-table logic.
+    if col_def.get("distribution") is not None:
+        params["distribution"] = col_def["distribution"]
+    # Distribution shape parameters (lognormal mu/sigma, normal mean/std, pareto alpha, ...)
+    for dist_key in ("mu", "sigma", "mean", "std", "alpha", "scale", "a", "b",
+                     "lam", "shape", "loc"):
+        if col_def.get(dist_key) is not None:
+            params[dist_key] = col_def[dist_key]
+    # Cross-column / cross-table logic
+    for passthrough in ("formula", "depends_on", "mapping", "zero_inflate", "rollup",
+                        "inherits_curve_from", "references", "after_column", "relative_to",
+                        "null_if", "min_gap_days", "sequence_start", "quantize"):
+        if col_def.get(passthrough) is not None:
+            params[passthrough] = col_def[passthrough]
 
     nullable = bool(col_def.get("nullable", True))
     unique = bool(col_def.get("unique", False))
@@ -241,6 +265,16 @@ def from_dict_schema(
             or None
         )
 
+        # Per-table row count: lets a 6-table schema say "4 regions, 50 sites, 5000 logs"
+        # instead of forcing one global count on every table. Accept several spellings;
+        # fall back to the global row_count when none is given.
+        table_rows = row_count
+        for rows_key in ("__rows__", "__row_count__", "rows", "row_count"):
+            val = table_def.get(rows_key)
+            if isinstance(val, int) and val > 0:
+                table_rows = val
+                break
+
         pk_col = _detect_pk(table_def)
         table_cols: List[Column] = []
 
@@ -262,7 +296,7 @@ def from_dict_schema(
             if col is not None:
                 table_cols.append(col)
 
-        tables.append(Table(name=table_name, row_count=row_count, description=table_desc))
+        tables.append(Table(name=table_name, row_count=table_rows, description=table_desc))
         columns_map[table_name] = table_cols
 
     return SchemaConfig(

@@ -277,3 +277,84 @@ def test_ok_field_present_on_success():
     assert inspect_schema(story="A fintech with 1k customers", rows=100)["ok"] is True
     result = generate_dataset(story="A SaaS company with 50 users", rows=50, seed=1, sample_rows=0)
     assert result["ok"] is True
+
+
+# ---------------------------------------------------------------------------
+# generate_from_schema — the agent-designs-the-schema contract
+# ---------------------------------------------------------------------------
+
+from misata.mcp.server import generate_from_schema  # noqa: E402
+
+
+def _agent_schema():
+    return {
+        "customers": {
+            "__rows__": 30,
+            "id": {"type": "integer", "primary_key": True},
+            "name": {"type": "string"},
+            "lifetime_value": {"rollup": {
+                "from_table": "orders", "fk": "customer_id",
+                "agg": "sum", "column": "total",
+            }},
+        },
+        "orders": {
+            "__rows__": 200,
+            "id": {"type": "integer", "primary_key": True},
+            "customer_id": {"type": "integer",
+                            "foreign_key": {"table": "customers", "column": "id"}},
+            "quantity": {"type": "integer", "min": 1, "max": 5},
+            "unit_price": {"type": "float", "min": 5.0, "max": 50.0, "decimals": 2},
+            "total": {"formula": "quantity * unit_price"},
+            "placed_at": {"type": "datetime"},
+        },
+    }
+
+
+def test_generate_from_schema_writes_files_and_verifies_integrity(tmp_path):
+    result = generate_from_schema(
+        schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=2
+    )
+    assert result["ok"] is True
+    assert result["table_count"] == 2
+    assert result["integrity"]["verified"] is True
+    rels = result["integrity"]["relationships"]
+    assert rels and rels[0]["orphans"] == 0
+    assert (tmp_path / "orders.csv").exists()
+
+
+def test_generate_from_schema_per_table_rows(tmp_path):
+    result = generate_from_schema(
+        schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=0
+    )
+    rows = {f["table"]: f["rows"] for f in result["files"]}
+    assert rows == {"customers": 30, "orders": 200}
+
+
+def test_generate_from_schema_rollup_reconciles(tmp_path):
+    import pandas as pd
+
+    result = generate_from_schema(
+        schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=0
+    )
+    customers = pd.read_csv(tmp_path / "customers.csv")
+    orders = pd.read_csv(tmp_path / "orders.csv")
+    summed = orders.groupby("customer_id")["total"].sum()
+    declared = customers.set_index("id")["lifetime_value"].reindex(summed.index)
+    assert ((declared - summed).abs() < 0.01).all()
+
+
+def test_generate_from_schema_is_deterministic(tmp_path):
+    a = generate_from_schema(schema=_agent_schema(), seed=11,
+                             output_dir=str(tmp_path / "a"), sample_rows=0)
+    b = generate_from_schema(schema=_agent_schema(), seed=11,
+                             output_dir=str(tmp_path / "b"), sample_rows=0)
+    assert a["ok"] and b["ok"]
+    assert (tmp_path / "a" / "orders.csv").read_text() == (tmp_path / "b" / "orders.csv").read_text()
+
+
+def test_generate_from_schema_bad_schema_returns_recoverable_error():
+    result = generate_from_schema(schema={"t": "not-a-dict"}, sample_rows=0)
+    # Either a structured error or an empty-but-ok result; never an exception.
+    assert "ok" in result
+    if not result["ok"]:
+        assert result["suggestion"]

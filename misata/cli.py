@@ -378,6 +378,12 @@ def init(db: Optional[str], story: Optional[str], output: str,
     default=True,
     help="Write a proof-oriented oracle_report.json with validation, quality, locale, privacy, and fidelity checks.",
 )
+@click.option(
+    "--capsule",
+    type=click.Path(exists=True),
+    default=None,
+    help="Capsule JSON whose vocabularies override built-in pools (see `misata capsule`).",
+)
 def generate(
     story: Optional[str],
     config: Optional[str],
@@ -398,6 +404,7 @@ def generate(
     smart_no_llm: bool,
     locale: Optional[str],
     oracle: bool,
+    capsule: Optional[str],
 ) -> None:
     """
     Generate synthetic data from a story or configuration file.
@@ -539,6 +546,12 @@ def generate(
     # Set seed if provided
     if seed is not None:
         schema_config.seed = seed
+
+    # Attach capsule file: its vocabularies beat built-in pools
+    if capsule:
+        from misata import _attach_capsule
+        _attach_capsule(schema_config, capsule)
+        console.print(f"💊 Using capsule: [cyan]{capsule}[/cyan]")
 
     # Inject locale: --locale flag overrides auto-detected locale from story parser
     _effective_locale = locale
@@ -1701,6 +1714,71 @@ def dbt_seed_cmd(
             f"\n[dim]Run [bold]dbt seed[/bold] to load {len(written)} table(s) "
             f"into your warehouse.[/dim]"
         )
+
+
+@main.group("capsule")
+def capsule_group() -> None:
+    """Create, inspect, and use domain vocabulary capsules.
+
+    A capsule is one shareable JSON file of domain vocabularies. Mine one
+    from example CSVs (no LLM needed), or generate one with an LLM once and
+    use it deterministically forever:
+
+        misata capsule create --domain veterinary --from-csv ./samples/
+        misata generate --story "a vet clinic..." --capsule veterinary.capsule.json
+    """
+
+
+@capsule_group.command("create")
+@click.option("--domain", required=True, help="Domain name for the capsule (e.g. veterinary).")
+@click.option("--from-csv", "csv_path", type=click.Path(exists=True), default=None,
+              help="CSV file or directory of CSVs to mine vocabularies from (no LLM).")
+@click.option("--vocab", "vocab_names", multiple=True,
+              help="Vocabulary names to generate via LLM/curated pools (repeatable).")
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Output path (default: <domain>.capsule.json).")
+def capsule_create(domain: str, csv_path: str, vocab_names: tuple, output: str) -> None:
+    """Create a capsule from example CSVs and/or named vocabularies."""
+    from misata.capsules import (
+        capsule_from_dataframes,
+        capsule_from_llm,
+        merge_into,
+        save_capsule,
+    )
+    from misata.domain_capsule import DomainCapsule
+
+    capsule = DomainCapsule(domain=domain)
+    if csv_path:
+        path = Path(csv_path)
+        files = sorted(path.glob("*.csv")) if path.is_dir() else [path]
+        frames = {f.stem: pd.read_csv(f) for f in files}
+        capsule = merge_into(capsule, capsule_from_dataframes(domain, frames))
+    if vocab_names:
+        capsule = merge_into(capsule, capsule_from_llm(domain, list(vocab_names)))
+    if not capsule.vocabularies:
+        console.print("[red]No vocabularies produced — pass --from-csv and/or --vocab.[/red]")
+        sys.exit(1)
+
+    out = Path(output) if output else Path(f"{domain}.capsule.json")
+    save_capsule(capsule, out)
+    console.print(f"[green]✓[/green] Capsule written to [cyan]{out}[/cyan]")
+    for name, values in sorted(capsule.vocabularies.items()):
+        console.print(f"  [bold]{name}[/bold]: {len(values)} values")
+
+
+@capsule_group.command("show")
+@click.argument("capsule_path", type=click.Path(exists=True))
+def capsule_show(capsule_path: str) -> None:
+    """Summarise a capsule file: vocabularies, sizes, provenance."""
+    from misata.capsules import load_capsule
+
+    capsule = load_capsule(capsule_path)
+    console.print(f"[bold]Domain:[/bold] {capsule.domain}   [bold]Locale:[/bold] {capsule.locale}")
+    for name, values in sorted(capsule.vocabularies.items()):
+        provs = capsule.provenance.get(name, [])
+        source = provs[0].source_name if provs else "unknown"
+        preview = ", ".join(map(str, values[:4]))
+        console.print(f"  [bold]{name}[/bold] ({len(values)} values, from {source}): {preview}…")
 
 
 if __name__ == "__main__":

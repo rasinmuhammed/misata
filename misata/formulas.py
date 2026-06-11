@@ -151,25 +151,38 @@ class FormulaEngine:
             if col_name not in ref_table.columns:
                 raise ValueError(f"Column '{col_name}' not found in table '{table_name}'")
 
-            fk_col = fk_mappings.get(table_name, f"{table_name}_id")
-            if fk_col.endswith("s_id"):
-                alt_fk = fk_col.replace("s_id", "_id")
-                if alt_fk in df.columns:
-                    fk_col = alt_fk
+            # Resolve the parent's primary key (the column the FK points at). Real schemas
+            # use `employee_id`, `customer_id`, etc. — not a literal `id` — so we detect the
+            # actual key instead of assuming. Preference: explicit mapping value, then
+            # `<singular>_id` / `<table>_id`, then a lone `id`.
+            singular = table_name[:-1] if table_name.endswith("s") else table_name
+            parent_key = None
+            for cand in (f"{singular}_id", f"{table_name}_id", "id"):
+                if cand in ref_table.columns:
+                    parent_key = cand
+                    break
+            if parent_key is None:
+                raise ValueError(
+                    f"Reference table '{table_name}' has no resolvable primary key "
+                    f"(looked for {singular}_id, {table_name}_id, id)"
+                )
 
-            if fk_col not in df.columns:
-                for pattern_fk in [f"{table_name}_id", f"{table_name[:-1]}_id", "id"]:
-                    if pattern_fk in df.columns:
-                        fk_col = pattern_fk
+            # Resolve the FK column on THIS table that references the parent. Preference:
+            # explicit mapping, then the same name as the parent key (the common case:
+            # timesheets.employee_id -> employees.employee_id), then conventional fallbacks.
+            fk_col = fk_mappings.get(table_name)
+            if fk_col is None or fk_col not in df.columns:
+                for cand in (parent_key, f"{singular}_id", f"{table_name}_id", "id"):
+                    if cand in df.columns:
+                        fk_col = cand
                         break
+            if fk_col is None or fk_col not in df.columns:
+                raise ValueError(
+                    f"No FK column on this table references '{table_name}' "
+                    f"(looked for {parent_key}, {singular}_id, {table_name}_id)"
+                )
 
-            if fk_col not in df.columns:
-                raise ValueError(f"No FK column found for table '{table_name}'")
-
-            if 'id' not in ref_table.columns:
-                raise ValueError(f"Reference table '{table_name}' has no 'id' column")
-
-            lookup_map = ref_table.set_index('id')[col_name].to_dict()
+            lookup_map = ref_table.set_index(parent_key)[col_name].to_dict()
             var_name = f'_ref_{i}'
             lookup_names[var_name] = df[fk_col].map(lookup_map).fillna(0).values
             result = result.replace(f'@{table_name}.{col_name}', var_name)

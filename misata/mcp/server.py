@@ -2,9 +2,10 @@
 
 Thin protocol shim that exposes Misata's public API to AI agents over
 the Model Context Protocol. The server runs over stdio and registers
-five tools — ``list_domains``, ``preview_story``, ``inspect_schema``,
-``generate_dataset``, ``validate_yaml`` — that map onto the existing
-:mod:`misata` functions.
+six tools — ``generate_from_schema`` (primary: the agent designs the
+schema, Misata guarantees the math), ``generate_dataset``,
+``list_domains``, ``preview_story``, ``inspect_schema``,
+``validate_yaml`` — that map onto the existing :mod:`misata` functions.
 
 This module is part of Misata itself (not a separate package) because
 the server is a *protocol adapter*, not a new product. It calls the
@@ -32,14 +33,18 @@ from misata.story_parser import StoryParser
 mcp = FastMCP(
     "misata",
     instructions=(
-        "Misata generates realistic, referentially-intact multi-table synthetic data from "
-        "a plain-English description — with no real data and no ML model. Use it whenever a "
-        "user needs test data, a seeded database, demo data, fixtures, or a relational "
-        "dataset shaped to specific outcomes (a revenue curve, a fraud or churn rate, "
-        "monthly aggregates). Unlike tools that imitate a real dataset, Misata makes the "
-        "declared outcome hold exactly while preserving foreign-key integrity. "
-        "Typical flow: call list_domains to see the 18 supported domains, preview_story to "
-        "confirm how a description is interpreted, then generate_dataset to write the CSVs."
+        "Misata generates realistic, referentially-intact multi-table synthetic data — "
+        "no real data, no ML model, fully seeded. Use it whenever a user needs test data, "
+        "a seeded database, demo data, fixtures, or a relational dataset shaped to "
+        "specific outcomes (a revenue curve, a fraud rate, exact monthly aggregates). "
+        "Division of labour: YOU are good at designing schemas; Misata is good at "
+        "guaranteeing the math (FK integrity, exact aggregates, distributions, "
+        "reproducibility). So when you know — or can design — the tables and columns the "
+        "user needs, call generate_from_schema with a schema dict: that is the primary "
+        "tool, and it returns a per-relationship integrity verification you can show the "
+        "user. Use generate_dataset(story) only for quick one-sentence requests where "
+        "Misata's own parser should design the schema (18 curated domains + structural "
+        "composition for unknown ones; preview_story shows the interpretation first)."
     ),
 )
 
@@ -299,6 +304,129 @@ def generate_dataset(
         "total_rows": total_rows,
         "table_count": len(files),
         "seed": seed,
+    }
+
+
+@mcp.tool()
+def generate_from_schema(
+    schema: Dict[str, Any],
+    rows: int = 1000,
+    seed: Optional[int] = 42,
+    output_dir: Optional[str] = None,
+    sample_rows: int = 5,
+) -> Dict[str, Any]:
+    """Generate a dataset from a schema YOU design — the primary Misata tool.
+
+    You (the agent) define tables and columns as a plain dict; Misata
+    guarantees the hard parts: foreign-key integrity across every table,
+    exact cross-table aggregates (rollups), derived columns (formulas),
+    declared distributions, and seed reproducibility. The response includes
+    a per-relationship integrity verification you can show the user.
+
+    Schema format — ``{table_name: {column_name: spec, ...}, ...}``:
+
+    - ``"__rows__": 500`` per table overrides the global ``rows``
+      (e.g. 10 warehouses, 200 couriers, 50000 deliveries).
+    - types: ``integer, float, decimal, string, text, email, phone, url,
+      uuid, date, datetime, timestamp, boolean``.
+    - ``{"type": "integer", "primary_key": true}`` — auto-generated PK.
+    - ``{"type": "integer", "foreign_key": {"table": "users", "column": "id"}}``
+      — FK; integrity is guaranteed and verified.
+    - ``min``/``max``, ``min_date``/``max_date``, ``decimals``, ``unique``,
+      ``nullable``.
+    - ``{"enum": ["basic", "pro"], "probabilities": [0.8, 0.2]}`` —
+      categorical; omit probabilities for realistic Zipf-shaped frequencies.
+    - ``{"distribution": "lognormal", "mean": 120, "std": 80}`` — also
+      ``normal, uniform, exponential, beta, poisson, power_law`` with their
+      shape params (``mu/sigma/alpha/lambda/...``).
+    - ``{"formula": "quantity * unit_price"}`` — row-level derivation;
+      ``@parent.column`` references work across tables via the FK
+      (e.g. ``"hours * @employees.hourly_rate"``).
+    - ``{"rollup": {"from_table": "orders", "fk": "customer_id",
+      "agg": "sum", "column": "amount"}}`` — parent summary columns that
+      reconcile EXACTLY with child rows under JOIN (agg: sum, count, mean,
+      max, min; optional ``where`` filter).
+    - ``{"pattern": "SKU-\\\\d{5}"}`` — code-style strings.
+    - dates get realistic granularity automatically (appointments snap to
+      15-min business grids, signups follow waking hours, logs keep
+      sub-second precision); names/emails/genders are generated jointly and
+      always agree.
+
+    Args:
+        schema:      Dict of table → column specs (format above).
+        rows:        Default row count for tables without ``__rows__``.
+        seed:        Random seed (same seed → byte-identical output).
+        output_dir:  Where to write CSVs. Defaults to a fresh temp dir.
+        sample_rows: Rows per table to include in the response (max 50).
+    """
+    sample_rows = max(0, min(sample_rows, 50))
+
+    if output_dir:
+        out_path = Path(output_dir).expanduser().resolve()
+        try:
+            out_path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return _tool_error(
+                exc,
+                f"Could not create output directory '{output_dir}'. "
+                "Check that the path is writable, or omit output_dir to use a temp directory.",
+            )
+    else:
+        out_path = Path(tempfile.mkdtemp(prefix="misata-mcp-"))
+
+    try:
+        config = misata.from_dict_schema(schema, row_count=rows, seed=seed)
+        tables = misata.generate_from_schema(config)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "Check the schema dict format in this tool's description: each table maps "
+            "column names to specs like {\"type\": \"integer\", \"primary_key\": true} or "
+            "{\"type\": \"float\", \"min\": 1, \"max\": 100}. Foreign keys are "
+            "{\"foreign_key\": {\"table\": \"users\", \"column\": \"id\"}}.",
+        )
+
+    files: List[Dict[str, Any]] = []
+    for name, df in tables.items():
+        csv_path = out_path / f"{name}.csv"
+        df.to_csv(csv_path, index=False)
+        files.append({
+            "table": name,
+            "path": str(csv_path),
+            "rows": len(df),
+            "columns": list(df.columns),
+            "sample": _df_preview(df, sample_rows) if sample_rows else [],
+        })
+
+    # Integrity verification: prove every declared relationship holds, so the
+    # agent can report "verified" instead of "should be fine".
+    verification: List[Dict[str, Any]] = []
+    for rel in config.relationships:
+        parent_df = tables.get(rel.parent_table)
+        child_df = tables.get(rel.child_table)
+        if parent_df is None or child_df is None:
+            continue
+        if rel.parent_key not in parent_df.columns or rel.child_key not in child_df.columns:
+            continue
+        child_vals = child_df[rel.child_key].dropna()
+        orphans = int((~child_vals.isin(set(parent_df[rel.parent_key]))).sum())
+        verification.append({
+            "relationship": f"{rel.child_table}.{rel.child_key} → {rel.parent_table}.{rel.parent_key}",
+            "intact": orphans == 0,
+            "orphans": orphans,
+        })
+
+    return {
+        "ok": True,
+        "output_dir": str(out_path),
+        "files": files,
+        "total_rows": sum(f["rows"] for f in files),
+        "table_count": len(files),
+        "seed": seed,
+        "integrity": {
+            "verified": all(v["intact"] for v in verification) if verification else True,
+            "relationships": verification,
+        },
     }
 
 

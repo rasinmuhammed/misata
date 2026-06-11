@@ -10,6 +10,7 @@ This module implements vectorized data generation with support for:
 """
 
 import warnings
+import zlib
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -118,6 +119,11 @@ class DataSimulator:
         realism = getattr(self.config, "realism", None)
         asset_store = AssetStore(getattr(realism, "asset_store_dir", None))
         self.domain_capsule = SemanticVocabularyGenerator(asset_store=asset_store).build_capsule(self.config)
+        # User-supplied capsule file: its vocabularies beat built-in pools.
+        capsule_file = getattr(realism, "capsule_file", None)
+        if capsule_file:
+            from misata.capsules import load_capsule, merge_into
+            self.domain_capsule = merge_into(self.domain_capsule, load_capsule(capsule_file))
         # Resolve locale: schema.realism.locale → schema.domain hint → default en_US
         self.locale = getattr(realism, "locale", None) or "en_US"
         self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule, locale=self.locale)
@@ -130,8 +136,27 @@ class DataSimulator:
             self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
     
+    def _capsule_vocab_for_column(self, column_name: str):
+        """User-capsule vocabulary keyed by column name, else None.
+
+        Only non-default provenance counts: built-in fallback pools must not
+        hijack column-name matches.
+        """
+        capsule = self.domain_capsule
+        if capsule is None:
+            return None
+        key = column_name.lower()
+        values = capsule.vocabularies.get(key)
+        if not values:
+            return None
+        provenances = capsule.provenance.get(key, [])
+        if any(getattr(p, "source_name", "") != "misata-defaults" for p in provenances):
+            return values
+        return None
+
     def _generate_unique_text(self, text_type: str, size: int) -> np.ndarray:
         """Generate exactly `size` distinct text values for a unique column."""
+        _note_fn = lambda: str(self.realistic_text.microtext.notes(1)[0])  # noqa: E731
         method_map = {
             "name":       self.text_gen.name,
             "email":      self.text_gen.email,
@@ -139,10 +164,10 @@ class DataSimulator:
             "address":    self.text_gen.full_address,
             "phone":      self.text_gen.phone_number,
             "url":        self.text_gen.url,
-            "sentence":   self.text_gen.sentence,
+            "sentence":   _note_fn,
             "word":       self.text_gen.word,
         }
-        gen_fn = method_map.get(text_type, self.text_gen.sentence)
+        gen_fn = method_map.get(text_type, _note_fn)
         seen: set = set()
         results: list = []
         max_attempts = size * 10
@@ -328,7 +353,65 @@ class DataSimulator:
             if getattr(curve, "table", None) == table_name:
                 needed_cols.add(getattr(curve, "time_column", "date"))
 
+        # Enterprise coherence: retain any column that a child-table FORMULA references
+        # via `@this_table.column` (e.g. timesheets.billed = hours * @employees.hourly_rate
+        # needs employees.hourly_rate in context, not just the PK). Without this the lookup
+        # falls back to 0 and the derived value is wrong.
+        import re as _re
+        for child_table in self.config.tables:
+            for col in self.config.get_columns(child_table.name):
+                formula = col.distribution_params.get("formula")
+                if not formula:
+                    continue
+                for ref_table, ref_col in _re.findall(r"@(\w+)\.(\w+)", formula):
+                    if ref_table == table_name:
+                        needed_cols.add(ref_col)
+
         return [column for column in needed_cols if column in df.columns]
+
+    def _quantize_numeric(
+        self,
+        values: np.ndarray,
+        table_name: str,
+        column: Column,
+        params: Dict[str, Any],
+    ) -> np.ndarray:
+        """Post-draw quantization: human-chosen quantities land on the values
+        humans actually choose (slot-grid durations, charm prices, integer
+        ages). Skipped when the column declares explicit choices/probabilities
+        and opted out per column with ``quantize: False``."""
+        if params.get("quantize") is False:
+            return values
+        if "choices" in params or params.get("probabilities") is not None or "formula" in params:
+            return values
+
+        from misata.quantization import apply_quantization, classify_quantization
+
+        domain = getattr(self.config, "domain", None) or getattr(
+            self._get_realism_config(), "domain_hint", None
+        )
+        profile = classify_quantization(column.name, table_name, domain)
+        if profile is None:
+            return values
+        # Explicit decimals already define this percentage's precision.
+        if profile == "percentage" and "decimals" in params:
+            return values
+
+        # Per-column stream: quantization never perturbs the main RNG sequence,
+        # so adding/removing it leaves every other column's draws unchanged.
+        quant_seed = zlib.crc32(
+            f"quantize:{table_name}.{column.name}".encode()
+        ) ^ (self.config.seed or 0)
+        quant_rng = np.random.default_rng(quant_seed)
+
+        arr = np.asarray(values)
+        was_integer = np.issubdtype(arr.dtype, np.integer)
+        out = apply_quantization(arr, profile, quant_rng)
+        if "min" in params:
+            out = np.maximum(out, params["min"])
+        if "max" in params:
+            out = np.minimum(out, params["max"])
+        return out.astype(int) if was_integer else out
 
     def generate_column(
         self,
@@ -571,16 +654,33 @@ class DataSimulator:
             if not isinstance(choices, list):
                 choices = list(choices)
 
-            # Zipf / power-law sampling: when no explicit probabilities are
-            # provided and sampling="zipf", derive weights from a Zipf law so
-            # the first choice dominates and the tail is long — just like real
-            # categorical data (statuses, countries, product categories, …).
-            sampling = params.get("sampling", "uniform")
-            if probabilities is None and sampling == "zipf":
-                exponent = float(params.get("zipf_exponent", 1.2))
-                ranks = np.arange(1, len(choices) + 1, dtype=float)
-                weights = 1.0 / np.power(ranks, exponent)
-                probabilities = weights / weights.sum()
+            # Real categorical data is never uniform: statuses, categories,
+            # countries and payment methods all follow rank-frequency power
+            # laws (Zipf 1949). Uniform marginals are one of the strongest
+            # statistical "this data is synthetic" tells, so when no explicit
+            # probabilities are declared we default to a mild Zipf–Mandelbrot
+            # law  w_k ∝ (k + q)^(−s)  with the rank order shuffled
+            # deterministically per column (the dominant category shouldn't
+            # always be the first one listed). Declared probabilities always
+            # win; ``sampling="uniform"`` opts out; legacy ``sampling="zipf"``
+            # keeps its documented listed-order behaviour.
+            sampling = params.get("sampling", "auto")
+            if probabilities is None and len(choices) > 1:
+                if sampling == "zipf":
+                    exponent = float(params.get("zipf_exponent", 1.2))
+                    ranks = np.arange(1, len(choices) + 1, dtype=float)
+                    weights = 1.0 / np.power(ranks, exponent)
+                    probabilities = weights / weights.sum()
+                elif sampling == "auto":
+                    s = float(params.get("zipf_exponent", 0.85))
+                    q = float(params.get("zipf_offset", 2.0))
+                    ranks = np.arange(1, len(choices) + 1, dtype=float)
+                    weights = np.power(ranks + q, -s)
+                    perm_seed = zlib.crc32(
+                        f"{table_name}.{column.name}".encode()
+                    ) ^ (self.config.seed or 0)
+                    perm = np.random.default_rng(perm_seed).permutation(len(choices))
+                    probabilities = weights[perm] / weights.sum()
 
             if probabilities is not None:
                 if len(probabilities) != len(choices):
@@ -696,7 +796,7 @@ class DataSimulator:
             if "max" in params:
                 values = np.minimum(values, params["max"])
 
-            return values
+            return self._quantize_numeric(values, table_name, column, params)
 
         # FLOAT
         elif column.type == "float":
@@ -777,7 +877,7 @@ class DataSimulator:
             if "decimals" in params:
                 values = np.round(values, params["decimals"])
 
-            return values
+            return self._quantize_numeric(values, table_name, column, params)
 
         # DATE
         elif column.type == "date":
@@ -842,15 +942,7 @@ class DataSimulator:
                     inherited_dates = density_map.sample_dates(size, self.rng, start=start, end=end)
                     if len(inherited_dates) == size:
                         values = pd.to_datetime(inherited_dates)
-                        col_name = column.name.lower()
-                        is_timestamp = (
-                            col_name.endswith("_at") or col_name.endswith("_time")
-                            or "timestamp" in col_name or "datetime" in col_name
-                            or params.get("include_time", False)
-                        )
-                        if is_timestamp:
-                            values = self._add_realistic_time(values, table_name, size)
-                        return values
+                        return self._add_realistic_time(values, table_name, size, column.name)
 
             start = pd.to_datetime(params.get("start", "2020-01-01"))
             end = pd.to_datetime(params.get("end", "2024-12-31"))
@@ -860,17 +952,11 @@ class DataSimulator:
             random_ints = self.rng.integers(start_int, end_int, size=size)
             values = pd.to_datetime(random_ints)
 
-            # Auto-add realistic time-of-day for timestamp columns
-            col_name = column.name.lower()
-            is_timestamp = (
-                col_name.endswith("_at") or col_name.endswith("_time")
-                or "timestamp" in col_name or "datetime" in col_name
-                or params.get("include_time", False)
-            )
-            if is_timestamp:
-                values = self._add_realistic_time(values, table_name, size)
-
-            return values
+            # Every datetime gets semantically-correct granularity: appointments
+            # snap to 15-min business-hour grids, signups follow waking-hour
+            # rhythms, logs keep sub-second precision, birth dates are dates.
+            # Raw nanosecond noise never survives to output.
+            return self._add_realistic_time(values, table_name, size, column.name)
 
         # FOREIGN KEY
         elif column.type == "foreign_key":
@@ -945,6 +1031,21 @@ class DataSimulator:
         # TEXT
         elif column.type == "text":
             text_type = params.get("text_type", "sentence")
+            # User capsule vocabularies keyed by this column's name take top
+            # priority: a capsule that defines "species" drives any species
+            # column. Built-in fallback vocab (misata-defaults) never
+            # short-circuits here.
+            capsule_vocab = self._capsule_vocab_for_column(column.name)
+            if capsule_vocab is not None:
+                return self.rng.choice(capsule_vocab, size=size)
+            # Pattern-based codes (SKUs, reference numbers, ticket ids):
+            # ``pattern: "REC-\\d{5}"`` expands via the locale-pack pattern
+            # syntax (\d, [A-Z], literals, {n} repeats).
+            if "pattern" in params:
+                return np.array([
+                    self.realistic_text._expand_pattern(params["pattern"])
+                    for _ in range(size)
+                ])
             # For unique text columns, generate exactly `size` distinct values.
             if column.unique:
                 return self._generate_unique_text(text_type, size)
@@ -1035,14 +1136,18 @@ class DataSimulator:
             _lf = self._locale_faker
             _addr_fn = (_lf.address if _lf else None) or self.text_gen.full_address
             _phone_fn = (_lf.phone_number if _lf else None) or self.text_gen.phone_number
+            # "sentence" no longer means lorem ipsum: free-text notes come from
+            # the seeded business-note grammar, which composes thousands of
+            # distinct human-looking sentences.
+            _note_fn = lambda: str(self.realistic_text.microtext.notes(1)[0])  # noqa: E731
             _LEGACY_GEN_MAP = {
-                "sentence": (self.text_gen.sentence, "text_sentence"),
+                "sentence": (_note_fn,               "text_sentence"),
                 "word":     (self.text_gen.word,     "text_word"),
                 "address":  (_addr_fn,               f"text_address_{self.locale}"),
                 "phone":    (_phone_fn,               f"text_phone_{self.locale}"),
                 "url":      (self.text_gen.url,       "text_url"),
             }
-            gen_fn, pool_key = _LEGACY_GEN_MAP.get(text_type, (self.text_gen.sentence, "text_sentence"))
+            gen_fn, pool_key = _LEGACY_GEN_MAP.get(text_type, (_note_fn, "text_sentence"))
             if pool_key not in self._text_pools:
                 self._text_pools[pool_key] = np.array([gen_fn() for _ in range(_pool_size)])
             elif len(self._text_pools[pool_key]) < size:
@@ -1501,7 +1606,13 @@ class DataSimulator:
 
             # Apply business rule constraints
             df_batch = self.apply_constraints(df_batch, table)
-            
+
+            # Re-apply formulas AFTER constraints: a constraint may change a base column
+            # (e.g. cap daily hours), and any formula derived from it (billed = hours * rate)
+            # must reflect the constrained value, not the pre-constraint one. Formulas are
+            # idempotent, so re-running is safe when nothing changed.
+            df_batch = self._apply_formula_columns(df_batch, table_name)
+
             # Apply per-column anomaly injection
             df_batch = self._apply_anomalies(df_batch, table_name)
 
@@ -2229,10 +2340,9 @@ class DataSimulator:
 
         return df
 
-    def _add_realistic_time(self, dates: pd.DatetimeIndex, table_name: str, size: int) -> pd.DatetimeIndex:  # noqa: ARG002
-        """Add domain-appropriate time-of-day to date-only timestamps.
+    def _domain_hour_weights(self) -> list:
+        """Hour-of-day rhythm for human actions, by domain.
 
-        Hour distributions match real platform behaviour:
         - ecommerce/food: peaks lunch + evening
         - fintech/hr: business hours 9-5
         - gaming/social: evening + night heavy
@@ -2242,30 +2352,33 @@ class DataSimulator:
 
         if domain in ("ecommerce", "fooddelivery", "marketplace"):
             # Peaks: 11am-2pm lunch, 7pm-10pm evening
-            hour_weights = [1,1,1,1,1,1,2,3,5,7,9,12,13,12,10,8,7,10,14,15,12,8,4,2]
-        elif domain in ("fintech", "hr", "healthcare", "realestate"):
+            return [1,1,1,1,1,1,2,3,5,7,9,12,13,12,10,8,7,10,14,15,12,8,4,2]
+        if domain in ("fintech", "hr", "healthcare", "realestate"):
             # Business hours 8am-6pm
-            hour_weights = [1,1,1,1,1,2,4,8,14,16,16,15,13,15,16,14,12,8,5,3,2,2,1,1]
-        elif domain in ("gaming", "social"):
+            return [1,1,1,1,1,2,4,8,14,16,16,15,13,15,16,14,12,8,5,3,2,2,1,1]
+        if domain in ("gaming", "social"):
             # Evening/night heavy: 6pm-2am
-            hour_weights = [8,6,4,3,2,1,1,1,2,3,4,5,6,6,6,6,8,10,14,16,18,18,16,12]
-        elif domain in ("saas", "edtech"):
+            return [8,6,4,3,2,1,1,1,2,3,4,5,6,6,6,6,8,10,14,16,18,18,16,12]
+        if domain in ("saas", "edtech"):
             # Workday with morning/afternoon bias
-            hour_weights = [1,1,1,1,1,2,4,9,14,16,15,13,12,14,15,13,11,8,5,4,3,2,2,1]
-        else:
-            # Generic mild daytime bias
-            hour_weights = [1,1,1,1,1,2,4,7,10,12,12,11,11,12,12,11,10,9,7,6,4,3,2,1]
+            return [1,1,1,1,1,2,4,9,14,16,15,13,12,14,15,13,11,8,5,4,3,2,2,1]
+        # Generic mild daytime bias
+        return [1,1,1,1,1,2,4,7,10,12,12,11,11,12,12,11,10,9,7,6,4,3,2,1]
 
-        hw = np.array(hour_weights, dtype=float)
-        hw /= hw.sum()
-        hours   = self.rng.choice(24, size=size, p=hw)
-        minutes = self.rng.integers(0, 60, size=size)
-        seconds = self.rng.integers(0, 60, size=size)
+    def _add_realistic_time(
+        self,
+        dates: pd.DatetimeIndex,
+        table_name: str,
+        size: int,  # noqa: ARG002 — kept for call-site compatibility
+        column_name: str = "",
+    ) -> pd.DatetimeIndex:
+        """Shape datetimes with the temporal profile their semantics demand."""
+        from misata.temporal_profiles import apply_temporal_profile, classify_temporal
 
-        offsets = pd.to_timedelta(hours * 3600 + minutes * 60 + seconds, unit="s")
-        # Strip existing sub-day component then add realistic time
-        day_only = dates.normalize()
-        return day_only + offsets
+        profile = classify_temporal(column_name, table_name)
+        return apply_temporal_profile(
+            dates, profile, self.rng, domain_hour_weights=self._domain_hour_weights()
+        )
 
     def _apply_anomalies(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Inject statistical outliers into columns that declare ``anomaly_rate``.
