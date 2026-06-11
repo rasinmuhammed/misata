@@ -113,21 +113,24 @@ class StoryParser:
     """
 
     # Pattern definitions
+    # \d[\d,]* accepts thousands separators ("2,000 customers"); the comma is
+    # stripped in _parse_number. (?:\.\d+)? allows "1.5M users".
+    _NUM = r"(\d[\d,]*(?:\.\d+)?[KkMm]?)"
     SCALE_PATTERNS = {
-        r"(\d+[KkMm]?)\s*users": "users",
-        r"(\d+[KkMm]?)\s*customers": "users",
-        r"(\d+[KkMm]?)\s*employees": "users",
-        r"(\d+[KkMm]?)\s*patients": "users",
-        r"(\d+[KkMm]?)\s*members": "users",
-        r"(\d+[KkMm]?)\s*transactions": "transactions",
-        r"(\d+[KkMm]?)\s*orders": "orders",
-        r"(\d+[KkMm]?)\s*projects": "projects",
-        r"(\d+[KkMm]?)\s*properties": "properties",
-        r"(\d+[KkMm]?)\s*listings": "properties",
-        r"(\d+[KkMm]?)\s*agents": "agents",
-        r"(\d+[KkMm]?)\s*drivers": "drivers",
-        r"(\d+[KkMm]?)\s*sellers": "sellers",
-        r"(\d+[KkMm]?)\s*doctors": "doctors",
+        _NUM + r"\s*users": "users",
+        _NUM + r"\s*customers": "users",
+        _NUM + r"\s*employees": "users",
+        _NUM + r"\s*patients": "users",
+        _NUM + r"\s*members": "users",
+        _NUM + r"\s*transactions": "transactions",
+        _NUM + r"\s*orders": "orders",
+        _NUM + r"\s*projects": "projects",
+        _NUM + r"\s*properties": "properties",
+        _NUM + r"\s*listings": "properties",
+        _NUM + r"\s*agents": "agents",
+        _NUM + r"\s*drivers": "drivers",
+        _NUM + r"\s*sellers": "sellers",
+        _NUM + r"\s*doctors": "doctors",
     }
 
     TEMPORAL_PATTERNS = {
@@ -250,8 +253,8 @@ class StoryParser:
         self.detected_locale: Optional[str] = None
 
     def _parse_number(self, num_str: str) -> int:
-        """Parse number strings like '50K', '1.5M' to integers."""
-        num_str = num_str.strip().upper()
+        """Parse number strings like '50K', '1.5M', '2,000' to integers."""
+        num_str = num_str.strip().upper().replace(",", "")
 
         if num_str.endswith('K'):
             return int(float(num_str[:-1]) * 1000)
