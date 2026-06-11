@@ -1118,7 +1118,19 @@ class DataSimulator:
                 "aadhaar":                "national_id",
                 "nid":                    "national_id",
             }
-            semantic = text_strategy or _REALISTIC_TYPE_MAP.get(text_type)
+            # An explicitly declared text_type always wins; name-based
+            # inference (text_strategy) only fills the gap when the schema
+            # says nothing. Unknown declared types pass through as-is so the
+            # full semantic vocabulary is reachable from dict schemas, not
+            # just the simulator aliases.
+            declared = params.get("text_type")
+            if declared in ("sentence", "word", "address", "phone", "url"):
+                declared = None  # legacy free-text types: handled below
+            semantic = (
+                (_REALISTIC_TYPE_MAP.get(declared, declared) if declared else None)
+                or text_strategy
+                or _REALISTIC_TYPE_MAP.get(text_type)
+            )
             # Route to RealisticTextGenerator for known types OR any unrecognised
             # type that is not a legacy free-text type (sentence, word, etc.)
             _LEGACY_ONLY = {"sentence", "word", "address", "phone", "url"}

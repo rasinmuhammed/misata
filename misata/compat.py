@@ -171,7 +171,8 @@ def _col_from_dict(
     # Cross-column / cross-table logic
     for passthrough in ("formula", "depends_on", "mapping", "zero_inflate", "rollup",
                         "inherits_curve_from", "references", "after_column", "relative_to",
-                        "null_if", "min_gap_days", "sequence_start", "quantize"):
+                        "null_if", "min_gap_days", "sequence_start", "quantize",
+                        "pattern", "text_type"):
         if col_def.get(passthrough) is not None:
             params[passthrough] = col_def[passthrough]
 

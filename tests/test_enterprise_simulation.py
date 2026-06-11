@@ -250,3 +250,29 @@ class TestDeepCustomSchema:
         dt = t["maintenance_logs"].groupby("site_id")["downtime_hrs"].sum()
         sm = t["sites"].set_index("site_id")
         assert (sm["total_downtime_hrs"] - dt.reindex(sm.index).fillna(0)).abs().max() < 0.01
+
+
+class TestDictSchemaTextPassthrough:
+    """`pattern` and explicit `text_type` must reach the engine from a plain
+    dict schema — the contract Studio and MCP agents speak. Regression for the
+    gap where 0.8.0.3 shipped pattern codes but from_dict_schema dropped them."""
+
+    def _schema(self):
+        return misata.from_dict_schema({
+            "orders": {
+                "rows": 200,
+                "order_id": {"type": "integer", "primary_key": True},
+                "sku": {"type": "string", "pattern": "SKU-\\d{5}"},
+                "contact": {"type": "string", "text_type": "person_name"},
+            },
+        }, seed=9)
+
+    def test_pattern_reaches_engine(self):
+        t = misata.generate_from_schema(self._schema())
+        assert t["orders"]["sku"].str.match(r"SKU-\d{5}$").all()
+
+    def test_explicit_text_type_overrides_name_inference(self):
+        t = misata.generate_from_schema(self._schema())
+        names = t["orders"]["contact"].astype(str)
+        # person names: two capitalised words, no digits
+        assert names.str.match(r"^[A-Z][\w'.-]+ [A-Z]").mean() > 0.95

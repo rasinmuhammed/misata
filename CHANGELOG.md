@@ -5,6 +5,20 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0.4] - 2026-06-11
+
+Patch release. 759 tests, 0 failures.
+
+### Fixed
+
+- **`pattern` and `text_type` now reach the engine from dict schemas.** `from_dict_schema`
+  dropped both keys, so the pattern codes shipped in 0.8.0.3 and explicit semantic text
+  types were unreachable for Studio, MCP agents, and any non-Python caller.
+- **Declared `text_type` wins over column-name inference.** A column named `contact`
+  declared as `person_name` previously generated description text because name-based
+  inference outranked the explicit declaration. The schema's word is now final; inference
+  only fills gaps.
+
 ## [0.8.0.3] - 2026-06-11
 
 Enterprise simulation release. Misata can now generate a complete, internally-consistent
