@@ -5,13 +5,30 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0.3] - unreleased
+## [0.8.0.3] - 2026-06-11
 
 Enterprise simulation release. Misata can now generate a complete, internally-consistent
 company dataset where every number ties together — the kind of deeply interconnected data
-no other synthetic-data library produces. 653 tests, 0 failures.
+no other synthetic-data library produces. 757 tests, 0 failures.
 
 ### Added
+
+- **Realism core.** Six deterministic mechanisms that kill the classic synthetic-data
+  tells: joint name-gender-culture identities, semantic temporal profiles (appointments
+  on 15-minute business grids; no nanosecond noise anywhere), Zipf-Mandelbrot categorical
+  marginals, geographic facts (289 city coordinates; route distances and travel times are
+  computed, not sampled), rating-conformant grammar microtext (lorem ipsum removed), and
+  numeric quantization (durations on calendar grids, charm prices).
+- **Compositional schema synthesis.** Unknown domains get structural multi-table schemas
+  composed from the story's own entities (archetype lattice + FK wiring) instead of
+  template confabulation or a single generic table; weak keyword matches are gated.
+- **MCP schema-first agent contract.** New `generate_from_schema` tool: the agent designs
+  the schema dict, Misata returns data plus a per-relationship integrity proof.
+- **Capsules.** Shareable single-file domain vocabulary packs: mine from CSVs
+  (`misata capsule create --from-csv`), generate once with an LLM, or write by hand;
+  `generate(..., capsule=...)` makes them drive matching columns deterministically.
+- **Pattern codes.** `pattern: "REC-\\d{5}"` on text columns for SKU/reference codes.
+
 
 - **Flagship pharma CRO domain.** `misata.generate("A pharmaceutical CRO with 60
   employees, 20 clinical research projects, and clients")` now produces a full four-table
