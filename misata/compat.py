@@ -38,7 +38,14 @@ from __future__ import annotations
 import warnings
 from typing import Any, Dict, List, Optional
 
-from misata.schema import Column, Relationship, SchemaConfig, Table
+from misata.schema import (
+    Column,
+    OutcomeCurve,
+    RateCurve,
+    Relationship,
+    SchemaConfig,
+    Table,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +228,18 @@ def from_dict_schema(
     ``email``, ``phone``, ``url``, ``uuid``, ``date``, ``datetime``,
     ``timestamp``, ``boolean``, ``foreign_key``.
 
+    Schema-level directives (top-level keys, siblings of the tables):
+
+    - ``__outcome_curves__``: list of declared aggregate targets, e.g.
+      ``[{"table": "orders", "column": "amount", "time_column": "order_date",
+      "time_unit": "month", "value_mode": "absolute", "start_date": "2024-01-01",
+      "curve_points": [{"month": 1, "target_value": 50000.0}, ...]}]`` —
+      generated rows sum to each period's target exactly.
+    - ``__rate_curves__``: list of per-period rate targets for boolean or
+      categorical columns, e.g. ``[{"table": "transactions", "column":
+      "is_fraud", "time_column": "transaction_date", "rate_points":
+      [{"period": "2024-01", "rate": 0.03}, ...]}]``.
+
     Args:
         schemas:   Dict mapping table name → column definitions dict.
         row_count: Default row count for every table.
@@ -254,7 +273,26 @@ def from_dict_schema(
     columns_map: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []
 
+    # Top-level directives (not tables): declared outcome curves and rate
+    # curves, the schema-level half of the engine contract. Lists of plain
+    # dicts validated through the pydantic models so a bad declaration fails
+    # loudly at schema-compile time, not mid-generation.
+    outcome_curves: List[OutcomeCurve] = []
+    for i, curve_def in enumerate(schemas.get("__outcome_curves__") or []):
+        try:
+            outcome_curves.append(OutcomeCurve(**curve_def))
+        except Exception as e:
+            raise ValueError(f"__outcome_curves__[{i}] is invalid: {e}") from e
+    rate_curves: List[RateCurve] = []
+    for i, rate_def in enumerate(schemas.get("__rate_curves__") or []):
+        try:
+            rate_curves.append(RateCurve(**rate_def))
+        except Exception as e:
+            raise ValueError(f"__rate_curves__[{i}] is invalid: {e}") from e
+
     for table_name, table_def in schemas.items():
+        if table_name.startswith("__"):
+            continue
         if not isinstance(table_def, dict):
             warnings.warn(f"Skipping non-dict entry for table '{table_name}'.")
             continue
@@ -305,6 +343,8 @@ def from_dict_schema(
         tables=tables,
         columns=columns_map,
         relationships=relationships,
+        outcome_curves=outcome_curves,
+        rate_curves=rate_curves,
         seed=seed,
     )
 

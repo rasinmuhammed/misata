@@ -276,3 +276,57 @@ class TestDictSchemaTextPassthrough:
         names = t["orders"]["contact"].astype(str)
         # person names: two capitalised words, no digits
         assert names.str.match(r"^[A-Z][\w'.-]+ [A-Z]").mean() > 0.95
+
+
+class TestDictSchemaOutcomeCurves:
+    """`__outcome_curves__` and `__rate_curves__` as top-level dict-schema
+    directives — the contract the Studio curve designer and MCP agents send."""
+
+    def test_absolute_curve_hits_targets_exactly(self):
+        config = misata.from_dict_schema({
+            "__outcome_curves__": [{
+                "table": "orders",
+                "column": "amount",
+                "time_column": "order_date",
+                "time_unit": "month",
+                "value_mode": "absolute",
+                "start_date": "2024-01-01",
+                "avg_transaction_value": 40.0,
+                "curve_points": [
+                    {"month": 1, "target_value": 50000.0},
+                    {"month": 6, "target_value": 120000.0},
+                    {"month": 12, "target_value": 200000.0},
+                ],
+            }],
+            "orders": {
+                "rows": 5000,
+                "order_id": {"type": "integer", "primary_key": True},
+                "amount": {"type": "float", "min": 5, "max": 500},
+                "order_date": {"type": "date"},
+            },
+        }, seed=21)
+        assert len(config.outcome_curves) == 1
+        t = misata.generate_from_schema(config)
+        orders = t["orders"]
+        monthly = (
+            orders.assign(m=pd.to_datetime(orders["order_date"]).dt.month)
+            .groupby("m")["amount"].sum()
+        )
+        assert abs(monthly[1] - 50000.0) < 0.01
+        assert abs(monthly[6] - 120000.0) < 0.01
+        assert abs(monthly[12] - 200000.0) < 0.01
+
+    def test_invalid_curve_fails_at_compile_time(self):
+        import pytest
+        with pytest.raises(ValueError, match="__outcome_curves__\\[0\\]"):
+            misata.from_dict_schema({
+                "__outcome_curves__": [{"column": "amount"}],  # missing table
+                "orders": {"order_id": {"type": "integer", "primary_key": True}},
+            })
+
+    def test_directive_keys_are_not_tables(self):
+        config = misata.from_dict_schema({
+            "__outcome_curves__": [],
+            "orders": {"order_id": {"type": "integer", "primary_key": True}},
+        })
+        assert [t.name for t in config.tables] == ["orders"]
