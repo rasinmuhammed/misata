@@ -346,11 +346,28 @@ def generate_from_schema(
       "agg": "sum", "column": "amount"}}`` — parent summary columns that
       reconcile EXACTLY with child rows under JOIN (agg: sum, count, mean,
       max, min; optional ``where`` filter).
-    - ``{"pattern": "SKU-\\\\d{5}"}`` — code-style strings.
+    - ``{"pattern": "SKU-\\\\d{5}"}`` — code-style strings; a list with
+      optional ``pattern_weights`` draws one shape per row.
+    - ``{"text_type": "person_name"}`` — explicit semantic text type; always
+      beats column-name inference.
     - dates get realistic granularity automatically (appointments snap to
       15-min business grids, signups follow waking hours, logs keep
       sub-second precision); names/emails/genders are generated jointly and
       always agree.
+
+    Schema-level directives (top-level keys, siblings of the tables):
+
+    - ``"__outcome_curves__"``: declared aggregate targets the generated rows
+      hit EXACTLY — ``[{"table": "orders", "column": "amount", "time_column":
+      "order_date", "time_unit": "month", "value_mode": "absolute",
+      "start_date": "2024-01-01", "avg_transaction_value": 40.0,
+      "curve_points": [{"month": 1, "target_value": 50000.0}, {"month": 12,
+      "target_value": 200000.0}]}]``. Use this whenever the user states what
+      a number should sum to per period ("revenue grows $50k to $200k").
+    - ``"__rate_curves__"``: per-period rate targets for boolean/categorical
+      columns — ``[{"table": "transactions", "column": "is_fraud",
+      "time_column": "transaction_date", "rate_points": [{"period":
+      "2024-01", "rate": 0.03}]}]``.
 
     Args:
         schema:      Dict of table → column specs (format above).

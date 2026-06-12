@@ -1040,10 +1040,26 @@ class DataSimulator:
                 return self.rng.choice(capsule_vocab, size=size)
             # Pattern-based codes (SKUs, reference numbers, ticket ids):
             # ``pattern: "REC-\\d{5}"`` expands via the locale-pack pattern
-            # syntax (\d, [A-Z], literals, {n} repeats).
+            # syntax (\d, [A-Z], [a-z], literals, {n} repeats). A list draws
+            # one pattern per row, optionally weighted by ``pattern_weights``;
+            # this is how mimic reproduces columns whose codes come in several
+            # shapes (Titanic tickets: "A/5 21171" next to "349207").
             if "pattern" in params:
+                pats = params["pattern"]
+                if isinstance(pats, (list, tuple)):
+                    pats = [str(p) for p in pats if str(p)] or [""]
+                    weights = params.get("pattern_weights")
+                    w = None
+                    if weights is not None and len(weights) == len(pats):
+                        arr = np.asarray(weights, dtype=float)
+                        if arr.sum() > 0:
+                            w = arr / arr.sum()
+                    idx = self.rng.choice(len(pats), size=size, p=w)
+                    return np.array([
+                        self.realistic_text._expand_pattern(pats[i]) for i in idx
+                    ])
                 return np.array([
-                    self.realistic_text._expand_pattern(params["pattern"])
+                    self.realistic_text._expand_pattern(str(pats))
                     for _ in range(size)
                 ])
             # For unique text columns, generate exactly `size` distinct values.
