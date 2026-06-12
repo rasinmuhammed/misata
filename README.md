@@ -4,7 +4,7 @@
 
 # Misata
 
-**Realistic multi-table synthetic data that conforms to the outcome you specify — exact revenue curves, fraud rates, and referential integrity, from a sentence, YAML, or your own database. No ML model, no real data.**
+**Realistic multi-table synthetic data that conforms to the outcome you specify exact revenue curves, fraud rates, and referential integrity, from a sentence, YAML, or your own database. No ML model, no real data.**
 
 [![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=flat-square&color=E89030)](https://pypi.org/project/misata/)
 [![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=flat-square)](https://pypi.org/project/misata/)
@@ -19,14 +19,14 @@
 
 ---
 
-Most synthetic-data tools learn from a real dataset and imitate it. Misata works the other way: you **declare the outcome you want** — "monthly revenue rises from \$50k to \$200k," "fraud is 3% in Q1 rising to 8% by Q4," "every customer's `total_spent` equals the sum of their orders" — and Misata generates individual rows whose aggregates hit those targets **exactly**, with full referential integrity, from no source data at all.
+Most synthetic-data tools learn from a real dataset and imitate it. Misata works the other way: you **declare the outcome you want** : "monthly revenue rises from \$50k to \$200k," "fraud is 3% in Q1 rising to 8% by Q4," "every customer's `total_spent` equals the sum of their orders" — and Misata generates individual rows whose aggregates hit those targets **exactly**, with full referential integrity, from no source data at all.
 
-This is *outcome-conformant generation*. The mechanism is formalised in an arXiv preprint ([2606.08736](https://arxiv.org/abs/2606.08736v1)): a closed-form method that satisfies declared aggregates to \$0.00 error, where off-the-shelf imitation synthesisers trained on the same data miss by 74–86%. Every run can also emit an **Oracle report** — a proof bundle covering referential integrity, constraints, temporal consistency, and reproducibility.
+This is *outcome-conformant generation*. The mechanism is formalised in an arXiv preprint ([2606.08736](https://arxiv.org/abs/2606.08736v1)): a closed-form method that satisfies declared aggregates to \$0.00 error, where off-the-shelf imitation synthesisers trained on the same data miss by 74–86%. Every run can also emit an **Oracle report**, a proof bundle covering referential integrity, constraints, temporal consistency, and reproducibility.
 
 It generates from a plain-English description, a YAML schema, or an existing database schema. No machine-learning model is required. No real data is needed.
 
 Built for:
-- **Database seeding** — fill dev and staging environments with production-like data
+- **Database seeding** - fill dev and staging environments with production-like data
 - **Integration tests** — relational fixtures with FK integrity across every table
 - **Demos and prototypes** — realistic numbers, names, and distributions, no PII
 - **BI and dashboard development** — data shaped like your real domain before launch
@@ -167,7 +167,7 @@ print(oracle["advisory"]["locale_domain_fit"]["locale"])
 
 ## Six ways to generate data
 
-### 1. Plain English — no config required
+### 1. Plain English, no config required
 
 ```python
 tables = misata.generate("A fintech startup with 10k customers, fraud rate 3%, and IBAN accounts")
@@ -175,7 +175,7 @@ tables = misata.generate("A fintech startup with 10k customers, fraud rate 3%, a
 
 Misata reads the story, infers domain (fintech), scale (10 000 rows), and column semantics (fraud flag, IBAN format) — no schema authoring needed.
 
-### 2. YAML schema-as-code — commit it to git
+### 2. YAML schema-as-code, commit it to git
 
 ```bash
 misata init           # scaffolds misata.yaml in the current directory
@@ -267,7 +267,7 @@ schema = misata.from_dict_schema({
 tables = misata.generate_from_schema(schema)
 ```
 
-### 5. LLM-assisted generation — richer semantics, optional
+### 5. LLM-assisted generation, richer semantics, optional
 
 ```python
 from misata import LLMSchemaGenerator
@@ -284,7 +284,7 @@ tables = misata.generate_from_schema(schema)
 
 Requires `pip install "misata[llm]"` plus one of `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
 
-### 6. Incremental generation — grow a dataset without re-seeding
+### 6. Incremental generation, grow a dataset without re-seeding
 
 ```python
 tables = misata.generate("A fintech company with 1000 customers", seed=1)
