@@ -40,6 +40,7 @@ from typing import Any, Dict, List, Optional
 
 from misata.schema import (
     Column,
+    Constraint,
     OutcomeCurve,
     RateCurve,
     Relationship,
@@ -317,6 +318,19 @@ def from_dict_schema(
         pk_col = _detect_pk(table_def)
         table_cols: List[Column] = []
 
+        # Per-table constraints — e.g. inequality (end_date > start_date), col_range, etc.
+        # Format: __constraints__: [{type: "inequality", column_a: "x", operator: ">", column_b: "y"}]
+        table_constraints: List[Constraint] = []
+        for i, c_def in enumerate(table_def.get("__constraints__") or []):
+            try:
+                table_constraints.append(Constraint(**c_def))
+            except Exception as e:
+                warnings.warn(f"Table '{table_name}' __constraints__[{i}] is invalid and was skipped: {e}")
+
+        # Per-table Pearson correlations between numeric columns (applied post-generation).
+        # Format: __correlations__: [{col_a: "bmi", col_b: "systolic_bp", r: 0.41}]
+        table_correlations: List[Dict[str, Any]] = list(table_def.get("__correlations__") or [])
+
         for col_name, col_def in table_def.items():
             if col_name.startswith("__") or not isinstance(col_def, dict):
                 continue
@@ -335,7 +349,13 @@ def from_dict_schema(
             if col is not None:
                 table_cols.append(col)
 
-        tables.append(Table(name=table_name, row_count=table_rows, description=table_desc))
+        tables.append(Table(
+            name=table_name,
+            row_count=table_rows,
+            description=table_desc,
+            constraints=table_constraints,
+            correlations=table_correlations,
+        ))
         columns_map[table_name] = table_cols
 
     return SchemaConfig(
