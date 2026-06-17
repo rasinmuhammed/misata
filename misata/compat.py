@@ -198,6 +198,24 @@ def _col_from_dict(
     )
 
 
+def _auto_constraint_name(c_def: Dict[str, Any], index: int) -> str:
+    """Build a descriptive constraint name from its shape.
+
+    The ``Constraint`` model requires a ``name``, but it is purely cosmetic. Dict,
+    YAML, and MCP-agent callers shouldn't have to invent one, so we synthesise a
+    readable name from the constraint's columns and operator.
+    """
+    ctype = str(c_def.get("type", "constraint"))
+    if c_def.get("column_a") and c_def.get("column_b"):
+        op = c_def.get("operator", "?")
+        return f"{ctype}_{c_def['column_a']}_{op}_{c_def['column_b']}"
+    if c_def.get("low_column") and c_def.get("high_column"):
+        return f"{ctype}_{c_def.get('column', 'col')}_in_{c_def['low_column']}_{c_def['high_column']}"
+    if c_def.get("group_by"):
+        return f"{ctype}_{'_'.join(map(str, c_def['group_by']))}"
+    return f"{ctype}_{index}"
+
+
 def _detect_pk(table_def: Dict[str, Any]) -> Optional[str]:
     for col_name, col_def in table_def.items():
         if isinstance(col_def, dict) and col_def.get("primary_key"):
@@ -320,8 +338,12 @@ def from_dict_schema(
 
         # Per-table constraints — e.g. inequality (end_date > start_date), col_range, etc.
         # Format: __constraints__: [{type: "inequality", column_a: "x", operator: ">", column_b: "y"}]
+        # ``name`` is required by the Constraint model but is purely descriptive; auto-fill
+        # it from the constraint's shape so dict/LLM/MCP callers don't have to invent one.
         table_constraints: List[Constraint] = []
         for i, c_def in enumerate(table_def.get("__constraints__") or []):
+            if isinstance(c_def, dict) and not c_def.get("name"):
+                c_def = {**c_def, "name": _auto_constraint_name(c_def, i)}
             try:
                 table_constraints.append(Constraint(**c_def))
             except Exception as e:

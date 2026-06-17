@@ -230,3 +230,109 @@ class TestColumnRangeConstraint:
         )
         c = ConstraintEngine.from_schema_constraint(sc)
         assert isinstance(c, ColumnRangeConstraint)
+
+
+class TestGenerationIntegratedConstraints:
+    """Inequality/col_range constraints enforced through the real generation path.
+
+    Regression cover for the gap where these constraint types existed on the
+    Constraint model but were never applied during generation (only the standalone
+    misata.constraints toolkit knew about them, and it was not wired into the
+    simulator). These also assert the dict-schema passthrough in from_dict_schema.
+    """
+
+    def test_inequality_drop_removes_violating_rows_dates(self):
+        import misata
+        schema = {
+            "visits": {
+                "__rows__": 200,
+                "__constraints__": [
+                    {"type": "inequality", "column_a": "visit_date", "operator": ">=",
+                     "column_b": "enroll_date", "action": "drop"}
+                ],
+                "visit_id": {"type": "integer", "primary_key": True},
+                "enroll_date": {"type": "date", "min_date": "2023-06-01", "max_date": "2023-08-01"},
+                "visit_date": {"type": "date", "min_date": "2023-01-01", "max_date": "2023-12-31"},
+            }
+        }
+        cfg = misata.from_dict_schema(schema, row_count=200, seed=7)
+        df = misata.generate_from_schema(cfg)["visits"]
+        vd = pd.to_datetime(df["visit_date"])
+        ed = pd.to_datetime(df["enroll_date"])
+        assert (vd >= ed).all()
+        assert len(df) < 200  # some rows dropped
+
+    def test_inequality_cap_keeps_all_rows_dates(self):
+        import misata
+        schema = {
+            "visits": {
+                "__rows__": 200,
+                "__constraints__": [
+                    {"type": "inequality", "column_a": "visit_date", "operator": ">=",
+                     "column_b": "enroll_date", "action": "cap"}
+                ],
+                "visit_id": {"type": "integer", "primary_key": True},
+                "enroll_date": {"type": "date", "min_date": "2023-06-01", "max_date": "2023-08-01"},
+                "visit_date": {"type": "date", "min_date": "2023-01-01", "max_date": "2023-12-31"},
+            }
+        }
+        cfg = misata.from_dict_schema(schema, row_count=200, seed=7)
+        df = misata.generate_from_schema(cfg)["visits"]
+        vd = pd.to_datetime(df["visit_date"])
+        ed = pd.to_datetime(df["enroll_date"])
+        assert (vd >= ed).all()
+        assert len(df) == 200  # nothing dropped
+
+    def test_col_range_clips_middle_column(self):
+        import misata
+        schema = {
+            "sales": {
+                "__rows__": 150,
+                "__constraints__": [
+                    {"type": "col_range", "low_column": "cost", "column": "price",
+                     "high_column": "list_price", "action": "cap"}
+                ],
+                "sale_id": {"type": "integer", "primary_key": True},
+                "cost": {"type": "float", "distribution": "normal", "mean": 50, "std": 10},
+                "price": {"type": "float", "distribution": "normal", "mean": 70, "std": 30},
+                "list_price": {"type": "float", "distribution": "normal", "mean": 120, "std": 15},
+            }
+        }
+        cfg = misata.from_dict_schema(schema, row_count=150, seed=3)
+        df = misata.generate_from_schema(cfg)["sales"]
+        assert ((df["price"] >= df["cost"]) & (df["price"] <= df["list_price"])).all()
+
+    def test_constraint_without_name_is_auto_named(self):
+        import misata
+        schema = {
+            "t": {
+                "__rows__": 10,
+                "__constraints__": [
+                    {"type": "inequality", "column_a": "b", "operator": ">=", "column_b": "a"}
+                ],
+                "id": {"type": "integer", "primary_key": True},
+                "a": {"type": "integer", "min": 1, "max": 5},
+                "b": {"type": "integer", "min": 1, "max": 5},
+            }
+        }
+        cfg = misata.from_dict_schema(schema, row_count=10, seed=1)
+        constraints = cfg.get_table("t").constraints
+        assert len(constraints) == 1
+        assert constraints[0].name  # auto-filled, non-empty
+
+    def test_correlations_passthrough_enforced(self):
+        import misata
+        schema = {
+            "people": {
+                "__rows__": 200,
+                "__correlations__": [{"col_a": "bmi", "col_b": "sbp", "r": 0.6}],
+                "person_id": {"type": "integer", "primary_key": True},
+                "bmi": {"type": "float", "distribution": "normal", "mean": 28, "std": 5},
+                "sbp": {"type": "float", "distribution": "normal", "mean": 125, "std": 15},
+            }
+        }
+        cfg = misata.from_dict_schema(schema, row_count=200, seed=7)
+        assert cfg.get_table("people").correlations  # landed on the Table
+        df = misata.generate_from_schema(cfg)["people"]
+        r = float(df["bmi"].corr(df["sbp"]))
+        assert 0.45 <= r <= 0.75  # Iman-Conover lands near the 0.6 target

@@ -2366,6 +2366,84 @@ class DataSimulator:
                     lambda x: x.clip(lower=constraint.value)
                 )
 
+        elif constraint.type == "inequality":
+            # Row-level ordering rule: column_a OP column_b (e.g. end_date >= start_date).
+            df = self._apply_inequality_constraint(df, constraint)
+
+        elif constraint.type == "col_range":
+            # Row-level bound: low_column <= column <= high_column (e.g. bid <= sale <= list).
+            df = self._apply_col_range_constraint(df, constraint)
+
+        return df
+
+    # Comparison operators reachable from inequality/col_range constraints.
+    _OPS = {
+        ">":  lambda a, b: a > b,
+        ">=": lambda a, b: a >= b,
+        "<":  lambda a, b: a < b,
+        "<=": lambda a, b: a <= b,
+    }
+
+    def _apply_inequality_constraint(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
+        """Enforce ``column_a <op> column_b`` on every row.
+
+        action="drop" removes violating rows; action="cap" snaps column_a onto
+        column_b so the inequality holds (works for numeric and datetime columns).
+        Rows where either side is null are left untouched — the rule only governs
+        fully-populated pairs.
+        """
+        a, b, op = constraint.column_a, constraint.column_b, constraint.operator
+        if not a or not b or op not in self._OPS:
+            warnings.warn(f"Constraint '{constraint.name}': needs column_a, column_b and a valid operator. Skipping.")
+            return df
+        if a not in df.columns or b not in df.columns:
+            warnings.warn(f"Constraint '{constraint.name}': column '{a}' or '{b}' not found. Skipping.")
+            return df
+
+        col_a, col_b = df[a], df[b]
+        both_present = col_a.notna() & col_b.notna()
+        satisfied = self._OPS[op](col_a, col_b)
+        violating = both_present & ~satisfied
+        if not violating.any():
+            return df
+
+        if constraint.action == "drop":
+            return df.loc[~violating].reset_index(drop=True)
+
+        # cap (default): set the violating column_a equal to column_b so the
+        # boundary case satisfies >=/<=; for strict >/< this lands on the edge,
+        # which is the closest feasible value without inventing a gap.
+        df.loc[violating, a] = col_b[violating].values
+        return df
+
+    def _apply_col_range_constraint(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
+        """Enforce ``low_column <= column <= high_column`` on every row.
+
+        action="cap" (default) clips the middle column into the row's bounds;
+        action="drop" removes rows that fall outside. Null bounds or values are
+        left untouched.
+        """
+        col = constraint.column
+        low, high = constraint.low_column, constraint.high_column
+        if not col or not low or not high:
+            warnings.warn(f"Constraint '{constraint.name}': needs column, low_column and high_column. Skipping.")
+            return df
+        for c in (col, low, high):
+            if c not in df.columns:
+                warnings.warn(f"Constraint '{constraint.name}': column '{c}' not found. Skipping.")
+                return df
+
+        mid, lo, hi = df[col], df[low], df[high]
+        present = mid.notna() & lo.notna() & hi.notna()
+        out_of_range = present & ((mid < lo) | (mid > hi))
+        if not out_of_range.any():
+            return df
+
+        if constraint.action == "drop":
+            return df.loc[~out_of_range].reset_index(drop=True)
+
+        # cap (default): clip into [lo, hi] row-wise.
+        df.loc[present, col] = mid[present].clip(lower=lo[present], upper=hi[present])
         return df
 
     def _domain_hour_weights(self) -> list:

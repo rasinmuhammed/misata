@@ -5,6 +5,38 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0.6] - 2026-06-17
+
+Agent-reachability release. The schema-first contract used by Studio, MCP agents,
+and non-Python callers now reaches the engine's constraint and correlation features —
+and those features are enforced during generation, not just declared. 770 tests, 0 failures.
+
+### Added
+
+- **Constraints and correlations in dict schemas.** `from_dict_schema` now accepts
+  two table-level directives, matching the `__outcome_curves__` / `__rate_curves__`
+  idiom shipped in 0.8.0.5:
+  - `__constraints__` — row-level integrity rules (`inequality`, `col_range`,
+    `max_per_group`, …). A constraint's `name` is auto-synthesised from its shape,
+    so dict/LLM/MCP callers no longer have to invent one.
+  - `__correlations__` — pairwise Pearson targets between numeric columns, enforced
+    post-generation via the existing Iman-Conover pass.
+
+### Fixed
+
+- **`inequality` and `col_range` constraints are now enforced during generation.**
+  Both types existed on the `Constraint` model but the simulator never applied them —
+  only the standalone `misata.constraints` toolkit knew how, and it was not wired into
+  the generation pipeline. They now run in the post-batch constraint pass:
+  - `inequality` (`column_a <op> column_b`) supports `action="drop"` (remove violating
+    rows) and `action="cap"` (snap `column_a` onto `column_b`), and works on **datetime**
+    columns — the common `visit_date >= enrollment_date` case the prior toolkit path
+    could not handle.
+  - `col_range` (`low_column <= column <= high_column`) clips the middle column row-wise
+    (`cap`) or drops out-of-range rows (`drop`).
+  Rows with nulls on either side are left untouched — the rules govern fully-populated
+  pairs only.
+
 ## [0.8.0.5] - 2026-06-11
 
 Mimic realism release. 776 tests, 0 failures.
