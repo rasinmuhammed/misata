@@ -4,7 +4,7 @@
 
 # Misata
 
-**Realistic multi-table synthetic data that conforms to the outcome you specify exact revenue curves, fraud rates, and referential integrity, from a sentence, YAML, or your own database. No ML model, no real data.**
+**Realistic multi-table synthetic data that conforms to the outcome you specify — exact revenue curves, fraud rates, referential integrity, and statistical structure — from a sentence, YAML, or your database. No ML model, no real data.**
 
 [![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=flat-square&color=E89030)](https://pypi.org/project/misata/)
 [![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=flat-square)](https://pypi.org/project/misata/)
@@ -27,10 +27,11 @@ This is *outcome-conformant generation*. The mechanism is formalised in an arXiv
 It generates from a plain-English description, a YAML schema, or an existing database schema. No machine-learning model is required. No real data is needed.
 
 Built for:
-- **Database seeding** - fill dev and staging environments with production-like data
+- **Database seeding** — fill dev and staging environments with production-like data
 - **Integration tests** — relational fixtures with FK integrity across every table
 - **Demos and prototypes** — realistic numbers, names, and distributions, no PII
 - **BI and dashboard development** — data shaped like your real domain before launch
+- **Statistical method validation** — synthetic clinical trial data, longitudinal cohorts, and multi-site studies that pass mixed-effects models, ICC tests, and autocorrelation checks
 
 ---
 
@@ -572,13 +573,334 @@ Aggregations: `sum`, `count`, `mean`, `max`, `min`. When a parent column name ex
 
 ---
 
+## Statistical realism for clinical, longitudinal, and regulated data
+
+Most synthetic data tools generate rows independently from a declared distribution. That works for pipeline tests and database seeding. It does not work when the data needs to pass a statistical method: a mixed-effects model that checks whether sites differ, an autocorrelation test on repeated measurements, or an audit that flags physiologically impossible values.
+
+Misata 0.8.1.0 adds a suite of features that close this gap. All are declared in the same plain dict schema and are reachable from MCP agents, Studio, and direct Python callers.
+
+---
+
+### Stratified distribution profiles — different distributions per subgroup
+
+A real three-arm clinical trial does not have all patients drawn from one HbA1c distribution. The placebo arm looks different from the treatment arm. Use `profiles` on any column to declare this precisely:
+
+```python
+schema = misata.from_dict_schema({
+    "patients": {
+        "__rows__": 2000,
+        "patient_id": {"type": "integer", "primary_key": True},
+        "arm": {
+            "type": "string",
+            "enum": ["placebo", "low_dose", "high_dose"],
+            "probabilities": [0.34, 0.33, 0.33],
+        },
+        "hba1c_change": {
+            "type": "float",
+            "distribution": "normal",
+            "mean": -0.35,  # fallback for rows that match no profile
+            "std": 0.50,
+            "profiles": [
+                {"when": "arm == 'placebo'",   "distribution": "normal", "mean": -0.35, "std": 0.50},
+                {"when": "arm == 'low_dose'",  "distribution": "normal", "mean": -1.05, "std": 0.55},
+                {"when": "arm == 'high_dose'", "distribution": "normal", "mean": -1.25, "std": 0.55},
+            ],
+        },
+    }
+})
+```
+
+The `when` expression is evaluated as a pandas query against already-generated columns in the same batch. Rows that match no profile get the column's top-level distribution. Profiles can reference any column generated before the current one in declaration order.
+
+---
+
+### Informative missingness — MAR and MNAR
+
+Real clinical and survey datasets have non-random missing data. Misata models both mechanisms:
+
+**Missing At Random (MAR):** The probability of a value being missing depends on an observed predictor column. Patients with higher baseline HbA1c are more likely to miss follow-up visits.
+
+```python
+"dropout_visit": {
+    "type": "integer",
+    "min": 1, "max": 12,
+    "nullable": True,
+    "missing_if": {
+        "predictor": "hba1c_baseline",
+        "relationship": "higher_increases_probability",
+        "base_rate": 0.05,
+        "max_rate": 0.40,
+        "mechanism": "MAR",
+    },
+}
+```
+
+**Missing Not At Random (MNAR):** The probability of a value being missing depends on the value itself — the classic censoring mechanism. A lab test result is missing precisely because it was too extreme to report.
+
+```python
+"lab_value": {
+    "type": "float",
+    "distribution": "normal", "mean": 10.0, "std": 3.0,
+    "nullable": True,
+    "missing_if": {
+        "predictor": "lab_value",          # references its own column
+        "mechanism": "MNAR",               # value-dependent censoring
+        "relationship": "higher_increases_probability",
+        "base_rate": 0.02,
+        "max_rate": 0.45,
+    },
+}
+```
+
+**Conditional nulls** (`null_when`): Null a column whenever a boolean expression is true. `dropout_visit` should be null when the patient did not drop out.
+
+```python
+"dropout_visit": {
+    "type": "integer", "min": 1, "max": 12,
+    "nullable": True,
+    "null_when": "dropout == False",
+}
+```
+
+---
+
+### Exact incidence control — precise rates, not statistical approximations
+
+A `boolean` column with `probability: 0.22` gives approximately 22% True values across many runs. If you need the dataset to contain exactly 22% — auditable against its own spec — use `exact_incidence`:
+
+```python
+"is_adverse_event": {
+    "type": "boolean",
+    "exact_incidence": {
+        "mode": "exact",
+        "rate": 0.22,          # exactly floor(n * 0.22) rows are True
+    },
+}
+```
+
+Per-arm exact rates work the same way:
+
+```python
+"is_responder": {
+    "type": "boolean",
+    "exact_incidence": {
+        "mode": "exact",
+        "group_by": "arm",
+        "rates": {"placebo": 0.15, "low_dose": 0.40, "high_dose": 0.55},
+    },
+}
+```
+
+Use `exact_incidence` whenever the dataset will be checked against a declared rate. The difference between "approximately 3% fraud" and "exactly 3% fraud" is the difference between a dataset that passes an audit and one that does not.
+
+---
+
+### Within-entity time-series autocorrelation — longitudinal data that passes statistical tests
+
+Without autocorrelation, a longitudinal dataset (visits, sensor readings, financial time series) is statistically identical to a cross-sectional one. Every off-the-shelf time-series test — Ljung-Box, Durbin-Watson, autocorrelation plot — will immediately detect that the data is synthetic.
+
+The `time_series` spec re-writes a column to have real within-entity autocorrelation:
+
+```python
+"hba1c": {
+    "type": "float",
+    "distribution": "normal", "mean": 8.5, "std": 1.5,
+    "time_series": {
+        "entity_id": "patient_id",     # one autocorrelation process per patient
+        "order_by":  "visit_number",   # temporal ordering within each patient
+        "model":     "AR1",            # AR1 | LINEAR_TREND | RANDOM_WALK | MEAN_REVERSION
+        "phi":       0.72,             # autocorrelation coefficient
+        "noise_std": 0.30,             # measurement noise per step
+        "anchor_column": "hba1c_baseline",  # starting value drawn from this column
+        "trend": {
+            "slope_mean": -0.08,       # average improvement per visit
+            "slope_std":  0.02,        # per-patient slope variability
+        },
+    },
+}
+```
+
+Four models are available:
+
+| Model | Use case |
+|:--|:--|
+| `AR1` | Most clinical and physiological measurements — blood pressure, glucose, HbA1c |
+| `LINEAR_TREND` | KPIs with a declared direction — revenue growth, weight loss, skill improvement |
+| `RANDOM_WALK` | Asset prices, temperature drift, any mean-free Brownian motion |
+| `MEAN_REVERSION` | Inventory levels, mood scores, any bounded process that pulls back to average |
+
+---
+
+### Per-patient anchored distributions — separating within-entity and between-entity variation
+
+When generating a child table (visits) whose measurements should be anchored to a parent entity's (patient's) value, use a formula in `distribution.mean`:
+
+```python
+"patients": {
+    "__rows__": 200,
+    "patient_id": {"type": "integer", "primary_key": True},
+    "hba1c_baseline": {"type": "float", "distribution": "normal", "mean": 8.5, "std": 1.5},
+},
+"visits": {
+    "__rows__": 2000,
+    "visit_id": {"type": "integer", "primary_key": True},
+    "patient_id": {"type": "integer", "foreign_key": {"table": "patients", "column": "patient_id"}},
+    "hba1c": {
+        "type": "float",
+        "distribution": "normal",
+        "mean": {"formula": "@patients.hba1c_baseline"},  # resolved per row via FK
+        "std": 0.40,                                      # within-patient noise
+    },
+}
+```
+
+The engine resolves the FK for every visit row and draws from that patient's personalised distribution. Between-patient variation comes from the spread of `hba1c_baseline` (std 1.5); within-patient visit-to-visit noise is std 0.40. This is the correct two-level structure that a mixed-effects model expects. Generating all visit HbA1c values from a single shared distribution — as every column-independent generator does — produces a dataset that fails every random-effects test immediately.
+
+---
+
+### Hierarchical ICC cluster effects — multi-site and multi-centre designs
+
+In a multi-site clinical trial, patients within the same site share unmeasured site-level factors. This within-site homogeneity — measured by the intraclass correlation coefficient (ICC) — is a defining feature of multi-centre data. Without it, all sites look statistically identical, and any ICC test will detect the synthetic origin.
+
+`__cluster_effect__` is declared on the **parent** table and applies per-entity random intercepts to columns in the **child** table:
+
+```python
+"sites": {
+    "__rows__": 12,
+    "__cluster_effect__": {
+        "affects_table": "patients",
+        "affects_columns": {
+            "systolic_bp": {
+                "icc": 0.18,       # target intraclass correlation
+                "sd_total": 18.0,  # total std; sd_between = sqrt(0.18) * 18 ≈ 7.6 mmHg
+            },
+            "hba1c": {
+                "sd_between": 0.52,  # supply sd_between directly
+            },
+        },
+    },
+    "site_id": {"type": "integer", "primary_key": True},
+    "region": {"type": "string", "enum": ["North", "South", "Central", "East", "West"]},
+}
+```
+
+One random intercept is drawn per site from N(0, sd_between) and added to every patient at that site. The marginal distribution across all patients is preserved. Typical ICC values: 0.05–0.20 for clinical measurements, 0.10–0.30 for educational outcomes, 0.15–0.40 for financial metrics across branches.
+
+---
+
+### Full correlation matrix — declare the complete covariance structure at once
+
+For tables with many correlated columns, the matrix syntax is cleaner than a list of pairs:
+
+```python
+"__correlations__": {
+    "matrix": {
+        "columns": ["hba1c", "glucose", "bmi", "systolic_bp"],
+        "values": {
+            "hba1c":       [1.00, 0.65, 0.28, 0.22],
+            "glucose":     [0.65, 1.00, 0.22, 0.18],
+            "bmi":         [0.28, 0.22, 1.00, 0.41],
+            "systolic_bp": [0.22, 0.18, 0.41, 1.00],
+        }
+    }
+}
+```
+
+The matrix is expanded into pairwise pairs and enforced via Iman-Conover rank reordering, which hits declared Pearson r values while preserving each column's marginal distribution exactly. Pairwise list syntax still works unchanged.
+
+---
+
+### State machine terminal states — process-correct categorical columns
+
+Any column that represents an entity's position in a process — clinical trial status, customer lifecycle stage, order fulfilment state — should follow a Markov chain, not a flat probability. `__state_machine__` generates the correct terminal distribution:
+
+```python
+"patients": {
+    "__state_machine__": {
+        "state_column": "patient_status",
+        "initial_state": "enrolled",
+        "transitions": {
+            "enrolled":     {"on_treatment": 0.97, "screen_failure": 0.03},
+            "on_treatment": {"completed": 0.77,    "dropout": 0.23},
+        },
+    },
+    ...
+}
+```
+
+States with no outgoing transitions are terminal. The engine traverses the chain per row until a terminal state is reached. Declared transition probabilities are preserved in expectation. Works alongside exact incidence, profiles, correlations, and time series in the same table.
+
+---
+
+### Domain-aware validation — audit generated data against physiological and financial bounds
+
+After generating clinical or financial data, validate it against built-in range bounds before using it:
+
+```python
+tables = misata.generate_from_schema(schema)
+
+report = misata.validate_domain(tables, domain="clinical_trial")
+print(report.summary())
+# Domain validation (clinical_trial): 0 errors, 0 warnings.
+
+assert report.passed   # no physiologically impossible values
+```
+
+Built-in ranges for `clinical_trial` / `clinical`:
+
+| Column | Min | Max | Unit |
+|:--|--:|--:|:--|
+| hba1c | 4.0 | 14.0 | % |
+| glucose | 2.0 | 40.0 | mmol/L |
+| systolic_bp | 60.0 | 260.0 | mmHg |
+| diastolic_bp | 30.0 | 160.0 | mmHg |
+| bmi | 10.0 | 80.0 | kg/m² |
+| age | 0.0 | 130.0 | years |
+| heart_rate | 20.0 | 300.0 | bpm |
+| creatinine | 0.3 | 20.0 | mg/dL |
+| hemoglobin | 3.0 | 25.0 | g/dL |
+
+Built-in ranges for `financial` / `fintech`: price ≥ 0, discount 0–1, rate –1 to 100. Column matching is by substring on the lowercased column name — `"hba1c_baseline"` matches the `hba1c` rule.
+
+Add custom ranges via `custom_ranges` dict. Declare `"__domain__": "clinical_trial"` in the dict schema to attach the domain to the `SchemaConfig` for downstream tooling.
+
+---
+
 ## Export
 
 ```python
+# Columnar / analytical
 misata.to_parquet(tables, "data/")
+misata.to_arrow(tables, "data/")          # Apache Arrow IPC; requires pip install pyarrow
 misata.to_duckdb(tables, "data/dataset.duckdb")
+
+# Row-oriented
 misata.to_jsonl(tables, "data/")
+misata.to_sql(tables, "data/", dialect="postgresql")   # CREATE TABLE + INSERT statements
+                                                        # dialects: ansi, postgresql, mysql
 ```
+
+### Reproducible incremental rows
+
+Generate additional rows that append cleanly to an existing dataset without ID collisions:
+
+```python
+# Day 1: generate the base dataset
+schema = misata.from_dict_schema({...}, seed=1)
+base = misata.generate_from_schema(schema)
+for name, df in base.items():
+    df.to_csv(f"./data/{name}.csv", index=False)
+
+# Day 2: generate only new rows, PKs offset above existing max
+new_rows = misata.generate_diff(
+    schema,
+    existing_dir="./data/",
+    new_rows={"customers": 200, "orders": 1500},
+    output_dir="./data/delta/",   # optional: write delta CSVs
+)
+```
+
+`generate_diff` reads existing CSVs to find the maximum PK per table and generates new rows with PKs offset above that maximum. Use for streaming pipelines, day-over-day test fixtures, and any workflow where you need to extend a dataset without regenerating it from scratch.
 
 ---
 
@@ -657,14 +979,21 @@ story / YAML / dict / DB introspection / MCP tool call
           ├─ domain priors  →  locale priors (salary, age, monetary)
           ├─ constraint engine (inequality, range, ratio, sum, unique)
           ├─ outcome curves (monthly targets from narrative control points)
-          ├─ Iman-Conover correlation engine (Cholesky, preserves marginals)
+          ├─ stratified profiles (per-subgroup distributions, pandas eval)
+          ├─ AR1 / time-series autocorrelation (per entity, 4 models)
+          ├─ state machine (Markov terminal states)
+          ├─ ICC cluster effects (per-parent-entity random intercepts)
+          ├─ Iman-Conover correlation engine (pairwise + full matrix)
+          ├─ MAR / MNAR missingness (predictor-scaled and value-dependent)
+          ├─ exact incidence (floor(n × rate), per-group rates)
           ├─ realism core (joint identities, temporal profiles, Zipf marginals,
           │                geo facts, grammar microtext, numeric quantization)
           └─ RealisticTextGenerator (capsules + Faker locale + vocabulary assets)
               ↓
         {table_name: DataFrame}
               ↓
-        seed_database  ·  to_parquet  ·  to_duckdb  ·  generate_documents  ·  MCP CSV output
+        validate_domain  ·  seed_database  ·  to_parquet  ·  to_arrow
+        to_duckdb  ·  to_sql  ·  to_jsonl  ·  generate_documents  ·  MCP CSV output
 ```
 
 **Domain priors** — monetary columns get log-normal distributions. Categoricals use Zipf sampling. Blood types, country distributions, and salary bands reflect real-world statistics.
@@ -703,7 +1032,7 @@ feature," not "impossible."
 | Real city distances on route tables | — | — | — | — | **Yes** |
 | Shareable domain vocabulary capsules | — | — | — | — | **Yes** |
 | Mimic mode — clone distributions from a CSV | — | — | — | **Yes** | **Yes** |
-| Pairwise correlation enforcement (Iman-Conover) | — | — | — | **Yes** | **Yes** |
+| Pairwise + full-matrix correlation (Iman-Conover) | — | — | — | **Yes** | **Yes** |
 | Geospatial columns (lat, lng, postal_code) | — | — | — | — | **Yes** |
 | Anomaly injection (per-column outlier rate) | — | — | — | — | **Yes** |
 | MCP server — usable from Claude / Cursor | — | — | — | — | **Yes** |
@@ -715,6 +1044,17 @@ feature," not "impossible."
 | Referential integrity across all FK tables | — | **Yes** | **Yes** | **Yes** | **Yes** |
 | Inequality / range constraints (`price > cost`) | — | Limited | — | **Yes** | **Yes** |
 | Aggregate target curves (monthly MRR shape) | — | — | — | — | **Yes** |
+| Stratified distributions per subgroup (profiles) | — | — | — | — | **Yes** |
+| MAR and MNAR informative missingness | — | — | — | — | **Yes** |
+| Exact incidence control (floor(n × rate) True values) | — | — | — | — | **Yes** |
+| AR(1) / time-series autocorrelation per entity | — | — | — | — | **Yes** |
+| Hierarchical ICC cluster effects (multi-site) | — | — | — | — | **Yes** |
+| @parent formula in distribution mean/std | — | — | — | — | **Yes** |
+| Markov state machine terminal states | — | — | — | — | **Yes** |
+| Domain-aware validation (clinical/financial ranges) | — | — | — | — | **Yes** |
+| SQL INSERT export (ansi / postgresql / mysql) | — | — | — | — | **Yes** |
+| Apache Arrow IPC export | — | — | — | — | **Yes** |
+| Reproducible incremental rows (generate_diff) | — | — | — | — | **Yes** |
 | Domain-realistic distributions | — | — | — | Limited | **Yes** |
 | Multi-provider LLM (Groq / OpenAI / Claude / Gemini / Ollama) | — | — | **Yes** | — | **Yes** |
 | Fully offline, no LLM required | **Yes** | **Yes** | — | **Yes** | **Yes** |
@@ -750,7 +1090,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-792 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
+809 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
 
 ---
 
