@@ -180,7 +180,14 @@ def _col_from_dict(
     for passthrough in ("formula", "depends_on", "mapping", "zero_inflate", "rollup",
                         "inherits_curve_from", "references", "after_column", "relative_to",
                         "null_if", "min_gap_days", "sequence_start", "quantize",
-                        "pattern", "pattern_weights", "text_type"):
+                        "pattern", "pattern_weights", "text_type",
+                        # 0.8.1 features
+                        "profiles",       # stratified distributions per subgroup
+                        "missing_if",     # MAR/MNAR informative missingness
+                        "null_when",      # conditional null via eval expression
+                        "exact_incidence", # exact count control for boolean/categorical
+                        "time_series",    # within-entity AR1/trend/random-walk
+                        ):
         if col_def.get(passthrough) is not None:
             params[passthrough] = col_def[passthrough]
 
@@ -371,12 +378,15 @@ def from_dict_schema(
             if col is not None:
                 table_cols.append(col)
 
+        state_machine = table_def.get("__state_machine__") or None
+
         tables.append(Table(
             name=table_name,
             row_count=table_rows,
             description=table_desc,
             constraints=table_constraints,
             correlations=table_correlations,
+            state_machine=state_machine,
         ))
         columns_map[table_name] = table_cols
 

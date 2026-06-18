@@ -315,66 +315,224 @@ def generate_from_schema(
     output_dir: Optional[str] = None,
     sample_rows: int = 5,
 ) -> Dict[str, Any]:
-    """Generate a dataset from a schema YOU design — the primary Misata tool.
+    """Generate a dataset from a schema you design. This is the primary Misata tool.
 
-    You (the agent) define tables and columns as a plain dict; Misata
-    guarantees the hard parts: foreign-key integrity across every table,
-    exact cross-table aggregates (rollups), derived columns (formulas),
-    declared distributions, and seed reproducibility. The response includes
-    a per-relationship integrity verification you can show the user.
+    DIVISION OF LABOUR
+    You (the agent) design what the data should look like — the tables,
+    columns, business rules, and declared targets. Misata handles the hard
+    guarantees: every FK resolves, every rollup reconciles to the cent, every
+    declared outcome curve is hit exactly, every seed produces byte-identical
+    output. The response includes a per-relationship integrity proof.
 
-    Schema format — ``{table_name: {column_name: spec, ...}, ...}``:
+    SCHEMA FORMAT  {table_name: {column_name: spec, ...}, ...}
 
-    - ``"__rows__": 500`` per table overrides the global ``rows``
-      (e.g. 10 warehouses, 200 couriers, 50000 deliveries).
-    - types: ``integer, float, decimal, string, text, email, phone, url,
-      uuid, date, datetime, timestamp, boolean``.
-    - ``{"type": "integer", "primary_key": true}`` — auto-generated PK.
-    - ``{"type": "integer", "foreign_key": {"table": "users", "column": "id"}}``
-      — FK; integrity is guaranteed and verified.
-    - ``min``/``max``, ``min_date``/``max_date``, ``decimals``, ``unique``,
-      ``nullable``.
-    - ``{"enum": ["basic", "pro"], "probabilities": [0.8, 0.2]}`` —
-      categorical; omit probabilities for realistic Zipf-shaped frequencies.
-    - ``{"distribution": "lognormal", "mean": 120, "std": 80}`` — also
-      ``normal, uniform, exponential, beta, poisson, power_law`` with their
-      shape params (``mu/sigma/alpha/lambda/...``).
-    - ``{"formula": "quantity * unit_price"}`` — row-level derivation;
-      ``@parent.column`` references work across tables via the FK
-      (e.g. ``"hours * @employees.hourly_rate"``).
-    - ``{"rollup": {"from_table": "orders", "fk": "customer_id",
-      "agg": "sum", "column": "amount"}}`` — parent summary columns that
-      reconcile EXACTLY with child rows under JOIN (agg: sum, count, mean,
-      max, min; optional ``where`` filter).
-    - ``{"pattern": "SKU-\\\\d{5}"}`` — code-style strings; a list with
-      optional ``pattern_weights`` draws one shape per row.
-    - ``{"text_type": "person_name"}`` — explicit semantic text type; always
-      beats column-name inference.
-    - dates get realistic granularity automatically (appointments snap to
-      15-min business grids, signups follow waking hours, logs keep
-      sub-second precision); names/emails/genders are generated jointly and
-      always agree.
+    TABLE-LEVEL KEYS (inside a table dict)
+      "__rows__": 5000          Per-table row count; overrides the global rows arg.
+                                Always set this — one global count rarely fits all tables.
+      "__constraints__"         List of row-level business rules (see CONSTRAINTS below).
+      "__correlations__"        List of pairwise Pearson targets (see CORRELATIONS below).
+      "__state_machine__"       Markov terminal-state assignment (see STATE MACHINE below).
 
-    Schema-level directives (top-level keys, siblings of the tables):
+    COLUMN TYPES
+      integer, float, decimal   Numeric.
+      string                    Short categorical or free text.
+      text                      Long free text (descriptions, notes).
+      email, phone, url, uuid   Semantic strings; always valid format.
+      date, datetime            Temporal; realistic granularity applied automatically.
+      boolean                   True/False with declared probability.
 
-    - ``"__outcome_curves__"``: declared aggregate targets the generated rows
-      hit EXACTLY — ``[{"table": "orders", "column": "amount", "time_column":
-      "order_date", "time_unit": "month", "value_mode": "absolute",
-      "start_date": "2024-01-01", "avg_transaction_value": 40.0,
-      "curve_points": [{"month": 1, "target_value": 50000.0}, {"month": 12,
-      "target_value": 200000.0}]}]``. Use this whenever the user states what
-      a number should sum to per period ("revenue grows $50k to $200k").
-    - ``"__rate_curves__"``: per-period rate targets for boolean/categorical
-      columns — ``[{"table": "transactions", "column": "is_fraud",
-      "time_column": "transaction_date", "rate_points": [{"period":
-      "2024-01", "rate": 0.03}]}]``.
+    COLUMN SPEC KEYS (inside a column dict)
+      primary_key: true         Auto-incremented PK; column excluded from CSV output.
+      foreign_key: {table, column}  Child FK; referential integrity guaranteed + verified.
+      min / max                 Numeric or date bounds.
+      decimals: 2               Decimal places for float output.
+      unique: true              All values in the column are distinct.
+      nullable: true            Allow nulls (default true).
+      enum: [...]               Categorical choices. Add probabilities: [...] for weights;
+                                omit for realistic Zipf-shaped rank frequencies.
+      probabilities: [...]      Weights for enum choices; must sum to 1.0.
+
+    DISTRIBUTIONS  (float / integer columns)
+      distribution: normal      Also: lognormal, uniform, exponential, beta,
+                                poisson, power_law, gamma.
+      mean / std                Normal params.
+      mu / sigma                Lognormal params (mu and sigma are of log(x)).
+      min / max                 Hard clamps applied after sampling.
+      Use lognormal for money, file sizes, session durations — anything
+      right-skewed and strictly positive. Use normal for measurements.
+
+    DERIVED COLUMNS
+      formula: "quantity * unit_price"       Row-level arithmetic; pandas eval syntax.
+      formula: "hours * @employees.rate"     Cross-table via FK: @parent_table.column.
+      rollup: {from_table, fk, agg, column}  Parent column that EXACTLY reconciles with
+                                              child rows under JOIN. agg: sum/count/mean/
+                                              max/min. Add where: {col: val} to filter.
+      RULE: use rollup (not formula) for any parent column that summarises child rows.
+      Rollups are closed-form exact; formulas cannot cross the FK boundary correctly.
+
+    CODE-STYLE STRINGS
+      pattern: "SKU-\\d{5}"              Single pattern expanded per row.
+      pattern: ["A/\\d{5}", "\\d{6}"]   List: one shape drawn per row.
+      pattern_weights: [0.7, 0.3]        Weights for pattern list (optional).
+      Supported tokens: \\d (digit), [A-Z] (uppercase letter), [a-z] (lowercase),
+      literal chars, {n} repeat count. Example: "[A-Z]{2}-\\d{4}" → "AB-3721".
+
+    TEXT SEMANTICS
+      text_type: person_name    Always beats column-name inference. Options:
+                                person_name, email, company, city, country,
+                                postal_code, phone, url, description, username,
+                                product_name, review_text, address, job_title.
+      Dates: appointment times snap to 15-min business-hours grids; signups
+      follow waking-hour rhythms; machine events keep sub-second precision.
+      Names, genders, and emails are generated jointly and always agree.
+
+    STRATIFIED DISTRIBUTIONS (profiles)
+      Use when different subgroups need different distributions for the same column.
+      profiles: [
+        {when: "arm == 'placebo'",  distribution: normal, mean: -0.35, std: 0.50},
+        {when: "arm == 'high_dose'", distribution: normal, mean: -1.25, std: 0.55},
+      ]
+      Rows that match no profile get the column's top-level distribution.
+      The when expression is a pandas eval string; reference any already-generated
+      column in the same table. Always list profiles after the columns they reference.
+
+    INFORMATIVE MISSINGNESS (MAR)
+      null_when: "dropout == False"        Null this column when expression is true.
+      missing_if:                          Missing-At-Random tied to a predictor column.
+        predictor: hba1c_baseline
+        relationship: higher_increases_probability   # or lower_increases_probability
+        base_rate: 0.05                    # null probability at predictor median
+        max_rate: 0.40                     # null probability at predictor extreme
+      Use null_when for status-conditional nulls (dropout_visit is null when not dropped
+      out). Use missing_if when missingness is correlated with an observed variable.
+
+    EXACT INCIDENCE CONTROL
+      exact_incidence:                     Hit the declared count exactly (not approximately).
+        mode: exact
+        rate: 0.22                         # exactly floor(n * 0.22) rows become True
+        group_by: arm                      # optional: apply per group
+        rates: {placebo: 0.15, high_dose: 0.55}  # per-group exact rates
+      Use exact_incidence instead of probability on boolean columns when the user states
+      a precise rate that must hold in the data, not just on average.
+
+    WITHIN-ENTITY TIME SERIES (longitudinal autocorrelation)
+      time_series:                         Re-writes a column to have AR1 autocorrelation
+        entity_id: patient_id              within each entity group.
+        order_by: visit_number
+        model: AR1                         # AR1 | linear_trend | random_walk | mean_reversion
+        phi: 0.72                          # autocorrelation coefficient (AR1 only)
+        noise_std: 0.30
+        anchor_column: hba1c_baseline      # starting value (column in the same table)
+        trend:
+          slope_mean: -0.08               # mean drift per step
+          slope_std: 0.02                 # per-entity slope variability
+      Required for any longitudinal dataset (clinical visits, IoT sensors, user sessions).
+      Without it every row is independent and the data fails any time-series test.
+
+    CONSTRAINTS  (table-level __constraints__ list)
+      {"type": "inequality", "column_a": "visit_date", "operator": ">=",
+       "column_b": "enroll_date", "action": "cap"}
+         Enforces column_a OP column_b. action: "cap" (snap column_a to column_b)
+         or "drop" (remove violating rows). Works on dates and numerics.
+      {"type": "col_range", "low_column": "min_price", "column": "price",
+       "high_column": "max_price", "action": "cap"}
+         Keeps low_column <= column <= high_column.
+      {"type": "max_per_group", "group_by": "user_id", "max_count": 3}
+         Limits rows per group value.
+      {"type": "unique_combination", "columns": ["user_id", "product_id"]}
+         No duplicate (col_a, col_b) pairs.
+      Use constraints for any business rule that must hold on every row:
+      visit_date >= enrollment_date, price > cost, resolution_day > onset_day.
+
+    CORRELATIONS  (table-level __correlations__ list)
+      [{"col_a": "bmi", "col_b": "systolic_bp", "r": 0.41}]
+      Enforced via Iman-Conover (rank reordering): preserves each column's
+      marginal distribution while hitting the declared Pearson r exactly.
+      Declare correlations for any pair of measurements that co-vary in the
+      real domain (bmi/bp, income/spending, tenure/salary).
+
+    STATE MACHINE  (table-level __state_machine__)
+      __state_machine__:
+        state_column: patient_status
+        initial_state: enrolled
+        transitions:
+          enrolled: {on_treatment: 0.97, screen_failure: 0.03}
+          on_treatment: {completed: 0.77, dropout: 0.23}
+      Assigns one terminal state to every row by following the Markov chain.
+      States with no outgoing transitions are terminal. Use for any process
+      with defined states: clinical trial statuses, customer lifecycle,
+      order fulfilment stages, support ticket resolution.
+
+    SCHEMA-LEVEL DIRECTIVES  (top-level keys, siblings of the tables)
+
+    __outcome_curves__  Declare aggregate targets the engine hits EXACTLY.
+      [{"table": "orders", "column": "amount", "time_column": "order_date",
+        "time_unit": "month", "value_mode": "absolute",
+        "start_date": "2024-01-01", "avg_transaction_value": 120.0,
+        "curve_points": [
+          {"month": 1, "target_value": 50000.0},
+          {"month": 6, "target_value": 110000.0},
+          {"month": 12, "target_value": 200000.0}
+        ]}]
+      ALWAYS use this when the user states what a number should sum to per
+      period: "revenue grows from $50k to $200k", "Q4 spike", "10x growth".
+      avg_transaction_value drives row count per period; set it to roughly
+      the median row value for that column.
+
+    __rate_curves__  Per-period rate targets for boolean/categorical columns.
+      [{"table": "transactions", "column": "is_fraud",
+        "time_column": "transaction_date",
+        "rate_points": [
+          {"period": "2024-01", "rate": 0.02},
+          {"period": "2024-Q4", "rate": 0.05}
+        ]}]
+      Use when fraud rate, churn rate, or conversion rate changes over time.
+
+    DESIGN RULES — follow these to get the best result in one pass
+
+    1. Always set __rows__ per table. A fintech schema with customers=2000,
+       accounts=4000, transactions=50000 is far better than 1000 everywhere.
+
+    2. Every child table needs a FK column pointing to its parent PK. Without
+       it orphan rows are generated and the integrity proof will fail.
+
+    3. Use lognormal for money, file sizes, response times (right-skewed,
+       strictly positive). Use normal for measurements (height, score, temp).
+
+    4. Declare correlations for any pair that co-varies in the real domain.
+       Generated data with an identity correlation matrix is the clearest
+       synthetic-data tell there is.
+
+    5. Use exact_incidence instead of probability when the user states a
+       precise rate. "3% fraud" with probability: 0.03 gives ~3% on average;
+       exact_incidence gives exactly 3%.
+
+    6. Use rollup (not formula) for any parent column that must reconcile with
+       child rows. customers.total_spent generated independently of orders will
+       never match; a rollup makes it exact.
+
+    7. Use __outcome_curves__ any time the user mentions a revenue shape, a
+       growth trajectory, a seasonal pattern, or a specific period total. It
+       is the single feature most likely to be forgotten and most visible when
+       absent.
+
+    8. Use profiles when two groups need different distributions. A clinical
+       trial where all arms share one HbA1c distribution is statistically wrong
+       and the difference will be caught by any summary table.
+
+    9. For longitudinal data (visits, sessions, sensor readings), add
+       time_series to the key measurement columns. Independent rows fail every
+       autocorrelation test and are visually obvious when plotted.
+
+    10. Add __state_machine__ to any entity that moves through a process. An
+        order table with no status progression is not realistic order data.
 
     Args:
-        schema:      Dict of table → column specs (format above).
-        rows:        Default row count for tables without ``__rows__``.
-        seed:        Random seed (same seed → byte-identical output).
-        output_dir:  Where to write CSVs. Defaults to a fresh temp dir.
-        sample_rows: Rows per table to include in the response (max 50).
+        schema:      Dict of table defs plus optional schema-level directives.
+        rows:        Default row count for tables without __rows__.
+        seed:        Random seed (same seed → byte-identical output on any machine).
+        output_dir:  Where to write CSVs. Omit to use a fresh temp dir.
+        sample_rows: Rows per table to include in the JSON response (max 50).
     """
     sample_rows = max(0, min(sample_rows, 50))
 

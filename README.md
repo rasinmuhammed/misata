@@ -750,7 +750,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-781 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
+792 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
 
 ---
 

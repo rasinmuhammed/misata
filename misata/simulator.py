@@ -635,8 +635,25 @@ class DataSimulator:
                             values[mask] = self.rng.random(count) < prob
                     return values
 
+        # ========== STRATIFIED PROFILES ==========
+        # ``profiles`` lets one column carry different distributions per subgroup:
+        #   profiles:
+        #     - when: "arm == 'placebo'"
+        #       distribution: normal
+        #       mean: -0.35
+        #       std: 0.50
+        #     - when: "arm == 'high_dose'"
+        #       distribution: normal
+        #       mean: -1.25
+        #       std: 0.55
+        # Rows that don't match any profile get the column's top-level distribution.
+        if "profiles" in params and table_data is not None and not table_data.empty:
+            return self._generate_column_with_profiles(
+                column, params["profiles"], params, table_data, size
+            )
+
         # ========== STANDARD COLUMN GENERATION ==========
-        
+
         # CATEGORICAL
         if column.type == "categorical":
             if column.name.lower() == "country" and self.locale != "en_US":
@@ -1618,8 +1635,20 @@ class DataSimulator:
             # Apply formulas
             df_batch = self._apply_formula_columns(df_batch, table_name)
 
-            # Apply conditional nulls (null_if)
+            # Apply conditional / MAR missingness (null_when, missing_if)
+            df_batch = self._apply_informative_missingness(df_batch, table_name)
+
+            # Apply legacy conditional nulls (null_if)
             df_batch = self._apply_null_if(df_batch, table_name)
+
+            # Apply exact incidence control (exact_incidence mode)
+            df_batch = self._apply_exact_incidence(df_batch, table_name)
+
+            # Apply within-entity time-series autocorrelation (time_series spec)
+            df_batch = self._apply_time_series_columns(df_batch, table_name)
+
+            # Apply state machine terminal states (__state_machine__)
+            df_batch = self._apply_state_machine(df_batch, table_name)
 
             # Apply column correlations (Iman-Conover)
             df_batch = self._apply_correlations(df_batch, table_name)
@@ -2577,6 +2606,351 @@ class DataSimulator:
             sorted_original = np.sort(original)
             df[col] = sorted_original[target_ranks]
 
+        return df
+
+    # ------------------------------------------------------------------
+    # Stratified profiles (#6)
+    # ------------------------------------------------------------------
+
+    def _generate_column_with_profiles(
+        self,
+        column: Column,
+        profiles: list,
+        base_params: dict,
+        table_data: pd.DataFrame,
+        size: int,
+    ) -> np.ndarray:
+        """Generate values from different distributions per subgroup.
+
+        Each profile carries a ``when`` expression (evaluated with
+        ``DataFrame.eval``) and any distribution params that override the
+        column's top-level params for matching rows.  Rows that match no
+        profile fall back to the base distribution.
+        """
+        result = np.empty(size, dtype=object)
+        result[:] = np.nan
+        remaining = np.ones(size, dtype=bool)
+
+        for profile in profiles:
+            when = profile.get("when", "")
+            if when:
+                try:
+                    mask = table_data.eval(when).values.astype(bool)
+                except Exception:
+                    mask = np.zeros(size, dtype=bool)
+            else:
+                mask = np.ones(size, dtype=bool)
+
+            mask = mask & remaining
+            n = int(mask.sum())
+            if n == 0:
+                continue
+
+            # Build a temporary column spec merging base params with profile overrides
+            merged = {**base_params, **{k: v for k, v in profile.items() if k != "when"}}
+            merged.pop("profiles", None)
+            from misata.schema import Column as _Col
+            temp_col = _Col(
+                name=column.name,
+                type=column.type,
+                distribution_params=merged,
+                unique=False,
+            )
+            vals = self.generate_column(column.name + "__profile__", temp_col, n, table_data[mask].reset_index(drop=True))
+            result[mask] = vals
+            remaining = remaining & ~mask
+
+        # Fallback for unmatched rows
+        n_rem = int(remaining.sum())
+        if n_rem > 0:
+            fallback_params = {k: v for k, v in base_params.items() if k != "profiles"}
+            from misata.schema import Column as _Col
+            fallback_col = _Col(
+                name=column.name,
+                type=column.type,
+                distribution_params=fallback_params,
+                unique=False,
+            )
+            vals = self.generate_column(column.name + "__fallback__", fallback_col, n_rem)
+            result[remaining] = vals
+
+        # Cast to a sensible dtype
+        try:
+            if column.type in ("int",):
+                return result.astype(float).astype("Int64")
+            elif column.type in ("float",):
+                return result.astype(float)
+            elif column.type == "boolean":
+                return result.astype(bool)
+        except Exception:
+            pass
+        return result
+
+    # ------------------------------------------------------------------
+    # Informative missingness (#3): MAR / conditional null
+    # ------------------------------------------------------------------
+
+    def _apply_informative_missingness(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Apply Missing-At-Random (MAR) and conditional null patterns.
+
+        Column spec:
+            missing_if:
+              predictor: hba1c_baseline          # another column in the same row
+              relationship: higher_increases_probability   # or lower_increases_probability
+              base_rate: 0.05                    # null rate when predictor is at its median
+              max_rate: 0.40                     # null rate at the extreme of the predictor
+              mechanism: MAR                     # MAR (default) or MCAR
+
+        The probability of a null scales linearly from ``base_rate`` at the
+        predictor's 10th-percentile to ``max_rate`` at its 90th-percentile
+        (or reversed for ``lower_increases_probability``).
+
+        Also handles the simpler conditional form:
+            null_when: "status == 'inactive'"   # pandas eval expression
+        """
+        columns = self.config.columns.get(table_name, [])
+        for col in columns:
+            params = col.distribution_params
+
+            # --- null_when: simple boolean expression ---
+            null_when = params.get("null_when")
+            if null_when and col.name in df.columns:
+                try:
+                    mask = df.eval(null_when).values.astype(bool)
+                    df.loc[mask, col.name] = np.nan
+                except Exception:
+                    pass
+
+            # --- missing_if: MAR ---
+            spec = params.get("missing_if")
+            if not spec or col.name not in df.columns:
+                continue
+            predictor = spec.get("predictor")
+            if not predictor or predictor not in df.columns:
+                continue
+
+            mechanism = spec.get("mechanism", "MAR").upper()
+            base_rate = float(spec.get("base_rate", 0.05))
+            max_rate = float(spec.get("max_rate", 0.30))
+            rel = spec.get("relationship", "higher_increases_probability")
+
+            pred_vals = pd.to_numeric(df[predictor], errors="coerce")
+            p10 = float(pred_vals.quantile(0.10))
+            p90 = float(pred_vals.quantile(0.90))
+            rng_width = p90 - p10 if p90 > p10 else 1.0
+
+            # Normalise predictor to [0, 1] relative to its range
+            normed = ((pred_vals - p10) / rng_width).clip(0, 1)
+            if rel == "lower_increases_probability":
+                normed = 1.0 - normed
+
+            null_probs = base_rate + (max_rate - base_rate) * normed
+            draw = pd.Series(self.rng.random(len(df)), index=df.index)
+            mask = draw < null_probs
+            df.loc[mask, col.name] = np.nan
+
+        return df
+
+    # ------------------------------------------------------------------
+    # Exact incidence control (#4)
+    # ------------------------------------------------------------------
+
+    def _apply_exact_incidence(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Replace probabilistic boolean/categorical incidence with exact counts.
+
+        Column spec (boolean example):
+            is_adverse_event:
+              type: boolean
+              exact_incidence:
+                mode: exact
+                rate: 0.22                     # 22% of rows become True
+                group_by: arm                  # optional: apply per group
+                rates:                         # optional: per-group rates
+                  placebo: 0.15
+                  low_dose: 0.22
+                  high_dose: 0.08
+
+        Under ``mode: exact`` the engine computes ``floor(n * rate)`` True
+        values and distributes them randomly within the group.  The remaining
+        rows are always False.  This eliminates Bernoulli sampling noise so
+        the generated dataset is auditable against its own spec.
+        """
+        columns = self.config.columns.get(table_name, [])
+        for col in columns:
+            spec = col.distribution_params.get("exact_incidence")
+            if not spec or spec.get("mode", "probabilistic") != "exact":
+                continue
+            if col.name not in df.columns:
+                continue
+
+            group_by = spec.get("group_by")
+            global_rate = float(spec.get("rate", 0.5))
+            per_group_rates: dict = spec.get("rates", {})
+
+            if group_by and group_by in df.columns and per_group_rates:
+                values = np.zeros(len(df), dtype=bool)
+                for grp, rate in per_group_rates.items():
+                    idx = df.index[df[group_by].astype(str) == str(grp)]
+                    n_true = int(len(idx) * float(rate))
+                    chosen = self.rng.choice(len(idx), size=n_true, replace=False)
+                    values[idx[chosen]] = True
+                df[col.name] = values
+            else:
+                n = len(df)
+                n_true = int(n * global_rate)
+                values = np.zeros(n, dtype=bool)
+                chosen = self.rng.choice(n, size=n_true, replace=False)
+                values[chosen] = True
+                df[col.name] = self.rng.permutation(values)
+
+        return df
+
+    # ------------------------------------------------------------------
+    # Temporal / AR(1) time series (#1)
+    # ------------------------------------------------------------------
+
+    def _apply_time_series_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Generate within-entity autocorrelated sequences for longitudinal data.
+
+        Column spec:
+            hba1c:
+              type: float
+              time_series:
+                entity_id: patient_id          # groups rows into per-entity series
+                order_by: visit_number         # sort key within each entity
+                model: AR1                     # AR1 | linear_trend | random_walk | mean_reversion
+                phi: 0.72                      # AR(1) autocorrelation coefficient
+                noise_std: 0.30               # per-step noise std-dev
+                anchor_column: hba1c_baseline  # starting value column (same table or @parent.col)
+                trend:
+                  slope_mean: -0.08            # mean slope per step
+                  slope_std: 0.02              # per-entity slope variability
+
+        The column must already exist in ``df`` (seeded from its base
+        distribution).  This pass re-writes its values to follow the declared
+        autocorrelation structure within each entity group.
+        """
+        columns = self.config.columns.get(table_name, [])
+        for col in columns:
+            spec = col.distribution_params.get("time_series")
+            if not spec or col.name not in df.columns:
+                continue
+
+            entity_id = spec.get("entity_id")
+            order_by = spec.get("order_by")
+            model = spec.get("model", "AR1").upper()
+            phi = float(spec.get("phi", 0.7))
+            noise_std = float(spec.get("noise_std", 0.3))
+            anchor_col = spec.get("anchor_column")
+            trend_spec = spec.get("trend", {})
+            slope_mean = float(trend_spec.get("slope_mean", 0.0))
+            slope_std = float(trend_spec.get("slope_std", 0.0))
+
+            if not entity_id or entity_id not in df.columns:
+                continue
+
+            result = df[col.name].astype(float).copy()
+
+            for entity, grp_idx in df.groupby(entity_id).groups.items():
+                grp = df.loc[grp_idx].copy()
+                if order_by and order_by in grp.columns:
+                    grp = grp.sort_values(order_by)
+                    grp_idx = grp.index
+
+                n = len(grp)
+                if n == 0:
+                    continue
+
+                # Starting value: anchor column if present, else first generated value
+                if anchor_col and anchor_col in grp.columns:
+                    x0 = float(grp[anchor_col].iloc[0])
+                else:
+                    x0 = float(result.loc[grp_idx[0]])
+
+                # Per-entity slope (for trend models)
+                slope = float(self.rng.normal(slope_mean, slope_std)) if slope_std > 0 else slope_mean
+
+                series = np.empty(n)
+                series[0] = x0
+                noise = self.rng.normal(0, noise_std, size=n)
+
+                if model in ("AR1", "AUTOREGRESSIVE"):
+                    for i in range(1, n):
+                        series[i] = phi * series[i - 1] + (1 - phi) * x0 + slope * i + noise[i]
+                elif model == "LINEAR_TREND":
+                    for i in range(n):
+                        series[i] = x0 + slope * i + noise[i]
+                elif model == "RANDOM_WALK":
+                    for i in range(1, n):
+                        series[i] = series[i - 1] + noise[i]
+                elif model == "MEAN_REVERSION":
+                    mean_level = float(spec.get("mean_level", x0))
+                    for i in range(1, n):
+                        series[i] = series[i - 1] + phi * (mean_level - series[i - 1]) + noise[i]
+                else:
+                    series = result.loc[grp_idx].values
+
+                result.loc[grp_idx] = series
+
+            df[col.name] = result
+
+        return df
+
+    # ------------------------------------------------------------------
+    # State machine (#9)
+    # ------------------------------------------------------------------
+
+    def _apply_state_machine(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Assign entity states via a Markov transition model.
+
+        Table-level spec (via ``Table.state_machine`` or ``__state_machine__``
+        in the dict schema, passed through as ``_state_machine`` in
+        distribution_params of a sentinel column):
+
+            __state_machine__:
+              state_column: patient_status
+              initial_state: enrolled
+              transitions:
+                enrolled:
+                  on_treatment: 0.97
+                  screen_failure: 0.03
+                on_treatment:
+                  completed: 0.77
+                  dropout: 0.23
+
+        The state machine assigns one terminal state to every row based on
+        the declared transition probabilities. Chained transitions are
+        followed until a terminal state (no outgoing transitions) is reached
+        or the chain exceeds 20 hops.
+        """
+        table_obj = self.config.get_table(table_name)
+        sm_spec = getattr(table_obj, "state_machine", None) or {}
+        if not sm_spec:
+            return df
+
+        if isinstance(sm_spec, dict):
+            state_col = sm_spec.get("state_column")
+            initial = sm_spec.get("initial_state")
+            transitions = sm_spec.get("transitions", {})
+        else:
+            return df
+
+        if not state_col or not initial or not transitions:
+            return df
+
+        def _traverse(start: str) -> str:
+            state = start
+            for _ in range(20):
+                nexts = transitions.get(state, {})
+                if not nexts:
+                    return state
+                states = list(nexts.keys())
+                probs = np.array([float(nexts[s]) for s in states], dtype=float)
+                probs /= probs.sum()
+                state = str(self.rng.choice(states, p=probs))
+            return state
+
+        df[state_col] = [_traverse(initial) for _ in range(len(df))]
         return df
 
     def _apply_null_if(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:

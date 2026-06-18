@@ -107,6 +107,13 @@ class Table(BaseModel):
             "Each entry: {col_a: str, col_b: str, r: float}  where r ∈ [-1, 1]."
         ),
     )
+    state_machine: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Markov state machine that assigns a terminal status to every row. "
+            "Keys: state_column, initial_state, transitions (dict of state → {next_state: prob})."
+        ),
+    )
 
 
 

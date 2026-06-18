@@ -32,6 +32,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Rows with nulls on either side are left untouched — the rules govern fully-populated
   pairs only.
 
+## [0.8.1] - 2026-06-18
+
+Statistical realism release. 792 tests, 0 failures.
+
+Five features that close the gap between "good for pipeline testing" and
+"good for statistical method validation", plus a fully rewritten MCP tool
+docstring that teaches AI agents schema design best practice.
+
+### Added
+
+**Stratified distribution profiles.** A `profiles` list on any column carries
+different distributions per subgroup:
+```python
+"hba1c_change": {
+    "type": "float",
+    "profiles": [
+        {"when": "arm == 'placebo'",   "mean": -0.35, "std": 0.50},
+        {"when": "arm == 'high_dose'", "mean": -1.25, "std": 0.55},
+    ],
+}
+```
+Rows that match no profile get the column's top-level distribution. The `when`
+expression is a pandas eval string evaluated against all already-generated
+columns in the same batch.
+
+**Informative missingness (MAR).** `null_when` nulls a column when a boolean
+expression is true (`"dropout == False"`). `missing_if` ties null probability
+to a predictor column — rows with a higher predictor value get a proportionally
+higher null probability — modelling Missing-At-Random dropout correctly for
+clinical, financial, and survey data.
+
+**Exact incidence control.** `exact_incidence: {mode: exact, rate: 0.22}`
+replaces Bernoulli sampling with `floor(n * rate)` exact True values,
+distributed randomly. Per-group rates are supported via `group_by` + `rates`.
+The generated dataset is auditable against its own spec.
+
+**Within-entity time-series autocorrelation.** `time_series` on a numeric column
+re-writes it to follow AR(1), linear-trend, random-walk, or mean-reversion
+autocorrelation within each entity group. Required for any longitudinal dataset
+(clinical visits, IoT sensor logs, user session sequences) — without it every
+row is independent and the data fails any time-series statistical test.
+
+**State machine terminal states.** `__state_machine__` at the table level
+assigns one terminal state to every row by following a Markov chain until a
+terminal state (no outgoing transitions) is reached. Preserves declared
+transition probabilities. Works alongside exact-incidence, correlations, and
+profiles in the same table.
+
+**Fully rewritten MCP tool docstring.** The `generate_from_schema` tool
+docstring is now a complete agent design guide: all feature categories, when to
+use each one, anti-patterns, and 10 explicit design rules for getting the best
+result in a single pass. AI agents using Misata via MCP now receive this
+guidance at tool-call time.
+
 ## [0.8.0.5] - 2026-06-18
 
 Realism and contract-completeness release. 781 tests, 0 failures.
