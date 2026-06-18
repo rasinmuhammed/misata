@@ -360,12 +360,20 @@ class DataSimulator:
         import re as _re
         for child_table in self.config.tables:
             for col in self.config.get_columns(child_table.name):
+                # row-formula references: formula: "hours * @employees.hourly_rate"
                 formula = col.distribution_params.get("formula")
-                if not formula:
-                    continue
-                for ref_table, ref_col in _re.findall(r"@(\w+)\.(\w+)", formula):
-                    if ref_table == table_name:
-                        needed_cols.add(ref_col)
+                if formula:
+                    for ref_table, ref_col in _re.findall(r"@(\w+)\.(\w+)", formula):
+                        if ref_table == table_name:
+                            needed_cols.add(ref_col)
+                # distribution.mean / distribution.std formula references:
+                # mean: {formula: "@patients.hba1c_baseline"}
+                for dist_param_key in ("mean", "std", "mu", "sigma"):
+                    dist_val = col.distribution_params.get(dist_param_key)
+                    if isinstance(dist_val, dict) and "formula" in dist_val:
+                        for ref_table, ref_col in _re.findall(r"@(\w+)\.(\w+)", str(dist_val["formula"])):
+                            if ref_table == table_name:
+                                needed_cols.add(ref_col)
 
         return [column for column in needed_cols if column in df.columns]
 
@@ -830,6 +838,46 @@ class DataSimulator:
 
             distribution = params.get("distribution", "normal")
 
+            # ------ @parent in distribution.mean / distribution.std ------
+            # Allows child column distributions to be anchored to a parent
+            # entity value via a formula reference:
+            #   mean: {formula: "@patients.hba1c_baseline"}
+            #   std:  {formula: "@patients.hba1c_sd"}
+            # Resolves the FK → parent lookup per-row and uses per-row arrays
+            # as the mean/std for vectorised sampling.
+            def _resolve_dist_param(param_val, default):
+                """Return a scalar or per-row array for mean/std params."""
+                if not isinstance(param_val, dict) or "formula" not in param_val:
+                    return param_val if param_val is not None else default
+                formula = str(param_val["formula"]).strip()
+                if not formula.startswith("@") or table_data is None or table_data.empty:
+                    return default
+                # Parse "@table.column"
+                ref = formula[1:]
+                if "." not in ref:
+                    return default
+                ref_table, ref_col = ref.split(".", 1)
+                # Find FK from this child table to ref_table
+                rel = next(
+                    (r for r in self.config.relationships
+                     if r.child_table == table_name and r.parent_table == ref_table),
+                    None,
+                )
+                if rel is None or rel.child_key not in table_data.columns:
+                    return default
+                parent_df = self.context.get(ref_table)
+                if parent_df is None or ref_col not in parent_df.columns:
+                    return default
+                pk = rel.parent_key
+                fk_vals = table_data[rel.child_key].values
+                parent_map = parent_df.set_index(pk)[ref_col]
+                per_row = parent_map.reindex(fk_vals).values.astype(float)
+                return per_row
+
+            mean_param = _resolve_dist_param(params.get("mean"), 100.0)
+            std_param  = _resolve_dist_param(params.get("std"),  20.0)
+            # ------ end @parent resolution ------
+
             if distribution == "categorical" or "choices" in params:
                 choices = params.get("choices", [1.0, 2.0, 3.0])
                 probabilities = params.get("probabilities", None)
@@ -839,9 +887,16 @@ class DataSimulator:
                 values = self.rng.choice(choices, size=size, p=probabilities)
                 return np.array(values).astype(float)
             elif distribution == "normal":
-                mean = params.get("mean", 100.0)
-                std = params.get("std", 20.0)
-                values = self.rng.normal(mean, std, size=size)
+                mean = mean_param if not isinstance(mean_param, (int, float)) else float(mean_param)
+                std  = std_param  if not isinstance(std_param,  (int, float)) else float(std_param)
+                # Per-row mean/std: sample element-wise
+                if isinstance(mean, np.ndarray) or isinstance(std, np.ndarray):
+                    mean_arr = np.broadcast_to(np.asarray(mean, dtype=float), (size,))
+                    std_arr  = np.broadcast_to(np.asarray(std,  dtype=float), (size,))
+                    std_arr  = np.abs(std_arr)
+                    values = mean_arr + std_arr * self.rng.standard_normal(size)
+                else:
+                    values = self.rng.normal(mean, std, size=size)
             elif distribution in ("lognormal", "log_normal"):
                 if "mu" in params or "sigma" in params:
                     mu = float(params.get("mu", 4.5))
@@ -1649,6 +1704,9 @@ class DataSimulator:
 
             # Apply state machine terminal states (__state_machine__)
             df_batch = self._apply_state_machine(df_batch, table_name)
+
+            # Apply hierarchical ICC cluster effects from parent tables
+            df_batch = self._apply_cluster_effects(df_batch, table_name)
 
             # Apply column correlations (Iman-Conover)
             df_batch = self._apply_correlations(df_batch, table_name)
@@ -2550,6 +2608,75 @@ class DataSimulator:
                 df.loc[mask, col.name] = "__anomaly__"
         return df
 
+    # ------------------------------------------------------------------
+    # Feature 5: Hierarchical cluster / ICC effects
+    # ------------------------------------------------------------------
+
+    def _apply_cluster_effects(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Apply per-parent-entity random intercepts (hierarchical ICC model).
+
+        Defined on the PARENT table via ``__cluster_effect__``:
+
+            __cluster_effect__:
+              affects_table: visits
+              affects_columns:
+                hba1c:
+                  icc: 0.12          # intraclass correlation coefficient
+                  sd_total: 1.5      # optional; used to derive sd_between if not given
+                  sd_between: 0.52   # std-dev of entity-level random intercepts
+                systolic_bp:
+                  icc: 0.18
+                  sd_total: 18.0
+
+        For each declared column the method:
+          1. Looks up the FK from ``table_name`` → parent.
+          2. Draws one random intercept per parent entity from N(0, sd_between).
+          3. Adds that intercept to every child row belonging to that entity.
+
+        ICC relationship: sd_between = sqrt(icc) * sd_total.
+        Provide either sd_between directly or both icc + sd_total.
+        """
+        for parent_table in self.config.tables:
+            spec = parent_table.cluster_effect
+            if not spec or spec.get("affects_table") != table_name:
+                continue
+            col_specs = spec.get("affects_columns") or {}
+            # Find FK from child → parent
+            rel = next(
+                (r for r in self.config.relationships
+                 if r.child_table == table_name and r.parent_table == parent_table.name),
+                None,
+            )
+            if rel is None or rel.child_key not in df.columns:
+                continue
+            parent_df = self.context.get(parent_table.name)
+            if parent_df is None:
+                continue
+            entity_ids = df[rel.child_key].unique()
+
+            for col_name, col_spec in col_specs.items():
+                if col_name not in df.columns:
+                    continue
+                col_numeric = pd.to_numeric(df[col_name], errors="coerce")
+                if col_numeric.isna().all():
+                    continue
+                if "sd_between" in col_spec:
+                    sd_between = float(col_spec["sd_between"])
+                else:
+                    icc = float(col_spec.get("icc", 0.10))
+                    sd_total = float(col_spec.get("sd_total", col_numeric.std() or 1.0))
+                    sd_between = np.sqrt(icc) * sd_total
+
+                # One random intercept per parent entity
+                intercepts = {
+                    eid: float(self.rng.normal(0, sd_between))
+                    for eid in entity_ids
+                }
+                entity_intercept = df[rel.child_key].map(intercepts)
+                df[col_name] = (col_numeric + entity_intercept).values
+
+        return df
+
     def _apply_correlations(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Re-rank numeric columns to achieve declared Pearson correlations.
 
@@ -2734,12 +2861,28 @@ class DataSimulator:
             max_rate = float(spec.get("max_rate", 0.30))
             rel = spec.get("relationship", "higher_increases_probability")
 
+            if mechanism == "MNAR":
+                # Missing Not At Random: null probability tied to the column's
+                # own (unobserved) value. Generate the values, scale null prob
+                # against the column itself, then null the selected rows.
+                own_vals = pd.to_numeric(df[col.name], errors="coerce")
+                p10 = float(own_vals.quantile(0.10))
+                p90 = float(own_vals.quantile(0.90))
+                rng_width = p90 - p10 if p90 > p10 else 1.0
+                normed = ((own_vals - p10) / rng_width).clip(0, 1)
+                if rel == "lower_increases_probability":
+                    normed = 1.0 - normed
+                null_probs = base_rate + (max_rate - base_rate) * normed
+                draw = pd.Series(self.rng.random(len(df)), index=df.index)
+                df.loc[draw < null_probs, col.name] = np.nan
+                continue
+
+            # MAR: null probability tied to an observed predictor column
             pred_vals = pd.to_numeric(df[predictor], errors="coerce")
             p10 = float(pred_vals.quantile(0.10))
             p90 = float(pred_vals.quantile(0.90))
             rng_width = p90 - p10 if p90 > p10 else 1.0
 
-            # Normalise predictor to [0, 1] relative to its range
             normed = ((pred_vals - p10) / rng_width).clip(0, 1)
             if rel == "lower_increases_probability":
                 normed = 1.0 - normed

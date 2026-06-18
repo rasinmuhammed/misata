@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.1"
+__version__ = "0.8.1.0"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -425,6 +425,110 @@ def generate_more(
 
     return merged
 
+
+def generate_diff(
+    schema: "SchemaConfig",
+    existing_dir: "Union[str, Path]",
+    new_rows: "Optional[Dict[str, int]]" = None,
+    seed: "Optional[int]" = None,
+    output_dir: "Optional[Union[str, Path]]" = None,
+) -> "Dict[str, Any]":
+    """Generate additional rows that append cleanly to existing CSVs.
+
+    Reads PKs from ``existing_dir`` to determine the maximum existing ID per
+    table, generates new rows with PKs offset above that max, and returns the
+    new-rows-only DataFrames. Referential integrity is maintained: FKs in new
+    child rows reference only new parent rows (generated in this call) — they
+    do not cross-reference the existing data.
+
+    Args:
+        schema:       The ``SchemaConfig`` used to generate the original dataset.
+        existing_dir: Directory containing existing ``<table_name>.csv`` files.
+        new_rows:     Per-table row counts for the new batch, e.g.
+                      ``{"orders": 500, "order_items": 2000}``.  Defaults to the
+                      row counts in ``schema``.
+        seed:         Seed for the new batch (defaults to ``schema.seed + 10``).
+        output_dir:   If given, write the new-rows CSVs there.
+
+    Returns:
+        Dict mapping table name → ``pd.DataFrame`` of **new rows only**.
+        PKs are guaranteed not to overlap with any ID found in ``existing_dir``.
+
+    Example::
+
+        # Day 1: generate base dataset
+        tables = misata.generate_from_schema(schema, seed=1)
+        misata.to_csv(tables, "./data/")
+
+        # Day 2: generate incremental rows, safe to append
+        new_rows = misata.generate_diff(schema, "./data/", new_rows={"customers": 200})
+        for name, df in new_rows.items():
+            df.to_csv(f"./data/{name}_delta.csv", index=False)
+    """
+    import copy
+    from pathlib import Path as _Path
+
+    import pandas as pd
+    from misata.simulator import DataSimulator
+
+    existing_dir = _Path(existing_dir)
+    new_schema = copy.deepcopy(schema)
+    new_schema.seed = seed if seed is not None else ((schema.seed or 0) + 10)
+
+    # Override row counts if caller specified
+    if new_rows:
+        for t in new_schema.tables:
+            if t.name in new_rows:
+                t.row_count = new_rows[t.name]
+
+    # Read existing max PKs per table to compute offsets
+    pk_offsets: Dict[str, int] = {}
+    for t in new_schema.tables:
+        csv_path = existing_dir / f"{t.name}.csv"
+        if not csv_path.exists():
+            continue
+        try:
+            existing_df = pd.read_csv(csv_path, nrows=0)
+            # Look for integer PK-like columns
+            full = pd.read_csv(csv_path, usecols=lambda c: c.lower() in (
+                "id", f"{t.name}_id", f"{t.name[:-1]}_id"  # naive PK heuristic
+            ))
+            if not full.empty:
+                col = full.columns[0]
+                pk_offsets[t.name] = int(pd.to_numeric(full[col], errors="coerce").max()) + 1
+        except Exception:
+            pass
+
+    sim = DataSimulator(new_schema)
+    new_tables: Dict[str, Any] = {}
+    for name, batch in sim.generate_all():
+        if name in new_tables:
+            new_tables[name] = pd.concat([new_tables[name], batch], ignore_index=True)
+        else:
+            new_tables[name] = batch
+
+    # Apply PK offsets so new IDs don't collide with existing
+    for name, df in new_tables.items():
+        offset = pk_offsets.get(name, 0)
+        if offset == 0:
+            continue
+        for col in df.columns:
+            if col.lower() in ("id", f"{name}_id", f"{name[:-1]}_id"):
+                try:
+                    new_tables[name][col] = df[col] + offset
+                except Exception:
+                    pass
+        new_tables[name] = df
+
+    if output_dir is not None:
+        out = _Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        for name, df in new_tables.items():
+            df.to_csv(out / f"{name}.csv", index=False)
+
+    return new_tables
+
+
 from misata.schema import (
     Column,
     Constraint,
@@ -485,8 +589,9 @@ from misata.exceptions import (
     ConfigurationError,
     ExportError,
 )
-from misata.export import to_parquet, to_duckdb, to_jsonl
+from misata.export import to_parquet, to_duckdb, to_jsonl, to_sql, to_arrow
 from misata.compat import from_dict_schema, verify_integrity, IntegrityReport
+from misata.validator import validate as validate_domain, ValidationReport
 from misata.smart_values import SmartValueGenerator
 from misata.noise import NoiseInjector, add_noise
 from misata.customization import Customizer, ColumnOverride

@@ -138,3 +138,140 @@ def to_jsonl(
         written[name] = path
 
     return written
+
+
+# ---------------------------------------------------------------------------
+# SQL INSERT export (#12)
+# ---------------------------------------------------------------------------
+
+def to_sql(
+    tables: Dict[str, Any],
+    output_dir: Union[str, Path],
+    dialect: str = "ansi",
+) -> Dict[str, Path]:
+    """Write each table as a .sql file containing CREATE TABLE + INSERT statements.
+
+    Args:
+        tables:     Dict mapping table name -> pd.DataFrame.
+        output_dir: Directory to write ``<table_name>.sql`` files into.
+        dialect:    SQL dialect: ``ansi`` (default), ``mysql``, ``postgresql``.
+                    Controls quoting style and type mapping.
+
+    Returns:
+        Dict mapping table name -> Path of the written file.
+
+    Example::
+
+        paths = misata.to_sql(tables, "./data/", dialect="postgresql")
+    """
+    import re
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _quote(name: str, dialect: str) -> str:
+        if dialect == "mysql":
+            return f"`{name}`"
+        return f'"{name}"'
+
+    def _py_type_to_sql(dtype, dialect: str) -> str:
+        if hasattr(dtype, "name"):
+            name = dtype.name
+        else:
+            name = str(dtype)
+        if "int" in name:
+            return "INTEGER"
+        if "float" in name or "double" in name:
+            return "DOUBLE PRECISION" if dialect == "postgresql" else "DOUBLE"
+        if "bool" in name:
+            return "BOOLEAN"
+        if "datetime" in name or "timestamp" in name:
+            return "TIMESTAMP"
+        if "date" in name:
+            return "DATE"
+        return "TEXT"
+
+    def _val_to_sql(v) -> str:
+        if v is None or (isinstance(v, float) and v != v):  # NaN
+            return "NULL"
+        if isinstance(v, bool):
+            return "TRUE" if v else "FALSE"
+        if isinstance(v, (int, float)):
+            return str(v)
+        escaped = str(v).replace("'", "''")
+        return f"'{escaped}'"
+
+    written: Dict[str, Path] = {}
+    for name, df in tables.items():
+        path = output_dir / f"{name}.sql"
+        q = lambda n: _quote(n, dialect)
+        lines = [f"CREATE TABLE IF NOT EXISTS {q(name)} ("]
+        col_defs = []
+        for col in df.columns:
+            sql_type = _py_type_to_sql(df[col].dtype, dialect)
+            col_defs.append(f"    {q(col)} {sql_type}")
+        lines.append(",\n".join(col_defs))
+        lines.append(");\n")
+
+        cols_sql = ", ".join(q(c) for c in df.columns)
+        chunk_size = 500
+        for start in range(0, len(df), chunk_size):
+            chunk = df.iloc[start:start + chunk_size]
+            row_strs = []
+            for _, row in chunk.iterrows():
+                vals = ", ".join(_val_to_sql(v) for v in row)
+                row_strs.append(f"    ({vals})")
+            if row_strs:
+                lines.append(f"INSERT INTO {q(name)} ({cols_sql}) VALUES")
+                lines.append(",\n".join(row_strs) + ";\n")
+
+        path.write_text("\n".join(lines), encoding="utf-8")
+        written[name] = path
+
+    return written
+
+
+# ---------------------------------------------------------------------------
+# Apache Arrow IPC export (#12)
+# ---------------------------------------------------------------------------
+
+def to_arrow(
+    tables: Dict[str, Any],
+    output_dir: Union[str, Path],
+) -> Dict[str, Path]:
+    """Write each table as an Apache Arrow IPC file (.arrow).
+
+    Requires ``pyarrow``. Falls back with ImportError if not installed.
+
+    Args:
+        tables:     Dict mapping table name -> pd.DataFrame.
+        output_dir: Directory to write ``<table_name>.arrow`` files into.
+
+    Returns:
+        Dict mapping table name -> Path of the written file.
+
+    Example::
+
+        paths = misata.to_arrow(tables, "./data/")
+    """
+    try:
+        import pyarrow as pa
+        import pyarrow.ipc as ipc
+    except ImportError:
+        raise ImportError(
+            "pyarrow is required for to_arrow(). Install it: pip install pyarrow"
+        )
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    written: Dict[str, Path] = {}
+    for name, df in tables.items():
+        path = output_dir / f"{name}.arrow"
+        table = pa.Table.from_pandas(df, preserve_index=False)
+        with pa.OSFile(str(path), "wb") as sink:
+            with ipc.new_file(sink, table.schema) as writer:
+                writer.write_table(table)
+        written[name] = path
+
+    return written

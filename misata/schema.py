@@ -114,7 +114,13 @@ class Table(BaseModel):
             "Keys: state_column, initial_state, transitions (dict of state → {next_state: prob})."
         ),
     )
-
+    cluster_effect: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Hierarchical random intercepts (ICC) applied to child table columns. "
+            "Keys: affects_table (str), affects_columns (dict of col_name → {icc: float, sd_between: float})."
+        ),
+    )
 
 
 class Relationship(BaseModel):

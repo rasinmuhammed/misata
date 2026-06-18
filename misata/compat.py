@@ -316,6 +316,9 @@ def from_dict_schema(
         except Exception as e:
             raise ValueError(f"__rate_curves__[{i}] is invalid: {e}") from e
 
+    # __domain__ stores the domain name on the SchemaConfig for post-generation validation
+    domain: Optional[str] = schemas.get("__domain__") or None
+
     for table_name, table_def in schemas.items():
         if table_name.startswith("__"):
             continue
@@ -357,8 +360,37 @@ def from_dict_schema(
                 warnings.warn(f"Table '{table_name}' __constraints__[{i}] is invalid and was skipped: {e}")
 
         # Per-table Pearson correlations between numeric columns (applied post-generation).
-        # Format: __correlations__: [{col_a: "bmi", col_b: "systolic_bp", r: 0.41}]
-        table_correlations: List[Dict[str, Any]] = list(table_def.get("__correlations__") or [])
+        # Supports two formats:
+        #
+        # Pairwise list (simple):
+        #   __correlations__: [{col_a: "bmi", col_b: "systolic_bp", r: 0.41}]
+        #
+        # Full matrix (complete):
+        #   __correlations__:
+        #     method: cholesky
+        #     matrix:
+        #       columns: [hba1c, glucose, bmi, systolic_bp]
+        #       values:
+        #         hba1c:   [1.00, 0.68, 0.31, 0.22]
+        #         glucose: [0.68, 1.00, 0.35, 0.28]
+        #         ...
+        _raw_corr = table_def.get("__correlations__") or []
+        if isinstance(_raw_corr, dict) and "matrix" in _raw_corr:
+            # Expand full matrix into pairwise pairs
+            mat_spec = _raw_corr["matrix"]
+            cols_order = mat_spec.get("columns", [])
+            values_map = mat_spec.get("values", {})
+            table_correlations: List[Dict[str, Any]] = []
+            for i, col_a in enumerate(cols_order):
+                row_vals = values_map.get(col_a, [])
+                if isinstance(row_vals, (list, tuple)):
+                    for j, col_b in enumerate(cols_order):
+                        if j > i and j < len(row_vals):
+                            r = float(row_vals[j])
+                            if abs(r) > 0.001:
+                                table_correlations.append({"col_a": col_a, "col_b": col_b, "r": r})
+        else:
+            table_correlations = list(_raw_corr)
 
         for col_name, col_def in table_def.items():
             if col_name.startswith("__") or not isinstance(col_def, dict):
@@ -379,6 +411,7 @@ def from_dict_schema(
                 table_cols.append(col)
 
         state_machine = table_def.get("__state_machine__") or None
+        cluster_effect = table_def.get("__cluster_effect__") or None
 
         tables.append(Table(
             name=table_name,
@@ -387,6 +420,7 @@ def from_dict_schema(
             constraints=table_constraints,
             correlations=table_correlations,
             state_machine=state_machine,
+            cluster_effect=cluster_effect,
         ))
         columns_map[table_name] = table_cols
 
@@ -398,6 +432,7 @@ def from_dict_schema(
         outcome_curves=outcome_curves,
         rate_curves=rate_curves,
         seed=seed,
+        domain=domain,
     )
 
 

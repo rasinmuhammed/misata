@@ -32,59 +32,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Rows with nulls on either side are left untouched — the rules govern fully-populated
   pairs only.
 
-## [0.8.1] - 2026-06-18
+## [0.8.1.0] - 2026-06-18
 
-Statistical realism release. 792 tests, 0 failures.
-
-Five features that close the gap between "good for pipeline testing" and
-"good for statistical method validation", plus a fully rewritten MCP tool
-docstring that teaches AI agents schema design best practice.
+Deep statistical realism overhaul. Ten new engine features, three new export
+targets, domain validation, reproducible diff mode, and a completely rewritten
+MCP agent guide. This release closes the gap between synthetic data that passes
+pipeline tests and synthetic data that passes statistical method validation.
 
 ### Added
 
-**Stratified distribution profiles.** A `profiles` list on any column carries
-different distributions per subgroup:
+**MNAR missingness.** `missing_if` now accepts `mechanism: MNAR` — the null
+probability is tied to the column's own (unobserved) value rather than a
+separate predictor. Use when the reason for missingness is the value itself
+(e.g. patients with very high lab values are more likely to drop out).
+
+**`@parent` in distribution parameters.** Float column `mean` and `std` can
+now be a formula referencing a parent entity:
 ```python
-"hba1c_change": {
-    "type": "float",
-    "profiles": [
-        {"when": "arm == 'placebo'",   "mean": -0.35, "std": 0.50},
-        {"when": "arm == 'high_dose'", "mean": -1.25, "std": 0.55},
-    ],
+"hba1c": {"type": "float", "distribution": "normal",
+           "mean": {"formula": "@patients.hba1c_baseline"}, "std": 0.40}
+```
+The engine resolves the FK per-row, so each child row's distribution is
+anchored to its parent entity's value. Enables realistic longitudinal data
+where within-patient variation is modelled separately from between-patient
+variation.
+
+**Full correlation matrix syntax.** `__correlations__` now accepts a matrix
+block in addition to the pairwise list:
+```python
+"__correlations__": {
+    "matrix": {
+        "columns": ["hba1c", "glucose", "bmi"],
+        "values": {
+            "hba1c":   [1.00, 0.65, 0.28],
+            "glucose": [0.65, 1.00, 0.22],
+            "bmi":     [0.28, 0.22, 1.00],
+        }
+    }
 }
 ```
-Rows that match no profile get the column's top-level distribution. The `when`
-expression is a pandas eval string evaluated against all already-generated
-columns in the same batch.
+The matrix is expanded into pairwise pairs and passed to the existing
+Iman-Conover pass. Pairwise list syntax still works unchanged.
 
-**Informative missingness (MAR).** `null_when` nulls a column when a boolean
-expression is true (`"dropout == False"`). `missing_if` ties null probability
-to a predictor column — rows with a higher predictor value get a proportionally
-higher null probability — modelling Missing-At-Random dropout correctly for
-clinical, financial, and survey data.
+**Hierarchical ICC cluster effects (`__cluster_effect__`).** Defined on the
+parent table, applies per-entity random intercepts to child columns:
+```python
+"sites": {
+    "__cluster_effect__": {
+        "affects_table": "patients",
+        "affects_columns": {"systolic_bp": {"icc": 0.18, "sd_total": 18.0}}
+    }
+}
+```
+`sd_between = sqrt(icc) * sd_total`. Alternatively supply `sd_between`
+directly. Required for any multi-site or multi-centre design — without it
+all sites look identical and any ICC test will detect the synthetic origin.
 
-**Exact incidence control.** `exact_incidence: {mode: exact, rate: 0.22}`
-replaces Bernoulli sampling with `floor(n * rate)` exact True values,
-distributed randomly. Per-group rates are supported via `group_by` + `rates`.
-The generated dataset is auditable against its own spec.
+**Domain-aware validation (`misata.validate_domain`).** Runs after generation
+to surface physiologically or financially impossible values:
+```python
+report = misata.validate_domain(tables, domain="clinical_trial")
+print(report.summary())   # [ERROR] patients.hba1c: 3/1000 above max (14.0 %)
+assert report.passed
+```
+Built-in registries for `clinical_trial` / `clinical` (HbA1c, glucose, BMI,
+BP, heart rate, …) and `financial` / `fintech` (price, amount, discount, …).
+Custom ranges via `custom_ranges` dict. Declare `__domain__` in the dict schema
+to attach the domain to the `SchemaConfig` for downstream tooling.
 
-**Within-entity time-series autocorrelation.** `time_series` on a numeric column
-re-writes it to follow AR(1), linear-trend, random-walk, or mean-reversion
-autocorrelation within each entity group. Required for any longitudinal dataset
-(clinical visits, IoT sensor logs, user session sequences) — without it every
-row is independent and the data fails any time-series statistical test.
+**SQL INSERT export (`misata.to_sql`).** Writes `CREATE TABLE IF NOT EXISTS` +
+chunked `INSERT INTO` statements per table. Dialect options: `ansi` (default),
+`postgresql`, `mysql`.
 
-**State machine terminal states.** `__state_machine__` at the table level
-assigns one terminal state to every row by following a Markov chain until a
-terminal state (no outgoing transitions) is reached. Preserves declared
-transition probabilities. Works alongside exact-incidence, correlations, and
-profiles in the same table.
+**Apache Arrow IPC export (`misata.to_arrow`).** Writes `.arrow` files via
+`pyarrow`. Requires `pip install pyarrow`; raises `ImportError` otherwise.
+
+**`generate_diff` — reproducible incremental rows.** Reads existing PKs from a
+directory, generates new rows with PKs offset above the existing maximum, and
+writes the new-rows-only DataFrames. Safe to append to existing CSVs without ID
+collisions:
+```python
+new_rows = misata.generate_diff(schema, existing_dir="./data/", new_rows={"orders": 500})
+```
+
+**Stratified distribution profiles (`profiles`).** A `profiles` list on any
+column carries different distributions per subgroup. The `when` expression is
+evaluated as pandas eval against already-generated columns.
+
+**MAR informative missingness.** `null_when` (conditional expression) and
+`missing_if` (predictor-scaled null probability) for Missing-At-Random dropout.
+
+**Exact incidence control (`exact_incidence`).** `floor(n * rate)` exact True
+values; per-group rates via `group_by` + `rates`.
+
+**AR(1) / time-series autocorrelation (`time_series`).** Models: AR1,
+LINEAR_TREND, RANDOM_WALK, MEAN_REVERSION within each entity group.
+
+**State machine terminal states (`__state_machine__`).** Markov chain
+traversal to terminal state, preserving declared transition probabilities.
 
 **Fully rewritten MCP tool docstring.** The `generate_from_schema` tool
-docstring is now a complete agent design guide: all feature categories, when to
-use each one, anti-patterns, and 10 explicit design rules for getting the best
-result in a single pass. AI agents using Misata via MCP now receive this
-guidance at tool-call time.
+docstring is now a complete agent design guide covering every feature, when to
+use each one, common mistakes, and 10 explicit design rules for getting the best
+result in a single pass.
 
 ## [0.8.0.5] - 2026-06-18
 

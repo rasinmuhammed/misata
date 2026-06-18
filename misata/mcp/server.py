@@ -355,7 +355,14 @@ def generate_from_schema(
     DISTRIBUTIONS  (float / integer columns)
       distribution: normal      Also: lognormal, uniform, exponential, beta,
                                 poisson, power_law, gamma.
-      mean / std                Normal params.
+      mean / std                Normal params. Can be a scalar OR a per-row
+                                parent-entity lookup:
+                                  mean: {formula: "@patients.hba1c_baseline"}
+                                The FK is resolved per-row so each child row's
+                                distribution is anchored to its parent's value.
+                                Use this for longitudinal data where within-entity
+                                variation should be modelled separately from
+                                between-entity variation.
       mu / sigma                Lognormal params (mu and sigma are of log(x)).
       min / max                 Hard clamps applied after sampling.
       Use lognormal for money, file sizes, session durations — anything
@@ -450,6 +457,28 @@ def generate_from_schema(
       marginal distribution while hitting the declared Pearson r exactly.
       Declare correlations for any pair of measurements that co-vary in the
       real domain (bmi/bp, income/spending, tenure/salary).
+      Also supports full matrix syntax:
+        __correlations__:
+          matrix:
+            columns: [hba1c, glucose, bmi]
+            values:
+              hba1c:   [1.00, 0.65, 0.28]
+              glucose: [0.65, 1.00, 0.22]
+              bmi:     [0.28, 0.22, 1.00]
+
+    ICC CLUSTER EFFECTS  (parent table __cluster_effect__)
+      __cluster_effect__:
+        affects_table: visits
+        affects_columns:
+          hba1c:
+            icc: 0.18          # intraclass correlation coefficient
+            sd_total: 1.5      # total standard deviation; sd_between = sqrt(icc)*sd_total
+          systolic_bp:
+            sd_between: 8.0    # supply sd_between directly if preferred
+      Applies per-parent-entity random intercepts to the named child columns.
+      Required for multi-site or multi-centre designs — without it all sites
+      look identical and any ICC statistical test will detect the synthetic origin.
+      icc: 0.10-0.30 is typical for clinical measurements across sites.
 
     STATE MACHINE  (table-level __state_machine__)
       __state_machine__:
@@ -487,6 +516,15 @@ def generate_from_schema(
           {"period": "2024-Q4", "rate": 0.05}
         ]}]
       Use when fraud rate, churn rate, or conversion rate changes over time.
+
+    __domain__  Domain hint for post-generation validation.
+      "__domain__": "clinical_trial"   # or "clinical", "financial", "fintech"
+      After generating, call misata.validate_domain(tables, domain="clinical_trial")
+      to surface any physiologically or financially impossible values.
+      Built-in ranges: HbA1c 4-14 %, BMI 10-80, systolic BP 60-260, age 0-130,
+      glucose 2-40, cholesterol 1-20, hemoglobin 3-25 for clinical;
+      price ≥ 0, discount 0-1, rate -1 to 100 for financial.
+
 
     DESIGN RULES — follow these to get the best result in one pass
 
