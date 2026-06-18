@@ -31,7 +31,7 @@ Built for:
 - **Integration tests** — relational fixtures with FK integrity across every table
 - **Demos and prototypes** — realistic numbers, names, and distributions, no PII
 - **BI and dashboard development** — data shaped like your real domain before launch
-- **Statistical method validation** — synthetic clinical trial data, longitudinal cohorts, and multi-site studies that pass mixed-effects models, ICC tests, and autocorrelation checks
+- **Statistical method validation** — longitudinal, grouped, and multi-site datasets that pass mixed-effects models, ICC tests, and autocorrelation checks
 
 ---
 
@@ -573,9 +573,9 @@ Aggregations: `sum`, `count`, `mean`, `max`, `min`. When a parent column name ex
 
 ---
 
-## Statistical realism for clinical, longitudinal, and regulated data
+## Statistical realism — data that passes method validation
 
-Most synthetic data tools generate rows independently from a declared distribution. That works for pipeline tests and database seeding. It does not work when the data needs to pass a statistical method: a mixed-effects model that checks whether sites differ, an autocorrelation test on repeated measurements, or an audit that flags physiologically impossible values.
+Most synthetic data tools generate rows independently. That works for database seeding and pipeline tests. It breaks the moment the data needs to pass a statistical method: an autocorrelation test on repeated measurements, a mixed-effects model checking whether groups differ, or an audit that catches values outside plausible bounds.
 
 Misata 0.8.1.0 adds a suite of features that close this gap. All are declared in the same plain dict schema and are reachable from MCP agents, Studio, and direct Python callers.
 
@@ -583,27 +583,26 @@ Misata 0.8.1.0 adds a suite of features that close this gap. All are declared in
 
 ### Stratified distribution profiles — different distributions per subgroup
 
-A real three-arm clinical trial does not have all patients drawn from one HbA1c distribution. The placebo arm looks different from the treatment arm. Use `profiles` on any column to declare this precisely:
+A realistic A/B test dataset does not draw all users from one conversion distribution. The control group looks different from the treatment group. Use `profiles` to declare this precisely on any column:
 
 ```python
 schema = misata.from_dict_schema({
-    "patients": {
-        "__rows__": 2000,
-        "patient_id": {"type": "integer", "primary_key": True},
-        "arm": {
+    "users": {
+        "__rows__": 5000,
+        "user_id": {"type": "integer", "primary_key": True},
+        "cohort": {
             "type": "string",
-            "enum": ["placebo", "low_dose", "high_dose"],
-            "probabilities": [0.34, 0.33, 0.33],
+            "enum": ["control", "variant_a", "variant_b"],
+            "probabilities": [0.50, 0.25, 0.25],
         },
-        "hba1c_change": {
+        "session_duration": {
             "type": "float",
-            "distribution": "normal",
-            "mean": -0.35,  # fallback for rows that match no profile
-            "std": 0.50,
+            "distribution": "lognormal",
+            "mean": 180.0, "std": 90.0,  # fallback for unmatched rows
             "profiles": [
-                {"when": "arm == 'placebo'",   "distribution": "normal", "mean": -0.35, "std": 0.50},
-                {"when": "arm == 'low_dose'",  "distribution": "normal", "mean": -1.05, "std": 0.55},
-                {"when": "arm == 'high_dose'", "distribution": "normal", "mean": -1.25, "std": 0.55},
+                {"when": "cohort == 'control'",   "distribution": "lognormal", "mean": 180.0, "std": 90.0},
+                {"when": "cohort == 'variant_a'", "distribution": "lognormal", "mean": 240.0, "std": 100.0},
+                {"when": "cohort == 'variant_b'", "distribution": "lognormal", "mean": 310.0, "std": 120.0},
             ],
         },
     }
@@ -616,17 +615,16 @@ The `when` expression is evaluated as a pandas query against already-generated c
 
 ### Informative missingness — MAR and MNAR
 
-Real clinical and survey datasets have non-random missing data. Misata models both mechanisms:
+Real-world datasets have non-random missing values. Misata models both mechanisms:
 
-**Missing At Random (MAR):** The probability of a value being missing depends on an observed predictor column. Patients with higher baseline HbA1c are more likely to miss follow-up visits.
+**Missing At Random (MAR):** The probability of a value being missing depends on an observed column. High-spending users are more likely to skip the optional income field.
 
 ```python
-"dropout_visit": {
-    "type": "integer",
-    "min": 1, "max": 12,
+"annual_income": {
+    "type": "float",
     "nullable": True,
     "missing_if": {
-        "predictor": "hba1c_baseline",
+        "predictor": "total_spend",
         "relationship": "higher_increases_probability",
         "base_rate": 0.05,
         "max_rate": 0.40,
@@ -635,30 +633,31 @@ Real clinical and survey datasets have non-random missing data. Misata models bo
 }
 ```
 
-**Missing Not At Random (MNAR):** The probability of a value being missing depends on the value itself — the classic censoring mechanism. A lab test result is missing precisely because it was too extreme to report.
+**Missing Not At Random (MNAR):** The probability of a value being missing depends on the value itself. Very low satisfaction scores are the ones most likely to go unreported.
 
 ```python
-"lab_value": {
+"satisfaction_score": {
     "type": "float",
-    "distribution": "normal", "mean": 10.0, "std": 3.0,
+    "distribution": "normal", "mean": 7.5, "std": 1.8,
     "nullable": True,
     "missing_if": {
-        "predictor": "lab_value",          # references its own column
-        "mechanism": "MNAR",               # value-dependent censoring
-        "relationship": "higher_increases_probability",
+        "predictor": "satisfaction_score",   # references its own column
+        "mechanism": "MNAR",
+        "relationship": "lower_increases_probability",
         "base_rate": 0.02,
-        "max_rate": 0.45,
+        "max_rate": 0.50,
     },
 }
 ```
 
-**Conditional nulls** (`null_when`): Null a column whenever a boolean expression is true. `dropout_visit` should be null when the patient did not drop out.
+**Conditional nulls** (`null_when`): Null a column whenever a boolean expression is true.
 
 ```python
-"dropout_visit": {
-    "type": "integer", "min": 1, "max": 12,
+"cancellation_reason": {
+    "type": "string",
+    "enum": ["price", "competitor", "unused", "other"],
     "nullable": True,
-    "null_when": "dropout == False",
+    "null_when": "churned == False",
 }
 ```
 
@@ -666,55 +665,54 @@ Real clinical and survey datasets have non-random missing data. Misata models bo
 
 ### Exact incidence control — precise rates, not statistical approximations
 
-A `boolean` column with `probability: 0.22` gives approximately 22% True values across many runs. If you need the dataset to contain exactly 22% — auditable against its own spec — use `exact_incidence`:
+A `boolean` column with `probability: 0.03` gives approximately 3% True values across many runs. If you need the dataset to contain exactly 3% — auditable against its own spec — use `exact_incidence`:
 
 ```python
-"is_adverse_event": {
+"is_fraud": {
     "type": "boolean",
     "exact_incidence": {
         "mode": "exact",
-        "rate": 0.22,          # exactly floor(n * 0.22) rows are True
+        "rate": 0.03,   # exactly floor(n * 0.03) rows are True
     },
 }
 ```
 
-Per-arm exact rates work the same way:
+Per-segment exact rates work the same way:
 
 ```python
-"is_responder": {
+"converted": {
     "type": "boolean",
     "exact_incidence": {
         "mode": "exact",
-        "group_by": "arm",
-        "rates": {"placebo": 0.15, "low_dose": 0.40, "high_dose": 0.55},
+        "group_by": "cohort",
+        "rates": {"control": 0.12, "variant_a": 0.18, "variant_b": 0.24},
     },
 }
 ```
 
-Use `exact_incidence` whenever the dataset will be checked against a declared rate. The difference between "approximately 3% fraud" and "exactly 3% fraud" is the difference between a dataset that passes an audit and one that does not.
+The difference between "approximately 3% fraud" and "exactly 3% fraud" is the difference between a dataset that passes an audit and one that does not.
 
 ---
 
 ### Within-entity time-series autocorrelation — longitudinal data that passes statistical tests
 
-Without autocorrelation, a longitudinal dataset (visits, sensor readings, financial time series) is statistically identical to a cross-sectional one. Every off-the-shelf time-series test — Ljung-Box, Durbin-Watson, autocorrelation plot — will immediately detect that the data is synthetic.
+Without autocorrelation, a longitudinal dataset (user sessions, IoT readings, financial time series) is statistically identical to a cross-sectional one. Every time-series test — Ljung-Box, Durbin-Watson, autocorrelation plot — will immediately detect that rows are independent and the data is synthetic.
 
 The `time_series` spec re-writes a column to have real within-entity autocorrelation:
 
 ```python
-"hba1c": {
+"daily_revenue": {
     "type": "float",
-    "distribution": "normal", "mean": 8.5, "std": 1.5,
+    "distribution": "lognormal", "mean": 8500.0, "std": 3000.0,
     "time_series": {
-        "entity_id": "patient_id",     # one autocorrelation process per patient
-        "order_by":  "visit_number",   # temporal ordering within each patient
-        "model":     "AR1",            # AR1 | LINEAR_TREND | RANDOM_WALK | MEAN_REVERSION
-        "phi":       0.72,             # autocorrelation coefficient
-        "noise_std": 0.30,             # measurement noise per step
-        "anchor_column": "hba1c_baseline",  # starting value drawn from this column
+        "entity_id": "store_id",      # one process per store
+        "order_by":  "day_number",
+        "model":     "AR1",           # AR1 | LINEAR_TREND | RANDOM_WALK | MEAN_REVERSION
+        "phi":       0.72,            # autocorrelation coefficient (0 = independent, 1 = random walk)
+        "noise_std": 800.0,
         "trend": {
-            "slope_mean": -0.08,       # average improvement per visit
-            "slope_std":  0.02,        # per-patient slope variability
+            "slope_mean": 45.0,       # average daily growth per store
+            "slope_std":  12.0,       # per-store growth variability
         },
     },
 }
@@ -724,67 +722,67 @@ Four models are available:
 
 | Model | Use case |
 |:--|:--|
-| `AR1` | Most clinical and physiological measurements — blood pressure, glucose, HbA1c |
-| `LINEAR_TREND` | KPIs with a declared direction — revenue growth, weight loss, skill improvement |
-| `RANDOM_WALK` | Asset prices, temperature drift, any mean-free Brownian motion |
-| `MEAN_REVERSION` | Inventory levels, mood scores, any bounded process that pulls back to average |
+| `AR1` | Measurements that persist between periods — revenue, active users, inventory |
+| `LINEAR_TREND` | KPIs with a declared direction — growth, decay, weight loss, skill improvement |
+| `RANDOM_WALK` | Asset prices, exchange rates, any mean-free Brownian process |
+| `MEAN_REVERSION` | Bounded metrics that pull back toward average — NPS, inventory fill rate |
 
 ---
 
-### Per-patient anchored distributions — separating within-entity and between-entity variation
+### Per-entity anchored distributions — separating within-entity and between-entity variation
 
-When generating a child table (visits) whose measurements should be anchored to a parent entity's (patient's) value, use a formula in `distribution.mean`:
+When a child table's column should be anchored to its parent entity's value, use a formula in `distribution.mean`:
 
 ```python
-"patients": {
-    "__rows__": 200,
-    "patient_id": {"type": "integer", "primary_key": True},
-    "hba1c_baseline": {"type": "float", "distribution": "normal", "mean": 8.5, "std": 1.5},
+"stores": {
+    "__rows__": 50,
+    "store_id": {"type": "integer", "primary_key": True},
+    "baseline_daily_revenue": {"type": "float", "distribution": "lognormal", "mean": 8500.0, "std": 3000.0},
 },
-"visits": {
-    "__rows__": 2000,
-    "visit_id": {"type": "integer", "primary_key": True},
-    "patient_id": {"type": "integer", "foreign_key": {"table": "patients", "column": "patient_id"}},
-    "hba1c": {
+"daily_sales": {
+    "__rows__": 18250,   # 50 stores × 365 days
+    "record_id": {"type": "integer", "primary_key": True},
+    "store_id":  {"type": "integer", "foreign_key": {"table": "stores", "column": "store_id"}},
+    "revenue": {
         "type": "float",
         "distribution": "normal",
-        "mean": {"formula": "@patients.hba1c_baseline"},  # resolved per row via FK
-        "std": 0.40,                                      # within-patient noise
+        "mean": {"formula": "@stores.baseline_daily_revenue"},  # anchored to each store's baseline
+        "std": 800.0,                                           # day-to-day noise
     },
 }
 ```
 
-The engine resolves the FK for every visit row and draws from that patient's personalised distribution. Between-patient variation comes from the spread of `hba1c_baseline` (std 1.5); within-patient visit-to-visit noise is std 0.40. This is the correct two-level structure that a mixed-effects model expects. Generating all visit HbA1c values from a single shared distribution — as every column-independent generator does — produces a dataset that fails every random-effects test immediately.
+The engine resolves the FK for every row and draws from that entity's personalised distribution. Between-store variation comes from the spread of `baseline_daily_revenue`; within-store day-to-day noise is `std: 800`. Generating all rows from one shared distribution — as every column-independent generator does — collapses between-entity and within-entity variance into a single number and fails every random-effects test.
 
 ---
 
-### Hierarchical ICC cluster effects — multi-site and multi-centre designs
+### Hierarchical ICC cluster effects — group structure that survives statistical tests
 
-In a multi-site clinical trial, patients within the same site share unmeasured site-level factors. This within-site homogeneity — measured by the intraclass correlation coefficient (ICC) — is a defining feature of multi-centre data. Without it, all sites look statistically identical, and any ICC test will detect the synthetic origin.
+When rows are grouped under parent entities (stores, regions, branches), observations within the same group tend to look more alike than observations across groups. This within-group homogeneity — the intraclass correlation coefficient (ICC) — is a defining feature of grouped data. Without it, all groups look statistically identical.
 
 `__cluster_effect__` is declared on the **parent** table and applies per-entity random intercepts to columns in the **child** table:
 
 ```python
-"sites": {
-    "__rows__": 12,
+"regions": {
+    "__rows__": 8,
     "__cluster_effect__": {
-        "affects_table": "patients",
+        "affects_table": "stores",
         "affects_columns": {
-            "systolic_bp": {
-                "icc": 0.18,       # target intraclass correlation
-                "sd_total": 18.0,  # total std; sd_between = sqrt(0.18) * 18 ≈ 7.6 mmHg
+            "avg_order_value": {
+                "icc": 0.22,         # target intraclass correlation
+                "sd_total": 45.0,    # sd_between = sqrt(0.22) * 45 ≈ 21
             },
-            "hba1c": {
-                "sd_between": 0.52,  # supply sd_between directly
+            "conversion_rate": {
+                "sd_between": 0.04,  # supply sd_between directly
             },
         },
     },
-    "site_id": {"type": "integer", "primary_key": True},
-    "region": {"type": "string", "enum": ["North", "South", "Central", "East", "West"]},
+    "region_id": {"type": "integer", "primary_key": True},
+    "name": {"type": "string", "enum": ["North", "South", "East", "West", "Central", "NW", "NE", "SE"]},
 }
 ```
 
-One random intercept is drawn per site from N(0, sd_between) and added to every patient at that site. The marginal distribution across all patients is preserved. Typical ICC values: 0.05–0.20 for clinical measurements, 0.10–0.30 for educational outcomes, 0.15–0.40 for financial metrics across branches.
+One random intercept is drawn per parent entity from N(0, sd_between) and added to every child row in that group. The marginal distribution across all rows is preserved. Typical ICC values: 0.05–0.20 for store-level retail metrics, 0.10–0.30 for educational outcomes across schools, 0.15–0.40 for branch-level banking metrics.
 
 ---
 
@@ -795,12 +793,12 @@ For tables with many correlated columns, the matrix syntax is cleaner than a lis
 ```python
 "__correlations__": {
     "matrix": {
-        "columns": ["hba1c", "glucose", "bmi", "systolic_bp"],
+        "columns": ["session_duration", "pages_viewed", "revenue", "satisfaction"],
         "values": {
-            "hba1c":       [1.00, 0.65, 0.28, 0.22],
-            "glucose":     [0.65, 1.00, 0.22, 0.18],
-            "bmi":         [0.28, 0.22, 1.00, 0.41],
-            "systolic_bp": [0.22, 0.18, 0.41, 1.00],
+            "session_duration": [1.00, 0.71, 0.55, 0.32],
+            "pages_viewed":     [0.71, 1.00, 0.48, 0.28],
+            "revenue":          [0.55, 0.48, 1.00, 0.41],
+            "satisfaction":     [0.32, 0.28, 0.41, 1.00],
         }
     }
 }
@@ -812,16 +810,17 @@ The matrix is expanded into pairwise pairs and enforced via Iman-Conover rank re
 
 ### State machine terminal states — process-correct categorical columns
 
-Any column that represents an entity's position in a process — clinical trial status, customer lifecycle stage, order fulfilment state — should follow a Markov chain, not a flat probability. `__state_machine__` generates the correct terminal distribution:
+Any column that represents an entity's position in a process — customer lifecycle stage, order fulfilment state, subscription status — should follow a Markov chain, not a flat probability. `__state_machine__` generates the correct terminal distribution:
 
 ```python
-"patients": {
+"orders": {
     "__state_machine__": {
-        "state_column": "patient_status",
-        "initial_state": "enrolled",
+        "state_column": "status",
+        "initial_state": "placed",
         "transitions": {
-            "enrolled":     {"on_treatment": 0.97, "screen_failure": 0.03},
-            "on_treatment": {"completed": 0.77,    "dropout": 0.23},
+            "placed":     {"confirmed": 0.95, "cancelled": 0.05},
+            "confirmed":  {"shipped": 0.92,   "cancelled": 0.08},
+            "shipped":    {"delivered": 0.97, "returned": 0.03},
         },
     },
     ...
@@ -832,37 +831,23 @@ States with no outgoing transitions are terminal. The engine traverses the chain
 
 ---
 
-### Domain-aware validation — audit generated data against physiological and financial bounds
+### Data validation — catch out-of-bounds values before they reach your pipeline
 
-After generating clinical or financial data, validate it against built-in range bounds before using it:
+After generation, validate against declared domain bounds before the data reaches a model or a dashboard:
 
 ```python
 tables = misata.generate_from_schema(schema)
 
-report = misata.validate_domain(tables, domain="clinical_trial")
+report = misata.validate_domain(tables, domain="financial")
 print(report.summary())
-# Domain validation (clinical_trial): 0 errors, 0 warnings.
+# Domain validation (financial): 0 errors, 0 warnings.
 
-assert report.passed   # no physiologically impossible values
+assert report.passed
 ```
 
-Built-in ranges for `clinical_trial` / `clinical`:
+Built-in ranges for `financial` / `fintech`: price ≥ 0, discount 0–1, rate –1 to 100, salary ≥ 0. Column matching is by substring on the lowercased column name — `"unit_price"` matches the `price` rule.
 
-| Column | Min | Max | Unit |
-|:--|--:|--:|:--|
-| hba1c | 4.0 | 14.0 | % |
-| glucose | 2.0 | 40.0 | mmol/L |
-| systolic_bp | 60.0 | 260.0 | mmHg |
-| diastolic_bp | 30.0 | 160.0 | mmHg |
-| bmi | 10.0 | 80.0 | kg/m² |
-| age | 0.0 | 130.0 | years |
-| heart_rate | 20.0 | 300.0 | bpm |
-| creatinine | 0.3 | 20.0 | mg/dL |
-| hemoglobin | 3.0 | 25.0 | g/dL |
-
-Built-in ranges for `financial` / `fintech`: price ≥ 0, discount 0–1, rate –1 to 100. Column matching is by substring on the lowercased column name — `"hba1c_baseline"` matches the `hba1c` rule.
-
-Add custom ranges via `custom_ranges` dict. Declare `"__domain__": "clinical_trial"` in the dict schema to attach the domain to the `SchemaConfig` for downstream tooling.
+Add custom ranges via the `custom_ranges` dict for any column type. Declare `"__domain__": "financial"` in the dict schema to attach the domain to the `SchemaConfig` for downstream tooling.
 
 ---
 
