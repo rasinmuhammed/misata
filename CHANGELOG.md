@@ -5,11 +5,6 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0.6] - 2026-06-17
-
-Agent-reachability release. The schema-first contract used by Studio, MCP agents,
-and non-Python callers now reaches the engine's constraint and correlation features —
-and those features are enforced during generation, not just declared. 770 tests, 0 failures.
 
 ### Added
 
@@ -37,9 +32,15 @@ and those features are enforced during generation, not just declared. 770 tests,
   Rows with nulls on either side are left untouched — the rules govern fully-populated
   pairs only.
 
-## [0.8.0.5] - 2026-06-11
+## [0.8.0.5] - 2026-06-18
 
-Mimic realism release. 776 tests, 0 failures.
+Realism and contract-completeness release. 781 tests, 0 failures.
+
+All unreleased work since 0.8.0.4 ships here: mimic now reproduces alphanumeric code
+columns structurally, floats keep their decimals, charm-price quantization is blocked on
+profiled data, outcome curves and rate curves are reachable from dict schemas, and
+inequality/col_range constraints plus pairwise correlations are now enforced during
+generation rather than silently ignored.
 
 ### Fixed
 

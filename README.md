@@ -166,6 +166,33 @@ print(oracle["advisory"]["locale_domain_fit"]["locale"])
 
 ---
 
+## Mimic mode — clone any CSV in one call
+
+Point `misata.mimic()` at a real dataset and get a synthetic twin that matches every column's distributions but contains none of the original rows. No schema authoring, no config.
+
+```python
+import pandas as pd
+import misata
+
+real = pd.read_csv("titanic.csv")
+twin = misata.mimic(real, rows=2000, seed=42, table_name="passengers")["passengers"]
+```
+
+The profiler handles the columns that break other tools:
+
+- **Alphanumeric code columns** (Ticket `"A/5 21171"`, Cabin `"C85"`, SKUs, reference numbers) are detected by their character-class shape and reproduced structurally — same shapes in the right proportions, entirely new values, zero verbatim leak from the source. They no longer fall through to prose text generation.
+- **Floats keep their cents.** A Fare of `7.25` generates as `7.25`-shaped values. The profiler infers decimal places from the data; semantic quantization (charm pricing) never fires on mimicked columns.
+- **Distributions are fit from the data.** Skewed-positive columns get lognormal; constant columns get a uniform stub; everything else gets normal. Categorical columns with fewer than 50 values carry their real frequencies.
+
+```python
+# Verify: no verbatim rows can leak through
+shared = [c for c in real.columns if c in twin.columns]
+overlap = pd.merge(real[shared].astype(str), twin[shared].astype(str), how="inner")
+assert len(overlap) == 0
+```
+
+---
+
 ## Six ways to generate data
 
 ### 1. Plain English, no config required
@@ -262,11 +289,74 @@ schema = misata.from_dict_schema({
         "id":          {"type": "integer", "primary_key": True},
         "customer_id": {"type": "integer", "foreign_key": {"table": "customers", "column": "id"}},
         "amount":      {"type": "float", "min": 1.0, "max": 999.0},
+        "order_date":  {"type": "date"},
     },
 }, row_count=5_000)
 
 tables = misata.generate_from_schema(schema)
 ```
+
+**Declared outcome curves** — add `__outcome_curves__` as a top-level key alongside the table definitions. Generated rows sum to every declared target exactly, to the cent:
+
+```python
+schema = misata.from_dict_schema({
+    "__outcome_curves__": [{
+        "table": "orders",
+        "column": "amount",
+        "time_column": "order_date",
+        "time_unit": "month",
+        "value_mode": "absolute",
+        "start_date": "2024-01-01",
+        "avg_transaction_value": 120.0,
+        "curve_points": [
+            {"month": 1,  "target_value":  50_000.0},
+            {"month": 6,  "target_value": 110_000.0},
+            {"month": 12, "target_value": 200_000.0},
+        ],
+    }],
+    "orders": {
+        "__rows__": 5000,
+        "order_id":   {"type": "integer", "primary_key": True},
+        "amount":     {"type": "float", "min": 5, "max": 500},
+        "order_date": {"type": "date"},
+    },
+}, seed=42)
+
+tables = misata.generate_from_schema(schema)
+monthly = (
+    tables["orders"]
+    .assign(m=pd.to_datetime(tables["orders"]["order_date"]).dt.month)
+    .groupby("m")["amount"].sum()
+)
+assert abs(monthly[1]  -  50_000) < 0.01   # exact
+assert abs(monthly[12] - 200_000) < 0.01   # exact
+```
+
+**Constraints and correlations** — enforce business rules and inter-column relationships directly in the dict schema:
+
+```python
+schema = misata.from_dict_schema({
+    "patients": {
+        "__rows__": 1000,
+        "__constraints__": [
+            # visit must be on or after enrollment — enforced at generation, not post-processing
+            {"type": "inequality", "column_a": "visit_date",
+             "operator": ">=", "column_b": "enroll_date", "action": "cap"},
+        ],
+        "__correlations__": [
+            # heavier patients tend to have higher blood pressure (r = 0.41)
+            {"col_a": "bmi", "col_b": "systolic_bp", "r": 0.41},
+        ],
+        "patient_id":  {"type": "integer", "primary_key": True},
+        "enroll_date": {"type": "date"},
+        "visit_date":  {"type": "date"},
+        "bmi":         {"type": "float", "min": 16, "max": 55},
+        "systolic_bp": {"type": "float", "min": 90, "max": 200},
+    },
+})
+```
+
+`__rate_curves__` works the same way for per-period rate targets on boolean or categorical columns (fraud rates, churn flags, plan distributions).
 
 ### 5. LLM-assisted generation, richer semantics, optional
 
@@ -660,7 +750,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-757 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
+781 tests, 0 failures. Issues and PRs welcome — [github.com/rasinmuhammed/misata/issues](https://github.com/rasinmuhammed/misata/issues)
 
 ---
 
