@@ -5,6 +5,32 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.1] - 2026-06-19
+
+### Fixed
+
+- **`_TEXT_TYPE_HINTS` wrong mappings.** `first_name` now correctly maps to
+  the `first_name` text generator (was `"name"`); `last_name` to `"last_name"`
+  (was `"name"`). Columns named after either would have produced full names
+  instead of the matching first/last name.
+- **`_TEXT_TYPE_HINTS` greedy substring matching.** Lookup now tries an exact
+  match first (`col_name == hint_key`) before falling back to substring scan,
+  so `"company_name"` no longer gets `text_type: "name"` from the `"name"` entry.
+
+### Added
+
+- **Expanded `_TEXT_TYPE_HINTS` coverage (30 new entries).** `compat.py` now
+  resolves `city`, `town`, `country`, `postcode`, `postal_code`, `zip`,
+  `job`, `job_title`, `position`, `username`, `domain`, `mobile`, `telephone`,
+  `surname`, `family_name`, `organization`, `org_name`, `employer`, `street`,
+  `billing_address`, `shipping_address`, and `display_name` to their correct
+  engine text generators, with no manual `text_type` hint required in the dict.
+- **Post-parse semantic enrichment in `StoryParser`.** `_enrich_schema_text_types`
+  runs at the end of every `parse()` call, filling `text_type` for any `text`
+  column whose name matches an unambiguous pattern but had no explicit type set.
+  This covers the compositional fallback and generic fallback paths that previously
+  produced bare `text` columns with no semantic generator.
+
 
 ### Added
 
