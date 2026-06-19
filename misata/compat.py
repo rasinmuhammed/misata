@@ -88,16 +88,48 @@ _TYPE_MAP: Dict[str, str] = {
 }
 
 _TEXT_TYPE_HINTS: Dict[str, str] = {
-    "email": "email",
-    "phone": "phone",
-    "name": "name",
+    # People — specific first (so exact match wins over "name" substring)
+    "first_name": "first_name",
+    "last_name": "last_name",
+    "surname": "last_name",
+    "family_name": "last_name",
     "full_name": "name",
-    "first_name": "name",
-    "last_name": "name",
-    "company": "company",
+    "display_name": "name",
+    "customer_name": "name",
+    "user_name": "name",
+    "username": "username",
+    "name": "name",
+    # Contact
+    "email": "email",
+    "e_mail": "email",
+    "mobile": "phone",
+    "telephone": "phone",
+    "phone": "phone",
+    # Location
     "address": "address",
-    "url": "url",
+    "street": "address",
+    "billing_address": "address",
+    "shipping_address": "address",
+    "city": "city",
+    "town": "city",
+    "country": "country",
+    "postcode": "postcode",
+    "postal_code": "postcode",
+    "zip": "postcode",
+    "zip_code": "postcode",
+    # Business
+    "organization": "company",
+    "org_name": "company",
+    "employer": "company",
+    "company": "company",
+    "job_title": "job",
+    "position": "job",
+    "job": "job",
+    # Online
     "website": "url",
+    "web_url": "url",
+    "url": "url",
+    "domain": "domain",
 }
 
 
@@ -148,12 +180,17 @@ def _col_from_dict(
             params["decimals"] = col_def["decimals"]
 
     elif misata_type == "text":
-        # Infer text_type from column name
-        for hint_key, text_type in _TEXT_TYPE_HINTS.items():
-            if hint_key in col_name.lower():
-                params["text_type"] = text_type
-                break
-        # Explicit raw type overrides name-based hint
+        # Infer text_type from column name — exact match wins, then substring
+        n = col_name.lower().replace(" ", "_")
+        inferred = _TEXT_TYPE_HINTS.get(n)
+        if inferred is None:
+            for hint_key, text_type in _TEXT_TYPE_HINTS.items():
+                if hint_key in n:
+                    inferred = text_type
+                    break
+        if inferred:
+            params["text_type"] = inferred
+        # Explicit raw type in the dict schema always wins
         if raw_type in ("email", "phone", "url", "uuid"):
             params["text_type"] = raw_type
 

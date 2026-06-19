@@ -1074,8 +1074,53 @@ class StoryParser:
             except Exception:
                 object.__setattr__(schema, "rate_curves", existing + detected_rate_curves)
 
+        schema = self._enrich_schema_text_types(schema)
+
         # Cache the produced schema so detection_report() can preview tables
         self._last_schema = schema
+        return schema
+
+    def _enrich_schema_text_types(self, schema: "SchemaConfig") -> "SchemaConfig":
+        """Post-processing: set text_type for any text column whose name
+        matches an unambiguous semantic pattern but has no text_type yet.
+        Only fires on text columns without an existing text_type to avoid
+        overriding intentional domain-specific text_types from templates."""
+        from misata.compat import _TEXT_TYPE_HINTS
+        import re as _re
+
+        _EXACT_MAP: Dict[str, str] = _TEXT_TYPE_HINTS  # type: ignore[assignment]
+        changed = False
+        new_columns: Dict[str, list] = {}
+
+        for table in schema.tables:
+            cols = list(schema.columns.get(table.name, []))
+            updated: list = []
+            for col in cols:
+                if col.type == "text":
+                    params = dict(col.distribution_params or {})
+                    if "text_type" not in params:
+                        n = col.name.lower().replace(" ", "_")
+                        inferred = _EXACT_MAP.get(n)
+                        if inferred is None:
+                            for hint_key, tt in _EXACT_MAP.items():
+                                if hint_key in n:
+                                    inferred = tt
+                                    break
+                        if inferred:
+                            params["text_type"] = inferred
+                            col = col.model_copy(update={"distribution_params": params})
+                            changed = True
+                updated.append(col)
+            new_columns[table.name] = updated
+
+        if not changed:
+            return schema
+
+        # Rebuild columns dict on the schema
+        try:
+            schema = schema.model_copy(update={"columns": new_columns})
+        except Exception:
+            object.__setattr__(schema, "columns", new_columns)
         return schema
 
     def detection_report(self) -> "DetectionReport":
