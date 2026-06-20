@@ -856,6 +856,18 @@ class DataSimulator:
             elif distribution == "poisson":
                 lam = params.get("lambda", 10)
                 values = self.rng.poisson(lam, size=size)
+            elif distribution == "empirical":
+                # Inverse-CDF sampling from stored quantiles — reproduces any
+                # marginal shape (used by mimic when no parametric fit is good).
+                q = params.get("quantiles") or []
+                if len(q) >= 2:
+                    qs = np.linspace(0.0, 1.0, len(q))
+                    u = self.rng.uniform(0, 1, size=size)
+                    values = np.round(np.interp(u, qs, np.asarray(q, dtype=float))).astype(int)
+                else:
+                    low = params.get("min", 0)
+                    high = params.get("max", 1000)
+                    values = self.rng.integers(low, high, size=size)
             else:
                 low = params.get("min", 0)
                 high = params.get("max", 1000)
@@ -970,6 +982,18 @@ class DataSimulator:
                 low = float(params.get("min", 0.0))
                 high = float(params.get("max", 1.0))
                 values = self.rng.beta(a, b, size=size) * (high - low) + low
+            elif distribution == "empirical":
+                # Inverse-CDF sampling from stored quantiles — reproduces any
+                # marginal shape (used by mimic when no parametric fit is good).
+                q = params.get("quantiles") or []
+                if len(q) >= 2:
+                    qs = np.linspace(0.0, 1.0, len(q))
+                    u = self.rng.uniform(0, 1, size=size)
+                    values = np.interp(u, qs, np.asarray(q, dtype=float))
+                else:
+                    low = params.get("min", 0.0)
+                    high = params.get("max", 1000.0)
+                    values = self.rng.uniform(low, high, size=size)
             else:
                 low = params.get("min", 0.0)
                 high = params.get("max", 1000.0)

@@ -165,6 +165,54 @@ def _infer_code_patterns(series: pd.Series, top_n: int = 5) -> Dict[str, Any]:
     }
 
 
+# A fitted parametric distribution whose KS distance to the real column exceeds
+# this is rejected in favour of empirical (inverse-CDF) sampling.
+_PARAMETRIC_KS_TOLERANCE = 0.05
+# Number of quantile control points stored for an empirical column. These are
+# aggregate statistics (a downsampled CDF), not raw rows.
+_EMPIRICAL_QUANTILES = 101
+
+
+def _parametric_ks(s: pd.Series, params: Dict[str, Any]) -> float:
+    """KS distance between the real column and a draw from the fitted params."""
+    try:
+        from scipy.stats import ks_2samp
+    except Exception:
+        return 0.0  # scipy always present, but never block fitting on its absence
+
+    n = min(len(s), 5000)
+    rng = np.random.default_rng(0)
+    dist = params.get("distribution")
+    if dist == "lognormal":
+        draw = rng.lognormal(params["mu"], params["sigma"], n)
+    elif dist == "normal":
+        draw = rng.normal(params["mean"], params["std"], n)
+    elif dist == "uniform":
+        draw = rng.uniform(params["min"], params["max"], n)
+    else:
+        return 1.0
+    draw = np.clip(draw, params.get("min", draw.min()), params.get("max", draw.max()))
+    return float(ks_2samp(s.values, draw).statistic)
+
+
+def _empirical_params(s: pd.Series, is_int: bool, decimals: int) -> Dict[str, Any]:
+    """Store a downsampled empirical CDF for inverse-transform sampling."""
+    n_q = min(_EMPIRICAL_QUANTILES, max(2, s.nunique()))
+    qs = np.linspace(0.0, 1.0, n_q)
+    qv = np.quantile(s.values, qs)
+    if is_int:
+        qv = np.round(qv).astype(int).tolist()
+    else:
+        qv = [round(float(v), decimals) for v in qv]
+    return {
+        "distribution": "empirical",
+        "quantiles": qv,
+        "min": int(qv[0]) if is_int else round(float(s.min()), decimals),
+        "max": int(qv[-1]) if is_int else round(float(s.max()), decimals),
+        "decimals": decimals,
+    }
+
+
 def _fit_numeric(series: pd.Series, is_int: bool) -> Dict[str, Any]:
     s = series.dropna().astype(float)
     if len(s) == 0:
@@ -172,8 +220,18 @@ def _fit_numeric(series: pd.Series, is_int: bool) -> Dict[str, Any]:
 
     mn, mx = float(s.min()), float(s.max())
     mean, std = float(s.mean()), float(s.std())
+    decimals = 0 if is_int else _infer_decimals(s)
 
-    # Choose distribution: lognormal if all-positive and right-skewed
+    # Truly-constant column (one value, or zero spread): emit a fixed value.
+    # NOTE: do not use an absolute std threshold here — small-magnitude columns
+    # (e.g. error metrics in [0, 0.05]) have tiny std yet are far from constant.
+    if s.nunique() <= 1 or (mx - mn) < 1e-12:
+        lo = int(round(mn)) if is_int else round(mn, decimals)
+        hi = (lo + 1) if is_int else lo
+        return {"distribution": "uniform", "min": lo, "max": hi, "decimals": decimals}
+
+    # Choose a parametric distribution: lognormal if all-positive and right-skewed,
+    # otherwise normal.
     if mn > 0 and s.skew() > 1.0:
         log_s = np.log(s)
         mu    = float(log_s.mean())
@@ -182,27 +240,29 @@ def _fit_numeric(series: pd.Series, is_int: bool) -> Dict[str, Any]:
             "distribution": "lognormal",
             "mu": round(mu, 4),
             "sigma": round(max(sigma, 0.01), 4),
-            "min": round(mn, 4),
-            "max": round(mx, 4),
+            "min": round(mn, 6),
+            "max": round(mx, 6),
         }
-    elif std < 0.01:
-        # Constant column — just use uniform with tiny range
-        params = {"distribution": "uniform", "min": round(mn, 4), "max": round(max(mx, mn + 1), 4)}
     else:
         params = {
             "distribution": "normal",
-            "mean": round(mean, 4),
-            "std": round(std, 4),
-            "min": round(mn, 4),
-            "max": round(mx, 4),
+            "mean": round(mean, 6),
+            "std": round(std, 6),
+            "min": round(mn, 6),
+            "max": round(mx, 6),
         }
+
+    # If the parametric fit does not match the real column closely, fall back to
+    # empirical inverse-CDF sampling, which reproduces any shape. This rescues
+    # heavy-skew, multimodal, and bounded-spike columns no textbook fit captures.
+    if _parametric_ks(s, params) > _PARAMETRIC_KS_TOLERANCE:
+        return _empirical_params(s, is_int, decimals)
 
     if is_int:
         params["decimals"] = 0
         params["min"] = int(params["min"])
         params["max"] = int(params["max"])
     else:
-        decimals = _infer_decimals(s)
         params["decimals"] = decimals
     return params
 

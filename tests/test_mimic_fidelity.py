@@ -138,6 +138,66 @@ def test_fidelity_summary_renders():
     assert "Overall fidelity" in text and len(text) > 0
 
 
+# ---------------------------------------------------------------------------
+# Empirical marginal fallback + small-magnitude bug
+# ---------------------------------------------------------------------------
+
+def test_mimic_small_magnitude_column_not_blown_up():
+    """Regression: a column in [0, 0.05] must not be mimicked as uniform[0, 1].
+
+    The old constant-column guard used an absolute std threshold and a max(mx,
+    mn+1) fallback, which forced the range to 1.0 for small-magnitude columns.
+    """
+    rng = np.random.default_rng(0)
+    real = pd.DataFrame({"err": np.abs(rng.normal(0, 0.012, 4000)).round(5)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=4000, seed=1)["table"]
+    assert syn["err"].max() < 0.1, f"range blew up: max={syn['err'].max()}"
+    rep = misata.fidelity_report(syn, real, ml_efficacy=False)
+    assert rep.marginal_score > 0.9, f"small-magnitude column fidelity low: {rep.marginal_score}"
+
+
+def test_mimic_empirical_fallback_for_bimodal():
+    """A bimodal column (no parametric fit) must still be reproduced faithfully."""
+    rng = np.random.default_rng(0)
+    bimodal = np.concatenate([rng.normal(10, 1, 2000), rng.normal(40, 2, 2000)])
+    real = pd.DataFrame({"x": bimodal.round(2)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=4000, seed=1)["table"]
+    rep = misata.fidelity_report(syn, real, ml_efficacy=False)
+    # A single normal/lognormal cannot capture two modes; empirical should.
+    assert rep.marginal_score > 0.9, f"bimodal fidelity low: {rep.marginal_score}"
+
+
+def test_empirical_distribution_generates_in_range():
+    """The empirical distribution samples within the stored quantile range."""
+    from misata.schema import Column, SchemaConfig, Table
+    from misata.simulator import DataSimulator
+
+    quantiles = [0.0, 0.1, 0.25, 0.5, 0.8, 1.0, 2.5, 5.0]
+    schema = SchemaConfig(
+        name="e", seed=3,
+        tables=[Table(name="t", row_count=1000)],
+        columns={"t": [Column(name="v", type="float",
+                              distribution_params={"distribution": "empirical",
+                                                   "quantiles": quantiles, "decimals": 2})]},
+    )
+    df = {n: d for n, d in DataSimulator(schema).generate_all()}["t"]
+    assert df["v"].min() >= quantiles[0] - 1e-6
+    assert df["v"].max() <= quantiles[-1] + 1e-6
+
+
+def test_constant_column_stays_constant():
+    """A single-value column must mimic to that same value, not uniform[v, v+1]."""
+    real = pd.DataFrame({"k": [7.5] * 500, "x": np.random.default_rng(0).normal(0, 1, 500)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=500, seed=1)["table"]
+    assert syn["k"].nunique() == 1 and syn["k"].iloc[0] == 7.5
+
+
 @pytest.mark.skipif(
     pytest.importorskip("sklearn", reason="scikit-learn not installed") is None,
     reason="needs scikit-learn",
