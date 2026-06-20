@@ -284,10 +284,31 @@ def to_arrow(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    import datetime as _dt
+
     written: Dict[str, Path] = {}
     for name, df in tables.items():
         path = output_dir / f"{name}.arrow"
         table = pa.Table.from_pandas(df, preserve_index=False)
+
+        # pa.Table.from_pandas maps datetime64[ns] columns to TimestampType even
+        # when the column logically holds calendar dates.  Cast those to date32.
+        new_fields = []
+        new_columns = []
+        for i, field in enumerate(table.schema):
+            col = table.column(i)
+            if pa.types.is_timestamp(field.type):
+                # Check if the underlying pandas column was a date (not datetime)
+                pd_col = df[field.name]
+                sample = pd_col.dropna().iloc[0] if not pd_col.dropna().empty else None
+                if isinstance(sample, _dt.date) and not isinstance(sample, _dt.datetime):
+                    col = col.cast(pa.date32())
+                    field = field.with_type(pa.date32())
+            new_fields.append(field)
+            new_columns.append(col)
+
+        table = pa.table(dict(zip([f.name for f in new_fields], new_columns)),
+                         schema=pa.schema(new_fields))
         with pa.OSFile(str(path), "wb") as sink:
             with ipc.new_file(sink, table.schema) as writer:
                 writer.write_table(table)

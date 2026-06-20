@@ -15,16 +15,14 @@ from misata.exceptions import ColumnGenerationError
 
 class BaseGenerator(ABC):
     """Abstract base class for all data generators.
-    
-    All generators must implement the `generate` method which produces
-    a numpy array of values.
-    
-    Example:
-        class IntegerGenerator(BaseGenerator):
-            def generate(self, size: int, params: dict) -> np.ndarray:
-                return np.random.randint(params['min'], params['max'], size)
+
+    Each instance owns its own ``np.random.Generator`` so that concurrent
+    callers (threads, Spark executors) cannot corrupt each other's RNG state.
     """
-    
+
+    def __init__(self) -> None:
+        self._rng = np.random.default_rng()
+
     @abstractmethod
     def generate(self, size: int, params: Dict[str, Any]) -> np.ndarray:
         """Generate an array of values.
@@ -171,21 +169,21 @@ class IntegerGenerator(BaseGenerator):
         elif distribution == "uniform":
             min_val = params.get("min", 0)
             max_val = params.get("max", 100)
-            return np.random.randint(min_val, max_val + 1, size)
-        
+            return self._rng.integers(min_val, max_val + 1, size)
+
         elif distribution == "normal":
             mean = params.get("mean", 50)
             std = params.get("std", 10)
-            return np.clip(np.random.normal(mean, std, size).astype(int), 0, None)
-        
+            return np.clip(self._rng.normal(mean, std, size).astype(int), 0, None)
+
         elif distribution == "poisson":
             lam = params.get("lambda", 5)
-            return np.random.poisson(lam, size)
-        
+            return self._rng.poisson(lam, size)
+
         elif distribution == "binomial":
             n = params.get("n", 10)
             p = params.get("p", 0.5)
-            return np.random.binomial(n, p, size)
+            return self._rng.binomial(n, p, size)
         
         else:
             raise ColumnGenerationError(
@@ -205,26 +203,29 @@ class FloatGenerator(BaseGenerator):
         if distribution == "uniform":
             min_val = params.get("min", 0.0)
             max_val = params.get("max", 100.0)
-            values = np.random.uniform(min_val, max_val, size)
-        
+            values = self._rng.uniform(min_val, max_val, size)
+
         elif distribution == "normal":
             mean = params.get("mean", 50.0)
             std = params.get("std", 10.0)
-            values = np.random.normal(mean, std, size)
-        
+            values = self._rng.normal(mean, std, size)
+
         elif distribution == "exponential":
             scale = params.get("scale", 1.0)
-            values = np.random.exponential(scale, size)
-        
+            values = self._rng.exponential(scale, size)
+
         elif distribution == "lognormal":
             mean = params.get("mean", 0.0)
             sigma = params.get("sigma", 1.0)
-            values = np.random.lognormal(mean, sigma, size)
-        
+            values = self._rng.lognormal(mean, sigma, size)
+
         elif distribution == "beta":
             a = params.get("a", 2.0)
             b = params.get("b", 5.0)
-            values = np.random.beta(a, b, size)
+            min_val = params.get("min", 0.0)
+            max_val = params.get("max", 1.0)
+            raw = self._rng.beta(a, b, size)
+            values = min_val + raw * (max_val - min_val)
         
         else:
             raise ColumnGenerationError(
@@ -241,7 +242,7 @@ class BooleanGenerator(BaseGenerator):
     
     def generate(self, size: int, params: Dict[str, Any]) -> np.ndarray:
         probability = params.get("probability", 0.5)
-        return np.random.random(size) < probability
+        return self._rng.random(size) < probability
 
 
 class CategoricalGenerator(BaseGenerator):
@@ -267,7 +268,7 @@ class CategoricalGenerator(BaseGenerator):
             # Normalize weights
             weights = np.array(weights) / sum(weights)
         
-        return np.random.choice(choices, size=size, p=weights)
+        return self._rng.choice(choices, size=size, p=weights)
 
 
 class DateGenerator(BaseGenerator):
@@ -284,14 +285,13 @@ class DateGenerator(BaseGenerator):
         end_ts = pd.Timestamp(end).value // 10**9
         
         if distribution == "uniform":
-            timestamps = np.random.randint(start_ts, end_ts, size)
+            timestamps = self._rng.integers(start_ts, end_ts, size)
         elif distribution == "recent":
-            # Bias towards recent dates (exponential decay)
-            u = np.random.exponential(0.3, size)
+            u = self._rng.exponential(0.3, size)
             u = np.clip(u / u.max(), 0, 1)
             timestamps = (start_ts + (end_ts - start_ts) * u).astype(int)
         else:
-            timestamps = np.random.randint(start_ts, end_ts, size)
+            timestamps = self._rng.integers(start_ts, end_ts, size)
         
         return pd.to_datetime(timestamps, unit='s').strftime('%Y-%m-%d').values
 
@@ -310,6 +310,7 @@ class TextGenerator(BaseGenerator):
     """
 
     def __init__(self, locale: str = "en_US"):
+        super().__init__()
         self._locale = locale
         self._faker = self._build_faker(locale)
 
@@ -446,7 +447,7 @@ class TextGenerator(BaseGenerator):
             from misata.locales.registry import LocaleRegistry
             pack = LocaleRegistry.global_instance().get_pack(self._locale)
             if pack.top_cities:
-                return np.random.choice(pack.top_cities, size=size)
+                return self._rng.choice(pack.top_cities, size=size)
         except Exception:
             pass
         if self._faker:
@@ -513,6 +514,7 @@ class ForeignKeyGenerator(BaseGenerator):
     """Generator for foreign key references."""
     
     def __init__(self, parent_ids: Optional[np.ndarray] = None):
+        super().__init__()
         self.parent_ids = parent_ids
     
     def set_parent_ids(self, parent_ids: np.ndarray) -> None:
@@ -527,7 +529,7 @@ class ForeignKeyGenerator(BaseGenerator):
                 suggestion="Ensure parent table is generated before child table"
             )
         
-        return np.random.choice(self.parent_ids, size=size)
+        return self._rng.choice(self.parent_ids, size=size)
 
 
 # ============ Generator Factory ============
@@ -560,45 +562,26 @@ class GeneratorFactory:
         "fk": ForeignKeyGenerator,
     }
     
-    _instances: Dict[str, BaseGenerator] = {}
-    
     @classmethod
     def register(cls, column_type: str, generator_class: Type[BaseGenerator]) -> None:
-        """Register a custom generator for a column type.
-        
-        Args:
-            column_type: Type name (e.g., "custom_int")
-            generator_class: Generator class to use
-        """
+        """Register a custom generator for a column type."""
         cls._generators[column_type.lower()] = generator_class
-    
+
     @classmethod
     def get_generator(cls, column_type: str) -> BaseGenerator:
-        """Get a generator instance for the given column type.
-        
-        Args:
-            column_type: Column type (e.g., "int", "text", "date")
-            
-        Returns:
-            Generator instance
-            
-        Raises:
-            ColumnGenerationError: If column type is not supported
+        """Return a fresh generator instance for the given column type.
+
+        A new instance is created on every call so each caller owns its own
+        ``_rng`` — making concurrent use from multiple threads safe.
         """
         column_type = column_type.lower()
-        
         if column_type not in cls._generators:
             raise ColumnGenerationError(
                 f"Unsupported column type: {column_type}",
                 column_type=column_type,
                 suggestion=f"Supported types: {', '.join(cls._generators.keys())}"
             )
-        
-        # Get or create instance
-        if column_type not in cls._instances:
-            cls._instances[column_type] = cls._generators[column_type]()
-        
-        return cls._instances[column_type]
+        return cls._generators[column_type]()
     
     @classmethod
     def create_foreign_key_generator(cls, parent_ids: np.ndarray) -> ForeignKeyGenerator:
@@ -642,6 +625,7 @@ class ConditionalCategoricalGenerator(BaseGenerator):
             parent_column: Name of the parent column
             default_values: Values to use if parent not in lookup
         """
+        super().__init__()
         self.lookup = lookup
         self.parent_column = parent_column
         self.default_values = default_values or (list(lookup.values())[0] if lookup else ["Unknown"])
@@ -665,7 +649,7 @@ class ConditionalCategoricalGenerator(BaseGenerator):
                 all_values.extend(values)
             if not all_values:
                 all_values = self.default_values
-            return np.random.choice(all_values, size=size)
+            return self._rng.choice(all_values, size=size)
         
         # Convert to array if needed
         parent_values = np.asarray(parent_values)
@@ -681,7 +665,7 @@ class ConditionalCategoricalGenerator(BaseGenerator):
         result = np.empty(size, dtype=object)
         for i, parent in enumerate(parent_values):
             choices = self.lookup.get(str(parent), self.default_values)
-            result[i] = np.random.choice(choices)
+            result[i] = self._rng.choice(choices)
         
         return result
 

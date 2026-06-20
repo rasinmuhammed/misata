@@ -101,6 +101,7 @@ class DataSimulator:
 
         self.config = config
         self.context: Dict[str, pd.DataFrame] = {}  # Lightweight context (IDs only)
+        self._pk_store: Dict[str, np.ndarray] = {}  # Full PK arrays for FK sampling
         self.text_gen = TextGenerator(seed=config.seed)
         self.batch_size = batch_size
         self.smart_mode = smart_mode
@@ -125,12 +126,12 @@ class DataSimulator:
             from misata.semantic import apply_semantic_inference
             self.config.columns = apply_semantic_inference(self.config.columns)
 
-        # Set random seed if provided
-        seed = config.seed if config.seed is not None else np.random.randint(0, 2**32 - 1)
-        self.rng = np.random.default_rng(seed)
-        np.random.seed(seed)  # For legacy numpy.random calls
+        # Set random seed if provided — use default_rng only; never mutate
+        # the process-global np.random state (makes concurrent generation safe).
+        _init_seed = config.seed if config.seed is not None else None
+        self.rng = np.random.default_rng(_init_seed)
         self.fact_engine = FactEngine(self.rng)
-        self.noise_injector = NoiseInjector(seed)
+        self.noise_injector = NoiseInjector(_init_seed)
         self.generation_plan = GenerationPlanner(self.config, self.rng).build()
         realism = getattr(self.config, "realism", None)
         asset_store = AssetStore(getattr(realism, "asset_store_dir", None))
@@ -307,6 +308,15 @@ class DataSimulator:
 
         if relationship.parent_table not in self.context:
             return np.array([])
+
+        # If _pk_store has the full parent PK array (not capped), use it for
+        # unfiltered FK sampling — avoids child-distribution skew on large parents.
+        if (
+            not relationship.filters
+            and relationship.parent_key == "id"
+            and relationship.parent_table in self._pk_store
+        ):
+            return self._pk_store[relationship.parent_table]
 
         parent_df = self.context[relationship.parent_table]
         if relationship.parent_key not in parent_df.columns:
@@ -1459,6 +1469,7 @@ class DataSimulator:
             df_batch[column.name] = values
 
         df_batch = self._apply_formula_columns(df_batch, table_name)
+        df_batch = self._apply_correlations(df_batch, table_name)
         df_batch = self._fix_correlated_columns(df_batch, table_name)
 
         constrained_columns = plan.constrained_columns
@@ -1637,16 +1648,22 @@ class DataSimulator:
         if not cols_to_store:
             return
 
+        # Always accumulate the full PK array so FK sampling is unbiased
+        # regardless of how large the parent table grows.  The context itself
+        # is still capped (for memory), but _pk_store is PK-only and cheap.
+        if "id" in df.columns:
+            pk_vals = df["id"].dropna().values
+            if table_name in self._pk_store:
+                self._pk_store[table_name] = np.concatenate(
+                    [self._pk_store[table_name], pk_vals]
+                )
+            else:
+                self._pk_store[table_name] = pk_vals
+
         ctx_df = df[cols_to_store].copy()
 
         if table_name not in self.context:
             if len(ctx_df) > self.MAX_CONTEXT_ROWS:
-                warnings.warn(
-                    f"Table '{table_name}' has {len(ctx_df):,} rows but context is capped at "
-                    f"{self.MAX_CONTEXT_ROWS:,}. Foreign keys referencing this table will only "
-                    f"sample from the first {self.MAX_CONTEXT_ROWS:,} rows.",
-                    UserWarning,
-                )
                 ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=int(self.rng.integers(0, 2**31)))
             self.context[table_name] = ctx_df
         else:
@@ -1900,19 +1917,19 @@ class DataSimulator:
                 # STRATEGY 1: SEASONAL (Cyclic 1-12)
                 if pattern_type in ['seasonal', 'cyclic']:
                     months = timestamps.dt.month
-                    scaling_factors = np.ones(13) # Index 1-12
-                    
+                    scaling_factors = np.ones(13)  # Index 1-12
+
                     x_known = np.array([p['month'] for p in points])
                     y_known = np.array([p['relative_value'] for p in points])
-                    
+
+                    # Cyclic interpolation: wrap months outside declared range
+                    # around the 12-month cycle instead of clamping to endpoints.
+                    x_cyclic = np.concatenate([x_known - 12, x_known, x_known + 12])
+                    y_cyclic = np.concatenate([y_known, y_known, y_known])
+
                     for m in range(1, 13):
-                        if m < x_known.min():
-                            scaling_factors[m] = y_known[0]
-                        elif m > x_known.max():
-                            scaling_factors[m] = y_known[-1]
-                        else:
-                            scaling_factors[m] = np.interp(m, x_known, y_known)
-                    
+                        scaling_factors[m] = np.interp(m, x_cyclic, y_cyclic)
+
                     row_factors = scaling_factors[months.fillna(1).astype(int).values]
 
                 # STRATEGY 2: GROWTH/TREND (Linear over absolute time)
@@ -1938,12 +1955,12 @@ class DataSimulator:
                         
                         x_known = np.array([p['month'] for p in points])
                         y_known = np.array([p['relative_value'] for p in points])
-                        
-                        # Normalize x_known to 0.0-1.0 range (assuming 1..12 scale from LLM)
-                        # If LLM says Month 1 to 12, we treat 1 as 0.0 and 12 as 1.0
-                        x_known_norm = (x_known - 1) / 11.0 # 1->0, 12->1
-                        
-                        # Interpolate
+
+                        # Normalize x_known to 0.0-1.0 relative to its own range so
+                        # multi-year curves (e.g. month indices 1-36) work correctly.
+                        x_range = max(x_known.max() - x_known.min(), 1.0)
+                        x_known_norm = (x_known - x_known.min()) / x_range
+
                         row_factors = np.interp(t_norm, x_known_norm, y_known)
 
                 # Apply!
@@ -2725,7 +2742,11 @@ class DataSimulator:
                     for eid in entity_ids
                 }
                 entity_intercept = df[rel.child_key].map(intercepts)
-                df[col_name] = (col_numeric + entity_intercept).values
+                original_dtype = df[col_name].dtype
+                shifted = (col_numeric + entity_intercept).values
+                if pd.api.types.is_integer_dtype(original_dtype):
+                    shifted = np.round(shifted).astype(original_dtype)
+                df[col_name] = shifted
 
         return df
 
@@ -2994,6 +3015,8 @@ class DataSimulator:
 
             # MAR: null probability tied to an observed predictor column
             pred_vals = pd.to_numeric(df[predictor], errors="coerce")
+            nan_pred_mask = pred_vals.isna()
+
             p10 = float(pred_vals.quantile(0.10))
             p90 = float(pred_vals.quantile(0.90))
             rng_width = p90 - p10 if p90 > p10 else 1.0
@@ -3003,6 +3026,8 @@ class DataSimulator:
                 normed = 1.0 - normed
 
             null_probs = base_rate + (max_rate - base_rate) * normed
+            # Rows where predictor is NaN have no information → use base_rate
+            null_probs[nan_pred_mask] = base_rate
             draw = pd.Series(self.rng.random(len(df)), index=df.index)
             _null_column(df, col.name, draw < null_probs)
 
@@ -3047,14 +3072,16 @@ class DataSimulator:
             if group_by and group_by in df.columns and per_group_rates:
                 values = np.zeros(len(df), dtype=bool)
                 for grp, rate in per_group_rates.items():
-                    idx = df.index[df[group_by].astype(str) == str(grp)]
-                    n_true = int(len(idx) * float(rate))
-                    chosen = self.rng.choice(len(idx), size=n_true, replace=False)
-                    values[idx[chosen]] = True
+                    idx = np.where(df[group_by].astype(str) == str(grp))[0]
+                    n_true = int(round(len(idx) * float(rate)))
+                    n_true = min(n_true, len(idx))
+                    if n_true > 0:
+                        chosen = self.rng.choice(len(idx), size=n_true, replace=False)
+                        values[idx[chosen]] = True
                 df[col.name] = values
             else:
                 n = len(df)
-                n_true = int(n * global_rate)
+                n_true = int(round(n * global_rate))
                 values = np.zeros(n, dtype=bool)
                 chosen = self.rng.choice(n, size=n_true, replace=False)
                 values[chosen] = True
@@ -3255,17 +3282,17 @@ class DataSimulator:
         # We might need to store more in context.
         # Let's trust user or update _update_context to be smarter later.
 
-        engine = FormulaEngine(self.context)
+        # Merge context with the live local df so same-table column references
+        # in formulas (e.g. profit = revenue - cost) resolve correctly.
+        tables_for_engine = {**self.context, table_name: df}
+        engine = FormulaEngine(tables_for_engine)
 
         for col in formula_cols:
             formula = col.distribution_params["formula"]
-            # For correctness, lookups should work.
-            # If context doesn't have the column, FormulaEngine raises Error.
             try:
                 result = engine.evaluate_with_lookups(df, formula)
                 df[col.name] = result
             except (ValueError, ImportError) as e:
-                # Skip formula columns when simpleeval is not installed or context is missing.
                 warnings.warn(f"Formula column '{col.name}' skipped: {e}")
 
         return df

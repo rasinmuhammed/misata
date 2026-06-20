@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.1.1"
+__version__ = "0.8.1.2"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -507,7 +507,8 @@ def generate_diff(
         else:
             new_tables[name] = batch
 
-    # Apply PK offsets so new IDs don't collide with existing
+    # Apply PK offsets so new IDs don't collide with existing rows.
+    # First pass: offset PKs.
     for name, df in new_tables.items():
         offset = pk_offsets.get(name, 0)
         if offset == 0:
@@ -515,10 +516,27 @@ def generate_diff(
         for col in df.columns:
             if col.lower() in ("id", f"{name}_id", f"{name[:-1]}_id"):
                 try:
-                    new_tables[name][col] = df[col] + offset
+                    df[col] = df[col] + offset
                 except Exception:
                     pass
         new_tables[name] = df
+
+    # Second pass: offset FK columns in child tables so they still point at
+    # the shifted parent PKs (child FK = parent PK offset, not child's own offset).
+    for rel in new_schema.relationships:
+        parent_offset = pk_offsets.get(rel.parent_table, 0)
+        if parent_offset == 0:
+            continue
+        child_df = new_tables.get(rel.child_table)
+        if child_df is None:
+            continue
+        fk_col = rel.child_key
+        if fk_col in child_df.columns:
+            try:
+                child_df[fk_col] = child_df[fk_col] + parent_offset
+                new_tables[rel.child_table] = child_df
+            except Exception:
+                pass
 
     if output_dir is not None:
         out = _Path(output_dir)

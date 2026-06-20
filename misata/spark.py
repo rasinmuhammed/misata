@@ -336,6 +336,72 @@ def _sql_quote(identifier: str) -> str:
     return ".".join(f"`{part.replace('`', '')}`" for part in identifier.split("."))
 
 
+def _table_exists_uc(spark: Any, full_name: str) -> bool:
+    """UC-safe table existence check that works with 3-part ``catalog.schema.table`` names.
+
+    ``spark.catalog.tableExists()`` raises or returns incorrect results for
+    3-part names on some Databricks runtimes (DBR < 13). Using
+    ``DESCRIBE TABLE`` is reliable across Hive metastore and Unity Catalog.
+    """
+    try:
+        spark.sql(f"DESCRIBE TABLE {_sql_quote(full_name)}")
+        return True
+    except Exception:
+        return False
+
+
+def _uc_foreign_keys(spark: Any, catalog: str, database: str) -> Dict[str, Dict[str, Any]]:
+    """Read FK relationships declared in Unity Catalog INFORMATION_SCHEMA.
+
+    Unity Catalog (DBR 11.2+) supports formal PK/FK constraints.  When present
+    these are more reliable than the name-heuristic ``{parent}_id`` inference.
+
+    Returns a dict in the same shape as the ``foreign_keys`` parameter of
+    :func:`from_catalog_schema`::
+
+        {"orders": {"customer_id": {"table": "customers", "column": "id"}}}
+
+    Silently returns ``{}`` on:
+    - Hive metastore (no INFORMATION_SCHEMA)
+    - DBR < 11.2 (INFORMATION_SCHEMA exists but lacks referential constraints)
+    - Any permission or network error
+    """
+    # Quick probe: check that INFORMATION_SCHEMA.TABLES is accessible before
+    # running the heavier multi-join query.  Avoids long timeouts on old runtimes.
+    try:
+        spark.sql(
+            f"SELECT 1 FROM `{catalog}`.INFORMATION_SCHEMA.TABLES LIMIT 0"
+        ).collect()
+    except Exception:
+        return {}
+
+    try:
+        rows = spark.sql(f"""
+            SELECT
+                kcu.TABLE_NAME  AS child_table,
+                kcu.COLUMN_NAME AS child_column,
+                ccu.TABLE_NAME  AS parent_table,
+                ccu.COLUMN_NAME AS parent_column
+            FROM `{catalog}`.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+            JOIN `{catalog}`.INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+              ON  kcu.CONSTRAINT_NAME   = rc.CONSTRAINT_NAME
+              AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+            JOIN `{catalog}`.INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
+              ON  rc.UNIQUE_CONSTRAINT_NAME   = ccu.CONSTRAINT_NAME
+              AND rc.UNIQUE_CONSTRAINT_SCHEMA = ccu.CONSTRAINT_SCHEMA
+            WHERE kcu.TABLE_SCHEMA = '{database}'
+        """).collect()
+        fks: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            fks.setdefault(row["child_table"], {})[row["child_column"]] = {
+                "table": row["parent_table"],
+                "column": row["parent_column"],
+            }
+        return fks
+    except Exception:
+        return {}
+
+
 def _infer_fk_relationships(
     table_names: List[str],
     schemas: Dict[str, Any],
@@ -523,6 +589,7 @@ def write_delta(
     create_schema_if_not_exists: bool = True,
     date_columns: Optional[Dict[str, Any]] = None,
     schema_config: Optional["SchemaConfig"] = None,
+    location: Optional[Union[str, Dict[str, str]]] = None,
     verbose: bool = True,
 ) -> DeltaWriteResult:
     """Write Misata-generated tables to Delta Lake.
@@ -567,6 +634,13 @@ def write_delta(
                                    write as ``DateType`` (see :func:`to_spark`).
         schema_config:             Optional ``SchemaConfig`` — date columns are
                                    auto-detected from it.
+        location:                  Cloud storage root for **external** Unity Catalog
+                                   tables.  Can be a single base path (each table is
+                                   written to ``<location>/<table_name>``) or a
+                                   per-table dict (``{"orders": "gs://bucket/orders"}``).
+                                   When ``None`` (default) tables are written as
+                                   **managed** Delta tables — the recommended mode for
+                                   Unity Catalog.
         verbose:                   Print a progress line per table. Default ``True``.
 
     Returns:
@@ -656,6 +730,17 @@ def write_delta(
                     for k, v in table_properties.items():
                         writer = writer.option(k, v)
 
+                # External table: write to a caller-supplied cloud path.
+                # UC managed tables (no location) are the default.
+                if location:
+                    tbl_path = (
+                        location.get(table_name)
+                        if isinstance(location, dict)
+                        else f"{location.rstrip('/')}/{table_name}"
+                    )
+                    if tbl_path:
+                        writer = writer.option("path", tbl_path)
+
                 writer.saveAsTable(full_name)
 
             if optimize_after_write:
@@ -695,7 +780,7 @@ def _merge_into_delta(
     """
     from delta.tables import DeltaTable
 
-    if not spark.catalog.tableExists(target_table):
+    if not _table_exists_uc(spark, target_table):
         if create_if_missing:
             source_df.write.format("delta").mode("overwrite") \
                      .option("overwriteSchema", "true").saveAsTable(target_table)
@@ -799,13 +884,30 @@ def append_to_delta(
     # Generate new batch
     new_tables = _misata.generate_from_schema(new_schema)
 
-    # Offset PKs so they don't collide with existing rows
+    # First pass: offset PKs so they don't collide with existing rows.
     for name, df in new_tables.items():
         offset = pk_offsets.get(name, 0)
         if offset and "id" in df.columns:
             try:
-                new_tables[name] = df.copy()
-                new_tables[name]["id"] = df["id"] + offset
+                df = df.copy()
+                df["id"] = df["id"] + offset
+                new_tables[name] = df
+            except Exception:
+                pass
+
+    # Second pass: shift FK columns so child rows still reference the shifted parent PKs.
+    for rel in new_schema.relationships:
+        parent_offset = pk_offsets.get(rel.parent_table, 0)
+        if not parent_offset:
+            continue
+        child_df = new_tables.get(rel.child_table)
+        if child_df is None:
+            continue
+        if rel.child_key in child_df.columns:
+            try:
+                child_df = child_df.copy()
+                child_df[rel.child_key] = child_df[rel.child_key] + parent_offset
+                new_tables[rel.child_table] = child_df
             except Exception:
                 pass
 
@@ -1159,10 +1261,10 @@ def from_catalog_schema(
 
     # Discover all tables in the database
     try:
-        rows = spark.sql(f"SHOW TABLES IN {db_full}").collect()
+        rows = spark.sql(f"SHOW TABLES IN {_sql_quote(db_full)}").collect()
         table_names = [r.tableName for r in rows]
     except Exception:
-        # Fallback: Spark catalog API
+        # Fallback: Spark catalog API (works on Hive metastore, may fail on UC 3-part names)
         try:
             table_names = [t.name for t in spark.catalog.listTables(db_full)]
         except Exception as exc:
@@ -1211,12 +1313,23 @@ def from_catalog_schema(
 
         raw_schema[tname] = col_dict
 
-    # Infer FK relationships from column name patterns
+    # Prefer formally declared UC FK constraints from INFORMATION_SCHEMA (UC only).
+    # Fall back to column-name heuristics when constraints are absent or on Hive.
+    if catalog and infer_foreign_keys:
+        uc_fks = _uc_foreign_keys(spark, catalog, database)
+        for tname, cols in uc_fks.items():
+            for col_name, fk_def in cols.items():
+                if tname in raw_schema and col_name in raw_schema[tname]:
+                    if "foreign_key" not in raw_schema[tname][col_name]:
+                        raw_schema[tname][col_name]["foreign_key"] = fk_def
+
+    # Heuristic name-based inference (applied after UC constraints so it never
+    # overwrites formally declared relationships).
     if infer_foreign_keys:
         inferred = _infer_fk_relationships(table_names, raw_schema)
         for tname, cols in inferred.items():
             for col_name, fk_def in cols.items():
-                # Don't overwrite explicit FKs
+                # Don't overwrite explicit or UC-declared FKs
                 if col_name not in raw_schema.get(tname, {}):
                     continue
                 existing = raw_schema[tname][col_name]
@@ -1495,6 +1608,7 @@ def generate_to_delta(
     table_properties: Optional[Dict[str, str]] = None,
     optimize_after_write: bool = False,
     create_schema_if_not_exists: bool = True,
+    location: Optional[Union[str, Dict[str, str]]] = None,
     smart_correlations: bool = False,
     verbose: bool = True,
 ) -> DeltaWriteResult:
@@ -1585,6 +1699,7 @@ def generate_to_delta(
         table_properties=table_properties,
         optimize_after_write=optimize_after_write,
         create_schema_if_not_exists=create_schema_if_not_exists,
+        location=location,
         schema_config=sc,
         verbose=verbose,
     )
