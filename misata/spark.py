@@ -178,11 +178,15 @@ def _pandas_dtype_to_spark_type(
     if pd.api.types.is_datetime64_any_dtype(dtype) or hasattr(dtype, "tz"):
         return DateType() if is_date else TimestampType()
     # Object column holding python date objects (e.g. an already-normalised date)
-    if dtype == object and series.dropna().shape[0] > 0:
-        import datetime
-        sample = series.dropna().iloc[0]
-        if isinstance(sample, datetime.date) and not isinstance(sample, datetime.datetime):
-            return DateType()
+    if isinstance(dtype, pd.CategoricalDtype):
+        return StringType()
+    if dtype == object:
+        non_null = series.dropna()
+        if len(non_null) > 0:
+            import datetime
+            sample = non_null.iloc[0]
+            if isinstance(sample, datetime.date) and not isinstance(sample, datetime.datetime):
+                return DateType()
     return StringType()
 
 
@@ -235,13 +239,17 @@ def _normalize_for_spark(
     df = df.copy()
     for col in df.columns:
         if col in date_columns and pd.api.types.is_datetime64_any_dtype(df[col]):
-            # Truncate to date; NaT becomes None for Spark null
+            # Truncate to date; NaT becomes None for Spark null.
+            # Vectorised: avoid building a Python list over 100M+ rows.
             ser = pd.to_datetime(df[col])
             try:
                 ser = ser.dt.tz_localize(None)
             except (TypeError, AttributeError):
                 pass
-            df[col] = [d.date() if not pd.isna(d) else None for d in ser]
+            df[col] = ser.apply(lambda d: d.date() if not pd.isna(d) else None)
+        elif isinstance(df[col].dtype, pd.CategoricalDtype):
+            # Categorical → plain string so Spark maps it to StringType
+            df[col] = df[col].astype(object).where(df[col].notna(), other=None)
         elif df[col].dtype == object:
             df[col] = df[col].where(df[col].notna(), other=None)
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
@@ -256,7 +264,7 @@ def _normalize_for_spark(
     try:
         import pyarrow as pa
         return pa.Table.from_pandas(df, preserve_index=False).combine_chunks().to_pandas()
-    except Exception:
+    except (ImportError, Exception):
         return df.copy()
 
 
@@ -312,6 +320,20 @@ def _full_table_name(
     """
     parts = [p for p in [catalog, database, table] if p]
     return ".".join(parts)
+
+
+def _sql_quote(identifier: str) -> str:
+    """Backtick-quote each part of a dot-separated Spark SQL identifier.
+
+    Prevents SQL injection when catalog/database/table names contain special
+    characters or come from user-supplied arguments.
+
+    Examples::
+
+        _sql_quote("dev_cat.bronze.orders") → "`dev_cat`.`bronze`.`orders`"
+        _sql_quote("workspace")             → "`workspace`"
+    """
+    return ".".join(f"`{part.replace('`', '')}`" for part in identifier.split("."))
 
 
 def _infer_fk_relationships(
@@ -435,7 +457,7 @@ def to_spark(
         if infer_schema:
             result[name] = spark.createDataFrame(clean)
         else:
-            struct = _build_spark_schema(df, date_columns=dcols)
+            struct = _build_spark_schema(clean, date_columns=dcols)
             result[name] = spark.createDataFrame(clean, schema=struct)
     return result
 
@@ -584,7 +606,7 @@ def write_delta(
     if create_schema_if_not_exists and db:
         db_full = f"{catalog}.{db}" if catalog else db
         try:
-            spark.sql(f"CREATE SCHEMA IF NOT EXISTS {db_full}")
+            spark.sql(f"CREATE SCHEMA IF NOT EXISTS {_sql_quote(db_full)}")
         except Exception as exc:
             warnings.warn(f"Could not create schema '{db_full}': {exc}")
 
@@ -593,7 +615,7 @@ def write_delta(
         try:
             dcols = date_map.get(table_name, set())
             clean = _normalize_for_spark(df, date_columns=dcols)
-            struct = _build_spark_schema(df, date_columns=dcols)
+            struct = _build_spark_schema(clean, date_columns=dcols)
             spark_df = spark.createDataFrame(clean, schema=struct)
 
             if mode == "merge":
@@ -638,7 +660,7 @@ def write_delta(
 
             if optimize_after_write:
                 try:
-                    spark.sql(f"OPTIMIZE {full_name}")
+                    spark.sql(f"OPTIMIZE {_sql_quote(full_name)}")
                 except Exception:
                     pass  # OPTIMIZE is best-effort
 
@@ -680,6 +702,13 @@ def _merge_into_delta(
             return
         raise ValueError(f"Target table '{target_table}' does not exist for merge.")
 
+    import re as _re
+    _invalid = [k for k in keys if not _re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', k)]
+    if _invalid:
+        raise ValueError(
+            f"merge_keys contains invalid column name(s): {_invalid}. "
+            "Keys must be plain identifiers (letters, digits, underscores)."
+        )
     target = DeltaTable.forName(spark, target_table)
     cond = " AND ".join([f"t.`{k}` = s.`{k}`" for k in keys])
     (
@@ -760,10 +789,10 @@ def append_to_delta(
     for t in new_schema.tables:
         full_name = _full_table_name(t.name, catalog, db)
         try:
-            max_id = spark.sql(
-                f"SELECT COALESCE(MAX(id), 0) AS max_id FROM {full_name}"
-            ).collect()[0]["max_id"]
-            pk_offsets[t.name] = int(max_id) + 1
+            rows = spark.sql(
+                f"SELECT COALESCE(MAX(id), 0) AS max_id FROM {_sql_quote(full_name)}"
+            ).limit(1).collect()
+            pk_offsets[t.name] = int(rows[0]["max_id"]) + 1 if rows else 0
         except Exception:
             pk_offsets[t.name] = 0
 
@@ -857,7 +886,7 @@ def write_delta_stream(
     if create_schema_if_not_exists and db:
         db_full = f"{catalog}.{db}" if catalog else db
         try:
-            spark.sql(f"CREATE SCHEMA IF NOT EXISTS {db_full}")
+            spark.sql(f"CREATE SCHEMA IF NOT EXISTS {_sql_quote(db_full)}")
         except Exception as exc:
             warnings.warn(f"Could not create schema '{db_full}': {exc}")
 
@@ -877,9 +906,11 @@ def write_delta_stream(
         try:
             clean = _normalize_for_spark(batch_df, date_columns=dcols)
 
-            # Build the schema from the first batch and reuse it
+            # Build the schema from the first batch and reuse it.
+            # Must be derived from `clean` (post-normalization) so date columns
+            # read as python date objects and map to DateType, not TimestampType.
             if is_first:
-                schemas_cache[table_name] = _build_spark_schema(batch_df, date_columns=dcols)
+                schemas_cache[table_name] = _build_spark_schema(clean, date_columns=dcols)
 
             spark_df = spark.createDataFrame(clean, schema=schemas_cache[table_name])
 
@@ -920,7 +951,7 @@ def write_delta_stream(
     if optimize_after_write:
         for table_name, full_name in result.table_paths.items():
             try:
-                spark.sql(f"OPTIMIZE {full_name}")
+                spark.sql(f"OPTIMIZE {_sql_quote(full_name)}")
             except Exception:
                 pass
 
@@ -1339,8 +1370,8 @@ def verify_delta_integrity(
         try:
             orphan_df = spark.sql(f"""
                 SELECT c.`{child_col}`
-                FROM   {child_fqn}  c
-                LEFT ANTI JOIN {parent_fqn} p ON c.`{child_col}` = p.`{parent_col}`
+                FROM   {_sql_quote(child_fqn)}  c
+                LEFT ANTI JOIN {_sql_quote(parent_fqn)} p ON c.`{child_col}` = p.`{parent_col}`
                 WHERE  c.`{child_col}` IS NOT NULL
             """)
             orphan_count = orphan_df.count()
