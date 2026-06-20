@@ -34,9 +34,12 @@ your joins. Misata is built for the multi-table case:
 On **serverless / Free Edition**, install plain `misata` — **not** `misata[spark]`:
 
 ```python
-%pip install misata
+%pip install "misata>=0.8.1.3"
 dbutils.library.restartPython()
 ```
+
+The data-quality demo needs `>=0.8.1.3` (the `__noise__` directive). The fraud and
+churn demos run on any recent release, but pinning keeps screenshots reproducible.
 
 PySpark is already on every Databricks cluster. Databricks' own docs warn that installing
 PySpark on a serverless notebook will stop your session, and `misata[spark]` would pull it

@@ -29,7 +29,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install misata
+# MAGIC %pip install "misata>=0.8.1.3"
 
 # COMMAND ----------
 
