@@ -16,7 +16,6 @@ try:
     SDV_AVAILABLE = True
 except ImportError:
     SDV_AVAILABLE = False
-    warnings.warn("SDV not installed. Install with: pip install 'misata[advanced]'")
 
 
 class CopulaGenerator:
