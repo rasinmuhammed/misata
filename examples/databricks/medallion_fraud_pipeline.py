@@ -166,7 +166,6 @@ result = mspark.generate_to_delta(
     catalog=CATALOG,
     database=SCHEMA,
     mode="overwrite",
-    schema_config=schema,
     table_properties={"delta.autoOptimize.optimizeWrite": "true"},
 )
 print(result.summary())
