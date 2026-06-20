@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.rasinmuhammed/misata",
-  "description": "Complete package for synthetic data generation.",
+  "description": "Generate multi-table synthetic data that hits declared revenue curves and fraud rates exactly.",
   "repository": {
     "url": "https://github.com/rasinmuhammed/misata",
     "source": "github"
   },
-  "version": "0.8.0.post1",
+  "version": "0.8.1.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "misata",
-      "version": "0.8.0.post1",
+      "version": "0.8.1.1",
       "installInstructions": "pip install \"misata[mcp]\"",
       "transport": {
         "type": "stdio"
