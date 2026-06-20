@@ -127,8 +127,11 @@ mcp = [
 kaggle = [
     "kaggle>=1.0.0",          # Kaggle API for vocabulary enrichment from real datasets
 ]
+spark = [
+    "pyspark>=3.3.0",         # Apache Spark + Delta Lake integration (write_delta, from_catalog_schema, etc.)
+]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark]",
 ]
 
 [project.scripts]

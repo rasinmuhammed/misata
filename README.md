@@ -889,6 +889,57 @@ new_rows = misata.generate_diff(
 
 ---
 
+## Databricks and Apache Spark
+
+Generate realistic, referentially-correct test data straight into **Delta Lake** — no
+production data required. The `misata.spark` module bridges Misata's pandas output to
+Spark/Delta on Databricks (Free Edition or full), AWS Glue, EMR, or any PySpark 3.3+ cluster.
+
+```python
+import misata
+from misata import spark as mspark
+
+schema = misata.from_dict_schema({
+    "customers":   {"__rows__": 500,  "id": {"type": "integer", "primary_key": True},
+                    "email": {"type": "email"}, "country": {"type": "string", "text_type": "country"}},
+    "orders":      {"__rows__": 2000, "id": {"type": "integer", "primary_key": True},
+                    "customer_id": {"type": "integer",
+                                    "foreign_key": {"table": "customers", "column": "id"}},
+                    "total": {"type": "float", "distribution": "lognormal", "mu": 4.5, "sigma": 0.9}},
+})
+
+# One call: generate all tables (FK integrity guaranteed) and write to Delta
+result = mspark.generate_to_delta(schema, spark, catalog="dev", database="bronze", mode="overwrite")
+print(result.summary())
+#   ✅ customers (500 rows) → dev.bronze.customers
+#   ✅ orders   (2,000 rows) → dev.bronze.orders
+```
+
+**What it does that `dbldatagen` can't:** multiple related tables in one call, guaranteed
+referential integrity, realistic distributions, and *outcome conformance* — declare an exact
+aggregate or rate (e.g. "fraud is 1.8% in Jan ramping to 4.1% by Jun") and the data conforms,
+giving downstream pipeline tests a **known ground truth to assert against**.
+
+| Function | Purpose |
+|----------|---------|
+| `generate_to_delta(schema, spark, …)` | One-liner: generate + write all tables to Delta |
+| `to_spark(tables, spark, schema_config=…)` | Convert Misata DataFrames to Spark with an explicit, type-correct schema |
+| `write_delta(tables, spark, …)` | Write to Delta with partitioning, **liquid clustering**, table properties, or **`MERGE` upsert** |
+| `verify_delta_integrity(spark, relationships, …)` | Check FK integrity of Delta tables via Spark SQL anti-joins |
+| `from_catalog_schema(spark, database, …)` | Import an existing Unity Catalog schema (structure only) → generate matching data, FKs auto-inferred |
+| `append_to_delta(schema, spark, n_rows=…)` | Append incremental rows with non-colliding PKs |
+| `write_delta_stream(schema, spark, …)` | Stream-write 100M+ row datasets without buffering |
+
+On **Databricks serverless / Free Edition**, install plain `misata` (PySpark is already on the
+cluster — installing `misata[spark]` would stop a serverless session). On other environments:
+`pip install misata[spark]`.
+
+**End-to-end tutorial:** a complete fraud-detection medallion pipeline (Bronze → Silver → Gold)
+tested entirely on synthetic data, with a CI-grade ground-truth assertion —
+[`examples/databricks/`](./examples/databricks/). Full API reference: [`docs/spark.md`](./docs/spark.md).
+
+---
+
 ## Document generation
 
 Render one document per row from any table — useful for demo datasets that need to look real end-to-end:

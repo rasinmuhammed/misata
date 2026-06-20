@@ -30,7 +30,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column whose name matches an unambiguous pattern but had no explicit type set.
   This covers the compositional fallback and generic fallback paths that previously
   produced bare `text` columns with no semantic generator.
-
+- **`misata.spark` — Apache Spark and Delta Lake integration module.** New submodule
+  for Databricks, EMR, Glue, and any PySpark 3.3+ environment (`pip install misata[spark]`).
+  - `to_spark(tables, spark)` — converts all Misata pandas DataFrames to Spark DataFrames
+    using an explicit `StructType` schema, avoiding Spark's type-inference pitfalls
+    (int-with-NaN widened to double, object columns mis-typed).
+  - `write_delta(tables, spark, catalog, database, mode, partition_by, cluster_by, merge_keys, table_properties, optimize_after_write)`
+    — writes all tables to Delta with full Unity Catalog 3-part naming, automatic database
+    creation, per-table partitioning, **liquid clustering** (`cluster_by`, with graceful
+    fallback on Delta builds that lack the `clusterBy` writer API), and optional `OPTIMIZE`.
+    Schema-evolution semantics are mode-correct: `overwrite` uses `overwriteSchema` (replace),
+    `append` uses `mergeSchema` (add columns), and `merge` performs an idempotent
+    `MERGE INTO` upsert keyed on `merge_keys` (for CDC / SCD pipeline testing).
+    Columns declared `type: "date"` are written as Spark `DateType` (not `TimestampType`)
+    by passing `schema_config=` — Misata stores both `date` and `datetime` as
+    `datetime64[ns]`, so the schema is threaded through as the source of truth.
+  - `append_to_delta(schema_config, spark, n_rows, ...)` — generates additional rows with
+    PK offsets read from existing Delta tables and appends without overwriting; FK integrity
+    is maintained within the new batch.
+  - `write_delta_stream(schema_config, spark, batch_size, ...)` — streaming write for
+    100M+ row datasets; yields and writes batches without buffering the full dataset.
+  - `from_spark_schema(source, spark)` — converts a `StructType`, `DataFrame`, or
+    fully-qualified table name string into a Misata `SchemaConfig`; preserves nullable
+    flags and Unity Catalog column comments in Spark field metadata.
+  - `from_catalog_table(table_name, spark)` — single-table import from Spark catalog.
+  - `from_catalog_schema(spark, database, catalog, row_counts, infer_foreign_keys)` —
+    imports all tables in a Spark database and auto-infers FK relationships from
+    `{parent}_id` column naming (de-pluralisation-aware: `order_id` → `orders.id`).
+  - `verify_delta_integrity(spark, relationships, catalog, database)` — runs Spark SQL
+    `LEFT ANTI JOIN` to count and sample orphan rows for each FK; returns
+    `SparkIntegrityReport` with `.ok`, `.summary()`, `.raise_if_invalid()`.
+  - `generate_to_spark(schema_or_story, spark)` — one-liner: generate + convert to Spark.
+  - `generate_to_delta(schema_or_story, spark, catalog, database, mode, ...)` — one-liner:
+    generate + write to Delta, accepting either a `SchemaConfig` or a story string.
+  - `DeltaWriteResult`, `SparkIntegrityReport`, `SparkIntegrityViolation` result dataclasses.
+  - `append_to_delta` conforms its date typing to the **existing** target table, so an
+    append never conflicts with a base table written under different date semantics.
+  - `from_catalog_schema` emits a `UserWarning` listing any `*_id` columns it could not
+    map to a parent table, rather than silently dropping a possible FK.
+  - `from_spark_schema` reads only the public `.schema` (no private `_jdf` JVM bridge),
+    so it works on Spark Connect / Databricks serverless sessions.
+  - Validated end-to-end against **PySpark 3.5.3 + delta-spark 3.2.1 on JDK 17** via a
+    guarded `tests/test_spark.py` suite (24 tests: pure-Python helpers always run;
+    Spark+Delta integration auto-skips when PySpark is absent).
+- **`spark` optional extra** in `pyproject.toml` (`pip install misata[spark]`). On Databricks
+  serverless / Free Edition, install plain `misata` instead — PySpark is pre-installed and the
+  module imports it lazily; installing the extra would stop a serverless session.
+- **Databricks medallion tutorial** — [`examples/databricks/`](examples/databricks/): a
+  complete fraud-detection pipeline (Bronze → Silver → Gold) tested end-to-end on synthetic
+  data. It declares an exact monthly fraud-rate curve, generates four FK-linked tables, runs
+  the real Silver/Gold transformations, and **asserts the Gold output against that known
+  ground truth** — a CI-grade correctness test impossible with Faker or dbldatagen, whose data
+  has no declared target to check against. Every cell is verified against real Spark + Delta.
+- **`docs/spark.md`** — complete `misata.spark` API reference and Databricks guide.
 
 ### Added
 

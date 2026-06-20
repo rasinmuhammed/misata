@@ -95,6 +95,7 @@ nav:
     - Streaming: domains/streaming.md
   - Constraints: constraints.md
   - Export: export.md
+  - Databricks & Spark: spark.md
   - Validate: validate.md
   - CLI Reference: cli.md
   - Guides:

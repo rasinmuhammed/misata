@@ -662,6 +662,7 @@ from misata.generators.base import (
 )
 from misata.profiler import mimic, DataProfiler
 from misata.ddl import from_ddl
+from misata import spark as spark  # noqa: PLC0414 — re-export the submodule
 
 __all__ = [
     # One-liners
@@ -810,6 +811,8 @@ __all__ = [
     "to_parquet",
     "to_duckdb",
     "to_jsonl",
+    # Spark / Delta Lake
+    "spark",
     # DB seeding
     "seed_database",
     "seed_database_sqlalchemy",
