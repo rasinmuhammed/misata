@@ -114,6 +114,7 @@ result = mspark.generate_to_delta(
     table_properties={"delta.autoOptimize.optimizeWrite": "true"},
 )
 result.raise_on_error()
+print("Bronze ready: dirty landing table written to Delta with declared defects.")
 
 # COMMAND ----------
 

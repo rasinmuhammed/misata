@@ -172,6 +172,7 @@ result = mspark.generate_to_delta(
     table_properties={"delta.autoOptimize.optimizeWrite": "true"},
 )
 result.raise_on_error()
+print("Bronze ready: 4 Delta tables written with guaranteed FK integrity.")
 
 # COMMAND ----------
 
