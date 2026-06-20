@@ -41,6 +41,7 @@ from typing import Any, Dict, List, Optional
 from misata.schema import (
     Column,
     Constraint,
+    NoiseConfig,
     OutcomeCurve,
     RateCurve,
     Relationship,
@@ -303,6 +304,12 @@ def from_dict_schema(
       categorical columns, e.g. ``[{"table": "transactions", "column":
       "is_fraud", "time_column": "transaction_date", "rate_points":
       [{"period": "2024-01", "rate": 0.03}, ...]}]``.
+    - ``__noise__``: declared data-quality defects injected at a known rate, so
+      a cleaning / DQ pipeline can be tested against ground truth, e.g.
+      ``{"mode": "custom", "duplicate_rate": 0.03, "null_rate": 0.02,
+      "outlier_rate": 0.01, "typo_rate": 0.01}``. Use ``mode:
+      "analytics_safe"`` to mutate only non-key columns and never duplicate
+      rows (keeps PK/FK integrity and declared aggregates intact).
 
     Args:
         schemas:   Dict mapping table name → column definitions dict.
@@ -353,6 +360,17 @@ def from_dict_schema(
             rate_curves.append(RateCurve(**rate_def))
         except Exception as e:
             raise ValueError(f"__rate_curves__[{i}] is invalid: {e}") from e
+
+    # __noise__ injects declared data-quality defects (nulls, outliers, typos,
+    # duplicates) at a known rate — so a data-cleaning / DQ pipeline can be
+    # tested against ground truth, the same contract as the rate curves above.
+    noise_config: Optional[NoiseConfig] = None
+    raw_noise = schemas.get("__noise__")
+    if raw_noise:
+        try:
+            noise_config = NoiseConfig(**raw_noise)
+        except Exception as e:
+            raise ValueError(f"__noise__ is invalid: {e}") from e
 
     # __domain__ stores the domain name on the SchemaConfig for post-generation validation
     domain: Optional[str] = schemas.get("__domain__") or None
@@ -469,6 +487,7 @@ def from_dict_schema(
         relationships=relationships,
         outcome_curves=outcome_curves,
         rate_curves=rate_curves,
+        noise_config=noise_config,
         seed=seed,
         domain=domain,
     )

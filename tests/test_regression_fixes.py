@@ -512,3 +512,57 @@ def test_uc_foreign_keys_returns_empty_without_info_schema():
             raise RuntimeError("no such table: INFORMATION_SCHEMA")
 
     assert _uc_foreign_keys(_BadSpark(), "catalog", "bronze") == {}
+
+
+# ---------------------------------------------------------------------------
+# DQ1 — from_dict_schema exposes __noise__ for declared data-quality defects
+# ---------------------------------------------------------------------------
+
+def _noise_spec(noise: dict) -> dict:
+    return {
+        "__noise__": noise,
+        "customers": {
+            "__rows__": 1000,
+            "id":    {"type": "integer", "primary_key": True},
+            "name":  {"type": "string", "text_type": "name"},
+            "spend": {"type": "float", "distribution": "normal", "mean": 100, "std": 20},
+        },
+    }
+
+
+def test_noise_directive_parsed_into_config():
+    """__noise__ must build a NoiseConfig on the SchemaConfig."""
+    schema = from_dict_schema(_noise_spec({"mode": "custom", "duplicate_rate": 0.05}))
+    assert schema.noise_config is not None
+    assert schema.noise_config.duplicate_rate == 0.05
+
+
+def test_noise_custom_mode_injects_duplicates_and_nulls():
+    """custom mode injects duplicate rows and null cells at the declared rate."""
+    schema = from_dict_schema(
+        _noise_spec({"mode": "custom", "duplicate_rate": 0.05, "null_rate": 0.03}),
+        seed=7,
+    )
+    df = misata.generate_from_schema(schema)["customers"]
+    # 1000 base rows + ~5% duplicates
+    assert len(df) > 1000, "duplicate_rate did not add rows"
+    assert int(df["id"].duplicated().sum()) > 0, "no duplicate PKs injected"
+    assert int(df["spend"].isna().sum()) > 0, "null_rate injected no nulls"
+
+
+def test_noise_analytics_safe_protects_keys():
+    """analytics_safe must never duplicate rows or null out the primary key."""
+    schema = from_dict_schema(
+        _noise_spec({"mode": "analytics_safe", "duplicate_rate": 0.05, "null_rate": 0.05}),
+        seed=7,
+    )
+    df = misata.generate_from_schema(schema)["customers"]
+    assert len(df) == 1000, "analytics_safe must not duplicate rows"
+    assert int(df["id"].duplicated().sum()) == 0, "analytics_safe duplicated PKs"
+    assert int(df["id"].isna().sum()) == 0, "analytics_safe nulled the PK"
+
+
+def test_noise_invalid_raises():
+    """A malformed __noise__ must fail loudly at schema-compile time."""
+    with pytest.raises(ValueError, match="__noise__"):
+        from_dict_schema(_noise_spec({"duplicate_rate": 5.0}))  # > 1.0 is invalid

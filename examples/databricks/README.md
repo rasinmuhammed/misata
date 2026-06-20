@@ -12,6 +12,7 @@ full platform, AWS Glue, or any PySpark 3.3+ environment.
 |----------|----------|---------------|
 | [`medallion_fraud_pipeline.py`](./medallion_fraud_pipeline.py) | Fintech | 4-table fraud pipeline (customers → accounts → transactions ← merchants). Declares an exact monthly fraud-rate curve (1.8% → 4.1%), generates 45k rows, runs Bronze → Silver → Gold, and **asserts Gold against known ground truth** — impossible with Faker or dbldatagen. |
 | [`saas_churn_pipeline.py`](./saas_churn_pipeline.py) | SaaS | 2-table churn pipeline (companies → subscriptions). Declares a rising churn curve (3.8% → 7.1%), adds feature engineering (cohort age, ARR tier, seat utilisation), and verifies the Gold churn rate hits the declared target — ready as MLflow training data. |
+| [`data_quality_pipeline.py`](./data_quality_pipeline.py) | Data quality | Generates a dirty landing table with a **declared defect rate** (`__noise__`: 4% duplicates, 6% null contacts, 3% typos, 2% outliers), runs a real Bronze → Silver cleaning job (dedupe, required-field filter, outlier winsorisation), and **asserts the Silver output is clean** — a CI-grade DQ test impossible with Faker, which never tells you the true defect rate. |
 
 ## Why Misata on Databricks
 
