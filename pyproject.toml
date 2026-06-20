@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.8.1.3"
+version = "0.8.1.4"
 description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare — exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
@@ -84,6 +84,7 @@ dev = [
     "mypy>=1.5.0",
     "simpleeval>=0.9.0",   # formula columns used in HR domain tests
     "jsonschema>=4.0.0",   # YAML validation tests
+    "scikit-learn>=1.0.0", # ML-efficacy (TSTR) path in fidelity_report
 ]
 db = [
     "psycopg[binary]>=3.1.0",
@@ -127,11 +128,14 @@ mcp = [
 kaggle = [
     "kaggle>=1.0.0",          # Kaggle API for vocabulary enrichment from real datasets
 ]
+fidelity = [
+    "scikit-learn>=1.0.0",    # ML-efficacy (TSTR) scoring in fidelity_report
+]
 spark = [
     "pyspark>=3.3.0",         # Apache Spark + Delta Lake integration (write_delta, from_catalog_schema, etc.)
 ]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity]",
 ]
 
 [project.scripts]

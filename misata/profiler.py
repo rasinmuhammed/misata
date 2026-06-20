@@ -13,6 +13,7 @@ Usage::
 from __future__ import annotations
 
 import re
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
@@ -237,16 +238,64 @@ def _fit_date(series: pd.Series) -> Dict[str, Any]:
 def _is_date_col(series: pd.Series) -> bool:
     if pd.api.types.is_datetime64_any_dtype(series):
         return True
+    # Numeric columns are never dates; skip the parse (and its noisy warning).
+    if pd.api.types.is_numeric_dtype(series):
+        return False
     sample = _sample_non_null(series.astype(str), 50)
     if len(sample) == 0:
         return False
-    parsed = pd.to_datetime(sample, errors="coerce")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        parsed = pd.to_datetime(sample, errors="coerce")
     return parsed.notna().mean() > 0.7
 
 
 def _cardinality_ratio(series: pd.Series) -> float:
     n = len(series.dropna())
     return series.nunique() / n if n > 0 else 1.0
+
+
+def _detect_correlations(
+    df: pd.DataFrame,
+    numeric_cols: List[str],
+    threshold: float = 0.15,
+    max_pairs: int = 60,
+) -> List[Dict[str, Any]]:
+    """Detect pairwise correlations among continuous numeric columns.
+
+    Returns specs in the ``Table.correlations`` format
+    (``[{"col_a", "col_b", "r"}]``) which the simulator reproduces via
+    Iman-Conover. Pearson is used because that is the target the engine
+    optimises; rank structure (Spearman) is preserved even more closely.
+
+    Only pairs with ``|r| >= threshold`` are emitted, so noise correlations
+    do not over-specify the target matrix (which would force nearest-PD
+    repair and blur the strong, real relationships).
+    """
+    cols = [c for c in numeric_cols if c in df.columns]
+    if len(cols) < 2:
+        return []
+
+    numeric = df[cols].apply(pd.to_numeric, errors="coerce")
+    # Drop columns that are entirely NaN or constant — no correlation to learn.
+    usable = [c for c in cols if numeric[c].notna().sum() > 2 and numeric[c].std() > 0]
+    if len(usable) < 2:
+        return []
+
+    corr = numeric[usable].corr(method="pearson", numeric_only=True)
+
+    pairs: List[Dict[str, Any]] = []
+    for i, a in enumerate(usable):
+        for b in usable[i + 1:]:
+            r = corr.loc[a, b]
+            if pd.isna(r) or abs(r) < threshold:
+                continue
+            pairs.append({"col_a": a, "col_b": b, "r": round(float(r), 4)})
+
+    # Keep the strongest relationships first; cap to avoid over-specifying the
+    # correlation matrix on very wide tables.
+    pairs.sort(key=lambda p: abs(p["r"]), reverse=True)
+    return pairs[:max_pairs]
 
 
 # ---------------------------------------------------------------------------
@@ -276,20 +325,40 @@ class DataProfiler:
         from misata.schema import Column, Table, SchemaConfig
 
         columns: List[Column] = []
+        continuous_numeric: List[str] = []
         for col_name in df.columns:
             series = df[col_name]
             col_def = self._profile_column(col_name, series)
             columns.append(col_def)
+            if self._is_continuous_numeric(col_def):
+                continuous_numeric.append(col_name)
+
+        # Joint structure: detect the correlation matrix among continuous
+        # numeric columns so the twin matches the original in joint space,
+        # not just column by column. Reproduced via Iman-Conover at gen time.
+        correlations = _detect_correlations(df, continuous_numeric)
 
         return SchemaConfig(
             name=f"{table_name} (mimic)",
             description=f"Synthetic twin of {table_name} — {len(df)} source rows",
             domain="generic",
-            tables=[Table(name=table_name, row_count=len(df))],
+            tables=[Table(name=table_name, row_count=len(df), correlations=correlations)],
             columns={table_name: columns},
             relationships=[],
             events=[],
         )
+
+    @staticmethod
+    def _is_continuous_numeric(col_def: "Column") -> bool:
+        """True for int/float columns fitted to a continuous distribution.
+
+        Excludes low-cardinality numerics that were profiled as categorical
+        (they carry ``choices``); correlating those via rank reordering is
+        meaningless and would pollute the target matrix.
+        """
+        if col_def.type not in ("int", "float"):
+            return False
+        return "choices" not in (col_def.distribution_params or {})
 
     def _profile_column(self, col_name: str, series: pd.Series) -> "Column":
         from misata.schema import Column
@@ -448,9 +517,12 @@ def mimic(
     for tname, df in sources:
         n_rows = rows if rows is not None else len(df)
         schema = profiler.profile(df, table_name=tname)
-        # Override row count
-        from misata.schema import Table
-        object.__setattr__(schema, "tables", [Table(name=tname, row_count=n_rows)])
+        # Override row count while preserving everything else the profiler
+        # learned (notably the detected correlations on the Table).
+        existing = schema.tables[0]
+        object.__setattr__(
+            existing, "row_count", n_rows
+        ) if hasattr(existing, "row_count") else None
         sim = DataSimulator(schema)
         if seed is not None:
             sim.rng = np.random.default_rng(seed)

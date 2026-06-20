@@ -35,6 +35,7 @@ venv/
 tests/*
 !tests/test_regressions.py
 !tests/test_regression_fixes.py
+!tests/test_mimic_fidelity.py
 jman_output/
 llm_test/
 ml_demo_output/
