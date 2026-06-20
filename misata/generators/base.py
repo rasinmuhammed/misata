@@ -644,7 +644,7 @@ class ConditionalCategoricalGenerator(BaseGenerator):
         """
         self.lookup = lookup
         self.parent_column = parent_column
-        self.default_values = default_values or list(lookup.values())[0] if lookup else ["Unknown"]
+        self.default_values = default_values or (list(lookup.values())[0] if lookup else ["Unknown"])
     
     def generate(self, size: int, params: Dict[str, Any]) -> np.ndarray:
         """Generate values conditioned on parent column.

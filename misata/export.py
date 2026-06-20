@@ -170,34 +170,53 @@ def to_sql(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     def _quote(name: str, dialect: str) -> str:
+        # Escape the quote character itself inside the identifier to prevent
+        # broken DDL from generated column/table names containing quotes.
         if dialect == "mysql":
-            return f"`{name}`"
-        return f'"{name}"'
+            return f"`{name.replace('`', '``')}`"
+        return f'"{name.replace(chr(34), chr(34)+chr(34))}"'
 
     def _py_type_to_sql(dtype, dialect: str) -> str:
         if hasattr(dtype, "name"):
             name = dtype.name
         else:
             name = str(dtype)
-        if "int" in name:
+        name_lower = name.lower()
+        # nullable pandas integers (Int8, Int16, Int32, Int64)
+        if name_lower.lstrip("u") in ("int8", "int16", "int32", "int64"):
             return "INTEGER"
-        if "float" in name or "double" in name:
+        if "int" in name_lower:
+            return "INTEGER"
+        if "float" in name_lower or "double" in name_lower:
             return "DOUBLE PRECISION" if dialect == "postgresql" else "DOUBLE"
-        if "bool" in name:
+        if "bool" in name_lower:
             return "BOOLEAN"
-        if "datetime" in name or "timestamp" in name:
+        if "datetime" in name_lower or "timestamp" in name_lower:
             return "TIMESTAMP"
-        if "date" in name:
+        if "date" in name_lower:
             return "DATE"
         return "TEXT"
 
+    import datetime as _dt
+
     def _val_to_sql(v) -> str:
-        if v is None or (isinstance(v, float) and v != v):  # NaN
+        import pandas as _pd
+        if v is None or v is _pd.NA:
+            return "NULL"
+        if isinstance(v, float) and v != v:   # NaN
             return "NULL"
         if isinstance(v, bool):
             return "TRUE" if v else "FALSE"
-        if isinstance(v, (int, float)):
+        if isinstance(v, int):
             return str(v)
+        if isinstance(v, float):
+            return repr(v)
+        if isinstance(v, _dt.datetime):
+            # Strip timezone — ANSI TIMESTAMP literals have no tz
+            ts = v.replace(tzinfo=None) if v.tzinfo else v
+            return f"TIMESTAMP '{ts.isoformat(sep=' ', timespec='seconds')}'"
+        if isinstance(v, _dt.date):
+            return f"DATE '{v.isoformat()}'"
         escaped = str(v).replace("'", "''")
         return f"'{escaped}'"
 

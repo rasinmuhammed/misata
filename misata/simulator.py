@@ -34,6 +34,22 @@ from misata.vocabulary import SemanticVocabularyGenerator
 from misata.workflows import WorkflowEngine
 
 
+def _null_column(df: pd.DataFrame, col_name: str, mask: "pd.Series") -> None:
+    """Assign null to rows matching *mask* while preserving integer dtype fidelity.
+
+    pandas upcasts int64 → float64 when you assign np.nan; the result is that ID
+    and count columns print as 1.0 instead of 1.  This helper uses pandas nullable
+    Int64 to keep the column integer-typed through null assignment.
+    """
+    if not mask.any():
+        return
+    if pd.api.types.is_integer_dtype(df[col_name].dtype):
+        df[col_name] = df[col_name].astype("Int64")
+        df.loc[mask, col_name] = pd.NA
+    else:
+        df.loc[mask, col_name] = np.nan
+
+
 @dataclass
 class GenerationResult:
     """Collected generation output with validation and advisory reports."""
@@ -237,6 +253,11 @@ class DataSimulator:
         in_degree = {table.name: 0 for table in self.config.tables}
 
         for rel in self.config.relationships:
+            # Skip self-referential FKs (e.g. employee.manager_id → employee).
+            # The table must be generated first as a whole; the self-FK is
+            # handled by sampling from already-generated rows in the same table.
+            if rel.parent_table == rel.child_table:
+                continue
             graph[rel.parent_table].append(rel.child_table)
             in_degree[rel.child_table] += 1
 
@@ -272,6 +293,18 @@ class DataSimulator:
         Returns:
             Array of valid parent IDs
         """
+        # Self-referential FK (e.g. employee.manager_id → employee):
+        # the "parent" is the table being generated right now — sample PKs
+        # from the batch that's already in context (or return empty so the
+        # caller falls back to sequential IDs for root rows).
+        if relationship.parent_table == relationship.child_table:
+            if relationship.parent_table not in self.context:
+                return np.array([])
+            self_df = self.context[relationship.parent_table]
+            if relationship.parent_key not in self_df.columns:
+                return np.array([])
+            return self_df[relationship.parent_key].dropna().values
+
         if relationship.parent_table not in self.context:
             return np.array([])
 
@@ -673,7 +706,9 @@ class DataSimulator:
                     pass
 
             choices = params.get("choices", ["A", "B", "C"])
-            probabilities = params.get("probabilities", None)
+            # Accept "weights" as an alias for "probabilities" (matches dbldatagen
+            # and user intuition; "probabilities" takes precedence if both given)
+            probabilities = params.get("probabilities") or params.get("weights") or None
 
             # Ensure choices is a list
             if not isinstance(choices, list):
@@ -1612,7 +1647,7 @@ class DataSimulator:
                     f"sample from the first {self.MAX_CONTEXT_ROWS:,} rows.",
                     UserWarning,
                 )
-                ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=self.config.seed)
+                ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=int(self.rng.integers(0, 2**31)))
             self.context[table_name] = ctx_df
         else:
             current_len = len(self.context[table_name])
@@ -1743,6 +1778,11 @@ class DataSimulator:
             # per-period totals and apply a correction factor per batch so the
             # final sum per period converges to the implied target.
             df_batch = self._rebalance_relative_batch(df_batch, table_name)
+
+            # Apply null_rate / nullable nulls LAST — after correlations,
+            # time-series, and rate curves, so the statistical passes see full
+            # values and MNAR/MAR conditions are evaluated on final values.
+            df_batch = self._apply_null_rates(df_batch, table_name)
 
             # Update context for future batches/tables
             self._update_context(table_name, df_batch)
@@ -1983,38 +2023,44 @@ class DataSimulator:
 
         # ── Parse anchor points ──────────────────────────────────────────
         # rate_points: [{"period": "2024-01" | "01" | integer_month | "all", "rate": 0.03}]
-        anchors: Dict[int, float] = {}   # 1-based month index → declared rate
-        all_period_rate: Optional[float] = None  # Flat rate for "all" sentinel
+        # Anchors are stored as (year, month) tuples for YYYY-MM formats, or as
+        # bare 1-based month integers for the short forms.  We convert everything
+        # to running-month indices AFTER we know the data's start_year/start_month
+        # so that multi-year curves ("2025-01" → idx 1, "2026-01" → idx 13) are
+        # handled correctly rather than silently colliding on the bare month number.
+        ym_anchors: Dict[tuple, float] = {}   # (year, month) → rate  (YYYY-MM form)
+        bare_anchors: Dict[int, float] = {}   # 1-based running index → rate (short form)
+        all_period_rate: Optional[float] = None
 
         for point in rc.rate_points:
             period_str = str(point.get("period", "")).strip()
             rate = float(point.get("rate", 0.0))
 
-            # "all" sentinel: NL-extracted flat rate — covers every period
             if period_str.lower() == "all":
                 all_period_rate = rate
                 continue
-            # YYYY-MM → month integer
+            # YYYY-MM — store with year so multi-year curves don't collide
             if len(period_str) == 7 and period_str[4] == "-":
                 try:
-                    anchors[int(period_str[5:])] = rate
+                    y, m = int(period_str[:4]), int(period_str[5:])
+                    ym_anchors[(y, m)] = rate
                     continue
                 except ValueError:
                     pass
-            # "01" … "12" → month integer
+            # "01" … "12" → bare month integer (single-year shorthand)
             if period_str.isdigit() and 1 <= int(period_str) <= 12:
-                anchors[int(period_str)] = rate
+                bare_anchors[int(period_str)] = rate
                 continue
-            # bare integer > 12 → treat as period index (1-based)
+            # bare integer > 12 → period index (1-based running month)
             try:
-                anchors[int(period_str)] = rate
+                bare_anchors[int(period_str)] = rate
             except ValueError:
                 warnings.warn(f"RateCurve: unrecognised period format '{period_str}'. Skipping anchor.")
 
-        if not anchors and all_period_rate is None:
+        if not ym_anchors and not bare_anchors and all_period_rate is None:
             return df
 
-        # ── Compute 1-based month index for every row ────────────────────
+        # ── Compute 1-based running month index for every row ────────────
         valid_ts = timestamps.dropna()
         if valid_ts.empty:
             return df
@@ -2026,6 +2072,12 @@ class DataSimulator:
             + (timestamps.dt.month - start_month)
             + 1
         ).fillna(-1).astype(int)
+
+        # Convert YYYY-MM anchors to running indices now that we know the origin
+        anchors: Dict[int, float] = dict(bare_anchors)
+        for (y, m), rate in ym_anchors.items():
+            running_idx = (y - start_year) * 12 + (m - start_month) + 1
+            anchors[running_idx] = rate
 
         # ── Interpolate rates across all observed period indices ──────────
         observed_indices = sorted(idx for idx in row_month_idx.unique() if idx > 0)
@@ -2365,13 +2417,13 @@ class DataSimulator:
             extra = clean_timestamps.sample(
                 n=len(clean_timestamps) - len(sampled_series),
                 replace=True,
-                random_state=self.config.seed,
+                random_state=int(self.rng.integers(0, 2**31)),
             ).reset_index(drop=True)
             sampled_series = pd.concat([sampled_series, extra], ignore_index=True)
         elif len(sampled_series) > len(clean_timestamps):
             sampled_series = sampled_series.iloc[:len(clean_timestamps)].reset_index(drop=True)
 
-        return sampled_series.sample(frac=1.0, random_state=self.config.seed).reset_index(drop=True)
+        return sampled_series.sample(frac=1.0, random_state=int(self.rng.integers(0, 2**31))).reset_index(drop=True)
 
     def _resolve_time_density_weights(
         self,
@@ -2715,12 +2767,34 @@ class DataSimulator:
                 target_corr[i, j] = r
                 target_corr[j, i] = r
 
-        # Cholesky decomposition of target correlation matrix
+        # Cholesky decomposition of target correlation matrix.
+        # If the matrix is not positive-definite (over-specified or conflicting
+        # pairwise entries), attempt nearest-PD repair via eigenvalue clipping
+        # before giving up so the user still gets approximate correlations.
         try:
             L = np.linalg.cholesky(target_corr)
         except np.linalg.LinAlgError:
-            # Matrix not positive-definite — skip silently
-            return df
+            try:
+                vals, vecs = np.linalg.eigh(target_corr)
+                vals = np.clip(vals, 1e-8, None)   # clip negative eigenvalues
+                target_corr_pd = vecs @ np.diag(vals) @ vecs.T
+                # Re-normalise to a true correlation matrix (diag = 1)
+                d = np.sqrt(np.diag(target_corr_pd))
+                target_corr_pd = target_corr_pd / np.outer(d, d)
+                L = np.linalg.cholesky(target_corr_pd)
+                warnings.warn(
+                    f"Table '{table_name}': correlation matrix was not positive-definite "
+                    "(conflicting or over-specified pairwise targets). Applied nearest-PD "
+                    "repair — realized correlations will be close but not exact.",
+                    stacklevel=2,
+                )
+            except np.linalg.LinAlgError:
+                warnings.warn(
+                    f"Table '{table_name}': correlation matrix could not be repaired. "
+                    "Correlations skipped for this table.",
+                    stacklevel=2,
+                )
+                return df
 
         # Generate correlated standard normals
         Z = self.rng.standard_normal((k, n))
@@ -2814,6 +2888,47 @@ class DataSimulator:
         return result
 
     # ------------------------------------------------------------------
+    # null_rate / nullable — applied last so statistical passes see values
+    # ------------------------------------------------------------------
+
+    def _apply_null_rates(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """Honour per-column ``null_rate`` and the ``nullable`` flag.
+
+        A column declared ``nullable: true`` without an explicit ``null_rate``
+        uses a 5 % default (enough to surface null-handling bugs in pipelines
+        without overwhelming the data).  ``null_rate: 0`` suppresses nulls even
+        when ``nullable: true``.
+
+        Primary-key and foreign-key columns are always skipped — nulling those
+        would break referential integrity.
+        """
+        pk_cols = {
+            c.name for c in self.config.get_columns(table_name)
+            if c.name == "id" or getattr(c, "unique", False)
+        }
+        fk_cols = {
+            r.child_key for r in self.config.relationships if r.child_table == table_name
+        }
+        protected = pk_cols | fk_cols
+
+        for col in self.config.get_columns(table_name):
+            if col.name not in df.columns or col.name in protected:
+                continue
+            params = col.distribution_params
+            null_rate = params.get("null_rate")
+            # Only apply explicit null_rate — nullable=True is the default for
+            # all columns and should not silently introduce nulls unless the
+            # user explicitly declares a rate.
+            if null_rate is None:
+                continue
+            null_rate = float(null_rate)
+            if null_rate <= 0:
+                continue
+            mask = pd.Series(self.rng.random(len(df)) < null_rate, index=df.index)
+            _null_column(df, col.name, mask)
+        return df
+
+    # ------------------------------------------------------------------
     # Informative missingness (#3): MAR / conditional null
     # ------------------------------------------------------------------
 
@@ -2844,7 +2959,7 @@ class DataSimulator:
             if null_when and col.name in df.columns:
                 try:
                     mask = df.eval(null_when).values.astype(bool)
-                    df.loc[mask, col.name] = np.nan
+                    _null_column(df, col.name, pd.Series(mask, index=df.index))
                 except Exception:
                     pass
 
@@ -2874,7 +2989,7 @@ class DataSimulator:
                     normed = 1.0 - normed
                 null_probs = base_rate + (max_rate - base_rate) * normed
                 draw = pd.Series(self.rng.random(len(df)), index=df.index)
-                df.loc[draw < null_probs, col.name] = np.nan
+                _null_column(df, col.name, draw < null_probs)
                 continue
 
             # MAR: null probability tied to an observed predictor column
@@ -2889,8 +3004,7 @@ class DataSimulator:
 
             null_probs = base_rate + (max_rate - base_rate) * normed
             draw = pd.Series(self.rng.random(len(df)), index=df.index)
-            mask = draw < null_probs
-            df.loc[mask, col.name] = np.nan
+            _null_column(df, col.name, draw < null_probs)
 
         return df
 
@@ -3114,7 +3228,7 @@ class DataSimulator:
             if not ref_col or not trigger_values or ref_col not in df.columns or col.name not in df.columns:
                 continue
             mask = df[ref_col].isin(trigger_values)
-            df.loc[mask, col.name] = np.nan
+            _null_column(df, col.name, mask)
         return df
 
     def _apply_formula_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:

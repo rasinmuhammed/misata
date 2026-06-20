@@ -168,8 +168,9 @@ def _col_from_dict(
     if misata_type == "categorical":
         choices = [str(c) for c in enum] if enum else ["Unknown"]
         params["choices"] = choices
-        if col_def.get("probabilities") is not None:
-            params["probabilities"] = list(col_def["probabilities"])
+        _probs = col_def.get("probabilities") or col_def.get("weights")
+        if _probs is not None:
+            params["probabilities"] = list(_probs)
 
     elif misata_type in ("int", "float"):
         if col_def.get("min") is not None:
@@ -557,8 +558,15 @@ def verify_integrity(
                                 "orphan_count": -1})
             continue
 
-        valid_ids = set(parent_df[pkey].dropna().unique())
+        # Normalise numeric types before membership test: an int PK and a
+        # float64 FK column (widened by NaN assignment) would never match
+        # without this coercion, producing false orphan reports.
+        parent_ids = parent_df[pkey].dropna()
         child_vals = child_df[ckey].dropna()
+        if pd.api.types.is_numeric_dtype(parent_ids) and pd.api.types.is_numeric_dtype(child_vals):
+            parent_ids = parent_ids.astype(float)
+            child_vals = child_vals.astype(float)
+        valid_ids = set(parent_ids.unique())
         orphans = child_vals[~child_vals.isin(valid_ids)]
 
         if len(orphans) > 0:
