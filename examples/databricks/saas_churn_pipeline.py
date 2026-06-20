@@ -129,7 +129,6 @@ result = mspark.generate_to_delta(
     mode="overwrite",
     table_properties={"delta.autoOptimize.optimizeWrite": "true"},
 )
-print(result.summary())
 result.raise_on_error()
 
 # COMMAND ----------

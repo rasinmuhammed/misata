@@ -752,14 +752,14 @@ def write_delta(
             result.table_paths[table_name] = full_name
             result.rows_written[table_name] = len(df)
 
-            if verbose:
-                print(f"  ✅ {table_name} ({len(df):,} rows) → {full_name}")
-
         except Exception as exc:
             result.errors[table_name] = str(exc)
             result.table_paths[table_name] = full_name
             if verbose:
                 print(f"  ✗ {table_name}: {exc}")
+
+    if verbose:
+        print(result.summary())
 
     return result
 
