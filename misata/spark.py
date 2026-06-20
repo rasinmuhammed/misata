@@ -249,7 +249,15 @@ def _normalize_for_spark(
                 df[col] = pd.to_datetime(df[col]).dt.tz_localize(None)
             except (TypeError, AttributeError):
                 pass
-    return df
+    # Consolidate internal Arrow buffers. Pandas 2.x + PyArrow backend leaves
+    # ChunkedArrays after column-wise assignment; PySpark's createDataFrame
+    # rejects these when an explicit StructType schema is provided.
+    # combine_chunks() is always safe — pyarrow ships with every PySpark install.
+    try:
+        import pyarrow as pa
+        return pa.Table.from_pandas(df, preserve_index=False).combine_chunks().to_pandas()
+    except Exception:
+        return df.copy()
 
 
 def _date_columns_from_schema(schema_config: Any) -> Dict[str, set]:
