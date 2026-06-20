@@ -262,6 +262,142 @@ def _ml_efficacy(
 
 
 # ---------------------------------------------------------------------------
+# Privacy: distance to closest record
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PrivacyReport:
+    """How safely the synthetic data hides the real rows it learned from."""
+
+    exact_match_rate: float        # fraction of synthetic rows that are exact real rows
+    median_dcr: float              # median distance from a synthetic row to nearest real row
+    real_baseline_dcr: float       # median nearest-neighbour distance among real rows
+    dcr_ratio: float               # median_dcr / real_baseline_dcr  (>= 1.0 is healthy)
+    at_risk_rate: float            # fraction of synthetic rows closer than the real baseline
+    n_compared: int
+
+    @property
+    def safe(self) -> bool:
+        # Healthy when there are no exact copies and synthetic rows sit no closer
+        # to real rows than real rows sit to each other.
+        return self.exact_match_rate == 0.0 and self.dcr_ratio >= 0.9
+
+    def summary(self) -> str:
+        verdict = "OK" if self.safe else "REVIEW"
+        return (
+            f"Privacy: {verdict}\n"
+            f"  exact real-row copies        : {self.exact_match_rate * 100:.2f}%\n"
+            f"  distance to closest real row : {self.median_dcr:.4f} (median)\n"
+            f"  real-to-real baseline        : {self.real_baseline_dcr:.4f}\n"
+            f"  DCR ratio (>=1.0 healthy)    : {self.dcr_ratio:.2f}\n"
+            f"  rows closer than baseline    : {self.at_risk_rate * 100:.2f}%\n"
+            f"  (compared on {self.n_compared} sampled rows)"
+        )
+
+
+def _encode_for_distance(real: pd.DataFrame, syn: pd.DataFrame, cols: List[str]) -> tuple:
+    """Standardised numeric matrices for real and synthetic over shared columns.
+
+    Numeric columns are z-scored on the real distribution; categoricals are
+    one-hot encoded and aligned. Returns (real_matrix, syn_matrix).
+    """
+    real_parts, syn_parts = [], []
+    for c in cols:
+        if pd.api.types.is_numeric_dtype(real[c]) and pd.api.types.is_numeric_dtype(syn[c]):
+            r = pd.to_numeric(real[c], errors="coerce")
+            s = pd.to_numeric(syn[c], errors="coerce")
+            mu, sigma = r.mean(), r.std()
+            sigma = sigma if sigma and sigma > 1e-9 else 1.0
+            real_parts.append(((r - mu) / sigma).fillna(0.0).to_frame(c))
+            syn_parts.append(((s - mu) / sigma).fillna(0.0).to_frame(c))
+        else:
+            combined = pd.concat([real[c].astype(str), syn[c].astype(str)])
+            dummies = pd.get_dummies(combined)
+            real_parts.append(dummies.iloc[: len(real)].reset_index(drop=True))
+            syn_parts.append(dummies.iloc[len(real):].reset_index(drop=True))
+    real_m = pd.concat(real_parts, axis=1).to_numpy(dtype=float)
+    syn_m = pd.concat(syn_parts, axis=1).to_numpy(dtype=float)
+    return real_m, syn_m
+
+
+def _nn_distances(query: np.ndarray, reference: np.ndarray, exclude_self: bool = False) -> np.ndarray:
+    """Nearest-neighbour Euclidean distance from each query row to the reference set."""
+    try:
+        from sklearn.neighbors import NearestNeighbors
+        k = 2 if exclude_self else 1
+        nn = NearestNeighbors(n_neighbors=min(k, len(reference)))
+        nn.fit(reference)
+        dist, _ = nn.kneighbors(query)
+        return dist[:, -1] if exclude_self and dist.shape[1] > 1 else dist[:, 0]
+    except ImportError:
+        # Vectorised numpy fallback (fine for the sampled sizes used here).
+        out = np.empty(len(query))
+        for i, row in enumerate(query):
+            d = np.sqrt(((reference - row) ** 2).sum(axis=1))
+            if exclude_self:
+                d.sort()
+                out[i] = d[1] if len(d) > 1 else d[0]
+            else:
+                out[i] = d.min()
+        return out
+
+
+def privacy_report(
+    synthetic: pd.DataFrame,
+    real: pd.DataFrame,
+    sample_size: int = 2000,
+    seed: int = 0,
+) -> PrivacyReport:
+    """Measure how safely the synthetic data hides the real rows.
+
+    A faithful copy is only useful if it does not smuggle real records through.
+    This computes, over shared columns:
+
+    - **exact match rate** — synthetic rows that are byte-for-byte real rows.
+    - **distance to closest record (DCR)** — for each synthetic row, the distance
+      to the nearest real row, compared against the real-to-real nearest-neighbour
+      baseline. If synthetic rows sit no closer to real rows than real rows sit to
+      each other (``dcr_ratio >= ~1``), no row is being memorised.
+
+    Uses scikit-learn for the neighbour search when available, with a numpy
+    fallback otherwise.
+    """
+    shared = [c for c in real.columns if c in synthetic.columns]
+    if not shared:
+        return PrivacyReport(0.0, 0.0, 0.0, 1.0, 0.0, 0)
+
+    exact = real[shared].merge(synthetic[shared], how="inner")
+    exact_rate = min(1.0, len(exact) / max(1, len(synthetic)))
+
+    rng = np.random.default_rng(seed)
+    real_s = real[shared].sample(min(sample_size, len(real)), random_state=seed)
+    syn_s = synthetic[shared].sample(min(sample_size, len(synthetic)), random_state=seed)
+
+    real_m, syn_m = _encode_for_distance(real_s.reset_index(drop=True),
+                                         syn_s.reset_index(drop=True), shared)
+    if real_m.shape[1] == 0 or len(real_m) < 2:
+        return PrivacyReport(exact_rate, 0.0, 0.0, 1.0, 0.0, len(syn_m))
+
+    syn_to_real = _nn_distances(syn_m, real_m)
+    real_to_real = _nn_distances(real_m, real_m, exclude_self=True)
+
+    median_dcr = float(np.median(syn_to_real))
+    baseline = float(np.median(real_to_real))
+    baseline_safe = baseline if baseline > 1e-9 else 1e-9
+    ratio = median_dcr / baseline_safe
+    at_risk = float((syn_to_real < baseline).mean())
+
+    return PrivacyReport(
+        exact_match_rate=round(exact_rate, 4),
+        median_dcr=round(median_dcr, 4),
+        real_baseline_dcr=round(baseline, 4),
+        dcr_ratio=round(ratio, 3),
+        at_risk_rate=round(at_risk, 4),
+        n_compared=int(len(syn_m)),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 

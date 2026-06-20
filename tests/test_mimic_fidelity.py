@@ -198,6 +198,108 @@ def test_constant_column_stays_constant():
     assert syn["k"].nunique() == 1 and syn["k"].iloc[0] == 7.5
 
 
+# ---------------------------------------------------------------------------
+# Conditional numeric-by-category
+# ---------------------------------------------------------------------------
+
+def _category_driven_frame(n: int = 4000, seed: int = 0) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    plan = rng.choice(["starter", "pro", "enterprise"], n, p=[0.6, 0.3, 0.1])
+    base = {"starter": 30000, "pro": 70000, "enterprise": 160000}
+    income = np.array([rng.normal(base[p], base[p] * 0.15) for p in plan])
+    return pd.DataFrame({"plan": plan, "income": income.round(0)})
+
+
+def test_mimic_preserves_category_driven_numeric():
+    """income-by-plan means must survive mimic (conditional structure)."""
+    real = _category_driven_frame()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=len(real), seed=7)["table"]
+    real_means = real.groupby("plan")["income"].mean()
+    syn_means = syn.groupby("plan")["income"].mean()
+    for plan in real_means.index:
+        rel_err = abs(syn_means[plan] - real_means[plan]) / real_means[plan]
+        assert rel_err < 0.15, f"{plan}: income mean off by {rel_err:.0%}"
+
+
+def test_mimic_conditional_coexists_with_correlation():
+    """A category-driven column and a numeric correlation must both survive."""
+    rng = np.random.default_rng(0)
+    n = 4000
+    age = rng.normal(40, 10, n).clip(18, 80)
+    salary = 20000 + age * 1200 + rng.normal(0, 8000, n)
+    plan = rng.choice(["s", "p", "e"], n, p=[0.6, 0.3, 0.1])
+    base = {"s": 30000, "p": 70000, "e": 160000}
+    income = np.array([rng.normal(base[p], base[p] * 0.15) for p in plan])
+    real = pd.DataFrame({"age": age.round(1), "salary": salary.round(0),
+                         "plan": plan, "income": income.round(0)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=n, seed=7)["table"]
+    assert abs(syn["age"].corr(syn["salary"]) - real["age"].corr(real["salary"])) < 0.15
+    syn_means = syn.groupby("plan")["income"].mean()
+    assert syn_means["e"] > syn_means["p"] > syn_means["s"], "plan ordering lost"
+
+
+# ---------------------------------------------------------------------------
+# Row-count fidelity at scale (regression for batch-truncation bug)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("rows", [5000, 25000])
+def test_mimic_generates_exact_row_count_above_batch(rows):
+    """Requests larger than the 10k batch size must not be truncated."""
+    real = pd.DataFrame({"x": np.random.default_rng(0).normal(50, 10, 300)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=rows, seed=1)["table"]
+    assert len(syn) == rows, f"requested {rows}, got {len(syn)}"
+
+
+def test_mimic_scale_preserves_patterns():
+    """Generating 50x the source rows preserves correlation structure."""
+    real = _correlated_frame(n=400)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        big = misata.mimic(real, rows=20000, seed=7)["table"]
+    assert len(big) == 20000
+    assert abs(big["age"].corr(big["salary"]) - real["age"].corr(real["salary"])) < 0.15
+
+
+# ---------------------------------------------------------------------------
+# privacy_report
+# ---------------------------------------------------------------------------
+
+def test_privacy_report_twin_is_safe():
+    """A mimic twin must have no exact copies and a healthy DCR ratio."""
+    real = _correlated_frame()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=len(real), seed=7)["table"]
+    rep = misata.privacy_report(syn, real)
+    assert rep.exact_match_rate == 0.0
+    assert rep.dcr_ratio >= 0.8
+    assert rep.safe
+
+
+def test_privacy_report_flags_real_copy():
+    """Comparing the real data with itself must flag total leakage."""
+    real = _correlated_frame()
+    rep = misata.privacy_report(real, real)
+    assert rep.exact_match_rate == 1.0
+    assert rep.dcr_ratio < 0.5
+    assert not rep.safe
+
+
+def test_privacy_report_summary_renders():
+    real = _correlated_frame()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        syn = misata.mimic(real, rows=len(real), seed=7)["table"]
+    text = misata.privacy_report(syn, real).summary()
+    assert "Privacy" in text and "DCR" in text
+
+
 @pytest.mark.skipif(
     pytest.importorskip("sklearn", reason="scikit-learn not installed") is None,
     reason="needs scikit-learn",

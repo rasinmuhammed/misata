@@ -315,6 +315,86 @@ def _cardinality_ratio(series: pd.Series) -> float:
     return series.nunique() / n if n > 0 else 1.0
 
 
+def _eta_squared(df: pd.DataFrame, num_col: str, cat_col: str) -> float:
+    """Share of a numeric column's variance explained by a categorical column.
+
+    One-way ANOVA eta-squared in [0, 1]: 0 means the category tells you nothing
+    about the number, 1 means it tells you everything.
+    """
+    sub = df[[cat_col, num_col]].dropna()
+    y = pd.to_numeric(sub[num_col], errors="coerce")
+    sub = sub.assign(_y=y).dropna(subset=["_y"])
+    if len(sub) < 10:
+        return 0.0
+    grand = sub["_y"].mean()
+    ss_total = float(((sub["_y"] - grand) ** 2).sum())
+    if ss_total < 1e-12:
+        return 0.0
+    ss_between = 0.0
+    for _, grp in sub.groupby(cat_col):
+        ss_between += len(grp) * (grp["_y"].mean() - grand) ** 2
+    return float(ss_between / ss_total)
+
+
+def _conditional_numeric_params(
+    df: pd.DataFrame, num_col: str, cat_col: str, is_int: bool, decimals: int
+) -> Dict[str, Any]:
+    """Build a depends_on/mapping spec: a numeric distribution per category value."""
+    mapping: Dict[str, Any] = {}
+    sub = df[[cat_col, num_col]].dropna()
+    for key, grp in sub.groupby(cat_col):
+        vals = pd.to_numeric(grp[num_col], errors="coerce").dropna().astype(float)
+        if len(vals) < 2:
+            mapping[str(key)] = {"value": round(float(vals.mean()) if len(vals) else 0.0, decimals)}
+            continue
+        entry: Dict[str, Any] = {
+            "mean": round(float(vals.mean()), decimals),
+            "std": round(max(float(vals.std()), 10 ** (-decimals) if decimals else 1e-6), decimals),
+            "min": round(float(vals.min()), decimals),
+            "max": round(float(vals.max()), decimals),
+            "decimals": 0 if is_int else decimals,
+        }
+        mapping[str(key)] = entry
+    overall = pd.to_numeric(df[num_col], errors="coerce").dropna().astype(float)
+    default = {
+        "mean": round(float(overall.mean()), decimals),
+        "std": round(max(float(overall.std()), 1e-6), decimals),
+    }
+    return {
+        "depends_on": cat_col,
+        "mapping": mapping,
+        "default": default,
+        "decimals": 0 if is_int else decimals,
+        "quantize": False,
+    }
+
+
+def _detect_conditionals(
+    df: pd.DataFrame,
+    numeric_cols: List[str],
+    categorical_cols: List[str],
+    eta_threshold: float = 0.25,
+) -> Dict[str, str]:
+    """Map each numeric column to the categorical that best explains it (if any).
+
+    A numeric column is made conditional on a categorical when that category
+    explains a large share of its variance (e.g. income by plan tier). This
+    captures group-level structure that a single marginal cannot.
+    """
+    result: Dict[str, str] = {}
+    for num in numeric_cols:
+        best_cat, best_eta = None, eta_threshold
+        for cat in categorical_cols:
+            if df[cat].nunique() > 15 or df[cat].nunique() < 2:
+                continue
+            eta = _eta_squared(df, num, cat)
+            if eta > best_eta:
+                best_cat, best_eta = cat, eta
+        if best_cat is not None:
+            result[num] = best_cat
+    return result
+
+
 def _detect_correlations(
     df: pd.DataFrame,
     numeric_cols: List[str],
@@ -385,18 +465,45 @@ class DataProfiler:
         from misata.schema import Column, Table, SchemaConfig
 
         columns: List[Column] = []
+        by_name: Dict[str, Column] = {}
         continuous_numeric: List[str] = []
+        categorical_cols: List[str] = []
         for col_name in df.columns:
             series = df[col_name]
             col_def = self._profile_column(col_name, series)
             columns.append(col_def)
+            by_name[col_name] = col_def
             if self._is_continuous_numeric(col_def):
                 continuous_numeric.append(col_name)
+            elif col_def.type == "categorical":
+                categorical_cols.append(col_name)
 
-        # Joint structure: detect the correlation matrix among continuous
-        # numeric columns so the twin matches the original in joint space,
-        # not just column by column. Reproduced via Iman-Conover at gen time.
+        # Conditional structure: when a low-cardinality categorical explains most
+        # of a numeric column's variance (income by plan tier, salary by title),
+        # generate that numeric per-category instead of from one global marginal.
+        conditionals = _detect_conditionals(df, continuous_numeric, categorical_cols)
+        for num_col, cat_col in conditionals.items():
+            cdef = by_name[num_col]
+            is_int = cdef.type == "int"
+            decimals = int((cdef.distribution_params or {}).get("decimals", 0 if is_int else 2))
+            cdef.distribution_params = _conditional_numeric_params(df, num_col, cat_col, is_int, decimals)
+            # A conditionally-generated column is excluded from the correlation
+            # pass: Iman-Conover reorders whole columns and would scramble the
+            # per-group structure we just imposed.
+            if num_col in continuous_numeric:
+                continuous_numeric.remove(num_col)
+
+        # Joint structure: detect the correlation matrix among the remaining
+        # continuous numeric columns. Reproduced via Iman-Conover at gen time.
         correlations = _detect_correlations(df, continuous_numeric)
+
+        # Column ordering: a conditional column must be generated after the
+        # categorical it depends on, so move dependents after their parents.
+        if conditionals:
+            dependents = set(conditionals.keys())
+            ordered = [c for c in columns if c.name not in dependents]
+            ordered += [by_name[n] for n in conditionals if n in by_name]
+            columns = ordered
 
         return SchemaConfig(
             name=f"{table_name} (mimic)",
@@ -586,7 +693,12 @@ def mimic(
         sim = DataSimulator(schema)
         if seed is not None:
             sim.rng = np.random.default_rng(seed)
+        # generate_all yields one batch per batch_size rows; concatenate them so
+        # row requests larger than the batch size are not silently truncated.
         for out_name, out_df in sim.generate_all():
-            results[out_name] = out_df
+            if out_name in results:
+                results[out_name] = pd.concat([results[out_name], out_df], ignore_index=True)
+            else:
+                results[out_name] = out_df
 
     return results

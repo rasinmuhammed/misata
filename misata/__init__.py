@@ -679,7 +679,7 @@ from misata.generators.base import (
     create_conditional_generator,
 )
 from misata.profiler import mimic, DataProfiler
-from misata.fidelity import fidelity_report, FidelityReport
+from misata.fidelity import fidelity_report, FidelityReport, privacy_report, PrivacyReport
 from misata.ddl import from_ddl
 from misata import spark as spark  # noqa: PLC0414 — re-export the submodule
 
@@ -696,6 +696,8 @@ __all__ = [
     "DataProfiler",
     "fidelity_report",
     "FidelityReport",
+    "privacy_report",
+    "PrivacyReport",
     "from_dict_schema",
     "verify_integrity",
     "IntegrityReport",
