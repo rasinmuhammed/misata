@@ -42,7 +42,10 @@
 # COMMAND ----------
 
 # MAGIC %pip install misata
-# MAGIC dbutils.library.restartPython()
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
 
 # COMMAND ----------
 
