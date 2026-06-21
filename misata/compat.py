@@ -89,6 +89,22 @@ _TYPE_MAP: Dict[str, str] = {
 }
 
 _TEXT_TYPE_HINTS: Dict[str, str] = {
+    # Identifiers — must come BEFORE "name" so substring scan stops here first.
+    # Without these, columns like "anonymous_id" or "device_token" match "name"
+    # or other substrings and get the wrong generator.
+    "anonymous_id": "uuid",
+    "anon_id": "uuid",
+    "tracking_id": "uuid",
+    "device_id": "uuid",
+    "device_token": "uuid",
+    "session_token": "uuid",
+    "user_token": "uuid",
+    "access_token": "uuid",
+    "refresh_token": "uuid",
+    "request_id": "uuid",
+    "correlation_id": "uuid",
+    "trace_id": "uuid",
+    "guid": "uuid",
     # People — specific first (so exact match wins over "name" substring)
     "first_name": "first_name",
     "last_name": "last_name",
