@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic pharma and clinical research synthetic datasets in Python — researchers, clinical trials, projects, and timesheets with phase-accurate distributions. HIPAA-safe by design. No real trial data required.">
+        <meta name="description" content="Generate realistic pharma and clinical research synthetic datasets in Python, researchers, clinical trials, projects, and timesheets with phase-accurate distributions. HIPAA-safe by design. No real trial data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-pharma-and-clinical-research-synthetic-data-in-python">Generate Pharma and Clinical Research Synthetic Data in Python</h1>
-<p>Pharmaceutical and clinical research data is among the most regulated in any industry — FDA 21 CFR Part 11, ICH E6 GCP, and HIPAA govern how trial data is stored, accessed, and shared. Yet research informatics teams, clinical data management (CDM) software developers, and healthcare IT vendors all need realistic trial data to develop against. Misata generates a four-table pharma synthetic dataset: researchers, research projects, clinical trials, and timesheets — with phase-accurate distributions and no real patient or researcher records involved.</p>
+<p>Pharmaceutical and clinical research data is among the most regulated in any industry, FDA 21 CFR Part 11, ICH E6 GCP, and HIPAA govern how trial data is stored, accessed, and shared. Yet research informatics teams, clinical data management (CDM) software developers, and healthcare IT vendors all need realistic trial data to develop against. Misata generates a four-table pharma synthetic dataset: researchers, research projects, clinical trials, and timesheets, with phase-accurate distributions and no real patient or researcher records involved.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A pharma research company with 200 researchers and clinical trials&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
@@ -2623,10 +2623,10 @@
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
 <li><strong>Trial phases</strong> follow a realistic R&amp;D pipeline: Phase I (safety) → Phase II (efficacy) → Phase III (large-scale) → Phase IV (post-market)</li>
-<li><strong>Participant counts</strong> scale with phase — Phase I trials have 20–100 participants, Phase III has 1,000+</li>
+<li><strong>Participant counts</strong> scale with phase, Phase I trials have 20–100 participants, Phase III has 1,000+</li>
 <li><strong>Success rates</strong> are phase-appropriate: Phase I ~70%, Phase II ~45%, Phase III ~25% (matching industry attrition)</li>
-<li><strong>Project budgets</strong> lognormal — early-phase projects cost less than late-stage pivotal trials</li>
-<li><strong>Timesheet hours</strong> are constrained to 0–8 per day — no researcher logs 20 hours in a single day</li>
+<li><strong>Project budgets</strong> lognormal, early-phase projects cost less than late-stage pivotal trials</li>
+<li><strong>Timesheet hours</strong> are constrained to 0–8 per day, no researcher logs 20 hours in a single day</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2648,12 +2648,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Electronic lab notebook (ELN) system testing</strong> — seed researcher records, project assignments, and timesheet data for workflow and access control testing</li>
-<li><strong>Clinical data management (CDM) platform development</strong> — build trial registration, protocol management, and data entry validation on realistic trial records</li>
-<li><strong>Research resource planning tools</strong> — generate researcher-project allocation data to develop capacity planning and burn rate analytics</li>
-<li><strong>Regulatory submission data pipeline testing</strong> — validate data transformation and export pipelines against realistic Phase II/III trial structures</li>
-<li><strong>Grant management system development</strong> — test budget tracking, milestone reporting, and researcher allocation features against synthetic project financials</li>
-<li><strong>R&amp;D analytics dashboards</strong> — build pipeline stage, success rate, and resource utilization reports before connecting to real CTMS data</li>
+<li><strong>Electronic lab notebook (ELN) system testing</strong>: seed researcher records, project assignments, and timesheet data for workflow and access control testing</li>
+<li><strong>Clinical data management (CDM) platform development</strong>: build trial registration, protocol management, and data entry validation on realistic trial records</li>
+<li><strong>Research resource planning tools</strong>: generate researcher-project allocation data to develop capacity planning and burn rate analytics</li>
+<li><strong>Regulatory submission data pipeline testing</strong>: validate data transformation and export pipelines against realistic Phase II/III trial structures</li>
+<li><strong>Grant management system development</strong>: test budget tracking, milestone reporting, and researcher allocation features against synthetic project financials</li>
+<li><strong>R&amp;D analytics dashboards</strong>: build pipeline stage, success rate, and resource utilization reports before connecting to real CTMS data</li>
 </ul>
 <h2 id="advanced-rd-pipeline-narrative">Advanced: R&amp;D pipeline narrative</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

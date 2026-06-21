@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic HR synthetic datasets in Python — employees, departments, payroll, salary distributions, and tenure coherence. No real employee data required. GDPR-safe by design.">
+        <meta name="description" content="Generate realistic HR synthetic datasets in Python, employees, departments, payroll, salary distributions, and tenure coherence. No real employee data required. GDPR-safe by design.">
       
       
       
@@ -2606,8 +2606,8 @@
 
 
 <h1 id="generate-hr-and-workforce-synthetic-data-in-python">Generate HR and Workforce Synthetic Data in Python</h1>
-<p>HR data is deeply sensitive — employee salaries, personal dates of birth, and compensation details are among the most protected data in any organisation. But HR analytics tools, payroll system integrations, workforce planning models, and people analytics dashboards all need realistic employee data to develop against. Misata generates a coherent HR synthetic dataset: departments with realistic headcounts, employees with age-and-seniority-appropriate salaries, and payroll records where <code>net_pay</code> is mathematically consistent with <code>gross_pay</code> and <code>tax_withheld</code>.</p>
-<p>The temporal coherence rules are the key differentiator: every employee's <code>hire_date</code> is after their <code>date_of_birth + 18 years</code>, never in the future, and <code>tenure_years</code> is derived directly from <code>hire_date</code> — not from a separate random distribution that could produce impossible values like negative tenure.</p>
+<p>HR data is deeply sensitive, employee salaries, personal dates of birth, and compensation details are among the most protected data in any organisation. But HR analytics tools, payroll system integrations, workforce planning models, and people analytics dashboards all need realistic employee data to develop against. Misata generates a coherent HR synthetic dataset: departments with realistic headcounts, employees with age-and-seniority-appropriate salaries, and payroll records where <code>net_pay</code> is mathematically consistent with <code>gross_pay</code> and <code>tax_withheld</code>.</p>
+<p>The temporal coherence rules are the key differentiator: every employee's <code>hire_date</code> is after their <code>date_of_birth + 18 years</code>, never in the future, and <code>tenure_years</code> is derived directly from <code>hire_date</code>, not from a separate random distribution that could produce impossible values like negative tenure.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A tech company with 1000 employees and 4 departments&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
@@ -2641,11 +2641,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Salary by seniority:</strong> junior ~$65k, mid ~$95k, senior ~$140k, lead ~$180k — lognormal within each band for realistic spread</li>
-<li><strong>Tax rate:</strong> Beta(3, 7) clipped to 18–40% — not uniform, not a fixed percentage</li>
-<li><strong><code>tenure_years</code></strong> is derived from <code>hire_date</code>, not random — no employee has negative or impossible tenure</li>
+<li><strong>Salary by seniority:</strong> junior ~$65k, mid ~$95k, senior ~$140k, lead ~$180k, lognormal within each band for realistic spread</li>
+<li><strong>Tax rate:</strong> Beta(3, 7) clipped to 18–40%, not uniform, not a fixed percentage</li>
+<li><strong><code>tenure_years</code></strong> is derived from <code>hire_date</code>, not random, no employee has negative or impossible tenure</li>
 <li><strong>Age coherence:</strong> hire_date is always ≥18 years after date_of_birth, and never in the future</li>
-<li><strong><code>net_pay</code></strong> = <code>gross_pay × (1 − tax_withheld)</code> — mathematically enforced on every row</li>
+<li><strong><code>net_pay</code></strong> = <code>gross_pay × (1 − tax_withheld)</code>, mathematically enforced on every row</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2669,15 +2669,15 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>People analytics platform development</strong> — build attrition dashboards, salary band analyses, and diversity reports on realistic employee data before your HRIS is connected</li>
-<li><strong>Payroll system integration testing</strong> — validate your payroll calculation engine against thousands of employees with varied tax rates and pay types</li>
-<li><strong>GDPR-safe HR reporting</strong> — replace real employee exports with synthetic equivalents for vendor demos and external audits</li>
-<li><strong>Workforce planning model training</strong> — generate historical headcount and attrition data across departments to train staffing prediction models</li>
-<li><strong>Compensation benchmarking tools</strong> — build salary comparison features against synthetic market data without licensing real salary surveys</li>
-<li><strong>Applicant tracking system (ATS) load testing</strong> — generate realistic employee databases with department hierarchies for performance testing</li>
+<li><strong>People analytics platform development</strong>: build attrition dashboards, salary band analyses, and diversity reports on realistic employee data before your HRIS is connected</li>
+<li><strong>Payroll system integration testing</strong>: validate your payroll calculation engine against thousands of employees with varied tax rates and pay types</li>
+<li><strong>GDPR-safe HR reporting</strong>: replace real employee exports with synthetic equivalents for vendor demos and external audits</li>
+<li><strong>Workforce planning model training</strong>: generate historical headcount and attrition data across departments to train staffing prediction models</li>
+<li><strong>Compensation benchmarking tools</strong>: build salary comparison features against synthetic market data without licensing real salary surveys</li>
+<li><strong>Applicant tracking system (ATS) load testing</strong>: generate realistic employee databases with department hierarchies for performance testing</li>
 </ul>
 <h2 id="advanced-headcount-growth-curves">Advanced: headcount growth curves</h2>
-<p>Model headcount evolution over time — hiring sprees, layoffs, and department restructuring:</p>
+<p>Model headcount evolution over time, hiring sprees, layoffs, and department restructuring:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;Tech company with 1000 employees — engineering headcount doubled in 2022, &quot;</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;layoffs in Q1 2023, rehiring from Q3 2023&quot;</span><span class="p">,</span>
@@ -2705,7 +2705,7 @@
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
 </code></pre></div>
 <h2 id="formula-consistency">Formula consistency</h2>
-<p>Payroll records use formula columns — <code>net_pay</code> is not independently sampled but derived:</p>
+<p>Payroll records use formula columns, <code>net_pay</code> is not independently sampled but derived:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Every row satisfies: net_pay = gross_pay * (1 - tax_withheld)</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">payroll</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;payroll&quot;</span><span class="p">]</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">calculated</span> <span class="o">=</span> <span class="n">payroll</span><span class="p">[</span><span class="s2">&quot;gross_pay&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">payroll</span><span class="p">[</span><span class="s2">&quot;tax_withheld&quot;</span><span class="p">])</span>

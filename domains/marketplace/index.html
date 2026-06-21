@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic marketplace synthetic datasets in Python — sellers, buyers, listings, and orders with power-law seller distributions, beta-rated reviews, and referential integrity. No real user data required.">
+        <meta name="description" content="Generate realistic marketplace synthetic datasets in Python, sellers, buyers, listings, and orders with power-law seller distributions, beta-rated reviews, and referential integrity. No real user data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-marketplace-synthetic-data-in-python">Generate Marketplace Synthetic Data in Python</h1>
-<p>Online marketplaces have a distinctive data shape: a small number of power sellers drive most of the volume, buyer ratings cluster high, and listing prices follow a long-tailed distribution. If you generate seller, buyer, and listing data independently you lose all of this structure — and your marketplace analytics tool will look wrong from the first dashboard query. Misata generates a fully wired marketplace dataset where seller volume follows a power-law, ratings are beta-distributed toward 4–5 stars, and every order references a real buyer and listing.</p>
+<p>Online marketplaces have a distinctive data shape: a small number of power sellers drive most of the volume, buyer ratings cluster high, and listing prices follow a long-tailed distribution. If you generate seller, buyer, and listing data independently you lose all of this structure, and your marketplace analytics tool will look wrong from the first dashboard query. Misata generates a fully wired marketplace dataset where seller volume follows a power-law, ratings are beta-distributed toward 4–5 stars, and every order references a real buyer and listing.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A freelance marketplace with 500 sellers and 2000 buyers&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
@@ -2622,10 +2622,10 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Seller volume</strong> follows a power-law — top 10% of sellers account for ~60% of total_sales</li>
-<li><strong>Seller ratings</strong> beta-distributed (skewed toward 4–5 stars) — matching real platform rating inflation</li>
-<li><strong>Listing prices</strong> lognormal — affordable commodities plus premium service listings</li>
-<li><strong>Order completion rate</strong> ~85% — remaining 15% in pending, disputed, or cancelled states</li>
+<li><strong>Seller volume</strong> follows a power-law, top 10% of sellers account for ~60% of total_sales</li>
+<li><strong>Seller ratings</strong> beta-distributed (skewed toward 4–5 stars), matching real platform rating inflation</li>
+<li><strong>Listing prices</strong> lognormal, affordable commodities plus premium service listings</li>
+<li><strong>Order completion rate</strong> ~85%, remaining 15% in pending, disputed, or cancelled states</li>
 <li><strong><code>completed_at</code></strong> is always after <code>created_at</code> for completed orders</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
@@ -2644,12 +2644,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Marketplace trust and safety</strong> — generate seller profiles with varied rating histories for testing fraud detection and account suspension workflows</li>
-<li><strong>Search ranking model training</strong> — use <code>listings</code> with price, category, and seller rating features to train relevance ranking models</li>
-<li><strong>Commission and fee calculation testing</strong> — validate fee structures against thousands of orders with varied amounts and statuses</li>
-<li><strong>Seller analytics dashboard development</strong> — build GMV, conversion rate, and listing performance reports on realistic power-law distributed seller data</li>
-<li><strong>Buyer recommendation systems</strong> — use <code>orders</code> history to prototype collaborative filtering before real purchase data exists</li>
-<li><strong>Dispute resolution workflow testing</strong> — generate orders in all status states including disputed for testing escalation logic</li>
+<li><strong>Marketplace trust and safety</strong>: generate seller profiles with varied rating histories for testing fraud detection and account suspension workflows</li>
+<li><strong>Search ranking model training</strong>: use <code>listings</code> with price, category, and seller rating features to train relevance ranking models</li>
+<li><strong>Commission and fee calculation testing</strong>: validate fee structures against thousands of orders with varied amounts and statuses</li>
+<li><strong>Seller analytics dashboard development</strong>: build GMV, conversion rate, and listing performance reports on realistic power-law distributed seller data</li>
+<li><strong>Buyer recommendation systems</strong>: use <code>orders</code> history to prototype collaborative filtering before real purchase data exists</li>
+<li><strong>Dispute resolution workflow testing</strong>: generate orders in all status states including disputed for testing escalation logic</li>
 </ul>
 <h2 id="advanced-gmv-narrative-curves">Advanced: GMV narrative curves</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

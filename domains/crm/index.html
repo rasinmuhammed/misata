@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic CRM synthetic datasets in Python — companies, contacts, deals, and activities with accurate B2B pipeline stage distributions, lognormal deal values, and sales activity mixes. No real customer data required.">
+        <meta name="description" content="Generate realistic CRM synthetic datasets in Python, companies, contacts, deals, and activities with accurate B2B pipeline stage distributions, lognormal deal values, and sales activity mixes. No real customer data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-crm-synthetic-data-in-python">Generate CRM Synthetic Data in Python</h1>
-<p>CRM data is the backbone of every B2B sales tool — but it's also sensitive, and real pipeline data is never available early in development. Misata generates a four-table CRM dataset: companies, contacts, deals, and activities. Deal values are lognormally distributed with a median around $25k (the shape of real B2B pipelines), stage distribution reflects real funnel drop-off, and activity types mirror actual sales rep behavior — 40% email, 30% call, 20% meeting, 10% demo.</p>
+<p>CRM data is the backbone of every B2B sales tool, but it's also sensitive, and real pipeline data is never available early in development. Misata generates a four-table CRM dataset: companies, contacts, deals, and activities. Deal values are lognormally distributed with a median around $25k (the shape of real B2B pipelines), stage distribution reflects real funnel drop-off, and activity types mirror actual sales rep behavior, 40% email, 30% call, 20% meeting, 10% demo.</p>
 <p>Every deal references a valid contact and company. Activities are tied to real deals and contacts. <code>probability</code> increases monotonically with stage advancement. <code>close_date</code> falls in the future for open-stage deals.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2623,10 +2623,10 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Deal values</strong> lognormal ~$25k median — long tail of enterprise deals matching real B2B pipelines</li>
+<li><strong>Deal values</strong> lognormal ~$25k median, long tail of enterprise deals matching real B2B pipelines</li>
 <li><strong>Pipeline stages:</strong> prospecting 35%, qualification 25%, proposal 20%, negotiation 12%, closed-won 8%</li>
-<li><strong>Activity types:</strong> email 40%, call 30%, meeting 20%, demo 10% — matching real sales rep behavior</li>
-<li><strong><code>probability</code></strong> is correlated with stage — later stage = higher close probability</li>
+<li><strong>Activity types:</strong> email 40%, call 30%, meeting 20%, demo 10%, matching real sales rep behavior</li>
+<li><strong><code>probability</code></strong> is correlated with stage, later stage = higher close probability</li>
 <li><strong><code>lead_source</code></strong> varies across organic, paid, referral, and outbound channels</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
@@ -2650,12 +2650,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>CRM platform demos</strong> — populate a demo environment with realistic accounts, contacts, and pipeline data so prospects see a lived-in product</li>
-<li><strong>Lead scoring model training</strong> — generate thousands of contacts with source, title, and deal outcomes to train and evaluate propensity models</li>
-<li><strong>Revenue forecasting prototypes</strong> — build weighted pipeline models against deals with stage-accurate probability values before connecting real data</li>
-<li><strong>CRM migration testing</strong> — validate ETL scripts and field mappings against a full relational dataset before touching production records</li>
-<li><strong>Sales analytics dashboards</strong> — build conversion rate, activity cadence, and pipeline velocity reports on realistic CRM data</li>
-<li><strong>Integration QA</strong> — test webhooks, sync jobs, and API integrations against realistic email formats, phone numbers, and company sizes</li>
+<li><strong>CRM platform demos</strong>: populate a demo environment with realistic accounts, contacts, and pipeline data so prospects see a lived-in product</li>
+<li><strong>Lead scoring model training</strong>: generate thousands of contacts with source, title, and deal outcomes to train and evaluate propensity models</li>
+<li><strong>Revenue forecasting prototypes</strong>: build weighted pipeline models against deals with stage-accurate probability values before connecting real data</li>
+<li><strong>CRM migration testing</strong>: validate ETL scripts and field mappings against a full relational dataset before touching production records</li>
+<li><strong>Sales analytics dashboards</strong>: build conversion rate, activity cadence, and pipeline velocity reports on realistic CRM data</li>
+<li><strong>Integration QA</strong>: test webhooks, sync jobs, and API integrations against realistic email formats, phone numbers, and company sizes</li>
 </ul>
 <h2 id="advanced-q4-close-push-narrative">Advanced: Q4 close push narrative</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

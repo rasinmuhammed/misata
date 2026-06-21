@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic social media synthetic datasets in Python — users, posts, follows, reactions, and comments with Pareto follower distributions, realistic captions, and engagement rate distributions. No real user data required.">
+        <meta name="description" content="Generate realistic social media synthetic datasets in Python, users, posts, follows, reactions, and comments with Pareto follower distributions, realistic captions, and engagement rate distributions. No real user data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-social-media-synthetic-data-in-python">Generate Social Media Synthetic Data in Python</h1>
-<p>Social media data has a signature structure that random generators get completely wrong: follower counts follow a Pareto distribution (a tiny fraction of accounts captures most of the reach), engagement rates are beta-distributed between 1–5%, and captions include hashtags and contextual text — not lorem ipsum. Misata generates a five-table social platform dataset that looks like it came from a real app: users with realistic follower/following ratios, posts with media types, a follows graph, reactions, and threaded comments.</p>
+<p>Social media data has a signature structure that random generators get completely wrong: follower counts follow a Pareto distribution (a tiny fraction of accounts captures most of the reach), engagement rates are beta-distributed between 1–5%, and captions include hashtags and contextual text, not lorem ipsum. Misata generates a five-table social platform dataset that looks like it came from a real app: users with realistic follower/following ratios, posts with media types, a follows graph, reactions, and threaded comments.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A social media app with 10k creators, posts, and viral content&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
@@ -2626,11 +2626,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Follower counts</strong> follow a Pareto power-law — most accounts have hundreds of followers, a small elite has millions</li>
+<li><strong>Follower counts</strong> follow a Pareto power-law, most accounts have hundreds of followers, a small elite has millions</li>
 <li><strong>Engagement rate</strong> (~likes/followers) is beta-distributed between 1–5%, matching real influencer benchmarks</li>
-<li><strong><code>is_verified</code></strong> is rare (~2% of accounts) — consistent with real platform verification sparsity</li>
-<li><strong>Media types</strong> are distributed across image, video, carousel, and text — not uniformly random</li>
-<li><strong>Comments</strong> include <code>parent_comment_id</code> for threaded replies — not all comments are top-level</li>
+<li><strong><code>is_verified</code></strong> is rare (~2% of accounts), consistent with real platform verification sparsity</li>
+<li><strong>Media types</strong> are distributed across image, video, carousel, and text, not uniformly random</li>
+<li><strong>Comments</strong> include <code>parent_comment_id</code> for threaded replies, not all comments are top-level</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2650,12 +2650,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Content recommendation model training</strong> — generate user-post interaction data (<code>reactions</code>, <code>watch_history</code>) for training collaborative filtering and interest models</li>
-<li><strong>Social graph analytics</strong> — use the <code>follows</code> table to prototype graph algorithms, community detection, and influencer identification</li>
-<li><strong>Moderation and trust and safety tooling</strong> — generate comments and posts at scale to test content classification and flagging pipelines</li>
-<li><strong>Creator analytics dashboards</strong> — build engagement rate, reach, and growth analytics before real creator data is available</li>
-<li><strong>Feed ranking algorithm testing</strong> — validate chronological and ranked feed logic against realistic like/comment/share distributions</li>
-<li><strong>A/B test framework validation</strong> — generate user cohorts with varied follower counts and engagement rates for experiment design testing</li>
+<li><strong>Content recommendation model training</strong>: generate user-post interaction data (<code>reactions</code>, <code>watch_history</code>) for training collaborative filtering and interest models</li>
+<li><strong>Social graph analytics</strong>: use the <code>follows</code> table to prototype graph algorithms, community detection, and influencer identification</li>
+<li><strong>Moderation and trust and safety tooling</strong>: generate comments and posts at scale to test content classification and flagging pipelines</li>
+<li><strong>Creator analytics dashboards</strong>: build engagement rate, reach, and growth analytics before real creator data is available</li>
+<li><strong>Feed ranking algorithm testing</strong>: validate chronological and ranked feed logic against realistic like/comment/share distributions</li>
+<li><strong>A/B test framework validation</strong>: generate user cohorts with varied follower counts and engagement rates for experiment design testing</li>
 </ul>
 <h2 id="advanced-viral-content-curves">Advanced: viral content curves</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

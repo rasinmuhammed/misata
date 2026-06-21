@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic food delivery synthetic datasets in Python — restaurants, customers, couriers, orders, and order items with delivery time coherence and cuisine distributions. No real order data required.">
+        <meta name="description" content="Generate realistic food delivery synthetic datasets in Python, restaurants, customers, couriers, orders, and order items with delivery time coherence and cuisine distributions. No real order data required.">
       
       
       
@@ -2585,7 +2585,7 @@
 
 <h1 id="generate-food-delivery-synthetic-data-in-python">Generate Food Delivery Synthetic Data in Python</h1>
 <p>Food delivery platforms have a five-entity data model: restaurants, customers, couriers, orders, and the individual items within each order. Misata generates all five tables in one call, with every <code>delivered_at</code> timestamp guaranteed to be after <code>placed_at</code>, cuisine types drawn from realistic distributions, and delivery fees and order amounts matching real-world food app economics.</p>
-<p>The data is built for immediate use — no orphaned order_items, no couriers assigned to non-existent restaurants, no negative delivery times.</p>
+<p>The data is built for immediate use, no orphaned order_items, no couriers assigned to non-existent restaurants, no negative delivery times.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
@@ -2631,9 +2631,9 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong><code>delivered_at</code></strong> is always after <code>placed_at</code> — enforced, not probabilistic</li>
+<li><strong><code>delivered_at</code></strong> is always after <code>placed_at</code>, enforced, not probabilistic</li>
 <li><strong>Cuisine types</strong> drawn from realistic distribution: pizza, sushi, burgers, Indian, Chinese, Mexican, Thai, and more</li>
-<li><strong>Delivery fees</strong> lognormal — consistent with platform fee structures</li>
+<li><strong>Delivery fees</strong> lognormal, consistent with platform fee structures</li>
 <li><strong>Courier ratings</strong> beta-distributed toward 4–5 stars</li>
 <li><strong>Order totals</strong> match the sum of order_items with realistic variation for fees and promotions</li>
 </ul>
@@ -2661,12 +2661,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Delivery routing algorithm testing</strong> — generate orders with restaurant locations and courier positions to validate dispatch and routing logic</li>
-<li><strong>Food tech platform development</strong> — seed test databases with full order histories before your app has real restaurant partners</li>
-<li><strong>Demand forecasting models</strong> — generate order volumes with hour-of-day and day-of-week patterns to train surge prediction models</li>
-<li><strong>Courier performance analytics</strong> — build delivery time, rating, and completion rate dashboards on realistic courier histories</li>
-<li><strong>Restaurant analytics tools</strong> — develop order volume, revenue, and rating trend reports before real restaurant data is available</li>
-<li><strong>Customer LTV and retention models</strong> — generate customer order histories with realistic reorder rates and recency patterns</li>
+<li><strong>Delivery routing algorithm testing</strong>: generate orders with restaurant locations and courier positions to validate dispatch and routing logic</li>
+<li><strong>Food tech platform development</strong>: seed test databases with full order histories before your app has real restaurant partners</li>
+<li><strong>Demand forecasting models</strong>: generate order volumes with hour-of-day and day-of-week patterns to train surge prediction models</li>
+<li><strong>Courier performance analytics</strong>: build delivery time, rating, and completion rate dashboards on realistic courier histories</li>
+<li><strong>Restaurant analytics tools</strong>: develop order volume, revenue, and rating trend reports before real restaurant data is available</li>
+<li><strong>Customer LTV and retention models</strong>: generate customer order histories with realistic reorder rates and recency patterns</li>
 </ul>
 <h2 id="advanced-peak-hour-curves">Advanced: peak hour curves</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

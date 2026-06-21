@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic insurance synthetic datasets in Python — customers, policies, claims, and payments with actuarially accurate premium distributions, claim rates, and temporal coherence. GDPR-safe by design.">
+        <meta name="description" content="Generate realistic insurance synthetic datasets in Python, customers, policies, claims, and payments with actuarially accurate premium distributions, claim rates, and temporal coherence. GDPR-safe by design.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-insurance-synthetic-data-in-python">Generate Insurance Synthetic Data in Python</h1>
-<p>Insurance data is among the most sensitive and regulated data in any industry — GDPR, HIPAA, and state insurance regulations govern exactly who can access real policyholder records. Yet developers building insurtech platforms, actuaries prototyping pricing models, and data engineers testing claims pipelines all need realistic insurance data. Misata generates a four-table insurance dataset with lognormally distributed premiums by product line, a realistic ~8% claim rate, and complete temporal coherence: <code>incident_date</code> always falls within the policy's active period, <code>claim_date</code> follows <code>incident_date</code>, and policy <code>end_date</code> is always after <code>start_date</code>.</p>
+<p>Insurance data is among the most sensitive and regulated data in any industry, GDPR, HIPAA, and state insurance regulations govern exactly who can access real policyholder records. Yet developers building insurtech platforms, actuaries prototyping pricing models, and data engineers testing claims pipelines all need realistic insurance data. Misata generates a four-table insurance dataset with lognormally distributed premiums by product line, a realistic ~8% claim rate, and complete temporal coherence: <code>incident_date</code> always falls within the policy's active period, <code>claim_date</code> follows <code>incident_date</code>, and policy <code>end_date</code> is always after <code>start_date</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;An insurance company with 2k customers, auto and home policies, and claims&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
@@ -2622,11 +2622,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Premiums</strong> lognormal by type: auto ~$1,200/yr, home ~$1,500/yr, life ~$800/yr — with realistic within-line variance</li>
-<li><strong>Claim rate</strong> ~8% of active policies — matching personal lines industry averages</li>
+<li><strong>Premiums</strong> lognormal by type: auto ~$1,200/yr, home ~$1,500/yr, life ~$800/yr, with realistic within-line variance</li>
+<li><strong>Claim rate</strong> ~8% of active policies, matching personal lines industry averages</li>
 <li><strong><code>incident_date</code></strong> always falls within the policy's active <code>start_date</code> → <code>end_date</code> window</li>
-<li><strong>Coverage amounts</strong> are correlated with premium — higher-coverage policies cost more</li>
-<li><strong>Credit scores</strong> normally distributed around 690–710 — the realistic consumer credit distribution</li>
+<li><strong>Coverage amounts</strong> are correlated with premium, higher-coverage policies cost more</li>
+<li><strong>Credit scores</strong> normally distributed around 690–710, the realistic consumer credit distribution</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2653,12 +2653,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Fraud detection models</strong> — generate labeled claims with realistic amounts, timing, and status patterns to train anomaly classifiers</li>
-<li><strong>Underwriting algorithm validation</strong> — test pricing models against customers with varied credit scores, ages, and states</li>
-<li><strong>Policy management system testing</strong> — seed full policy lifecycles — issuance, renewal, lapse, cancellation — with correct date semantics</li>
-<li><strong>Actuarial analysis prototypes</strong> — build loss ratio, combined ratio, and claims frequency dashboards before connecting to real policy data</li>
-<li><strong>Billing system QA</strong> — test payment processing, reminder workflows, and lapse detection against payments with varied methods and statuses</li>
-<li><strong>Regulatory compliance testing</strong> — validate data masking and anonymization pipelines against realistic PII-containing insurance records</li>
+<li><strong>Fraud detection models</strong>: generate labeled claims with realistic amounts, timing, and status patterns to train anomaly classifiers</li>
+<li><strong>Underwriting algorithm validation</strong>: test pricing models against customers with varied credit scores, ages, and states</li>
+<li><strong>Policy management system testing</strong>: seed full policy lifecycles, issuance, renewal, lapse, cancellation, with correct date semantics</li>
+<li><strong>Actuarial analysis prototypes</strong>: build loss ratio, combined ratio, and claims frequency dashboards before connecting to real policy data</li>
+<li><strong>Billing system QA</strong>: test payment processing, reminder workflows, and lapse detection against payments with varied methods and statuses</li>
+<li><strong>Regulatory compliance testing</strong>: validate data masking and anonymization pipelines against realistic PII-containing insurance records</li>
 </ul>
 <h2 id="advanced-catastrophe-event-claims">Advanced: catastrophe event claims</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

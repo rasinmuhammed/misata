@@ -27,7 +27,7 @@
     
     
       
-        <title>Jupyter Magic — Generate Synthetic Data Inline in Notebooks - Misata</title>
+        <title>Jupyter Magic, Generate Synthetic Data Inline in Notebooks - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Jupyter Magic — Generate Synthetic Data Inline in Notebooks
+              Jupyter Magic, Generate Synthetic Data Inline in Notebooks
             
           </span>
         </div>
@@ -2550,7 +2550,7 @@
 
 
 <h1 id="jupyter-magic">Jupyter Magic</h1>
-<p>The <code>%%misata</code> cell magic lets you generate synthetic datasets from a plain-English story directly inside a Jupyter notebook — no imports, no schema objects, no boilerplate.</p>
+<p>The <code>%%misata</code> cell magic lets you generate synthetic datasets from a plain-English story directly inside a Jupyter notebook, no imports, no schema objects, no boilerplate.</p>
 <h2 id="setup">Setup</h2>
 <p>Load the extension once per session (put it in your first cell):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">%</span><span class="n">load_ext</span> <span class="n">misata</span><span class="o">.</span><span class="n">magic</span>
@@ -2565,8 +2565,8 @@
 </code></pre></div>
 <p>After running, the following variables appear in your namespace:</p>
 <ul>
-<li><code>_misata</code> — dict of all DataFrames</li>
-<li><code>users_df</code>, <code>subscriptions_df</code>, <code>payments_df</code> — one variable per table</li>
+<li><code>_misata</code>, dict of all DataFrames</li>
+<li><code>users_df</code>, <code>subscriptions_df</code>, <code>payments_df</code>, one variable per table</li>
 </ul>
 <h2 id="options">Options</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>%%misata rows=5000 seed=42

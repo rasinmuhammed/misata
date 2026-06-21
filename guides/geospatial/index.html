@@ -27,7 +27,7 @@
     
     
       
-        <title>Geospatial Realism — Realistic Coordinates, Postal Codes, and Location Data - Misata</title>
+        <title>Geospatial Realism, Realistic Coordinates, Postal Codes, and Location Data - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Geospatial Realism — Realistic Coordinates, Postal Codes, and Location Data
+              Geospatial Realism, Realistic Coordinates, Postal Codes, and Location Data
             
           </span>
         </div>
@@ -2528,10 +2528,10 @@
 <p>Misata has a built-in dataset of 60+ major cities across 20 countries, each with real centroid coordinates. For each row:</p>
 <ol>
 <li>A city is sampled (uniformly across the pool)</li>
-<li>A small Gaussian offset is added (~0.25° lat, ~0.35° lng — roughly 20–35 km scatter)</li>
+<li>A small Gaussian offset is added (~0.25° lat, ~0.35° lng, roughly 20–35 km scatter)</li>
 <li>Coordinates are rounded to 6 decimal places (~10 cm precision)</li>
 </ol>
-<p>This means your data will produce realistic-looking clusters when plotted on a map — not random scattered points.</p>
+<p>This means your data will produce realistic-looking clusters when plotted on a map, not random scattered points.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Coordinates cluster around real cities:</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># Tokyo:     35.6762, 139.6503  ± scatter</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># London:    51.5074,  -0.1278  ± scatter</span>
@@ -2592,7 +2592,7 @@
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;postal_code&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;text&quot;</span><span class="p">,</span>  <span class="n">distribution_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text_type&quot;</span><span class="p">:</span> <span class="s2">&quot;postal_code&quot;</span><span class="p">}),</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">]</span>
 </code></pre></div>
-<p>Note: city/country and lat/lng are sampled independently — for strict geographic consistency within a row, use a custom generator or the correlation engine.</p>
+<p>Note: city/country and lat/lng are sampled independently, for strict geographic consistency within a row, use a custom generator or the correlation engine.</p>
 
 
 

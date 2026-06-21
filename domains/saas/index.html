@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic SaaS synthetic datasets in Python — users, subscriptions, MRR, churn, and invoices with correct FK relationships and narrative growth curves. No API key required.">
+        <meta name="description" content="Generate realistic SaaS synthetic datasets in Python, users, subscriptions, MRR, churn, and invoices with correct FK relationships and narrative growth curves. No API key required.">
       
       
       
@@ -2606,7 +2606,7 @@
 
 
 <h1 id="generate-saas-synthetic-data-in-python">Generate SaaS Synthetic Data in Python</h1>
-<p>Building a SaaS product means working with data that has complex relationships: users who subscribe to plans, subscriptions that churn, invoices tied to billing cycles. When you need realistic test data for your billing engine, BI dashboard, ML churn model, or load tests, generating it by hand wastes hours. Misata generates a production-realistic SaaS dataset — users, subscriptions, and invoices with correct FK wiring — from a single line of Python.</p>
+<p>Building a SaaS product means working with data that has complex relationships: users who subscribe to plans, subscriptions that churn, invoices tied to billing cycles. When you need realistic test data for your billing engine, BI dashboard, ML churn model, or load tests, generating it by hand wastes hours. Misata generates a production-realistic SaaS dataset, users, subscriptions, and invoices with correct FK wiring, from a single line of Python.</p>
 <p>The generated data reflects how real SaaS businesses look: MRR follows a lognormal distribution, churn rates are configurable from the story description, <code>churned_at</code> is only populated for churned subscriptions (never for active ones), and plan distributions match typical freemium SaaS splits. You get data that passes <code>GROUP BY plan</code> queries without bizarre outliers.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2616,7 +2616,7 @@
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscriptions&quot;</span><span class="p">][[</span><span class="s2">&quot;plan&quot;</span><span class="p">,</span> <span class="s2">&quot;mrr&quot;</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
 </code></pre></div>
 <h2 id="what-misata-generates">What Misata generates</h2>
-<p>Three tables with full referential integrity: <code>users</code> → <code>subscriptions</code> → <code>invoices</code>. Every subscription references a real user ID; every invoice references a real subscription ID. The churn logic is coherent — <code>churned_at</code> timestamps are only set on rows where <code>status = "churned"</code>.</p>
+<p>Three tables with full referential integrity: <code>users</code> → <code>subscriptions</code> → <code>invoices</code>. Every subscription references a real user ID; every invoice references a real subscription ID. The churn logic is coherent, <code>churned_at</code> timestamps are only set on rows where <code>status = "churned"</code>.</p>
 <h3 id="tables-and-columns">Tables and columns</h3>
 <table>
 <thead>
@@ -2642,10 +2642,10 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>MRR</strong> is lognormal with median ~$150/month — the right shape for a freemium SaaS (long tail of enterprise deals)</li>
-<li><strong>Plan split:</strong> free 55%, pro 30%, enterprise 15% — configurable by mentioning specific numbers in the story</li>
+<li><strong>MRR</strong> is lognormal with median ~$150/month, the right shape for a freemium SaaS (long tail of enterprise deals)</li>
+<li><strong>Plan split:</strong> free 55%, pro 30%, enterprise 15%, configurable by mentioning specific numbers in the story</li>
 <li><strong>Churn rate</strong> is extracted from the story (<code>"20% churn"</code>, <code>"high churn"</code>, <code>"5% monthly churn"</code>) and applied as a probability</li>
-<li><strong><code>churned_at</code></strong> is only non-null for churned subscriptions — guaranteed, not just probable</li>
+<li><strong><code>churned_at</code></strong> is only non-null for churned subscriptions, guaranteed, not just probable</li>
 <li><strong>Invoice amounts</strong> match the subscription's MRR with realistic variation for usage-based billing</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
@@ -2663,15 +2663,15 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Seed a billing test database</strong> — get <code>users</code>, <code>subscriptions</code>, and <code>invoices</code> tables pre-joined with realistic MRR values before your billing engine ships</li>
-<li><strong>Train a churn prediction model</strong> — generate balanced training data with controllable churn rates (e.g. <code>"40% churn"</code>) without touching production data</li>
-<li><strong>BI dashboard development</strong> — build Looker or Metabase dashboards on realistic MRR time series before your product has enough real data</li>
-<li><strong>Load testing a subscription API</strong> — generate 100k users and subscriptions with valid FK relationships to test pagination and filter endpoints</li>
-<li><strong>Privacy-safe demos</strong> — replace real customer data in sales demos with statistically identical synthetic data</li>
-<li><strong>Pytest fixtures</strong> — use <code>misata.testing.misata_fixture</code> to get fresh SaaS tables in each test run without database setup</li>
+<li><strong>Seed a billing test database</strong>: get <code>users</code>, <code>subscriptions</code>, and <code>invoices</code> tables pre-joined with realistic MRR values before your billing engine ships</li>
+<li><strong>Train a churn prediction model</strong>: generate balanced training data with controllable churn rates (e.g. <code>"40% churn"</code>) without touching production data</li>
+<li><strong>BI dashboard development</strong>: build Looker or Metabase dashboards on realistic MRR time series before your product has enough real data</li>
+<li><strong>Load testing a subscription API</strong>: generate 100k users and subscriptions with valid FK relationships to test pagination and filter endpoints</li>
+<li><strong>Privacy-safe demos</strong>: replace real customer data in sales demos with statistically identical synthetic data</li>
+<li><strong>Pytest fixtures</strong>: use <code>misata.testing.misata_fixture</code> to get fresh SaaS tables in each test run without database setup</li>
 </ul>
 <h2 id="advanced-narrative-growth-curves">Advanced: narrative growth curves</h2>
-<p>The most powerful SaaS feature is outcome curves — you describe a revenue narrative and Misata generates row-level data that rolls up to your specified monthly totals. The <code>subscriptions.mrr</code> column supports monthly anchors, quarterly patterns, multipliers, and named events.</p>
+<p>The most powerful SaaS feature is outcome curves, you describe a revenue narrative and Misata generates row-level data that rolls up to your specified monthly totals. The <code>subscriptions.mrr</code> column supports monthly anchors, quarterly patterns, multipliers, and named events.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;SaaS startup — MRR from $50k in January growing to $200k by December, &quot;</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;Q3 slump, strong Q4 push, doubled by year end&quot;</span><span class="p">,</span>

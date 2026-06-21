@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic travel synthetic datasets in Python — users, hotels, flights, bookings, and reviews with temporal coherence, conditional cancellation reasons, and loyalty tier distributions. No real booking data required.">
+        <meta name="description" content="Generate realistic travel synthetic datasets in Python, users, hotels, flights, bookings, and reviews with temporal coherence, conditional cancellation reasons, and loyalty tier distributions. No real booking data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-travel-synthetic-data-in-python">Generate Travel Synthetic Data in Python</h1>
-<p>Travel platform data has subtle but critical coherence requirements: <code>check_out</code> must be after <code>check_in</code>, <code>arrival_at</code> must be after <code>departure_at</code>, and <code>cancellation_reason</code> should only be populated for cancelled bookings — never for active or completed ones. Get any of these wrong and your analytics will look broken from the first query. Misata generates a five-table travel dataset where all of these invariants are enforced from the start, across users, hotels, flights, bookings, and reviews.</p>
+<p>Travel platform data has subtle but critical coherence requirements: <code>check_out</code> must be after <code>check_in</code>, <code>arrival_at</code> must be after <code>departure_at</code>, and <code>cancellation_reason</code> should only be populated for cancelled bookings, never for active or completed ones. Get any of these wrong and your analytics will look broken from the first query. Misata generates a five-table travel dataset where all of these invariants are enforced from the start, across users, hotels, flights, bookings, and reviews.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
@@ -2635,9 +2635,9 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong><code>cancellation_reason</code> is null for non-cancelled bookings</strong> — conditional null enforced consistently</li>
+<li><strong><code>cancellation_reason</code> is null for non-cancelled bookings</strong>: conditional null enforced consistently</li>
 <li><strong><code>check_out</code></strong> always after <code>check_in</code>; <strong><code>arrival_at</code></strong> always after <code>departure_at</code></li>
-<li><strong>Hotel <code>price_per_night</code></strong> is correlated with <code>stars</code> — 5-star hotels cost more than 2-star</li>
+<li><strong>Hotel <code>price_per_night</code></strong> is correlated with <code>stars</code>, 5-star hotels cost more than 2-star</li>
 <li><strong>Loyalty tier</strong> follows a realistic pyramid: most users are base tier, fewer are gold/platinum</li>
 <li><strong>Review ratings</strong> slightly right-skewed with a realistic 1-star tail</li>
 </ul>
@@ -2667,12 +2667,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Hotel recommendation engine development</strong> — use booking history, star ratings, and review scores to build and evaluate hotel ranking models</li>
-<li><strong>Cancellation prediction models</strong> — train classifiers on bookings with status, total_price, loyalty_tier, and lead time to predict cancellation likelihood</li>
-<li><strong>Dynamic pricing prototype</strong> — test pricing algorithms against flights and hotels with realistic base price distributions</li>
-<li><strong>Booking flow QA</strong> — validate end-to-end booking, modification, and cancellation workflows against data with correct date semantics and status transitions</li>
-<li><strong>Customer support tooling</strong> — test support dashboards with realistic booking histories, cancellation reasons, and review text</li>
-<li><strong>Loyalty program analytics</strong> — analyse tier upgrade patterns and booking frequency across a realistic loyalty tier distribution</li>
+<li><strong>Hotel recommendation engine development</strong>: use booking history, star ratings, and review scores to build and evaluate hotel ranking models</li>
+<li><strong>Cancellation prediction models</strong>: train classifiers on bookings with status, total_price, loyalty_tier, and lead time to predict cancellation likelihood</li>
+<li><strong>Dynamic pricing prototype</strong>: test pricing algorithms against flights and hotels with realistic base price distributions</li>
+<li><strong>Booking flow QA</strong>: validate end-to-end booking, modification, and cancellation workflows against data with correct date semantics and status transitions</li>
+<li><strong>Customer support tooling</strong>: test support dashboards with realistic booking histories, cancellation reasons, and review text</li>
+<li><strong>Loyalty program analytics</strong>: analyse tier upgrade patterns and booking frequency across a realistic loyalty tier distribution</li>
 </ul>
 <h2 id="advanced-seasonal-booking-narrative">Advanced: seasonal booking narrative</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

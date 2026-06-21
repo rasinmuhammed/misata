@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
       
       
       
@@ -2794,12 +2794,12 @@ imports existing Spark schemas back into Misata. It runs on <strong>Databricks</
 full), <strong>AWS Glue</strong>, <strong>EMR</strong>, <strong>Dataproc</strong>, or any local <strong>PySpark 3.3+</strong> environment.</p>
 <p>Misata's value on Spark over the usual <code>dbldatagen</code>:</p>
 <ul>
-<li><strong>Multiple related tables in one call</strong> — <code>dbldatagen</code> builds one table at a time with no
+<li><strong>Multiple related tables in one call</strong>: <code>dbldatagen</code> builds one table at a time with no
   awareness of relationships.</li>
-<li><strong>Referential integrity guaranteed and verifiable</strong> — zero orphan foreign keys, checked in
+<li><strong>Referential integrity guaranteed and verifiable</strong>: zero orphan foreign keys, checked in
   Delta with anti-joins.</li>
-<li><strong>Realistic distributions</strong> — lognormal, Poisson, normal, uniform, and correlated columns.</li>
-<li><strong>Outcome conformance</strong> — declare an exact aggregate or rate (e.g. a monthly fraud rate) and
+<li><strong>Realistic distributions</strong>: lognormal, Poisson, normal, uniform, and correlated columns.</li>
+<li><strong>Outcome conformance</strong>: declare an exact aggregate or rate (e.g. a monthly fraud rate) and
   the generated data conforms, giving pipeline tests a <strong>known ground truth to assert against</strong>.</li>
 </ul>
 <hr />
@@ -2807,7 +2807,7 @@ full), <strong>AWS Glue</strong>, <strong>EMR</strong>, <strong>Dataproc</strong
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Databricks serverless / Free Edition</label><label for="__tabbed_1_2">Local / Glue / EMR / self-managed Spark</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<p>Install <strong>plain <code>misata</code></strong> — <em>not</em> <code>misata[spark]</code>. PySpark is already on every Databricks
+<p>Install <strong>plain <code>misata</code></strong>: <em>not</em> <code>misata[spark]</code>. PySpark is already on every Databricks
 cluster, and installing it on a serverless notebook will stop the session. The module
 imports the cluster's PySpark lazily.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">%</span><span class="n">pip</span> <span class="n">install</span> <span class="n">misata</span>
@@ -2846,7 +2846,7 @@ Every function calls <code>import pyspark</code> lazily and raises a clear error
 <a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
 <a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="n">result</span><span class="o">.</span><span class="n">raise_on_error</span><span class="p">()</span>
 </code></pre></div>
-<p><code>spark</code> is the active <code>SparkSession</code> — pre-defined in every Databricks notebook.</p>
+<p><code>spark</code> is the active <code>SparkSession</code>, pre-defined in every Databricks notebook.</p>
 <hr />
 <h2 id="api-reference">API reference</h2>
 <h3 id="to_sparktables-spark-infer_schemafalse-date_columnsnone-schema_confignone"><code>to_spark(tables, spark, *, infer_schema=False, date_columns=None, schema_config=None)</code></h3>
@@ -2874,7 +2874,7 @@ the schema is the only way to recover the distinction.</p>
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">)</span>
 </code></pre></div>
 <p><strong>Naming.</strong> <code>catalog</code>, <code>database</code>/<code>schema</code>, and the table name assemble into Unity Catalog
-3-part names (<code>catalog.database.table</code>), 2-part (<code>database.table</code>), or bare table names —
+3-part names (<code>catalog.database.table</code>), 2-part (<code>database.table</code>), or bare table names,
 whatever you provide.</p>
 <p><strong>Write modes:</strong></p>
 <table>
@@ -2895,7 +2895,7 @@ whatever you provide.</p>
 </tr>
 <tr>
 <td><code>"merge"</code></td>
-<td>Idempotent <strong><code>MERGE INTO</code></strong> upsert keyed on <code>merge_keys</code> — for CDC / SCD pipeline testing. Requires <code>merge_keys={"table": ["id"]}</code>.</td>
+<td>Idempotent <strong><code>MERGE INTO</code></strong> upsert keyed on <code>merge_keys</code>: for CDC / SCD pipeline testing. Requires <code>merge_keys={"table": ["id"]}</code>.</td>
 </tr>
 <tr>
 <td><code>"error"</code></td>
@@ -2948,8 +2948,8 @@ Unmapped <code>*_id</code> columns produce a warning rather than a silent miss.<
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="p">)</span>
 <a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
 </code></pre></div>
-<p>Use this to <strong>mirror a production schema into a dev environment</strong> — structure only, no data
-copied — and generate matching synthetic data.</p>
+<p>Use this to <strong>mirror a production schema into a dev environment</strong>: structure only, no data
+copied, and generate matching synthetic data.</p>
 <h3 id="append_to_deltaschema_config-spark-n_rows-catalognone-databasenone-schemanone-seednone-verbosetrue"><code>append_to_delta(schema_config, spark, n_rows, *, catalog=None, database=None, schema=None, seed=None, verbose=True)</code></h3>
 <p>Generate additional rows and append them to existing Delta tables. Reads each table's current
 <code>MAX(id)</code> to offset new primary keys so they never collide. FK integrity is maintained within the
@@ -2958,7 +2958,7 @@ new batch. Date typing conforms to the existing target table.</p>
 </code></pre></div>
 <h3 id="write_delta_streamschema_config-spark-catalognone-databasenone-schemanone-batch_size100_000-partition_bynone-table_propertiesnone-optimize_after_writefalse-create_schema_if_not_existstrue-verbosetrue"><code>write_delta_stream(schema_config, spark, *, catalog=None, database=None, schema=None, batch_size=100_000, partition_by=None, table_properties=None, optimize_after_write=False, create_schema_if_not_exists=True, verbose=True)</code></h3>
 <p>Stream-write very large datasets. Uses Misata's batch generator so the full dataset is never
-buffered in memory — suitable for tens or hundreds of millions of rows.</p>
+buffered in memory, suitable for tens or hundreds of millions of rows.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">schema</span><span class="o">.</span><span class="n">tables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">row_count</span> <span class="o">=</span> <span class="mi">50_000_000</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">mspark</span><span class="o">.</span><span class="n">write_delta_stream</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">spark</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s2">&quot;bronze&quot;</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">250_000</span><span class="p">)</span>
 </code></pre></div>
@@ -2991,7 +2991,7 @@ story string.</p>
 </tr>
 <tr>
 <td><code>.errors</code></td>
-<td><code>{table: error message}</code> — empty on full success</td>
+<td><code>{table: error message}</code>: empty on full success</td>
 </tr>
 <tr>
 <td><code>.ok</code></td>
@@ -3042,11 +3042,11 @@ story string.</p>
 <p><a href="https://github.com/rasinmuhammed/misata/blob/main/examples/databricks/medallion_fraud_pipeline.py"><code>examples/databricks/medallion_fraud_pipeline.py</code></a>
 builds a complete fraud-detection <strong>medallion pipeline</strong>:</p>
 <ol>
-<li><strong>Bronze</strong> — generate four FK-linked tables (<code>customers</code>, <code>accounts</code>, <code>merchants</code>,
+<li><strong>Bronze</strong>: generate four FK-linked tables (<code>customers</code>, <code>accounts</code>, <code>merchants</code>,
    <code>transactions</code>) with a declared monthly fraud-rate curve (1.8% → 4.1%).</li>
-<li><strong>Silver</strong> — join all four tables, derive fraud-signal features.</li>
-<li><strong>Gold</strong> — aggregate monthly fraud rate and dollar volume.</li>
-<li><strong>Assert</strong> the Gold output matches the <em>declared</em> fraud rate — a CI-grade correctness test
+<li><strong>Silver</strong>: join all four tables, derive fraud-signal features.</li>
+<li><strong>Gold</strong>: aggregate monthly fraud rate and dollar volume.</li>
+<li><strong>Assert</strong> the Gold output matches the <em>declared</em> fraud rate, a CI-grade correctness test
    that's impossible with Faker or dbldatagen, because they give you no ground truth to check.</li>
 </ol>
 <p>Import the <code>.py</code> file into Databricks (<strong>Workspace → Import → File</strong>) and <strong>Run all</strong> on

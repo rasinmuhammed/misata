@@ -2619,7 +2619,7 @@
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">fintech_tables</span> <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">&quot;A fintech with 200 customers and 2</span><span class="si">% f</span><span class="s2">raud rate&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">hr_tables</span>     <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">&quot;An HR company with 300 employees&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
 </code></pre></div>
-<p>Use them in any test file — no imports needed:</p>
+<p>Use them in any test file, no imports needed:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># test_billing.py</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_invoice_fk_integrity</span><span class="p">(</span><span class="n">saas_tables</span><span class="p">):</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">invoices</span> <span class="o">=</span> <span class="n">saas_tables</span><span class="p">[</span><span class="s2">&quot;invoices&quot;</span><span class="p">]</span>
@@ -2659,7 +2659,7 @@
 <tr>
 <td style="text-align: left;"><code>seed</code></td>
 <td style="text-align: left;"><code>42</code></td>
-<td style="text-align: left;">Random seed — same seed = identical data every run</td>
+<td style="text-align: left;">Random seed: same seed = identical data every run</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>smart_correlations</code></td>
@@ -2674,7 +2674,7 @@
 </tbody>
 </table>
 <h2 id="misata_schema_fixturestory-rows"><code>misata_schema_fixture(story, rows)</code></h2>
-<p>Returns a <code>SchemaConfig</code> (no data generated) — useful for testing schema parsing and domain detection:</p>
+<p>Returns a <code>SchemaConfig</code> (no data generated), useful for testing schema parsing and domain detection:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># conftest.py</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_schema_fixture</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
@@ -2692,7 +2692,7 @@
 <h2 id="built-in-fixtures">Built-in fixtures</h2>
 <p>Three fixtures are available to import directly without <code>conftest.py</code> setup:</p>
 <h3 id="misata_generate"><code>misata_generate</code></h3>
-<p>Injects <code>misata.generate</code> — use when you want to generate different datasets within a single test:</p>
+<p>Injects <code>misata.generate</code>, use when you want to generate different datasets within a single test:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_generate</span>   <span class="c1"># imported for type hints only</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_multi_domain</span><span class="p">(</span><span class="n">misata_generate</span><span class="p">):</span>
@@ -2724,7 +2724,7 @@
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">pd</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_frame_equal</span><span class="p">(</span><span class="n">saas_a</span><span class="p">[</span><span class="s2">&quot;users&quot;</span><span class="p">],</span> <span class="n">saas_b</span><span class="p">[</span><span class="s2">&quot;users&quot;</span><span class="p">])</span>
 </code></pre></div>
 <h2 id="scope">Scope</h2>
-<p>By default fixtures have <code>scope="function"</code> — fresh data for each test. If you want shared data across a test module (faster), define the fixture manually:</p>
+<p>By default fixtures have <code>scope="function"</code>, fresh data for each test. If you want shared data across a test module (faster), define the fixture manually:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># conftest.py</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>

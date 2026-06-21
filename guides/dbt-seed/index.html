@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate synthetic data and write CSV seed files directly into your dbt project with misata dbt-seed. One command — realistic test data in your warehouse.">
+        <meta name="description" content="Generate synthetic data and write CSV seed files directly into your dbt project with misata dbt-seed. One command, realistic test data in your warehouse.">
       
       
       
@@ -2655,12 +2655,12 @@
 <tbody>
 <tr>
 <td style="text-align: left;"><code>--story</code>, <code>-s</code></td>
-<td style="text-align: left;">—</td>
+<td style="text-align: left;">:</td>
 <td style="text-align: left;">Plain-English dataset description</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>--config</code>, <code>-c</code></td>
-<td style="text-align: left;">—</td>
+<td style="text-align: left;">:</td>
 <td style="text-align: left;">Path to a <code>misata.yaml</code> schema file</td>
 </tr>
 <tr>
@@ -2716,7 +2716,7 @@
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>dbt<span class="w"> </span><span class="nb">test</span>
 </code></pre></div>
 <h2 id="regenerating-seeds">Regenerating seeds</h2>
-<p>Seeds are reproducible — same <code>--seed</code> value produces identical data:</p>
+<p>Seeds are reproducible, same <code>--seed</code> value produces identical data:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Regenerate with the same data (idempotent)</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>misata<span class="w"> </span>dbt-seed<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company&quot;</span><span class="w"> </span>--rows<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span><span class="w"> </span>--force
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
@@ -2758,9 +2758,9 @@
 </code></pre></div>
 <h2 id="related">Related</h2>
 <ul>
-<li><a href="../database-seeding-python/">Database Seeding in Python</a> — seed directly into a live database</li>
-<li><a href="../from-ddl/">SQL DDL to Schema</a> — generate from your existing CREATE TABLE statements</li>
-<li><a href="../../export/">Export</a> — Parquet, DuckDB, JSONL export options</li>
+<li><a href="../database-seeding-python/">Database Seeding in Python</a>, seed directly into a live database</li>
+<li><a href="../from-ddl/">SQL DDL to Schema</a>, generate from your existing CREATE TABLE statements</li>
+<li><a href="../../export/">Export</a>, Parquet, DuckDB, JSONL export options</li>
 </ul>
 
 

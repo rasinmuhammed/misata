@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
       
       
       
@@ -2465,7 +2465,7 @@ multi-table relational generation.</p>
 <ol>
 <li>Parent tables are generated first (e.g. <code>customers</code>).</li>
 <li>Primary key pools are collected.</li>
-<li>Child tables sample FK columns from the parent pool — every value is valid by construction.</li>
+<li>Child tables sample FK columns from the parent pool, every value is valid by construction.</li>
 <li>The process repeats depth-first down the relationship graph.</li>
 </ol>
 <p>Circular dependencies are detected before generation starts and raise a clear error.</p>

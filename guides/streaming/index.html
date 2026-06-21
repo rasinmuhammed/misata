@@ -2570,7 +2570,7 @@
 
 
 <h1 id="streaming-large-synthetic-datasets">Streaming Large Synthetic Datasets</h1>
-<p><code>misata.generate_stream()</code> yields <code>(table_name, batch_df)</code> tuples one batch at a time — the full dataset is never held in memory. This is the right interface for generating 10M+ row datasets, writing directly to Parquet, or streaming into a database without buffering.</p>
+<p><code>misata.generate_stream()</code> yields <code>(table_name, batch_df)</code> tuples one batch at a time, the full dataset is never held in memory. This is the right interface for generating 10M+ row datasets, writing directly to Parquet, or streaming into a database without buffering.</p>
 <h2 id="when-to-use-streaming-vs-standard-generation">When to use streaming vs standard generation</h2>
 <table>
 <thead>
@@ -2772,9 +2772,9 @@
 </table>
 <h2 id="related">Related</h2>
 <ul>
-<li><a href="../../quickstart/">generate()</a> — standard in-memory generation</li>
-<li><a href="../../export/">Export</a> — Parquet, DuckDB, JSONL export</li>
-<li><a href="../database-seeding-python/">Database Seeding</a> — seed directly into a database</li>
+<li><a href="../../quickstart/">generate()</a>, standard in-memory generation</li>
+<li><a href="../../export/">Export</a>, Parquet, DuckDB, JSONL export</li>
+<li><a href="../database-seeding-python/">Database Seeding</a>, seed directly into a database</li>
 </ul>
 
 

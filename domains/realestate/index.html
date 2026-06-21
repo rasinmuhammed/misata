@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic real estate synthetic datasets in Python — agents, properties, and transactions with lognormal home price distributions, realistic days-on-market, and referential integrity. No real MLS data required.">
+        <meta name="description" content="Generate realistic real estate synthetic datasets in Python, agents, properties, and transactions with lognormal home price distributions, realistic days-on-market, and referential integrity. No real MLS data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-real-estate-synthetic-data-in-python">Generate Real Estate Synthetic Data in Python</h1>
-<p>Real estate data has patterns that random generation misses: home prices follow a lognormal distribution with a heavy right tail (the $1M+ tier), days-on-market is lognormal with a median around 23 days, and agent ratings cluster toward 4–5 stars due to platform selection effects. Misata generates a three-table real estate dataset — agents, properties, and transactions — where these distributions are built in and FK relationships are always valid.</p>
+<p>Real estate data has patterns that random generation misses: home prices follow a lognormal distribution with a heavy right tail (the $1M+ tier), days-on-market is lognormal with a median around 23 days, and agent ratings cluster toward 4–5 stars due to platform selection effects. Misata generates a three-table real estate dataset, agents, properties, and transactions, where these distributions are built in and FK relationships are always valid.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A real estate agency with 500 properties and 50 agents&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
@@ -2618,11 +2618,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Home prices</strong> lognormal with US median ~$410k — realistic heavy right tail for luxury properties</li>
-<li><strong>Days on market</strong> lognormal with median ~23 days — fast movers and long-stale listings both present</li>
-<li><strong>Agent ratings</strong> beta-distributed toward 4–5 stars — reflecting real platform rating dynamics</li>
-<li><strong>~60% of listings close</strong> — remainder are active, expired, or withdrawn</li>
-<li><strong><code>sqft</code></strong> and <code>price</code> are correlated — larger properties cost more</li>
+<li><strong>Home prices</strong> lognormal with US median ~$410k, realistic heavy right tail for luxury properties</li>
+<li><strong>Days on market</strong> lognormal with median ~23 days, fast movers and long-stale listings both present</li>
+<li><strong>Agent ratings</strong> beta-distributed toward 4–5 stars, reflecting real platform rating dynamics</li>
+<li><strong>~60% of listings close</strong>: remainder are active, expired, or withdrawn</li>
+<li><strong><code>sqft</code></strong> and <code>price</code> are correlated, larger properties cost more</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2640,12 +2640,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>MLS / property search platform development</strong> — seed a test database with listings across price tiers and bedroom counts for search, filter, and sort testing</li>
-<li><strong>AVMs (automated valuation models)</strong> — generate training data with realistic price, sqft, bedrooms, and location features for regression model development</li>
-<li><strong>Agent performance analytics</strong> — build conversion rate, average days-on-market, and commission dashboards on realistic agent histories</li>
-<li><strong>CRM for real estate agents</strong> — test lead management and listing pipeline workflows with realistic property and transaction data</li>
-<li><strong>Proptech demo environments</strong> — replace real MLS data exports with synthetic equivalents for vendor demos and investor presentations</li>
-<li><strong>Market report generation</strong> — validate report templates and calculations against a full year of synthetic transaction data</li>
+<li><strong>MLS / property search platform development</strong>: seed a test database with listings across price tiers and bedroom counts for search, filter, and sort testing</li>
+<li><strong>AVMs (automated valuation models)</strong>: generate training data with realistic price, sqft, bedrooms, and location features for regression model development</li>
+<li><strong>Agent performance analytics</strong>: build conversion rate, average days-on-market, and commission dashboards on realistic agent histories</li>
+<li><strong>CRM for real estate agents</strong>: test lead management and listing pipeline workflows with realistic property and transaction data</li>
+<li><strong>Proptech demo environments</strong>: replace real MLS data exports with synthetic equivalents for vendor demos and investor presentations</li>
+<li><strong>Market report generation</strong>: validate report templates and calculations against a full year of synthetic transaction data</li>
 </ul>
 <h2 id="advanced-market-cycle-narrative">Advanced: market cycle narrative</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

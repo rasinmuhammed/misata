@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic ecommerce synthetic datasets in Python — customers, products, orders, and order items with correct FK relationships, temporal coherence, and Black Friday curves. No training data required.">
+        <meta name="description" content="Generate realistic ecommerce synthetic datasets in Python, customers, products, orders, and order items with correct FK relationships, temporal coherence, and Black Friday curves. No training data required.">
       
       
       
@@ -2606,7 +2606,7 @@
 
 
 <h1 id="generate-ecommerce-synthetic-data-in-python">Generate Ecommerce Synthetic Data in Python</h1>
-<p>Ecommerce data is inherently relational: customers place orders, orders contain items, items reference products. If you generate these tables independently you get orphaned foreign keys, negative delivery times, and order amounts that don't match line-item totals. Misata generates a fully wired ecommerce dataset — customers, products, orders, and order_items — where every FK relationship is valid, every <code>delivered_at</code> is after <code>shipped_at</code>, and order amounts follow realistic lognormal distributions.</p>
+<p>Ecommerce data is inherently relational: customers place orders, orders contain items, items reference products. If you generate these tables independently you get orphaned foreign keys, negative delivery times, and order amounts that don't match line-item totals. Misata generates a fully wired ecommerce dataset, customers, products, orders, and order_items, where every FK relationship is valid, every <code>delivered_at</code> is after <code>shipped_at</code>, and order amounts follow realistic lognormal distributions.</p>
 <p>Whether you're building a Shopify analytics tool, training a product recommendation model, or demoing a warehouse management system, you can have a realistic ecommerce dataset running in under 10 seconds.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2645,11 +2645,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Order amounts</strong> are lognormal with median ~$85 — matching real consumer ecommerce spend patterns</li>
+<li><strong>Order amounts</strong> are lognormal with median ~$85, matching real consumer ecommerce spend patterns</li>
 <li><strong>Order status distribution:</strong> ~88% delivered, ~8% returned, ~4% in other states (pending, shipped, cancelled)</li>
 <li><strong>Temporal coherence:</strong> <code>shipped_at</code> is always 1–5 days after <code>ordered_at</code>; <code>delivered_at</code> is always after <code>shipped_at</code></li>
 <li><strong>Product prices</strong> are lognormal with heavy right tail (cheap commodities + premium items)</li>
-<li><strong>Customer lifetime value</strong> correlates with order history — high-CLV customers have more orders</li>
+<li><strong>Customer lifetime value</strong> correlates with order history, high-CLV customers have more orders</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2672,15 +2672,15 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Product recommendation ML</strong> — generate customer purchase histories with realistic category affinities for training collaborative filtering models</li>
-<li><strong>Shopify analytics development</strong> — build revenue dashboards, cohort analyses, and funnel reports before your store has enough real sales</li>
-<li><strong>Warehouse / fulfillment system testing</strong> — validate shipment tracking logic against thousands of orders in all status states</li>
-<li><strong>Fraud detection training data</strong> — combine with <code>anomaly_rate</code> to inject outlier transactions for classifier training</li>
-<li><strong>A/B test simulation</strong> — generate two cohorts with different discount rates and measure the impact on order volume</li>
-<li><strong>GDPR-safe data exports</strong> — replace real customer PII with synthetic equivalents that preserve statistical properties for analytics</li>
+<li><strong>Product recommendation ML</strong>: generate customer purchase histories with realistic category affinities for training collaborative filtering models</li>
+<li><strong>Shopify analytics development</strong>: build revenue dashboards, cohort analyses, and funnel reports before your store has enough real sales</li>
+<li><strong>Warehouse / fulfillment system testing</strong>: validate shipment tracking logic against thousands of orders in all status states</li>
+<li><strong>Fraud detection training data</strong>: combine with <code>anomaly_rate</code> to inject outlier transactions for classifier training</li>
+<li><strong>A/B test simulation</strong>: generate two cohorts with different discount rates and measure the impact on order volume</li>
+<li><strong>GDPR-safe data exports</strong>: replace real customer PII with synthetic equivalents that preserve statistical properties for analytics</li>
 </ul>
 <h2 id="advanced-seasonal-narrative-curves">Advanced: seasonal narrative curves</h2>
-<p>Ecommerce revenue is highly seasonal — Black Friday, Christmas, and post-holiday slumps are the defining patterns. Misata extracts these from your story and generates row-level data that rolls up to your target monthly revenue.</p>
+<p>Ecommerce revenue is highly seasonal, Black Friday, Christmas, and post-holiday slumps are the defining patterns. Misata extracts these from your story and generates row-level data that rolls up to your target monthly revenue.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;Ecommerce store with 10k customers — &quot;</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;Black Friday spike in November, Christmas peak in December, Q1 slump, &quot;</span>

@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Misata is an open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English — no training data, no config. The best Faker alternative for developers.">
+        <meta name="description" content="Misata is an open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, no training data, no config. The best Faker alternative for developers.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Python Synthetic Data Generator — Misata - Misata</title>
+        <title>Python Synthetic Data Generator, Misata - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Python Synthetic Data Generator — Misata
+              Python Synthetic Data Generator, Misata
             
           </span>
         </div>
@@ -2665,7 +2665,7 @@ what Misata does and how to get started.</p>
 </tbody>
 </table>
 <h2 id="multi-table-with-referential-integrity">Multi-table with referential integrity</h2>
-<p>Every child table's foreign key column references a valid parent ID — guaranteed,
+<p>Every child table's foreign key column references a valid parent ID, guaranteed,
 not random:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A fintech company with 2000 customers and banking transactions.&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
@@ -2706,11 +2706,11 @@ not random:</p>
 <h2 id="domain-realistic-distributions">Domain-realistic distributions</h2>
 <p>Misata ships calibrated priors so you don't have to configure them:</p>
 <ul>
-<li><strong>Credit scores</strong> — normal distribution centred on real FICO statistics (mean ≈ 680–720, std ≈ 75)</li>
-<li><strong>MRR</strong> — log-normal, because real SaaS revenue is right-skewed</li>
-<li><strong>Transaction types</strong> — Zipf distribution, because one type always dominates</li>
-<li><strong>Blood types</strong> — exact ABO/Rh frequencies (O+ 38%, A+ 34%, …)</li>
-<li><strong>Monetary amounts</strong> — log-normal with realistic min/max bounds</li>
+<li><strong>Credit scores</strong>: normal distribution centred on real FICO statistics (mean ≈ 680–720, std ≈ 75)</li>
+<li><strong>MRR</strong>: log-normal, because real SaaS revenue is right-skewed</li>
+<li><strong>Transaction types</strong>: Zipf distribution, because one type always dominates</li>
+<li><strong>Blood types</strong>: exact ABO/Rh frequencies (O+ 38%, A+ 34%, …)</li>
+<li><strong>Monetary amounts</strong>: log-normal with realistic min/max bounds</li>
 </ul>
 <h2 id="llm-powered-generation-optional">LLM-powered generation (optional)</h2>
 <p>When the rule-based parser isn't specific enough, hand off to an LLM:</p>
@@ -2732,7 +2732,7 @@ not random:</p>
 <ul>
 <li><strong>vs Faker</strong>: Faker generates standalone fake values. Misata generates <em>related tables</em>
   that reference each other correctly, with business constraints and distribution control.</li>
-<li><strong>vs SDV</strong>: SDV requires real training data. Misata generates from scratch — no data,
+<li><strong>vs SDV</strong>: SDV requires real training data. Misata generates from scratch, no data,
   no model, no privacy risk.</li>
 </ul>
 <p>See <a href="../faker-vs-sdv-vs-misata/">faker-vs-sdv-vs-misata.md</a> for a full comparison with

@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic streaming platform synthetic datasets in Python — subscribers, content, watch history, and ratings with churn coherence, completion rates, and content type distributions. No real viewer data required.">
+        <meta name="description" content="Generate realistic streaming platform synthetic datasets in Python, subscribers, content, watch history, and ratings with churn coherence, completion rates, and content type distributions. No real viewer data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-streaming-platform-synthetic-data-in-python">Generate Streaming Platform Synthetic Data in Python</h1>
-<p>Streaming platform data has a critical coherence requirement: <code>churned_at</code> must be null for active subscribers and non-null for churned ones — and <code>is_churned</code> must match. Get this wrong and your churn prediction model trains on contaminated labels. Misata generates a four-table streaming dataset where <code>is_churned</code> and <code>churned_at</code> are always consistent, content types follow realistic catalog distributions (series 55%, movies 35%, documentaries 10%), and watch completion rates match real streaming benchmarks (~65% for movies).</p>
+<p>Streaming platform data has a critical coherence requirement: <code>churned_at</code> must be null for active subscribers and non-null for churned ones, and <code>is_churned</code> must match. Get this wrong and your churn prediction model trains on contaminated labels. Misata generates a four-table streaming dataset where <code>is_churned</code> and <code>churned_at</code> are always consistent, content types follow realistic catalog distributions (series 55%, movies 35%, documentaries 10%), and watch completion rates match real streaming benchmarks (~65% for movies).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
@@ -2629,11 +2629,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong><code>churned_at</code> is null for active subscribers</strong> — <code>is_churned</code> and <code>churned_at</code> are always consistent</li>
-<li><strong>Content type:</strong> series 55%, movies 35%, documentaries 10% — matching real platform catalog ratios</li>
+<li><strong><code>churned_at</code> is null for active subscribers</strong>: <code>is_churned</code> and <code>churned_at</code> are always consistent</li>
+<li><strong>Content type:</strong> series 55%, movies 35%, documentaries 10%, matching real platform catalog ratios</li>
 <li><strong>Watch completion</strong> rate ~65% for movies; lower per-episode completion for series</li>
 <li><strong>Plan distribution</strong> across basic, standard, and premium tiers with realistic uptake ratios</li>
-<li><strong>Device mix</strong> across mobile, smart TV, desktop, and tablet — matching real streaming device splits</li>
+<li><strong>Device mix</strong> across mobile, smart TV, desktop, and tablet, matching real streaming device splits</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2660,12 +2660,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Recommendation model training</strong> — use <code>watch_history</code> and <code>ratings</code> as the interaction matrix for collaborative filtering models before you have real viewing data</li>
-<li><strong>Churn prediction pipelines</strong> — train models on subscriber engagement patterns (watch frequency, completion rates, last active date) against <code>is_churned</code> labels</li>
-<li><strong>Content performance analytics</strong> — build watch time, completion rate, and rating dashboards by genre, type, and release year</li>
-<li><strong>A/B test framework validation</strong> — generate subscriber cohorts with varied plan and country distributions to test experiment assignment pipelines</li>
-<li><strong>Personalization engine testing</strong> — validate recommendation ranking logic and fallback strategies against a full content catalog</li>
-<li><strong>Subscriber lifecycle QA</strong> — test onboarding, upgrade, downgrade, and cancellation workflows against subscribers with realistic join and churn patterns</li>
+<li><strong>Recommendation model training</strong>: use <code>watch_history</code> and <code>ratings</code> as the interaction matrix for collaborative filtering models before you have real viewing data</li>
+<li><strong>Churn prediction pipelines</strong>: train models on subscriber engagement patterns (watch frequency, completion rates, last active date) against <code>is_churned</code> labels</li>
+<li><strong>Content performance analytics</strong>: build watch time, completion rate, and rating dashboards by genre, type, and release year</li>
+<li><strong>A/B test framework validation</strong>: generate subscriber cohorts with varied plan and country distributions to test experiment assignment pipelines</li>
+<li><strong>Personalization engine testing</strong>: validate recommendation ranking logic and fallback strategies against a full content catalog</li>
+<li><strong>Subscriber lifecycle QA</strong>: test onboarding, upgrade, downgrade, and cancellation workflows against subscribers with realistic join and churn patterns</li>
 </ul>
 <h2 id="advanced-viral-growth-narrative">Advanced: viral growth narrative</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

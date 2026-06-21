@@ -27,7 +27,7 @@
     
     
       
-        <title>MCP Server — Use Misata from Claude, Cursor, and AI Coding Assistants - Misata</title>
+        <title>MCP Server, Use Misata from Claude, Cursor, and AI Coding Assistants - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              MCP Server — Use Misata from Claude, Cursor, and AI Coding Assistants
+              MCP Server, Use Misata from Claude, Cursor, and AI Coding Assistants
             
           </span>
         </div>
@@ -2413,7 +2413,7 @@
   <a href="#discovery-smithery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Discovery — Smithery
+        Discovery: Smithery
       
     </span>
   </a>
@@ -2799,7 +2799,7 @@
   <a href="#discovery-smithery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Discovery — Smithery
+        Discovery: Smithery
       
     </span>
   </a>
@@ -2838,7 +2838,7 @@
 
 
 <h1 id="mcp-server">MCP Server</h1>
-<p>Misata ships a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a> (MCP) server. Once wired in, AI assistants — Claude Desktop, Cursor, Windsurf, Zed, Continue — can generate realistic synthetic datasets on your behalf without you writing a single line of Python.</p>
+<p>Misata ships a built-in <a href="https://modelcontextprotocol.io">Model Context Protocol</a> (MCP) server. Once wired in, AI assistants, Claude Desktop, Cursor, Windsurf, Zed, Continue, can generate realistic synthetic datasets on your behalf without you writing a single line of Python.</p>
 <blockquote>
 <p><strong>TL;DR</strong>: type <em>"generate a fintech fraud dataset with 10k customers"</em> in Claude, and Claude calls Misata, writes the CSVs to disk, and shows you a preview.</p>
 </blockquote>
@@ -2861,7 +2861,7 @@
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">}</span>
 </code></pre></div>
-<p>Restart Claude Desktop. Misata will appear in the tools list — look for the plug icon in the input area.</p>
+<p>Restart Claude Desktop. Misata will appear in the tools list, look for the plug icon in the input area.</p>
 <h3 id="cursor">Cursor</h3>
 <p>Open <strong>Settings → MCP</strong> (or <code>.cursor/mcp.json</code>) and add:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
@@ -2895,7 +2895,7 @@
 <tbody>
 <tr>
 <td style="text-align: left;"><code>generate_from_schema</code></td>
-<td style="text-align: left;"><strong>Primary.</strong> The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof — per-relationship orphan counts, exact roll-ups, seeded reproducibility</td>
+<td style="text-align: left;"><strong>Primary.</strong> The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof: per-relationship orphan counts, exact roll-ups, seeded reproducibility</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>generate_dataset</code></td>
@@ -2907,7 +2907,7 @@
 </tr>
 <tr>
 <td style="text-align: left;"><code>preview_story</code></td>
-<td style="text-align: left;">Detect domain, scale, locale, and table layout — zero rows generated</td>
+<td style="text-align: left;">Detect domain, scale, locale, and table layout: zero rows generated</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>inspect_schema</code></td>
@@ -2919,8 +2919,8 @@
 </tr>
 </tbody>
 </table>
-<p>The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a <code>species</code> column; Misata is good at guaranteeing the math — FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. <code>generate_from_schema</code>'s tool description teaches the agent the full schema-dict language (per-table <code>__rows__</code>, distributions, formulas with <code>@parent.column</code> references, exact roll-ups, pattern codes), so any MCP-capable model can drive everything Misata's engine supports.</p>
-<p>Both generation tools write CSVs to a temp directory by default. The agent gets back file paths and a small preview — it never has to dump millions of rows into the chat context.</p>
+<p>The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a <code>species</code> column; Misata is good at guaranteeing the math, FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. <code>generate_from_schema</code>'s tool description teaches the agent the full schema-dict language (per-table <code>__rows__</code>, distributions, formulas with <code>@parent.column</code> references, exact roll-ups, pattern codes), so any MCP-capable model can drive everything Misata's engine supports.</p>
+<p>Both generation tools write CSVs to a temp directory by default. The agent gets back file paths and a small preview, it never has to dump millions of rows into the chat context.</p>
 <hr />
 <h2 id="example-prompts">Example prompts</h2>
 <p>Once configured, try these in your assistant:</p>
@@ -2952,7 +2952,7 @@
 </code></pre></div></p>
 <hr />
 <h3 id="preview_story"><code>preview_story</code></h3>
-<p>Parses a story and returns domain detection, scale, locale, and table layout — no rows generated.</p>
+<p>Parses a story and returns domain detection, scale, locale, and table layout, no rows generated.</p>
 <p><strong>Input:</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;story&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A fintech startup with 10k customers, 3% fraud rate&quot;</span><span class="p">,</span>
@@ -3133,10 +3133,10 @@
 <a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>generate_dataset →  misata.generate() + DataFrame.to_csv()
 <a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>validate_yaml    →  misata.json_schema() + misata.validate_schema()
 </code></pre></div>
-<p>Because the MCP server is bundled inside the <code>misata</code> package itself — not a separate distribution — the server and library are always in sync. Update Misata, the MCP server updates automatically.</p>
+<p>Because the MCP server is bundled inside the <code>misata</code> package itself, not a separate distribution, the server and library are always in sync. Update Misata, the MCP server updates automatically.</p>
 <hr />
 <h2 id="running-standalone-debugging">Running standalone / debugging</h2>
-<p>You don't normally need to run <code>misata-mcp</code> directly — your AI assistant launches it as a subprocess via stdio. For debugging:</p>
+<p>You don't normally need to run <code>misata-mcp</code> directly, your AI assistant launches it as a subprocess via stdio. For debugging:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>misata-mcp
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="c1"># Runs on stdio; send JSON-RPC requests on stdin, responses on stdout.</span>
 </code></pre></div>
@@ -3145,11 +3145,11 @@
 </code></pre></div>
 <p>This opens a web UI where you can call each tool, inspect inputs and outputs, and iterate on prompts. Useful when writing system prompts that use Misata tools.</p>
 <hr />
-<h2 id="discovery-smithery">Discovery — Smithery</h2>
+<h2 id="discovery-smithery">Discovery: Smithery</h2>
 <p>Misata is listed on <a href="https://smithery.ai">Smithery.ai</a>, the MCP server discovery directory. If your AI assistant supports one-click MCP installation via Smithery, you can find Misata there and install it without editing config files manually.</p>
 <hr />
 <h2 id="security-note">Security note</h2>
-<p><code>generate_dataset</code> writes files to disk. By default it uses a system temp directory that only the current user can read. If you pass a custom <code>output_dir</code>, ensure it is an appropriate path — the agent will not write outside the directory you specify.</p>
+<p><code>generate_dataset</code> writes files to disk. By default it uses a system temp directory that only the current user can read. If you pass a custom <code>output_dir</code>, ensure it is an appropriate path, the agent will not write outside the directory you specify.</p>
 
 
 

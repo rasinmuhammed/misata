@@ -27,7 +27,7 @@
     
     
       
-        <title>Validate & Preview — Data Quality Profiling and Story Inspection with Misata - Misata</title>
+        <title>Validate & Preview, Data Quality Profiling and Story Inspection with Misata - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Validate & Preview — Data Quality Profiling and Story Inspection with Misata
+              Validate & Preview, Data Quality Profiling and Story Inspection with Misata
             
           </span>
         </div>
@@ -1647,12 +1647,12 @@
   <a href="#preview-inspect-story-detection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        preview() — Inspect story detection
+        preview(): Inspect story detection
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="preview() — Inspect story detection">
+    <nav class="md-nav" aria-label="preview(): Inspect story detection">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1708,12 +1708,12 @@
   <a href="#validate_csv-csv-quality-profiling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        validate_csv() — CSV quality profiling
+        validate_csv(): CSV quality profiling
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="validate_csv() — CSV quality profiling">
+    <nav class="md-nav" aria-label="validate_csv(): CSV quality profiling">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1758,12 +1758,12 @@
   <a href="#validate_schema-yaml-schema-validation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        validate_schema() — YAML schema validation
+        validate_schema(): YAML schema validation
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="validate_schema() — YAML schema validation">
+    <nav class="md-nav" aria-label="validate_schema(): YAML schema validation">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2535,12 +2535,12 @@
   <a href="#preview-inspect-story-detection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        preview() — Inspect story detection
+        preview(): Inspect story detection
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="preview() — Inspect story detection">
+    <nav class="md-nav" aria-label="preview(): Inspect story detection">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2596,12 +2596,12 @@
   <a href="#validate_csv-csv-quality-profiling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        validate_csv() — CSV quality profiling
+        validate_csv(): CSV quality profiling
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="validate_csv() — CSV quality profiling">
+    <nav class="md-nav" aria-label="validate_csv(): CSV quality profiling">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2646,12 +2646,12 @@
   <a href="#validate_schema-yaml-schema-validation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        validate_schema() — YAML schema validation
+        validate_schema(): YAML schema validation
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="validate_schema() — YAML schema validation">
+    <nav class="md-nav" aria-label="validate_schema(): YAML schema validation">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2735,7 +2735,7 @@
 
 
 <h1 id="validate-preview">Validate &amp; Preview</h1>
-<p>Misata provides three separate inspection tools — all of which produce no synthetic data:</p>
+<p>Misata provides three separate inspection tools, all of which produce no synthetic data:</p>
 <table>
 <thead>
 <tr>
@@ -2759,8 +2759,8 @@
 </tbody>
 </table>
 <hr />
-<h2 id="preview-inspect-story-detection">preview() — Inspect story detection</h2>
-<p><code>preview()</code> parses a plain-English story and returns everything Misata understood: domain, scale, locale, and the table layout — without generating a single row. Use it before any large <code>generate()</code> call to catch ambiguity or misconfiguration early.</p>
+<h2 id="preview-inspect-story-detection">preview(): Inspect story detection</h2>
+<p><code>preview()</code> parses a plain-English story and returns everything Misata understood: domain, scale, locale, and the table layout, without generating a single row. Use it before any large <code>generate()</code> call to catch ambiguity or misconfiguration early.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span>
@@ -2819,7 +2819,7 @@
 <tr>
 <td style="text-align: left;"><code>near_misses</code></td>
 <td style="text-align: left;"><code>dict[str, list[str]]</code></td>
-<td style="text-align: left;">Other domains whose keywords also appeared — useful for diagnosing ambiguity</td>
+<td style="text-align: left;">Other domains whose keywords also appeared: useful for diagnosing ambiguity</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>scale_params</code></td>
@@ -2892,7 +2892,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>misata<span class="w"> </span>preview<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with 5k users, Q4 spike&quot;</span>
 </code></pre></div>
 <hr />
-<h2 id="validate_csv-csv-quality-profiling">validate_csv() — CSV quality profiling</h2>
+<h2 id="validate_csv-csv-quality-profiling">validate_csv(): CSV quality profiling</h2>
 <p>Profile any CSV file for null rates, type inference, range statistics, and uniqueness violations. Returns a <code>ValidationReport</code> with a 0–100 quality score.</p>
 <h3 id="cli_1">CLI</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Profile a CSV — type inference, null rates, range stats</span>
@@ -2974,11 +2974,11 @@
 </tbody>
 </table>
 <hr />
-<h2 id="validate_schema-yaml-schema-validation">validate_schema() — YAML schema validation</h2>
+<h2 id="validate_schema-yaml-schema-validation">validate_schema(): YAML schema validation</h2>
 <p>Misata ships a JSON Schema (<code>misata/_schemas/misata_schema.json</code>) that describes the full <code>misata.yaml</code> format. Running <code>validate_schema()</code> runs two layers of validation:</p>
 <ol>
-<li><strong>Structural</strong> — JSON Schema checks (required fields, types, allowed values)</li>
-<li><strong>Semantic</strong> — domain-aware checks (FK targets exist, distribution params are in range, formula columns reference existing columns)</li>
+<li><strong>Structural</strong>: JSON Schema checks (required fields, types, allowed values)</li>
+<li><strong>Semantic</strong>: domain-aware checks (FK targets exist, distribution params are in range, formula columns reference existing columns)</li>
 </ol>
 <h3 id="cli_2">CLI</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Validate a misata.yaml file</span>

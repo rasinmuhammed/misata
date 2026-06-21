@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic healthcare synthetic datasets in Python — patients, doctors, appointments with real blood type frequencies, diagnosis distributions, and HIPAA-safe synthetic PII. No real patient data required.">
+        <meta name="description" content="Generate realistic healthcare synthetic datasets in Python, patients, doctors, appointments with real blood type frequencies, diagnosis distributions, and HIPAA-safe synthetic PII. No real patient data required.">
       
       
       
@@ -2606,8 +2606,8 @@
 
 
 <h1 id="generate-healthcare-synthetic-data-in-python">Generate Healthcare Synthetic Data in Python</h1>
-<p>Healthcare data is among the most sensitive in existence — HIPAA, GDPR, and a dozen other regulations govern who can access real patient records. Yet developers building EHR systems, researchers training clinical ML models, and teams building healthcare analytics tools all need realistic patient data that behaves like the real thing. Misata generates fully synthetic healthcare data: patients with statistically accurate blood type distributions, doctors with realistic specialty assignments, and appointments with realistic no-show rates and duration distributions.</p>
-<p>No real patient records are ever used or exposed. Every name, date of birth, and diagnosis is generated from statistical priors — realistic enough to power your analytics queries, safe enough to share in any environment.</p>
+<p>Healthcare data is among the most sensitive in existence, HIPAA, GDPR, and a dozen other regulations govern who can access real patient records. Yet developers building EHR systems, researchers training clinical ML models, and teams building healthcare analytics tools all need realistic patient data that behaves like the real thing. Misata generates fully synthetic healthcare data: patients with statistically accurate blood type distributions, doctors with realistic specialty assignments, and appointments with realistic no-show rates and duration distributions.</p>
+<p>No real patient records are ever used or exposed. Every name, date of birth, and diagnosis is generated from statistical priors, realistic enough to power your analytics queries, safe enough to share in any environment.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A hospital with 500 patients and 50 doctors&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
@@ -2641,11 +2641,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Blood types</strong> match real ABO/Rh frequencies: O+ 37.4%, A+ 35.7%, B+ 8.5%, AB+ 3.4%, and negative variants — not uniform random</li>
-<li><strong>Patient ages</strong> are centered on chronic-care population (μ=52, σ=18) — not uniformly distributed from 0–100</li>
+<li><strong>Blood types</strong> match real ABO/Rh frequencies: O+ 37.4%, A+ 35.7%, B+ 8.5%, AB+ 3.4%, and negative variants, not uniform random</li>
+<li><strong>Patient ages</strong> are centered on chronic-care population (μ=52, σ=18), not uniformly distributed from 0–100</li>
 <li><strong>No-show rate</strong> is ~15%, matching published hospital no-show statistics</li>
 <li><strong>Doctor specialties</strong> drawn from realistic distribution: internal medicine, cardiology, orthopedics, general surgery, pediatrics, and more</li>
-<li><strong>Appointment duration</strong> lognormal with median ~25 minutes — shorter for follow-ups, longer for new patient visits</li>
+<li><strong>Appointment duration</strong> lognormal with median ~25 minutes, shorter for follow-ups, longer for new patient visits</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2668,15 +2668,15 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>EHR system development</strong> — populate a test database with patients, appointments, and doctor schedules before your healthcare app goes live</li>
-<li><strong>Clinical ML model training</strong> — generate training data for readmission prediction, no-show prediction, or diagnosis classification with realistic demographic distributions</li>
-<li><strong>Healthcare analytics dashboards</strong> — build utilization reports, specialty throughput charts, and appointment funnel analyses on realistic data</li>
-<li><strong>HIPAA-compliant data sharing</strong> — replace real patient exports with statistically equivalent synthetic data for vendor integration testing</li>
-<li><strong>Appointment scheduling algorithm testing</strong> — validate your optimization logic against thousands of appointments across multiple specialties</li>
-<li><strong>Medical billing integration testing</strong> — generate complete patient-appointment-billing pipelines without exposing real insurance information</li>
+<li><strong>EHR system development</strong>: populate a test database with patients, appointments, and doctor schedules before your healthcare app goes live</li>
+<li><strong>Clinical ML model training</strong>: generate training data for readmission prediction, no-show prediction, or diagnosis classification with realistic demographic distributions</li>
+<li><strong>Healthcare analytics dashboards</strong>: build utilization reports, specialty throughput charts, and appointment funnel analyses on realistic data</li>
+<li><strong>HIPAA-compliant data sharing</strong>: replace real patient exports with statistically equivalent synthetic data for vendor integration testing</li>
+<li><strong>Appointment scheduling algorithm testing</strong>: validate your optimization logic against thousands of appointments across multiple specialties</li>
+<li><strong>Medical billing integration testing</strong>: generate complete patient-appointment-billing pipelines without exposing real insurance information</li>
 </ul>
 <h2 id="advanced-patient-volume-curves">Advanced: patient volume curves</h2>
-<p>Model seasonal appointment patterns — flu season spikes, elective surgery drops in summer:</p>
+<p>Model seasonal appointment patterns, flu season spikes, elective surgery drops in summer:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;Hospital with 2k patients — flu season surge November through February, &quot;</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;elective surgery dip in August, steady growth overall&quot;</span><span class="p">,</span>

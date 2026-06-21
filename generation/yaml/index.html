@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
       
       
       
@@ -2484,7 +2484,7 @@
 
 
 <h1 id="yaml-schema">YAML Schema</h1>
-<p>Define your schema in a file, commit it to git, and reproduce the same dataset anywhere — no LLM required.</p>
+<p>Define your schema in a file, commit it to git, and reproduce the same dataset anywhere, no LLM required.</p>
 <h2 id="scaffold">Scaffold</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>misata<span class="w"> </span>init<span class="w">                                     </span><span class="c1"># writes misata.yaml template</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>misata<span class="w"> </span>init<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A marketplace&quot;</span><span class="w">             </span><span class="c1"># parses a story into YAML</span>
@@ -2529,7 +2529,7 @@
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">load_yaml_schema</span><span class="p">(</span><span class="s2">&quot;misata.yaml&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
 </code></pre></div>
-<p>Or from the CLI — auto-detected if <code>misata.yaml</code> exists in the current directory:</p>
+<p>Or from the CLI, auto-detected if <code>misata.yaml</code> exists in the current directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>misata<span class="w"> </span>generate
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>misata<span class="w"> </span>generate<span class="w"> </span>--output-dir<span class="w"> </span>data/
 </code></pre></div>

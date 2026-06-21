@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Compare Faker, SDV, and Misata for Python synthetic data generation. See real code examples for multi-table datasets, database seeding, and test data — and pick the right tool for your use case.">
+        <meta name="description" content="Compare Faker, SDV, and Misata for Python synthetic data generation. See real code examples for multi-table datasets, database seeding, and test data, and pick the right tool for your use case.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Faker vs SDV vs Misata — Choosing the Right Python Synthetic Data Tool - Misata</title>
+        <title>Faker vs SDV vs Misata, Choosing the Right Python Synthetic Data Tool - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Faker vs SDV vs Misata — Choosing the Right Python Synthetic Data Tool
+              Faker vs SDV vs Misata, Choosing the Right Python Synthetic Data Tool
             
           </span>
         </div>
@@ -1822,7 +1822,7 @@
   <a href="#faker-row-level-fake-data-no-relationships" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Faker — row-level fake data, no relationships
+        Faker: row-level fake data, no relationships
       
     </span>
   </a>
@@ -1833,7 +1833,7 @@
   <a href="#sdv-synthetic-data-vault-statistical-models-from-real-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SDV (Synthetic Data Vault) — statistical models from real data
+        SDV (Synthetic Data Vault): statistical models from real data
       
     </span>
   </a>
@@ -1844,12 +1844,12 @@
   <a href="#misata-story-driven-relational-synthetic-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Misata — story-driven relational synthetic data
+        Misata: story-driven relational synthetic data
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Misata — story-driven relational synthetic data">
+    <nav class="md-nav" aria-label="Misata: story-driven relational synthetic data">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2534,7 +2534,7 @@
   <a href="#faker-row-level-fake-data-no-relationships" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Faker — row-level fake data, no relationships
+        Faker: row-level fake data, no relationships
       
     </span>
   </a>
@@ -2545,7 +2545,7 @@
   <a href="#sdv-synthetic-data-vault-statistical-models-from-real-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SDV (Synthetic Data Vault) — statistical models from real data
+        SDV (Synthetic Data Vault): statistical models from real data
       
     </span>
   </a>
@@ -2556,12 +2556,12 @@
   <a href="#misata-story-driven-relational-synthetic-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Misata — story-driven relational synthetic data
+        Misata: story-driven relational synthetic data
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Misata — story-driven relational synthetic data">
+    <nav class="md-nav" aria-label="Misata: story-driven relational synthetic data">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2790,7 +2790,7 @@ the difference with working code so you can pick the right one in under five min
 </tbody>
 </table>
 <hr />
-<h2 id="faker-row-level-fake-data-no-relationships">Faker — row-level fake data, no relationships</h2>
+<h2 id="faker-row-level-fake-data-no-relationships">Faker: row-level fake data, no relationships</h2>
 <p>Faker is excellent for generating standalone fake values. It has hundreds of
 providers covering names, addresses, credit card numbers, and more.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">faker</span><span class="w"> </span><span class="kn">import</span> <span class="n">Faker</span>
@@ -2820,7 +2820,7 @@ business constraints. Every relationship you need, you build by hand.</p>
 <p><strong>Use Faker when:</strong> you need fake names, addresses, or values for a single table
 in a test fixture or form demo.</p>
 <hr />
-<h2 id="sdv-synthetic-data-vault-statistical-models-from-real-data">SDV (Synthetic Data Vault) — statistical models from real data</h2>
+<h2 id="sdv-synthetic-data-vault-statistical-models-from-real-data">SDV (Synthetic Data Vault): statistical models from real data</h2>
 <p>SDV learns statistical patterns from your actual data and generates synthetic rows
 that match those patterns. It handles single tables, conditional sampling, and some
 relational modeling.</p>
@@ -2834,7 +2834,7 @@ relational modeling.</p>
 </code></pre></div>
 <p><strong>Where SDV falls short:</strong></p>
 <ul>
-<li>You must have real data to train from — no real data, no model.</li>
+<li>You must have real data to train from, no real data, no model.</li>
 <li>Exact business rules ("fraud rate must be exactly 2%") cannot be pinned.</li>
 <li>Install pulls in PyTorch, CUDA libs, and ~1 GB of dependencies.</li>
 <li>Multi-table relational support is limited; deep FK chains require significant
@@ -2843,7 +2843,7 @@ relational modeling.</p>
 <p><strong>Use SDV when:</strong> you have real data you cannot use directly (privacy concerns),
 and you want statistically faithful synthetic copies of it.</p>
 <hr />
-<h2 id="misata-story-driven-relational-synthetic-data">Misata — story-driven relational synthetic data</h2>
+<h2 id="misata-story-driven-relational-synthetic-data">Misata: story-driven relational synthetic data</h2>
 <p>Misata generates multi-table datasets from plain-English descriptions. No real data
 required. Referential integrity is guaranteed. Business constraints (fraud rates,
 MRR targets, churn percentages) are pinned exactly.</p>
@@ -2900,7 +2900,7 @@ follows a log-normal curve because real SaaS revenue is log-normal.</p>
 <a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1">#   customers.customer_id → orders.customer_id</span>
 </code></pre></div>
 <p><strong>Use Misata when:</strong> you need relational multi-table data with business logic,
-exact aggregate targets, or domain-realistic distributions — and you don't want to
+exact aggregate targets, or domain-realistic distributions, and you don't want to
 write schema config by hand.</p>
 <hr />
 <h2 id="side-by-side-the-same-task-in-each-tool">Side-by-side: the same task in each tool</h2>

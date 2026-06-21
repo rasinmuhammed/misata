@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic EdTech synthetic datasets in Python — instructors, courses, students, enrollments, and quiz attempts with back-to-school seasonality, completion rate distributions, and referential integrity. No real student data required.">
+        <meta name="description" content="Generate realistic EdTech synthetic datasets in Python, instructors, courses, students, enrollments, and quiz attempts with back-to-school seasonality, completion rate distributions, and referential integrity. No real student data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-edtech-synthetic-data-in-python">Generate EdTech Synthetic Data in Python</h1>
-<p>EdTech platforms have a distinctive data model: instructors create courses, students enroll and progress at non-uniform rates, quiz scores cluster toward passing (most students who attempt pass), and enrollment spikes around the new year and back-to-school season. Misata generates a five-table EdTech dataset with all of this built in — instructors, courses, students, enrollments, and quiz attempts — with no orphaned foreign keys and realistic completion and certificate issuance rates.</p>
+<p>EdTech platforms have a distinctive data model: instructors create courses, students enroll and progress at non-uniform rates, quiz scores cluster toward passing (most students who attempt pass), and enrollment spikes around the new year and back-to-school season. Misata generates a five-table EdTech dataset with all of this built in, instructors, courses, students, enrollments, and quiz attempts, with no orphaned foreign keys and realistic completion and certificate issuance rates.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
@@ -2632,9 +2632,9 @@
 <ul>
 <li><strong>Enrollment timing</strong> peaks in January (New Year learning resolutions) and August-September (back to school)</li>
 <li><strong>Completion rates</strong> follow a realistic dropout curve: ~30% of enrollments reach 100% completion</li>
-<li><strong><code>certificate_issued</code></strong> is only true for completed enrollments — conditional logic enforced</li>
+<li><strong><code>certificate_issued</code></strong> is only true for completed enrollments, conditional logic enforced</li>
 <li><strong>Quiz scores</strong> cluster toward passing (60–85 range) with a realistic fail tail</li>
-<li><strong>Course prices</strong> lognormal — free courses plus premium paid content</li>
+<li><strong>Course prices</strong> lognormal, free courses plus premium paid content</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2664,12 +2664,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>LMS platform development</strong> — seed a test database with instructors, courses, and enrollment histories before your platform has real users</li>
-<li><strong>Learning analytics dashboards</strong> — build completion rate, dropout analysis, and learner progress reports on realistic enrollment data</li>
-<li><strong>Recommendation engine training</strong> — use enrollment and quiz score histories to prototype course recommendation models</li>
-<li><strong>Revenue and subscription analytics</strong> — test cohort revenue, course monetization, and refund rate calculations before real sales data exists</li>
-<li><strong>Adaptive learning system testing</strong> — validate quiz difficulty adaptation logic against thousands of attempts with varied score distributions</li>
-<li><strong>GDPR-safe student data exports</strong> — replace real student records with synthetic equivalents for vendor integrations and compliance audits</li>
+<li><strong>LMS platform development</strong>: seed a test database with instructors, courses, and enrollment histories before your platform has real users</li>
+<li><strong>Learning analytics dashboards</strong>: build completion rate, dropout analysis, and learner progress reports on realistic enrollment data</li>
+<li><strong>Recommendation engine training</strong>: use enrollment and quiz score histories to prototype course recommendation models</li>
+<li><strong>Revenue and subscription analytics</strong>: test cohort revenue, course monetization, and refund rate calculations before real sales data exists</li>
+<li><strong>Adaptive learning system testing</strong>: validate quiz difficulty adaptation logic against thousands of attempts with varied score distributions</li>
+<li><strong>GDPR-safe student data exports</strong>: replace real student records with synthetic equivalents for vendor integrations and compliance audits</li>
 </ul>
 <h2 id="advanced-enrollment-narrative-curves">Advanced: enrollment narrative curves</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

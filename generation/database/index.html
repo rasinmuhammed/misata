@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
       
       
       
@@ -2484,7 +2484,7 @@
 
 
 <h1 id="database-seeding">Database Seeding</h1>
-<p>Point Misata at an existing database schema and fill a dev or staging environment with production-like data — FK ordering handled automatically.</p>
+<p>Point Misata at an existing database schema and fill a dev or staging environment with production-like data, FK ordering handled automatically.</p>
 <h2 id="introspect-and-seed">Introspect and seed</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">schema_from_db</span><span class="p">,</span> <span class="n">generate_from_schema</span><span class="p">,</span> <span class="n">seed_database</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2522,9 +2522,9 @@
 </code></pre></div>
 <h2 id="supported-databases">Supported databases</h2>
 <ul>
-<li><strong>PostgreSQL</strong> — <code>pip install "misata[db]"</code> (psycopg3)</li>
-<li><strong>MySQL / MariaDB</strong> — via SQLAlchemy <code>pip install "misata[orm]"</code></li>
-<li><strong>SQLite</strong> — built-in, no extras needed</li>
+<li><strong>PostgreSQL</strong>: <code>pip install "misata[db]"</code> (psycopg3)</li>
+<li><strong>MySQL / MariaDB</strong>: via SQLAlchemy <code>pip install "misata[orm]"</code></li>
+<li><strong>SQLite</strong>: built-in, no extras needed</li>
 <li>Any SQLAlchemy-compatible engine</li>
 </ul>
 <div class="admonition note">

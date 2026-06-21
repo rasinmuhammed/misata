@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic fintech synthetic datasets in Python — customers, bank accounts, transactions, fraud flags, and credit scores with locale-aware IBANs and configurable fraud rates. No real data required.">
+        <meta name="description" content="Generate realistic fintech synthetic datasets in Python, customers, bank accounts, transactions, fraud flags, and credit scores with locale-aware IBANs and configurable fraud rates. No real data required.">
       
       
       
@@ -2606,7 +2606,7 @@
 
 
 <h1 id="generate-fintech-synthetic-data-in-python">Generate Fintech Synthetic Data in Python</h1>
-<p>Fintech applications handle sensitive financial data — transaction histories, credit scores, account balances, and fraud signals. Using real customer data for development, ML training, or load testing creates compliance risk. Misata generates statistically accurate fintech synthetic data: customers with realistic FICO-distributed credit scores, accounts with locale-aware IBANs, and transaction streams with configurable fraud rates.</p>
+<p>Fintech applications handle sensitive financial data, transaction histories, credit scores, account balances, and fraud signals. Using real customer data for development, ML training, or load testing creates compliance risk. Misata generates statistically accurate fintech synthetic data: customers with realistic FICO-distributed credit scores, accounts with locale-aware IBANs, and transaction streams with configurable fraud rates.</p>
 <p>The schema is designed around real-world fintech compliance requirements: <code>kyc_status</code> tracks verification state, <code>is_fraud</code> is a boolean flag on transactions (not just a random column), and fraud rate is extracted directly from your story description so you can control the class imbalance in training datasets.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2641,11 +2641,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Credit scores</strong> are lognormal centered on FICO mean (~700, σ=75) — the right bell shape for creditworthiness modeling</li>
+<li><strong>Credit scores</strong> are lognormal centered on FICO mean (~700, σ=75), the right bell shape for creditworthiness modeling</li>
 <li><strong>Fraud rate</strong> is configurable from the story: <code>"2% fraud"</code>, <code>"high fraud rate"</code>, <code>"3% fraud rate"</code> all work</li>
-<li><strong>IBAN format</strong> follows locale: DE IBANs start with <code>DE</code>, BR with <code>BR</code>, GB with <code>GB</code> — not random strings</li>
+<li><strong>IBAN format</strong> follows locale: DE IBANs start with <code>DE</code>, BR with <code>BR</code>, GB with <code>GB</code>, not random strings</li>
 <li><strong>Transaction types:</strong> credit 45%, debit 35%, transfer 15%, withdrawal 5%</li>
-<li><strong>Transaction amounts</strong> are lognormal — realistic mix of small everyday purchases and large transfers</li>
+<li><strong>Transaction amounts</strong> are lognormal, realistic mix of small everyday purchases and large transfers</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2668,15 +2668,15 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Fraud detection ML</strong> — generate training datasets with precise class imbalances (1% fraud for baseline, 10% fraud for stress-testing) without touching production transactions</li>
-<li><strong>Credit scoring model development</strong> — get customers with realistic FICO distributions across KYC verification states</li>
-<li><strong>Anti-money laundering (AML) testing</strong> — generate transaction graphs with configurable anomaly rates for rule engine validation</li>
-<li><strong>Open banking API testing</strong> — seed test accounts with realistic transaction histories before connecting to sandbox providers</li>
-<li><strong>Regulatory sandbox</strong> — replace real customer PII with synthetic equivalents that preserve statistical properties for compliance testing</li>
-<li><strong>Payment infrastructure load testing</strong> — generate millions of transactions with valid FK references to stress-test processing pipelines</li>
+<li><strong>Fraud detection ML</strong>: generate training datasets with precise class imbalances (1% fraud for baseline, 10% fraud for stress-testing) without touching production transactions</li>
+<li><strong>Credit scoring model development</strong>: get customers with realistic FICO distributions across KYC verification states</li>
+<li><strong>Anti-money laundering (AML) testing</strong>: generate transaction graphs with configurable anomaly rates for rule engine validation</li>
+<li><strong>Open banking API testing</strong>: seed test accounts with realistic transaction histories before connecting to sandbox providers</li>
+<li><strong>Regulatory sandbox</strong>: replace real customer PII with synthetic equivalents that preserve statistical properties for compliance testing</li>
+<li><strong>Payment infrastructure load testing</strong>: generate millions of transactions with valid FK references to stress-test processing pipelines</li>
 </ul>
 <h2 id="advanced-fraud-scenario-curves">Advanced: fraud scenario curves</h2>
-<p>Generate a dataset where fraud spikes during a specific period — useful for training models on temporal fraud patterns:</p>
+<p>Generate a dataset where fraud spikes during a specific period, useful for training models on temporal fraud patterns:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;Fintech with 5k customers — fraud spike in March due to phishing campaign, &quot;</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;normal rate 1%, March rate 8%, back to normal by April&quot;</span><span class="p">,</span>
@@ -2704,7 +2704,7 @@
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
 </code></pre></div>
 <h2 id="privacy-and-compliance">Privacy and compliance</h2>
-<p>Misata generates fully synthetic data — no real customer records, no real account numbers, no real transaction data. All IBANs are format-correct but not valid real bank accounts. All names, emails, and dates of birth are generated, not sampled from real people. Safe to use in development, staging, and demo environments without data protection review.</p>
+<p>Misata generates fully synthetic data, no real customer records, no real account numbers, no real transaction data. All IBANs are format-correct but not valid real bank accounts. All names, emails, and dates of birth are generated, not sampled from real people. Safe to use in development, staging, and demo environments without data protection review.</p>
 <h2 id="related-guides">Related guides</h2>
 <ul>
 <li><a href="../../guides/multi-table-synthetic-data/">Multi-table Synthetic Data</a></li>

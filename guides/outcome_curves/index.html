@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.">
+        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
       
       
       
@@ -2460,13 +2460,13 @@
 
 
 <h1 id="outcome-curve-driven-synthesis">Outcome Curve-Driven Synthesis</h1>
-<p>Misata's outcome-curve engine lets you declare <strong>what your data should aggregate to</strong> rather than how individual rows are distributed. The engine then generates rows that hit your declared targets <strong>exactly</strong> — not approximately.</p>
+<p>Misata's outcome-curve engine lets you declare <strong>what your data should aggregate to</strong> rather than how individual rows are distributed. The engine then generates rows that hit your declared targets <strong>exactly</strong>: not approximately.</p>
 <p>This capability is formalised in the published paper:</p>
 <blockquote>
 <p><strong>Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark</strong><br />
-Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
+Muhammed Rasin, arXiv:2606.08736v1 (2026)</p>
 </blockquote>
-<p>The paper proves the mechanism is exactly conditional-sum sampling of a Gamma population via Lukacs' characterisation. The Aggregate Mean Error (AME) is exactly 0 for the closed-form engine — versus 74–86% miss for off-the-shelf learned synthesisers.</p>
+<p>The paper proves the mechanism is exactly conditional-sum sampling of a Gamma population via Lukacs' characterisation. The Aggregate Mean Error (AME) is exactly 0 for the closed-form engine, versus 74–86% miss for off-the-shelf learned synthesisers.</p>
 <hr />
 <h2 id="core-concept">Core Concept</h2>
 <p>You declare targets; Misata generates individual rows whose aggregate (sum per period) matches:</p>
@@ -2478,7 +2478,7 @@ Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
 <hr />
 <h2 id="three-authoring-paths">Three Authoring Paths</h2>
 <h3 id="1-natural-language-nl">1. Natural Language (NL)</h3>
-<p>The simplest path — describe your curve in plain English. The <code>StoryParser</code> extracts anchors and modifiers automatically:</p>
+<p>The simplest path, describe your curve in plain English. The <code>StoryParser</code> extracts anchors and modifiers automatically:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
@@ -2492,7 +2492,7 @@ Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
 - <strong>Named events</strong>: <code>"Black Friday"</code>, <code>"Christmas"</code>, <code>"summer slump"</code>, <code>"New Year"</code>
 - <strong>Quarter modifiers</strong>: <code>"Q4 spike"</code>, <code>"dip in Q3"</code>, <code>"strong Q4"</code></p>
 <h3 id="2-sdk-builder-programmatic">2. SDK Builder (Programmatic)</h3>
-<p>Use <code>OutcomeCurveBuilder</code> when you need precise control — the primary target for the no-code UI backend:</p>
+<p>Use <code>OutcomeCurveBuilder</code> when you need precise control, the primary target for the no-code UI backend:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutcomeCurveBuilder</span><span class="p">,</span> <span class="n">parse</span><span class="p">,</span> <span class="n">generate_from_schema</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Sparse anchors — the builder interpolates between them</span>
@@ -2548,11 +2548,11 @@ Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
 </tr>
 <tr>
 <td><code>.avg_value(mu)</code></td>
-<td>Average transaction value — drives row count (§3.1)</td>
+<td>Average transaction value: drives row count (§3.1)</td>
 </tr>
 <tr>
 <td><code>.concentration(alpha)</code></td>
-<td>Dirichlet α — controls dispersion (§3.2)</td>
+<td>Dirichlet α: controls dispersion (§3.2)</td>
 </tr>
 <tr>
 <td><code>.row_bounds(min_tx, max_tx)</code></td>
@@ -2568,7 +2568,7 @@ Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
 </tr>
 </tbody>
 </table>
-<p><code>OutcomeCurveBuilder.attach(schema, *curves)</code> — non-mutating attach (returns a deep copy).</p>
+<p><code>OutcomeCurveBuilder.attach(schema, *curves)</code>, non-mutating attach (returns a deep copy).</p>
 <p><strong>Period formats accepted by <code>.anchor()</code>, <code>.dip()</code>, <code>.spike()</code>:</strong></p>
 <table>
 <thead>
@@ -2635,7 +2635,7 @@ Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
 </code></pre></div>
 <hr />
 <h2 id="rate-curves-rce-axis">Rate Curves (RCE Axis)</h2>
-<p><code>OutcomeCurve</code> targets aggregate sums (AME axis). <strong><code>RateCurve</code></strong> targets the rate of a boolean or categorical column per period — the rate-conformance (RCE) axis introduced in SpecBench.</p>
+<p><code>OutcomeCurve</code> targets aggregate sums (AME axis). <strong><code>RateCurve</code></strong> targets the rate of a boolean or categorical column per period, the rate-conformance (RCE) axis introduced in SpecBench.</p>
 <h3 id="sdk">SDK</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutcomeCurveBuilder</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
@@ -2679,7 +2679,7 @@ Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
 </code></pre></div>
 <hr />
 <h2 id="conformance-preview">Conformance Preview</h2>
-<p>Before generating rows, call <code>conformance_preview()</code> to see what the engine will produce — period targets, estimated row counts, and clamping warnings. This is what a no-code UI renders to the user before generation:</p>
+<p>Before generating rows, call <code>conformance_preview()</code> to see what the engine will produce, period targets, estimated row counts, and clamping warnings. This is what a no-code UI renders to the user before generation:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">conformance_preview</span><span class="p">,</span> <span class="n">OutcomeCurveBuilder</span><span class="p">,</span> <span class="n">parse</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">curve</span> <span class="o">=</span> <span class="p">(</span>
@@ -2804,9 +2804,9 @@ Muhammed Rasin — arXiv:2606.08736v1 (2026)</p>
 <p>Given a total <code>T_p</code> and <code>n_p</code> rows, sample proportions <code>w</code> from a symmetric Dirichlet(α). Then <code>x_i = ⌊w_i · T_p · 10^d⌋ / 10^d</code> with remainder correction gives <code>Σ x_i = T_p</code> exactly.</p>
 </blockquote>
 <p>Key parameters:
-- <code>concentration</code> (Dirichlet α) — higher = tighter per-row distribution
-- <code>avg_transaction_value</code> (<code>μ</code>) — sets <code>n_p = round(T_p / μ)</code> (Prop. 3)
-- <code>min/max_transactions_per_period</code> — guards against distortion when <code>n_p</code> is clamped</p>
+- <code>concentration</code> (Dirichlet α), higher = tighter per-row distribution
+- <code>avg_transaction_value</code> (<code>μ</code>), sets <code>n_p = round(T_p / μ)</code> (Prop. 3)
+- <code>min/max_transactions_per_period</code>, guards against distortion when <code>n_p</code> is clamped</p>
 <p>See the full paper at <a href="https://arxiv.org/abs/2606.08736v1">arXiv:2606.08736v1</a> for proofs and SpecBench benchmark results.</p>
 
 

@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Control exactly how your synthetic data rises, dips, and peaks. Misata understands quarterly patterns, named seasonal events (Black Friday, Christmas), and multipliers (doubled, 10x) — turning plain English into precise monthly data shapes.">
+        <meta name="description" content="Control exactly how your synthetic data rises, dips, and peaks. Misata understands quarterly patterns, named seasonal events (Black Friday, Christmas), and multipliers (doubled, 10x), turning plain English into precise monthly data shapes.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Narrative Growth Patterns — Shape Synthetic Data with Natural Language - Misata</title>
+        <title>Narrative Growth Patterns, Shape Synthetic Data with Natural Language - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Narrative Growth Patterns — Shape Synthetic Data with Natural Language
+              Narrative Growth Patterns, Shape Synthetic Data with Natural Language
             
           </span>
         </div>
@@ -2897,7 +2897,7 @@
 
 <h1 id="narrative-growth-patterns">Narrative Growth Patterns</h1>
 <p>Most synthetic data tools give you random noise. Misata gives you <strong>data that tells a story</strong>.</p>
-<p>Describe a growth trajectory in plain English and Misata builds an exact per-month outcome curve — no manual data wrangling, no custom post-processing. The same sentence that describes your dataset also shapes its distribution.</p>
+<p>Describe a growth trajectory in plain English and Misata builds an exact per-month outcome curve, no manual data wrangling, no custom post-processing. The same sentence that describes your dataset also shapes its distribution.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># These all produce precisely shaped data:</span>
@@ -2908,12 +2908,12 @@
 </code></pre></div>
 <hr />
 <h2 id="how-it-works">How it works</h2>
-<p>When Misata sees trigger words (see <a href="#trigger-tokens">full list below</a>), it builds an <strong>OutcomeCurve</strong> — a set of 12 monthly target values. The data simulator then shapes row distributions to hit those targets, month by month.</p>
+<p>When Misata sees trigger words (see <a href="#trigger-tokens">full list below</a>), it builds an <strong>OutcomeCurve</strong>: a set of 12 monthly target values. The data simulator then shapes row distributions to hit those targets, month by month.</p>
 <p>The curve is built from three inputs, all of which can appear in the same story and stack together:</p>
 <ol>
-<li><strong>Numeric anchors</strong> — explicit values for specific months or quarters</li>
-<li><strong>Qualitative modifiers</strong> — relative factors applied to months or quarters</li>
-<li><strong>Multipliers</strong> — a single end-state factor (doubled, 10×, etc.)</li>
+<li><strong>Numeric anchors</strong>: explicit values for specific months or quarters</li>
+<li><strong>Qualitative modifiers</strong>: relative factors applied to months or quarters</li>
+<li><strong>Multipliers</strong>: a single end-state factor (doubled, 10×, etc.)</li>
 </ol>
 <hr />
 <h2 id="monthly-numeric-anchors">Monthly numeric anchors</h2>

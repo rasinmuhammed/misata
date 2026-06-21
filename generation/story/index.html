@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic multi-table synthetic datasets from a single sentence. Misata's StoryParser detects domain, scale, locale, and growth patterns automatically — no config required.">
+        <meta name="description" content="Generate realistic multi-table synthetic datasets from a single sentence. Misata's StoryParser detects domain, scale, locale, and growth patterns automatically, no config required.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Plain-English Generation — Misata Synthetic Data Generator - Misata</title>
+        <title>Plain-English Generation, Misata Synthetic Data Generator - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Plain-English Generation — Misata Synthetic Data Generator
+              Plain-English Generation, Misata Synthetic Data Generator
             
           </span>
         </div>
@@ -750,12 +750,12 @@
   <a href="#domain-detection-how-it-scores" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Domain detection — how it scores
+        Domain detection: how it scores
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Domain detection — how it scores">
+    <nav class="md-nav" aria-label="Domain detection: how it scores">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2590,12 +2590,12 @@
   <a href="#domain-detection-how-it-scores" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Domain detection — how it scores
+        Domain detection: how it scores
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Domain detection — how it scores">
+    <nav class="md-nav" aria-label="Domain detection: how it scores">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2834,7 +2834,7 @@
 <a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="c1">#     users          5,000 rows  (12 columns)</span>
 <a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="c1">#     subscriptions  5,000 rows  (8 columns)</span>
 </code></pre></div>
-<p><code>preview()</code> calls no generators and produces no data — it is pure inspection.</p>
+<p><code>preview()</code> calls no generators and produces no data, it is pure inspection.</p>
 <h3 id="detectionreport-fields">DetectionReport fields</h3>
 <table>
 <thead>
@@ -2898,13 +2898,13 @@
 </tbody>
 </table>
 <hr />
-<h2 id="domain-detection-how-it-scores">Domain detection — how it scores</h2>
+<h2 id="domain-detection-how-it-scores">Domain detection: how it scores</h2>
 <p>Detection is scored, not first-match. For each domain:</p>
 <ul>
 <li><strong>+5</strong> if the literal domain name appears in the story (e.g. <code>"fintech"</code> → fintech domain gets +5)</li>
 <li><strong>+1</strong> per matched keyword</li>
 </ul>
-<p>The highest-scoring domain wins. This means <code>"a fintech company with churn"</code> correctly detects as <strong>fintech</strong> even though <code>"churn"</code> is a SaaS keyword — <code>"fintech"</code> earns +5 and beats the single SaaS keyword hit.</p>
+<p>The highest-scoring domain wins. This means <code>"a fintech company with churn"</code> correctly detects as <strong>fintech</strong> even though <code>"churn"</code> is a SaaS keyword, <code>"fintech"</code> earns +5 and beats the single SaaS keyword hit.</p>
 <p>If two stories are ambiguous, the <code>near_misses</code> field tells you which other domains also matched.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="s2">&quot;A fintech company with crypto wallets and 5k users&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span>        <span class="c1"># &quot;fintech&quot;  (+5 for &quot;fintech&quot; literal)</span>

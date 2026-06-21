@@ -27,7 +27,7 @@
     
     
       
-        <title>Column Correlations — Make Age Correlate with Salary, Experience with Level - Misata</title>
+        <title>Column Correlations, Make Age Correlate with Salary, Experience with Level - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Column Correlations — Make Age Correlate with Salary, Experience with Level
+              Column Correlations, Make Age Correlate with Salary, Experience with Level
             
           </span>
         </div>
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="column-correlations">Column Correlations</h1>
-<p>Real-world data has structure: older employees tend to earn more, high-traffic pages tend to have more conversions, longer delivery times tend to lower customer ratings. Misata's correlation engine lets you declare these relationships explicitly — and enforces them without distorting the marginal distributions you already configured.</p>
+<p>Real-world data has structure: older employees tend to earn more, high-traffic pages tend to have more conversions, longer delivery times tend to lower customer ratings. Misata's correlation engine lets you declare these relationships explicitly, and enforces them without distorting the marginal distributions you already configured.</p>
 <h2 id="how-to-declare-correlations">How to declare correlations</h2>
 <p>Add a <code>correlations</code> list to any <code>Table</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">Table</span><span class="p">,</span> <span class="n">Column</span>
@@ -2662,7 +2662,7 @@
 <li>Decomposes it with Cholesky factorization to generate correlated normal scores</li>
 <li>Re-ranks each column's values to match the target rank structure</li>
 </ol>
-<p>The result: <code>age</code> still follows your normal distribution, <code>salary</code> still follows your lognormal — but their <em>joint distribution</em> now reflects the declared correlation.</p>
+<p>The result: <code>age</code> still follows your normal distribution, <code>salary</code> still follows your lognormal, but their <em>joint distribution</em> now reflects the declared correlation.</p>
 <h2 id="negative-correlations">Negative correlations</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">Table</span><span class="p">(</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;products&quot;</span><span class="p">,</span>
@@ -2675,7 +2675,7 @@
 </code></pre></div>
 <p>Higher-priced products tend to have fewer returns. Better-reviewed products generate fewer support tickets.</p>
 <h2 id="multiple-correlations">Multiple correlations</h2>
-<p>You can declare as many pairs as you like. Misata builds a joint correlation matrix and enforces all of them simultaneously. The only constraint: the full matrix must be positive semi-definite (i.e. your correlations can't be logically contradictory — if A↑→B↑ and B↑→C↓, then A↑→C↓ must be consistent).</p>
+<p>You can declare as many pairs as you like. Misata builds a joint correlation matrix and enforces all of them simultaneously. The only constraint: the full matrix must be positive semi-definite (i.e. your correlations can't be logically contradictory, if A↑→B↑ and B↑→C↓, then A↑→C↓ must be consistent).</p>
 <p>If the matrix is not positive-definite (contradictory spec), Misata skips correlation enforcement silently and generates independent columns.</p>
 <h2 id="common-correlation-patterns-by-domain">Common correlation patterns by domain</h2>
 <h3 id="e-commerce">E-commerce</h3>

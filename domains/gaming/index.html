@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic gaming synthetic datasets in Python — players, matches, sessions, and achievements with Pareto XP distributions, realistic K/D ratios, and leaderboard data. No real player data required.">
+        <meta name="description" content="Generate realistic gaming synthetic datasets in Python, players, matches, sessions, and achievements with Pareto XP distributions, realistic K/D ratios, and leaderboard data. No real player data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-gaming-synthetic-data-in-python">Generate Gaming Synthetic Data in Python</h1>
-<p>Gaming data has a distinctive statistical signature: player levels and XP follow heavy-tailed distributions (most players are low-level, a small elite dominates leaderboards), K/D ratios are beta-distributed around 1.0, and achievement unlock patterns follow the player's progression timeline. Misata generates a four-table gaming dataset — players, matches, sessions, and achievements — where all of this is built in and every FK relationship is valid.</p>
+<p>Gaming data has a distinctive statistical signature: player levels and XP follow heavy-tailed distributions (most players are low-level, a small elite dominates leaderboards), K/D ratios are beta-distributed around 1.0, and achievement unlock patterns follow the player's progression timeline. Misata generates a four-table gaming dataset, players, matches, sessions, and achievements, where all of this is built in and every FK relationship is valid.</p>
 <p>Whether you're testing a leaderboard API, training a churn prediction model on player activity, or building a game analytics dashboard, you can have a statistically accurate gaming dataset running in seconds.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2623,11 +2623,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>Player levels</strong> follow a right-skewed lognormal — most players are low-to-mid level, a long elite tail reaches max level</li>
-<li><strong>XP</strong> follows a Pareto distribution — top players have disproportionately high experience totals</li>
+<li><strong>Player levels</strong> follow a right-skewed lognormal, most players are low-to-mid level, a long elite tail reaches max level</li>
+<li><strong>XP</strong> follows a Pareto distribution, top players have disproportionately high experience totals</li>
 <li><strong>K/D ratio</strong> (kills/deaths per session) beta-distributed around 1.0, with correct shape for ranked play</li>
-<li><strong><code>last_active</code></strong> is always after <code>joined_at</code> — temporal coherence enforced</li>
-<li><strong>Achievement <code>unlocked_at</code></strong> is always after <code>joined_at</code> — no achievements before registration</li>
+<li><strong><code>last_active</code></strong> is always after <code>joined_at</code>, temporal coherence enforced</li>
+<li><strong>Achievement <code>unlocked_at</code></strong> is always after <code>joined_at</code>, no achievements before registration</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2648,12 +2648,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Leaderboard and ranking API testing</strong> — populate leaderboards with thousands of players across realistic level and XP distributions to stress-test sorting and pagination</li>
-<li><strong>Churn prediction models</strong> — generate players with <code>last_active</code> timestamps and session frequency for training binary retention classifiers</li>
-<li><strong>Matchmaking algorithm development</strong> — use session data with kills, deaths, and scores to prototype skill-based matchmaking without production logs</li>
-<li><strong>Game analytics dashboards</strong> — seed BI tools with player activity data that produces sensible DAU/MAU and retention funnel metrics</li>
-<li><strong>Achievement system QA</strong> — validate badge unlock logic against thousands of achievements across varied categories and point values</li>
-<li><strong>Anti-cheat detection training</strong> — inject anomalous K/D ratios and XP progression patterns to develop detection rule classifiers</li>
+<li><strong>Leaderboard and ranking API testing</strong>: populate leaderboards with thousands of players across realistic level and XP distributions to stress-test sorting and pagination</li>
+<li><strong>Churn prediction models</strong>: generate players with <code>last_active</code> timestamps and session frequency for training binary retention classifiers</li>
+<li><strong>Matchmaking algorithm development</strong>: use session data with kills, deaths, and scores to prototype skill-based matchmaking without production logs</li>
+<li><strong>Game analytics dashboards</strong>: seed BI tools with player activity data that produces sensible DAU/MAU and retention funnel metrics</li>
+<li><strong>Achievement system QA</strong>: validate badge unlock logic against thousands of achievements across varied categories and point values</li>
+<li><strong>Anti-cheat detection training</strong>: inject anomalous K/D ratios and XP progression patterns to develop detection rule classifiers</li>
 </ul>
 <h2 id="advanced-player-growth-narrative">Advanced: player growth narrative</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

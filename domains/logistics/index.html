@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic logistics synthetic datasets in Python — drivers, vehicles, routes, and shipments with delivery time coherence, on-time rates, and fleet management distributions. No real fleet data required.">
+        <meta name="description" content="Generate realistic logistics synthetic datasets in Python, drivers, vehicles, routes, and shipments with delivery time coherence, on-time rates, and fleet management distributions. No real fleet data required.">
       
       
       
@@ -2584,7 +2584,7 @@
 
 
 <h1 id="generate-logistics-and-supply-chain-synthetic-data-in-python">Generate Logistics and Supply Chain Synthetic Data in Python</h1>
-<p>Logistics data connects physical assets — vehicles, drivers, and routes — with time-sensitive operations like shipments and deliveries. Building a fleet management system, training a route optimization model, or developing a supply chain analytics dashboard requires data where <code>delivered_at</code> is always after <code>shipped_at</code>, driver ratings are realistic, and route distances follow the right distribution. Misata generates all of it in one call.</p>
+<p>Logistics data connects physical assets, vehicles, drivers, and routes, with time-sensitive operations like shipments and deliveries. Building a fleet management system, training a route optimization model, or developing a supply chain analytics dashboard requires data where <code>delivered_at</code> is always after <code>shipped_at</code>, driver ratings are realistic, and route distances follow the right distribution. Misata generates all of it in one call.</p>
 <p>The logistics domain generates four interconnected tables: drivers assigned to vehicles, shipments assigned to routes and drivers, all with FK integrity and realistic temporal constraints. On-time delivery rate is ~88% by default and configurable from your story.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2623,11 +2623,11 @@
 </table>
 <h3 id="realistic-distributions">Realistic distributions</h3>
 <ul>
-<li><strong>On-time rate</strong> is ~88% — configurable via story (<code>"95% on-time rate"</code>, <code>"frequent delays"</code>)</li>
-<li><strong><code>delivered_at</code></strong> is always after <code>shipped_at</code> — enforced, not probabilistic</li>
-<li><strong>Route distances</strong> lognormal — right mix of short urban hauls and long-distance routes</li>
-<li><strong>Driver ratings</strong> beta-distributed in the 4.0–5.0 range — reflecting how platform ratings cluster high</li>
-<li><strong>Vehicle capacity</strong> matches vehicle type — light vans have lower capacity than heavy trucks</li>
+<li><strong>On-time rate</strong> is ~88%, configurable via story (<code>"95% on-time rate"</code>, <code>"frequent delays"</code>)</li>
+<li><strong><code>delivered_at</code></strong> is always after <code>shipped_at</code>, enforced, not probabilistic</li>
+<li><strong>Route distances</strong> lognormal, right mix of short urban hauls and long-distance routes</li>
+<li><strong>Driver ratings</strong> beta-distributed in the 4.0–5.0 range, reflecting how platform ratings cluster high</li>
+<li><strong>Vehicle capacity</strong> matches vehicle type, light vans have lower capacity than heavy trucks</li>
 </ul>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
@@ -2653,12 +2653,12 @@
 </code></pre></div>
 <h2 id="common-use-cases">Common use cases</h2>
 <ul>
-<li><strong>Route optimization model training</strong> — generate training data with distance, duration, cost, and driver ratings for last-mile delivery optimization</li>
-<li><strong>Fleet management dashboard development</strong> — build vehicle utilization, driver performance, and route efficiency dashboards before your telematics data is connected</li>
-<li><strong>Supply chain simulation</strong> — test warehouse management logic against thousands of inbound and outbound shipments with realistic weight and timing distributions</li>
-<li><strong>Delivery SLA monitoring</strong> — validate your alerting and escalation logic against shipments in all status states (in transit, delayed, delivered, failed)</li>
-<li><strong>Driver scoring algorithm testing</strong> — generate driver histories with varied ratings and delivery completion rates</li>
-<li><strong>Logistics ERP integration testing</strong> — seed test databases with full driver-vehicle-route-shipment hierarchies for API validation</li>
+<li><strong>Route optimization model training</strong>: generate training data with distance, duration, cost, and driver ratings for last-mile delivery optimization</li>
+<li><strong>Fleet management dashboard development</strong>: build vehicle utilization, driver performance, and route efficiency dashboards before your telematics data is connected</li>
+<li><strong>Supply chain simulation</strong>: test warehouse management logic against thousands of inbound and outbound shipments with realistic weight and timing distributions</li>
+<li><strong>Delivery SLA monitoring</strong>: validate your alerting and escalation logic against shipments in all status states (in transit, delayed, delivered, failed)</li>
+<li><strong>Driver scoring algorithm testing</strong>: generate driver histories with varied ratings and delivery completion rates</li>
+<li><strong>Logistics ERP integration testing</strong>: seed test databases with full driver-vehicle-route-shipment hierarchies for API validation</li>
 </ul>
 <h2 id="advanced-delay-scenario-modeling">Advanced: delay scenario modeling</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>

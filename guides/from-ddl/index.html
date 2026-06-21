@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Use misata.from_ddl() to parse CREATE TABLE statements and generate synthetic data that matches your real database schema — no YAML authoring required.">
+        <meta name="description" content="Use misata.from_ddl() to parse CREATE TABLE statements and generate synthetic data that matches your real database schema, no YAML authoring required.">
       
       
       
@@ -2572,7 +2572,7 @@
 
 
 <h1 id="generate-synthetic-data-from-sql-ddl">Generate Synthetic Data from SQL DDL</h1>
-<p><code>misata.from_ddl()</code> parses SQL <code>CREATE TABLE</code> statements and converts them into a <code>SchemaConfig</code> ready for data generation. Paste your real schema DDL and get synthetic data that matches your database structure — column types, foreign key relationships, and NOT NULL constraints all preserved.</p>
+<p><code>misata.from_ddl()</code> parses SQL <code>CREATE TABLE</code> statements and converts them into a <code>SchemaConfig</code> ready for data generation. Paste your real schema DDL and get synthetic data that matches your database structure, column types, foreign key relationships, and NOT NULL constraints all preserved.</p>
 <h2 id="quick-start">Quick start</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -2601,10 +2601,10 @@
 </code></pre></div>
 <h2 id="supported-sql-dialects">Supported SQL dialects</h2>
 <ul>
-<li><strong>PostgreSQL</strong> — <code>SERIAL</code>, <code>BIGSERIAL</code>, <code>TIMESTAMP WITH TIME ZONE</code>, schema-qualified names, <code>"quoted"</code> identifiers</li>
-<li><strong>MySQL</strong> — <code>INT AUTO_INCREMENT</code>, <code>DATETIME</code>, <code>TINYINT</code></li>
-<li><strong>SQLite</strong> — <code>INTEGER PRIMARY KEY</code>, <code>TEXT</code>, <code>REAL</code></li>
-<li><strong>Generic ANSI SQL</strong> — standard <code>CREATE TABLE</code> with <code>REFERENCES</code> clauses</li>
+<li><strong>PostgreSQL</strong>: <code>SERIAL</code>, <code>BIGSERIAL</code>, <code>TIMESTAMP WITH TIME ZONE</code>, schema-qualified names, <code>"quoted"</code> identifiers</li>
+<li><strong>MySQL</strong>: <code>INT AUTO_INCREMENT</code>, <code>DATETIME</code>, <code>TINYINT</code></li>
+<li><strong>SQLite</strong>: <code>INTEGER PRIMARY KEY</code>, <code>TEXT</code>, <code>REAL</code></li>
+<li><strong>Generic ANSI SQL</strong>: standard <code>CREATE TABLE</code> with <code>REFERENCES</code> clauses</li>
 </ul>
 <h2 id="sql-type-mapping">SQL type mapping</h2>
 <table>
@@ -2730,16 +2730,16 @@
 </code></pre></div>
 <h2 id="limitations">Limitations</h2>
 <ul>
-<li><strong>Computed / generated columns</strong> — <code>GENERATED ALWAYS AS</code> expressions are not evaluated; the column is treated as its base type</li>
-<li><strong><code>CHECK</code> constraints</strong> — parsed but not enforced during generation; use <code>misata.yaml</code> for custom constraint rules</li>
-<li><strong>Enum types</strong> — <code>CREATE TYPE ... AS ENUM</code> is not parsed; use <code>misata.yaml</code> to define categorical choices</li>
-<li><strong>Complex DEFAULT expressions</strong> — <code>DEFAULT NOW()</code>, <code>DEFAULT uuid_generate_v4()</code> are ignored; Misata generates values from type-appropriate distributions</li>
+<li><strong>Computed / generated columns</strong>: <code>GENERATED ALWAYS AS</code> expressions are not evaluated; the column is treated as its base type</li>
+<li><strong><code>CHECK</code> constraints</strong>: parsed but not enforced during generation; use <code>misata.yaml</code> for custom constraint rules</li>
+<li><strong>Enum types</strong>: <code>CREATE TYPE ... AS ENUM</code> is not parsed; use <code>misata.yaml</code> to define categorical choices</li>
+<li><strong>Complex DEFAULT expressions</strong>: <code>DEFAULT NOW()</code>, <code>DEFAULT uuid_generate_v4()</code> are ignored; Misata generates values from type-appropriate distributions</li>
 </ul>
 <h2 id="related">Related</h2>
 <ul>
-<li><a href="../../generation/yaml/">YAML Schema</a> — full control over distributions and constraints</li>
-<li><a href="../database-seeding-python/">Database Seeding</a> — seed your generated data into a real database</li>
-<li><a href="../../validate/">Validate</a> — verify generated data quality</li>
+<li><a href="../../generation/yaml/">YAML Schema</a>, full control over distributions and constraints</li>
+<li><a href="../database-seeding-python/">Database Seeding</a>, seed your generated data into a real database</li>
+<li><a href="../../validate/">Validate</a>, verify generated data quality</li>
 </ul>
 
 
