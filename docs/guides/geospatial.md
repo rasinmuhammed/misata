@@ -1,5 +1,5 @@
 ---
-title: "Geospatial Realism — Realistic Coordinates, Postal Codes, and Location Data"
+title: "Geospatial Realism, Realistic Coordinates, Postal Codes, and Location Data"
 description: "Generate latitude/longitude that clusters around real cities, format-correct postal codes, and location data that makes maps look real."
 ---
 
@@ -33,10 +33,10 @@ schema = SchemaConfig(
 Misata has a built-in dataset of 60+ major cities across 20 countries, each with real centroid coordinates. For each row:
 
 1. A city is sampled (uniformly across the pool)
-2. A small Gaussian offset is added (~0.25° lat, ~0.35° lng — roughly 20–35 km scatter)
+2. A small Gaussian offset is added (~0.25° lat, ~0.35° lng, roughly 20–35 km scatter)
 3. Coordinates are rounded to 6 decimal places (~10 cm precision)
 
-This means your data will produce realistic-looking clusters when plotted on a map — not random scattered points.
+This means your data will produce realistic-looking clusters when plotted on a map, not random scattered points.
 
 ```python
 # Coordinates cluster around real cities:
@@ -83,4 +83,4 @@ columns = [
 ]
 ```
 
-Note: city/country and lat/lng are sampled independently — for strict geographic consistency within a row, use a custom generator or the correlation engine.
+Note: city/country and lat/lng are sampled independently, for strict geographic consistency within a row, use a custom generator or the correlation engine.

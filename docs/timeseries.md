@@ -1,11 +1,11 @@
 ---
-title: Time Series Synthetic Data — Generate Realistic Temporal Datasets in Python
-description: Generate realistic time-series synthetic data with Misata. Add linear/exponential trends, weekly and yearly seasonality, Gaussian noise, and anomaly injection — for metrics, KPIs, and sensor data.
+title: Time Series Synthetic Data, Generate Realistic Temporal Datasets in Python
+description: Generate realistic time-series synthetic data with Misata. Add linear/exponential trends, weekly and yearly seasonality, Gaussian noise, and anomaly injection, for metrics, KPIs, and sensor data.
 ---
 
 # Time Series
 
-Generate realistic temporal sequences with trend, seasonality, noise, and anomaly injection — metrics, sensor data, KPIs, DAU curves, revenue forecasts.
+Generate realistic temporal sequences with trend, seasonality, noise, and anomaly injection, metrics, sensor data, KPIs, DAU curves, revenue forecasts.
 
 ## Quick start
 
@@ -72,11 +72,11 @@ ts = misata.generate_timeseries(config=config)
 
 The story parser extracts:
 
-- **Metric name** — "daily active users" → `daily_active_users`, "revenue" → `revenue`
-- **Periods** — "over 2 years" → 730 days; "for 6 months" → 180 days
-- **Trend** — "growing 15% monthly" → exponential rate=0.005; "declining" → negative rate
-- **Seasonality** — "weekly seasonality" → weekly component; "summer peak" → yearly component
-- **Anomalies** — "viral spike" → 4× magnitude spike; "outage" or "crash" → 0.1× drop
+- **Metric name**: "daily active users" → `daily_active_users`, "revenue" → `revenue`
+- **Periods**: "over 2 years" → 730 days; "for 6 months" → 180 days
+- **Trend**: "growing 15% monthly" → exponential rate=0.005; "declining" → negative rate
+- **Seasonality**: "weekly seasonality" → weekly component; "summer peak" → yearly component
+- **Anomalies**: "viral spike" → 4× magnitude spike; "outage" or "crash" → 0.1× drop
 
 ## Trend types
 
@@ -85,7 +85,7 @@ The story parser extracts:
 | `linear` | Constant absolute growth per period | `rate` (units/period) |
 | `exponential` | Compounding percentage growth | `rate` (fraction/period, e.g. 0.003) |
 | `stepwise` | Step-function changes at specified periods | `steps` list of `(period, value)` |
-| `none` | Flat baseline | — |
+| `none` | Flat baseline |: |
 
 ## Seasonality types
 

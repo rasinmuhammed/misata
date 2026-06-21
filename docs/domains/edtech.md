@@ -1,11 +1,11 @@
 ---
 title: Generate EdTech Synthetic Data in Python | Misata
-description: Generate realistic EdTech synthetic datasets in Python — instructors, courses, students, enrollments, and quiz attempts with back-to-school seasonality, completion rate distributions, and referential integrity. No real student data required.
+description: Generate realistic EdTech synthetic datasets in Python, instructors, courses, students, enrollments, and quiz attempts with back-to-school seasonality, completion rate distributions, and referential integrity. No real student data required.
 ---
 
 # Generate EdTech Synthetic Data in Python
 
-EdTech platforms have a distinctive data model: instructors create courses, students enroll and progress at non-uniform rates, quiz scores cluster toward passing (most students who attempt pass), and enrollment spikes around the new year and back-to-school season. Misata generates a five-table EdTech dataset with all of this built in — instructors, courses, students, enrollments, and quiz attempts — with no orphaned foreign keys and realistic completion and certificate issuance rates.
+EdTech platforms have a distinctive data model: instructors create courses, students enroll and progress at non-uniform rates, quiz scores cluster toward passing (most students who attempt pass), and enrollment spikes around the new year and back-to-school season. Misata generates a five-table EdTech dataset with all of this built in, instructors, courses, students, enrollments, and quiz attempts, with no orphaned foreign keys and realistic completion and certificate issuance rates.
 
 ```python
 import misata
@@ -37,9 +37,9 @@ Five tables: `instructors` → `courses` → `enrollments` (linking students to 
 
 - **Enrollment timing** peaks in January (New Year learning resolutions) and August-September (back to school)
 - **Completion rates** follow a realistic dropout curve: ~30% of enrollments reach 100% completion
-- **`certificate_issued`** is only true for completed enrollments — conditional logic enforced
+- **`certificate_issued`** is only true for completed enrollments, conditional logic enforced
 - **Quiz scores** cluster toward passing (60–85 range) with a realistic fail tail
-- **Course prices** lognormal — free courses plus premium paid content
+- **Course prices** lognormal, free courses plus premium paid content
 
 ## Quick start
 
@@ -72,12 +72,12 @@ print(merged.groupby("difficulty")["passed"].mean())
 
 ## Common use cases
 
-- **LMS platform development** — seed a test database with instructors, courses, and enrollment histories before your platform has real users
-- **Learning analytics dashboards** — build completion rate, dropout analysis, and learner progress reports on realistic enrollment data
-- **Recommendation engine training** — use enrollment and quiz score histories to prototype course recommendation models
-- **Revenue and subscription analytics** — test cohort revenue, course monetization, and refund rate calculations before real sales data exists
-- **Adaptive learning system testing** — validate quiz difficulty adaptation logic against thousands of attempts with varied score distributions
-- **GDPR-safe student data exports** — replace real student records with synthetic equivalents for vendor integrations and compliance audits
+- **LMS platform development**: seed a test database with instructors, courses, and enrollment histories before your platform has real users
+- **Learning analytics dashboards**: build completion rate, dropout analysis, and learner progress reports on realistic enrollment data
+- **Recommendation engine training**: use enrollment and quiz score histories to prototype course recommendation models
+- **Revenue and subscription analytics**: test cohort revenue, course monetization, and refund rate calculations before real sales data exists
+- **Adaptive learning system testing**: validate quiz difficulty adaptation logic against thousands of attempts with varied score distributions
+- **GDPR-safe student data exports**: replace real student records with synthetic equivalents for vendor integrations and compliance audits
 
 ## Advanced: enrollment narrative curves
 

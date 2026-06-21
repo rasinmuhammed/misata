@@ -1,13 +1,13 @@
 ---
 title: Generate Food Delivery Synthetic Data in Python | Misata
-description: Generate realistic food delivery synthetic datasets in Python — restaurants, customers, couriers, orders, and order items with delivery time coherence and cuisine distributions. No real order data required.
+description: Generate realistic food delivery synthetic datasets in Python, restaurants, customers, couriers, orders, and order items with delivery time coherence and cuisine distributions. No real order data required.
 ---
 
 # Generate Food Delivery Synthetic Data in Python
 
 Food delivery platforms have a five-entity data model: restaurants, customers, couriers, orders, and the individual items within each order. Misata generates all five tables in one call, with every `delivered_at` timestamp guaranteed to be after `placed_at`, cuisine types drawn from realistic distributions, and delivery fees and order amounts matching real-world food app economics.
 
-The data is built for immediate use — no orphaned order_items, no couriers assigned to non-existent restaurants, no negative delivery times.
+The data is built for immediate use, no orphaned order_items, no couriers assigned to non-existent restaurants, no negative delivery times.
 
 ```python
 import misata
@@ -37,9 +37,9 @@ Five tables: `restaurants`, `customers`, `couriers`, `orders` (linking all three
 
 ### Realistic distributions
 
-- **`delivered_at`** is always after `placed_at` — enforced, not probabilistic
+- **`delivered_at`** is always after `placed_at`, enforced, not probabilistic
 - **Cuisine types** drawn from realistic distribution: pizza, sushi, burgers, Indian, Chinese, Mexican, Thai, and more
-- **Delivery fees** lognormal — consistent with platform fee structures
+- **Delivery fees** lognormal, consistent with platform fee structures
 - **Courier ratings** beta-distributed toward 4–5 stars
 - **Order totals** match the sum of order_items with realistic variation for fees and promotions
 
@@ -70,12 +70,12 @@ print(delivered["delivery_minutes"].describe())
 
 ## Common use cases
 
-- **Delivery routing algorithm testing** — generate orders with restaurant locations and courier positions to validate dispatch and routing logic
-- **Food tech platform development** — seed test databases with full order histories before your app has real restaurant partners
-- **Demand forecasting models** — generate order volumes with hour-of-day and day-of-week patterns to train surge prediction models
-- **Courier performance analytics** — build delivery time, rating, and completion rate dashboards on realistic courier histories
-- **Restaurant analytics tools** — develop order volume, revenue, and rating trend reports before real restaurant data is available
-- **Customer LTV and retention models** — generate customer order histories with realistic reorder rates and recency patterns
+- **Delivery routing algorithm testing**: generate orders with restaurant locations and courier positions to validate dispatch and routing logic
+- **Food tech platform development**: seed test databases with full order histories before your app has real restaurant partners
+- **Demand forecasting models**: generate order volumes with hour-of-day and day-of-week patterns to train surge prediction models
+- **Courier performance analytics**: build delivery time, rating, and completion rate dashboards on realistic courier histories
+- **Restaurant analytics tools**: develop order volume, revenue, and rating trend reports before real restaurant data is available
+- **Customer LTV and retention models**: generate customer order histories with realistic reorder rates and recency patterns
 
 ## Advanced: peak hour curves
 

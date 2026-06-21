@@ -1,11 +1,11 @@
 ---
 title: Generate Synthetic Data from SQL DDL | Misata
-description: Use misata.from_ddl() to parse CREATE TABLE statements and generate synthetic data that matches your real database schema — no YAML authoring required.
+description: Use misata.from_ddl() to parse CREATE TABLE statements and generate synthetic data that matches your real database schema, no YAML authoring required.
 ---
 
 # Generate Synthetic Data from SQL DDL
 
-`misata.from_ddl()` parses SQL `CREATE TABLE` statements and converts them into a `SchemaConfig` ready for data generation. Paste your real schema DDL and get synthetic data that matches your database structure — column types, foreign key relationships, and NOT NULL constraints all preserved.
+`misata.from_ddl()` parses SQL `CREATE TABLE` statements and converts them into a `SchemaConfig` ready for data generation. Paste your real schema DDL and get synthetic data that matches your database structure, column types, foreign key relationships, and NOT NULL constraints all preserved.
 
 ## Quick start
 
@@ -38,10 +38,10 @@ assert tables["orders"]["user_id"].isin(tables["users"]["id"]).all()
 
 ## Supported SQL dialects
 
-- **PostgreSQL** — `SERIAL`, `BIGSERIAL`, `TIMESTAMP WITH TIME ZONE`, schema-qualified names, `"quoted"` identifiers
-- **MySQL** — `INT AUTO_INCREMENT`, `DATETIME`, `TINYINT`
-- **SQLite** — `INTEGER PRIMARY KEY`, `TEXT`, `REAL`
-- **Generic ANSI SQL** — standard `CREATE TABLE` with `REFERENCES` clauses
+- **PostgreSQL**: `SERIAL`, `BIGSERIAL`, `TIMESTAMP WITH TIME ZONE`, schema-qualified names, `"quoted"` identifiers
+- **MySQL**: `INT AUTO_INCREMENT`, `DATETIME`, `TINYINT`
+- **SQLite**: `INTEGER PRIMARY KEY`, `TEXT`, `REAL`
+- **Generic ANSI SQL**: standard `CREATE TABLE` with `REFERENCES` clauses
 
 ## SQL type mapping
 
@@ -167,13 +167,13 @@ misata.seed_database(tables, "postgresql://user:pass@localhost/mydb")
 
 ## Limitations
 
-- **Computed / generated columns** — `GENERATED ALWAYS AS` expressions are not evaluated; the column is treated as its base type
-- **`CHECK` constraints** — parsed but not enforced during generation; use `misata.yaml` for custom constraint rules
-- **Enum types** — `CREATE TYPE ... AS ENUM` is not parsed; use `misata.yaml` to define categorical choices
-- **Complex DEFAULT expressions** — `DEFAULT NOW()`, `DEFAULT uuid_generate_v4()` are ignored; Misata generates values from type-appropriate distributions
+- **Computed / generated columns**: `GENERATED ALWAYS AS` expressions are not evaluated; the column is treated as its base type
+- **`CHECK` constraints**: parsed but not enforced during generation; use `misata.yaml` for custom constraint rules
+- **Enum types**: `CREATE TYPE ... AS ENUM` is not parsed; use `misata.yaml` to define categorical choices
+- **Complex DEFAULT expressions**: `DEFAULT NOW()`, `DEFAULT uuid_generate_v4()` are ignored; Misata generates values from type-appropriate distributions
 
 ## Related
 
-- [YAML Schema](../generation/yaml.md) — full control over distributions and constraints
-- [Database Seeding](database-seeding-python.md) — seed your generated data into a real database
-- [Validate](../validate.md) — verify generated data quality
+- [YAML Schema](../generation/yaml.md), full control over distributions and constraints
+- [Database Seeding](database-seeding-python.md), seed your generated data into a real database
+- [Validate](../validate.md), verify generated data quality

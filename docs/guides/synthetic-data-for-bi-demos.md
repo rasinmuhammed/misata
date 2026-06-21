@@ -1,5 +1,5 @@
 ---
-title: Synthetic Data for BI Demos — Realistic Dashboard Datasets in Python
+title: Synthetic Data for BI Demos, Realistic Dashboard Datasets in Python
 description: Create compelling BI demo datasets with realistic trends, seasonality, and growth curves using Misata. Perfect for Tableau, Power BI, Looker, and Metabase demos.
 ---
 
@@ -7,7 +7,7 @@ description: Create compelling BI demo datasets with realistic trends, seasonali
 
 BI dashboards live or die by their data story. A chart that shows flat revenue or
 perfectly uniform distributions looks fake in a demo. Misata lets you specify the
-story — "revenue grows through the year, dips in September, peaks in December" — and
+story, "revenue grows through the year, dips in September, peaks in December", and
 generates rows that actually sum to those targets.
 
 ## The problem with generic fake data in BI
@@ -141,7 +141,7 @@ seed_database(tables, "postgresql://user:pass@localhost/bi_demo", create=True)
 ```
 
 Then point Tableau, Metabase, Looker, or Power BI at `postgresql://localhost/bi_demo`.
-The data has a coherent story, realistic distributions, and proper FK relationships —
+The data has a coherent story, realistic distributions, and proper FK relationships,
 ready to demo without disclaimers.
 
 ## Running the examples

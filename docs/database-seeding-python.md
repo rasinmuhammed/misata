@@ -19,7 +19,7 @@ print(report.table_rows)   # {"users": 1000, "subscriptions": 3000, ...}
 
 ## Supported databases
 
-Misata uses SQLAlchemy under the hood — any SQLAlchemy-compatible database works:
+Misata uses SQLAlchemy under the hood, any SQLAlchemy-compatible database works:
 
 ```python
 # SQLite (local dev)

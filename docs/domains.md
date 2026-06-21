@@ -1,13 +1,13 @@
 ---
-title: 18 Supported Domains — Misata Synthetic Data Generator
-description: Misata generates realistic multi-table synthetic data for 18 business domains — SaaS, fintech, ecommerce, healthcare, HR, logistics, social, real estate, pharma, food delivery, edtech, gaming, CRM, crypto, insurance, travel, and streaming.
+title: 18 Supported Domains, Misata Synthetic Data Generator
+description: Misata generates realistic multi-table synthetic data for 18 business domains, SaaS, fintech, ecommerce, healthcare, HR, logistics, social, real estate, pharma, food delivery, edtech, gaming, CRM, crypto, insurance, travel, and streaming.
 ---
 
 # Supported Domains
 
 Misata detects your domain from the story and applies a pre-built schema with realistic FK relationships, domain-calibrated distributions, and semantic column types. Every domain generates data that passes referential integrity checks out of the box.
 
-**How detection works:** each domain has a set of trigger keywords. The domain whose keywords appear most in the story wins. The literal domain name (e.g. `"saas"`, `"fintech"`) scores +5 points — always enough to override ambiguous keyword matches.
+**How detection works:** each domain has a set of trigger keywords. The domain whose keywords appear most in the story wins. The literal domain name (e.g. `"saas"`, `"fintech"`) scores +5 points, always enough to override ambiguous keyword matches.
 
 ---
 
@@ -25,7 +25,7 @@ Misata detects your domain from the story and applies a pre-built schema with re
 
 **Distributions:** MRR is lognormal (median ~$150/mo). Churn rate configurable from story. `churned_at` is only set for churned subscriptions. Plan distribution: free 55%, pro 30%, enterprise 15%.
 
-**Narrative support:** MRR outcome curves — monthly anchors, quarterly patterns, multipliers, and named events all work on the `subscriptions.mrr` column.
+**Narrative support:** MRR outcome curves, monthly anchors, quarterly patterns, multipliers, and named events all work on the `subscriptions.mrr` column.
 
 ```python
 import misata
@@ -169,7 +169,7 @@ tables = misata.generate("A logistics company with 200 drivers and 50k shipments
 | `employees` | `employee_id`, `department_id`, `name`, `email`, `role`, `seniority`, `hire_date`, `date_of_birth`, `salary`, `tenure_years` |
 | `payroll` | `payroll_id`, `employee_id`, `period_start`, `gross_pay`, `tax_withheld`, `net_pay`, `pay_type` |
 
-**Coherence rules:** `hire_date` is always after `date_of_birth + 18 years` and never in the future. `tenure_years` is derived from `hire_date` on the same row — no separate random distribution. `net_pay = gross_pay × (1 − tax_withheld)` is formula-consistent row by row.
+**Coherence rules:** `hire_date` is always after `date_of_birth + 18 years` and never in the future. `tenure_years` is derived from `hire_date` on the same row, no separate random distribution. `net_pay = gross_pay × (1 − tax_withheld)` is formula-consistent row by row.
 
 **Distributions:** Salary lognormal by seniority (junior ~$65k, mid ~$95k, senior ~$140k, lead ~$180k). Tax rate Beta(3, 7) clipped to 18–40%.
 
@@ -198,7 +198,7 @@ print(tables["employees"][["role", "salary", "tenure_years"]].describe())
 | `reactions` | `reaction_id`, `post_id`, `user_id`, `type`, `reacted_at` |
 | `comments` | `comment_id`, `post_id`, `user_id`, `text`, `parent_comment_id`, `posted_at` |
 
-**Distributions:** Follower counts follow a Pareto (power-law) — a small fraction of accounts captures most reach. Engagement rates beta-distributed (~1–5%). Captions are realistic social media text with hashtags and emoji, not lorem ipsum.
+**Distributions:** Follower counts follow a Pareto (power-law), a small fraction of accounts captures most reach. Engagement rates beta-distributed (~1–5%). Captions are realistic social media text with hashtags and emoji, not lorem ipsum.
 
 ```python
 tables = misata.generate("A social media app with 10k creators, posts, and viral content")
@@ -260,7 +260,7 @@ tables = misata.generate("A pharma research company with 200 researchers and cli
 | `orders` | `order_id`, `customer_id`, `restaurant_id`, `courier_id`, `total_amount`, `delivery_fee`, `status`, `placed_at`, `delivered_at` |
 | `order_items` | `item_id`, `order_id`, `name`, `quantity`, `unit_price` |
 
-**Coherence rules:** `delivered_at` is always after `placed_at` — no negative delivery times. Cuisines drawn from realistic distribution (pizza, sushi, burgers, indian, chinese, …).
+**Coherence rules:** `delivered_at` is always after `placed_at`, no negative delivery times. Cuisines drawn from realistic distribution (pizza, sushi, burgers, indian, chinese, …).
 
 ```python
 tables = misata.generate(

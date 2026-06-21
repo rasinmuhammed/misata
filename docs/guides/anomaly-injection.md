@@ -1,11 +1,11 @@
 ---
-title: "Anomaly Injection — Deliberate Outliers for ML Training and Alerting Tests"
+title: "Anomaly Injection, Deliberate Outliers for ML Training and Alerting Tests"
 description: "Inject statistical outliers into any numeric or categorical column at a configurable rate. Essential for fraud detection models, alerting systems, and anomaly detection benchmarks."
 ---
 
 # Anomaly Injection
 
-Real datasets contain anomalies — a transaction 10× the normal amount, a delivery time of 400 minutes, a sensor reading far outside its normal range. Misata lets you inject these deliberately so your ML models, alerting rules, and anomaly detectors have something to learn from.
+Real datasets contain anomalies, a transaction 10× the normal amount, a delivery time of 400 minutes, a sensor reading far outside its normal range. Misata lets you inject these deliberately so your ML models, alerting rules, and anomaly detectors have something to learn from.
 
 ## Usage
 

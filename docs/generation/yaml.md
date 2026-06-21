@@ -1,6 +1,6 @@
 # YAML Schema
 
-Define your schema in a file, commit it to git, and reproduce the same dataset anywhere — no LLM required.
+Define your schema in a file, commit it to git, and reproduce the same dataset anywhere, no LLM required.
 
 ## Scaffold
 
@@ -55,7 +55,7 @@ schema = misata.load_yaml_schema("misata.yaml")
 tables = misata.generate_from_schema(schema)
 ```
 
-Or from the CLI — auto-detected if `misata.yaml` exists in the current directory:
+Or from the CLI, auto-detected if `misata.yaml` exists in the current directory:
 
 ```bash
 misata generate

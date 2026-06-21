@@ -27,7 +27,7 @@ misata.to_jsonl(tables, "data/")
 
 ## Document generation
 
-Render one document per row from any table — invoices, patient reports, transaction receipts.
+Render one document per row from any table, invoices, patient reports, transaction receipts.
 
 ```python
 # Built-in templates: invoice, patient_report, transaction_receipt, user_profile, generic

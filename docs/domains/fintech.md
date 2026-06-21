@@ -1,11 +1,11 @@
 ---
 title: Generate Fintech Synthetic Data in Python | Misata
-description: Generate realistic fintech synthetic datasets in Python — customers, bank accounts, transactions, fraud flags, and credit scores with locale-aware IBANs and configurable fraud rates. No real data required.
+description: Generate realistic fintech synthetic datasets in Python, customers, bank accounts, transactions, fraud flags, and credit scores with locale-aware IBANs and configurable fraud rates. No real data required.
 ---
 
 # Generate Fintech Synthetic Data in Python
 
-Fintech applications handle sensitive financial data — transaction histories, credit scores, account balances, and fraud signals. Using real customer data for development, ML training, or load testing creates compliance risk. Misata generates statistically accurate fintech synthetic data: customers with realistic FICO-distributed credit scores, accounts with locale-aware IBANs, and transaction streams with configurable fraud rates.
+Fintech applications handle sensitive financial data, transaction histories, credit scores, account balances, and fraud signals. Using real customer data for development, ML training, or load testing creates compliance risk. Misata generates statistically accurate fintech synthetic data: customers with realistic FICO-distributed credit scores, accounts with locale-aware IBANs, and transaction streams with configurable fraud rates.
 
 The schema is designed around real-world fintech compliance requirements: `kyc_status` tracks verification state, `is_fraud` is a boolean flag on transactions (not just a random column), and fraud rate is extracted directly from your story description so you can control the class imbalance in training datasets.
 
@@ -31,11 +31,11 @@ Three tables: `customers` → `accounts` → `transactions`. Every transaction r
 
 ### Realistic distributions
 
-- **Credit scores** are lognormal centered on FICO mean (~700, σ=75) — the right bell shape for creditworthiness modeling
+- **Credit scores** are lognormal centered on FICO mean (~700, σ=75), the right bell shape for creditworthiness modeling
 - **Fraud rate** is configurable from the story: `"2% fraud"`, `"high fraud rate"`, `"3% fraud rate"` all work
-- **IBAN format** follows locale: DE IBANs start with `DE`, BR with `BR`, GB with `GB` — not random strings
+- **IBAN format** follows locale: DE IBANs start with `DE`, BR with `BR`, GB with `GB`, not random strings
 - **Transaction types:** credit 45%, debit 35%, transfer 15%, withdrawal 5%
-- **Transaction amounts** are lognormal — realistic mix of small everyday purchases and large transfers
+- **Transaction amounts** are lognormal, realistic mix of small everyday purchases and large transfers
 
 ## Quick start
 
@@ -61,16 +61,16 @@ print(tables["accounts"]["iban"].head())  # BR## format
 
 ## Common use cases
 
-- **Fraud detection ML** — generate training datasets with precise class imbalances (1% fraud for baseline, 10% fraud for stress-testing) without touching production transactions
-- **Credit scoring model development** — get customers with realistic FICO distributions across KYC verification states
-- **Anti-money laundering (AML) testing** — generate transaction graphs with configurable anomaly rates for rule engine validation
-- **Open banking API testing** — seed test accounts with realistic transaction histories before connecting to sandbox providers
-- **Regulatory sandbox** — replace real customer PII with synthetic equivalents that preserve statistical properties for compliance testing
-- **Payment infrastructure load testing** — generate millions of transactions with valid FK references to stress-test processing pipelines
+- **Fraud detection ML**: generate training datasets with precise class imbalances (1% fraud for baseline, 10% fraud for stress-testing) without touching production transactions
+- **Credit scoring model development**: get customers with realistic FICO distributions across KYC verification states
+- **Anti-money laundering (AML) testing**: generate transaction graphs with configurable anomaly rates for rule engine validation
+- **Open banking API testing**: seed test accounts with realistic transaction histories before connecting to sandbox providers
+- **Regulatory sandbox**: replace real customer PII with synthetic equivalents that preserve statistical properties for compliance testing
+- **Payment infrastructure load testing**: generate millions of transactions with valid FK references to stress-test processing pipelines
 
 ## Advanced: fraud scenario curves
 
-Generate a dataset where fraud spikes during a specific period — useful for training models on temporal fraud patterns:
+Generate a dataset where fraud spikes during a specific period, useful for training models on temporal fraud patterns:
 
 ```python
 tables = misata.generate(
@@ -108,7 +108,7 @@ tables = misata.generate(
 
 ## Privacy and compliance
 
-Misata generates fully synthetic data — no real customer records, no real account numbers, no real transaction data. All IBANs are format-correct but not valid real bank accounts. All names, emails, and dates of birth are generated, not sampled from real people. Safe to use in development, staging, and demo environments without data protection review.
+Misata generates fully synthetic data, no real customer records, no real account numbers, no real transaction data. All IBANs are format-correct but not valid real bank accounts. All names, emails, and dates of birth are generated, not sampled from real people. Safe to use in development, staging, and demo environments without data protection review.
 
 ## Related guides
 

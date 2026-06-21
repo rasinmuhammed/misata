@@ -1,11 +1,11 @@
 ---
 title: Generate Pharma & Clinical Research Synthetic Data in Python | Misata
-description: Generate realistic pharma and clinical research synthetic datasets in Python — researchers, clinical trials, projects, and timesheets with phase-accurate distributions. HIPAA-safe by design. No real trial data required.
+description: Generate realistic pharma and clinical research synthetic datasets in Python, researchers, clinical trials, projects, and timesheets with phase-accurate distributions. HIPAA-safe by design. No real trial data required.
 ---
 
 # Generate Pharma and Clinical Research Synthetic Data in Python
 
-Pharmaceutical and clinical research data is among the most regulated in any industry — FDA 21 CFR Part 11, ICH E6 GCP, and HIPAA govern how trial data is stored, accessed, and shared. Yet research informatics teams, clinical data management (CDM) software developers, and healthcare IT vendors all need realistic trial data to develop against. Misata generates a four-table pharma synthetic dataset: researchers, research projects, clinical trials, and timesheets — with phase-accurate distributions and no real patient or researcher records involved.
+Pharmaceutical and clinical research data is among the most regulated in any industry, FDA 21 CFR Part 11, ICH E6 GCP, and HIPAA govern how trial data is stored, accessed, and shared. Yet research informatics teams, clinical data management (CDM) software developers, and healthcare IT vendors all need realistic trial data to develop against. Misata generates a four-table pharma synthetic dataset: researchers, research projects, clinical trials, and timesheets, with phase-accurate distributions and no real patient or researcher records involved.
 
 ```python
 import misata
@@ -31,10 +31,10 @@ Four tables: `researchers` (staff), `projects` (research programs), `trials` (cl
 ### Realistic distributions
 
 - **Trial phases** follow a realistic R&D pipeline: Phase I (safety) → Phase II (efficacy) → Phase III (large-scale) → Phase IV (post-market)
-- **Participant counts** scale with phase — Phase I trials have 20–100 participants, Phase III has 1,000+
+- **Participant counts** scale with phase, Phase I trials have 20–100 participants, Phase III has 1,000+
 - **Success rates** are phase-appropriate: Phase I ~70%, Phase II ~45%, Phase III ~25% (matching industry attrition)
-- **Project budgets** lognormal — early-phase projects cost less than late-stage pivotal trials
-- **Timesheet hours** are constrained to 0–8 per day — no researcher logs 20 hours in a single day
+- **Project budgets** lognormal, early-phase projects cost less than late-stage pivotal trials
+- **Timesheet hours** are constrained to 0–8 per day, no researcher logs 20 hours in a single day
 
 ## Quick start
 
@@ -59,12 +59,12 @@ print(tables["timesheets"].groupby("task_type")["hours_logged"].sum())
 
 ## Common use cases
 
-- **Electronic lab notebook (ELN) system testing** — seed researcher records, project assignments, and timesheet data for workflow and access control testing
-- **Clinical data management (CDM) platform development** — build trial registration, protocol management, and data entry validation on realistic trial records
-- **Research resource planning tools** — generate researcher-project allocation data to develop capacity planning and burn rate analytics
-- **Regulatory submission data pipeline testing** — validate data transformation and export pipelines against realistic Phase II/III trial structures
-- **Grant management system development** — test budget tracking, milestone reporting, and researcher allocation features against synthetic project financials
-- **R&D analytics dashboards** — build pipeline stage, success rate, and resource utilization reports before connecting to real CTMS data
+- **Electronic lab notebook (ELN) system testing**: seed researcher records, project assignments, and timesheet data for workflow and access control testing
+- **Clinical data management (CDM) platform development**: build trial registration, protocol management, and data entry validation on realistic trial records
+- **Research resource planning tools**: generate researcher-project allocation data to develop capacity planning and burn rate analytics
+- **Regulatory submission data pipeline testing**: validate data transformation and export pipelines against realistic Phase II/III trial structures
+- **Grant management system development**: test budget tracking, milestone reporting, and researcher allocation features against synthetic project financials
+- **R&D analytics dashboards**: build pipeline stage, success rate, and resource utilization reports before connecting to real CTMS data
 
 ## Advanced: R&D pipeline narrative
 

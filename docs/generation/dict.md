@@ -1,6 +1,6 @@
 # Python Dict Schema
 
-Import your own schema structure — useful when you already have a dict representation of your tables (e.g. from an ORM introspection or a JSON schema).
+Import your own schema structure, useful when you already have a dict representation of your tables (e.g. from an ORM introspection or a JSON schema).
 
 ```python
 import misata

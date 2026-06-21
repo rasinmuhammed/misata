@@ -1,11 +1,11 @@
 ---
 title: Generate Insurance Synthetic Data in Python | Misata
-description: Generate realistic insurance synthetic datasets in Python — customers, policies, claims, and payments with actuarially accurate premium distributions, claim rates, and temporal coherence. GDPR-safe by design.
+description: Generate realistic insurance synthetic datasets in Python, customers, policies, claims, and payments with actuarially accurate premium distributions, claim rates, and temporal coherence. GDPR-safe by design.
 ---
 
 # Generate Insurance Synthetic Data in Python
 
-Insurance data is among the most sensitive and regulated data in any industry — GDPR, HIPAA, and state insurance regulations govern exactly who can access real policyholder records. Yet developers building insurtech platforms, actuaries prototyping pricing models, and data engineers testing claims pipelines all need realistic insurance data. Misata generates a four-table insurance dataset with lognormally distributed premiums by product line, a realistic ~8% claim rate, and complete temporal coherence: `incident_date` always falls within the policy's active period, `claim_date` follows `incident_date`, and policy `end_date` is always after `start_date`.
+Insurance data is among the most sensitive and regulated data in any industry, GDPR, HIPAA, and state insurance regulations govern exactly who can access real policyholder records. Yet developers building insurtech platforms, actuaries prototyping pricing models, and data engineers testing claims pipelines all need realistic insurance data. Misata generates a four-table insurance dataset with lognormally distributed premiums by product line, a realistic ~8% claim rate, and complete temporal coherence: `incident_date` always falls within the policy's active period, `claim_date` follows `incident_date`, and policy `end_date` is always after `start_date`.
 
 ```python
 import misata
@@ -30,11 +30,11 @@ Four tables: `customers` → `policies` → `claims` and `payments` (both linked
 
 ### Realistic distributions
 
-- **Premiums** lognormal by type: auto ~$1,200/yr, home ~$1,500/yr, life ~$800/yr — with realistic within-line variance
-- **Claim rate** ~8% of active policies — matching personal lines industry averages
+- **Premiums** lognormal by type: auto ~$1,200/yr, home ~$1,500/yr, life ~$800/yr, with realistic within-line variance
+- **Claim rate** ~8% of active policies, matching personal lines industry averages
 - **`incident_date`** always falls within the policy's active `start_date` → `end_date` window
-- **Coverage amounts** are correlated with premium — higher-coverage policies cost more
-- **Credit scores** normally distributed around 690–710 — the realistic consumer credit distribution
+- **Coverage amounts** are correlated with premium, higher-coverage policies cost more
+- **Credit scores** normally distributed around 690–710, the realistic consumer credit distribution
 
 ## Quick start
 
@@ -64,12 +64,12 @@ print(tables["payments"]["method"].value_counts(normalize=True))
 
 ## Common use cases
 
-- **Fraud detection models** — generate labeled claims with realistic amounts, timing, and status patterns to train anomaly classifiers
-- **Underwriting algorithm validation** — test pricing models against customers with varied credit scores, ages, and states
-- **Policy management system testing** — seed full policy lifecycles — issuance, renewal, lapse, cancellation — with correct date semantics
-- **Actuarial analysis prototypes** — build loss ratio, combined ratio, and claims frequency dashboards before connecting to real policy data
-- **Billing system QA** — test payment processing, reminder workflows, and lapse detection against payments with varied methods and statuses
-- **Regulatory compliance testing** — validate data masking and anonymization pipelines against realistic PII-containing insurance records
+- **Fraud detection models**: generate labeled claims with realistic amounts, timing, and status patterns to train anomaly classifiers
+- **Underwriting algorithm validation**: test pricing models against customers with varied credit scores, ages, and states
+- **Policy management system testing**: seed full policy lifecycles, issuance, renewal, lapse, cancellation, with correct date semantics
+- **Actuarial analysis prototypes**: build loss ratio, combined ratio, and claims frequency dashboards before connecting to real policy data
+- **Billing system QA**: test payment processing, reminder workflows, and lapse detection against payments with varied methods and statuses
+- **Regulatory compliance testing**: validate data masking and anonymization pipelines against realistic PII-containing insurance records
 
 ## Advanced: catastrophe event claims
 

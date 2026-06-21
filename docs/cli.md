@@ -1,6 +1,6 @@
 ---
-title: CLI Reference — Misata Command-Line Synthetic Data Tool
-description: Full CLI reference for Misata. Generate synthetic datasets, scaffold YAML schemas, seed databases, and validate CSV files — all from the command line.
+title: CLI Reference, Misata Command-Line Synthetic Data Tool
+description: Full CLI reference for Misata. Generate synthetic datasets, scaffold YAML schemas, seed databases, and validate CSV files, all from the command line.
 ---
 
 # CLI Reference
@@ -42,13 +42,13 @@ misata generate --db-url postgresql://localhost/dev --db-create
 
 | Flag | Default | Description |
 |:--|:--|:--|
-| `--story` | — | Plain-English story |
+| `--story` |: | Plain-English story |
 | `--rows` | 10 000 | Row count for primary table |
 | `--locale` | auto-detected | BCP-47 locale code (e.g. `de_DE`) |
 | `--seed` | random | Integer seed for reproducibility |
 | `--output-dir` | `.` | Directory to write output files |
 | `--format` | `csv` | Output format: `csv`, `parquet`, `jsonl`, `duckdb` |
-| `--db-url` | — | Database URL for direct seeding |
+| `--db-url` |: | Database URL for direct seeding |
 | `--db-create` | false | Create tables if they don't exist |
 
 ---

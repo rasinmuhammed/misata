@@ -1,11 +1,11 @@
 ---
-title: Validate & Preview — Data Quality Profiling and Story Inspection with Misata
+title: Validate & Preview, Data Quality Profiling and Story Inspection with Misata
 description: Profile CSV files for quality issues, inspect story detection results before generating, and validate misata.yaml schemas against the built-in JSON Schema. All three are zero-generation operations.
 ---
 
 # Validate & Preview
 
-Misata provides three separate inspection tools — all of which produce no synthetic data:
+Misata provides three separate inspection tools, all of which produce no synthetic data:
 
 | Tool | Purpose |
 |:--|:--|
@@ -15,9 +15,9 @@ Misata provides three separate inspection tools — all of which produce no synt
 
 ---
 
-## preview() — Inspect story detection
+## preview(): Inspect story detection
 
-`preview()` parses a plain-English story and returns everything Misata understood: domain, scale, locale, and the table layout — without generating a single row. Use it before any large `generate()` call to catch ambiguity or misconfiguration early.
+`preview()` parses a plain-English story and returns everything Misata understood: domain, scale, locale, and the table layout, without generating a single row. Use it before any large `generate()` call to catch ambiguity or misconfiguration early.
 
 ```python
 import misata
@@ -58,7 +58,7 @@ print(report.summary())
 | `domain` | `str \| None` | Detected domain code (`"saas"`, `"fintech"`, …) or `None` if no domain matched |
 | `domain_confidence` | `str` | `"high"` if ≥2 keywords matched, `"low"` if 1 keyword, `"none"` if nothing matched |
 | `matched_keywords` | `list[str]` | The specific keywords that fired for the winning domain |
-| `near_misses` | `dict[str, list[str]]` | Other domains whose keywords also appeared — useful for diagnosing ambiguity |
+| `near_misses` | `dict[str, list[str]]` | Other domains whose keywords also appeared: useful for diagnosing ambiguity |
 | `scale_params` | `dict[str, int]` | Parsed numeric scale signals (e.g. `{"users": 5000}`) |
 | `temporal_events` | `list[dict]` | Growth, churn, crash events detected (used to build outcome curves) |
 | `locale` | `str \| None` | Auto-detected locale code (`"de_DE"`, `"pt_BR"`, …), or `None` |
@@ -117,7 +117,7 @@ misata preview --story "A SaaS company with 5k users, Q4 spike"
 
 ---
 
-## validate_csv() — CSV quality profiling
+## validate_csv(): CSV quality profiling
 
 Profile any CSV file for null rates, type inference, range statistics, and uniqueness violations. Returns a `ValidationReport` with a 0–100 quality score.
 
@@ -188,12 +188,12 @@ report = misata.validate_csv(df, table_name="customers")
 
 ---
 
-## validate_schema() — YAML schema validation
+## validate_schema(): YAML schema validation
 
 Misata ships a JSON Schema (`misata/_schemas/misata_schema.json`) that describes the full `misata.yaml` format. Running `validate_schema()` runs two layers of validation:
 
-1. **Structural** — JSON Schema checks (required fields, types, allowed values)
-2. **Semantic** — domain-aware checks (FK targets exist, distribution params are in range, formula columns reference existing columns)
+1. **Structural**: JSON Schema checks (required fields, types, allowed values)
+2. **Semantic**: domain-aware checks (FK targets exist, distribution params are in range, formula columns reference existing columns)
 
 ### CLI
 

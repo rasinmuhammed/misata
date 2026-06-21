@@ -1,6 +1,6 @@
 # Database Seeding
 
-Point Misata at an existing database schema and fill a dev or staging environment with production-like data — FK ordering handled automatically.
+Point Misata at an existing database schema and fill a dev or staging environment with production-like data, FK ordering handled automatically.
 
 ## Introspect and seed
 
@@ -51,9 +51,9 @@ print(tables["orders"].head())
 
 ## Supported databases
 
-- **PostgreSQL** — `pip install "misata[db]"` (psycopg3)
-- **MySQL / MariaDB** — via SQLAlchemy `pip install "misata[orm]"`
-- **SQLite** — built-in, no extras needed
+- **PostgreSQL**: `pip install "misata[db]"` (psycopg3)
+- **MySQL / MariaDB**: via SQLAlchemy `pip install "misata[orm]"`
+- **SQLite**: built-in, no extras needed
 - Any SQLAlchemy-compatible engine
 
 !!! note "FK insert order"

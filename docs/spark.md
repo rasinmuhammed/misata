@@ -6,12 +6,12 @@ full), **AWS Glue**, **EMR**, **Dataproc**, or any local **PySpark 3.3+** enviro
 
 Misata's value on Spark over the usual `dbldatagen`:
 
-- **Multiple related tables in one call** — `dbldatagen` builds one table at a time with no
+- **Multiple related tables in one call**: `dbldatagen` builds one table at a time with no
   awareness of relationships.
-- **Referential integrity guaranteed and verifiable** — zero orphan foreign keys, checked in
+- **Referential integrity guaranteed and verifiable**: zero orphan foreign keys, checked in
   Delta with anti-joins.
-- **Realistic distributions** — lognormal, Poisson, normal, uniform, and correlated columns.
-- **Outcome conformance** — declare an exact aggregate or rate (e.g. a monthly fraud rate) and
+- **Realistic distributions**: lognormal, Poisson, normal, uniform, and correlated columns.
+- **Outcome conformance**: declare an exact aggregate or rate (e.g. a monthly fraud rate) and
   the generated data conforms, giving pipeline tests a **known ground truth to assert against**.
 
 ---
@@ -20,7 +20,7 @@ Misata's value on Spark over the usual `dbldatagen`:
 
 === "Databricks serverless / Free Edition"
 
-    Install **plain `misata`** — *not* `misata[spark]`. PySpark is already on every Databricks
+    Install **plain `misata`**: *not* `misata[spark]`. PySpark is already on every Databricks
     cluster, and installing it on a serverless notebook will stop the session. The module
     imports the cluster's PySpark lazily.
 
@@ -66,7 +66,7 @@ print(result.summary())
 result.raise_on_error()
 ```
 
-`spark` is the active `SparkSession` — pre-defined in every Databricks notebook.
+`spark` is the active `SparkSession`, pre-defined in every Databricks notebook.
 
 ---
 
@@ -106,7 +106,7 @@ mspark.write_delta(
 ```
 
 **Naming.** `catalog`, `database`/`schema`, and the table name assemble into Unity Catalog
-3-part names (`catalog.database.table`), 2-part (`database.table`), or bare table names —
+3-part names (`catalog.database.table`), 2-part (`database.table`), or bare table names,
 whatever you provide.
 
 **Write modes:**
@@ -115,7 +115,7 @@ whatever you provide.
 |--------|-----------|
 | `"overwrite"` | Replace the table; schema changes are applied (`overwriteSchema`). |
 | `"append"` | Add rows to an existing table. |
-| `"merge"` | Idempotent **`MERGE INTO`** upsert keyed on `merge_keys` — for CDC / SCD pipeline testing. Requires `merge_keys={"table": ["id"]}`. |
+| `"merge"` | Idempotent **`MERGE INTO`** upsert keyed on `merge_keys`: for CDC / SCD pipeline testing. Requires `merge_keys={"table": ["id"]}`. |
 | `"error"` | Fail if the table already exists. |
 
 ```python
@@ -183,8 +183,8 @@ schema = mspark.from_catalog_schema(
 tables = misata.generate_from_schema(schema)
 ```
 
-Use this to **mirror a production schema into a dev environment** — structure only, no data
-copied — and generate matching synthetic data.
+Use this to **mirror a production schema into a dev environment**: structure only, no data
+copied, and generate matching synthetic data.
 
 ### `append_to_delta(schema_config, spark, n_rows, *, catalog=None, database=None, schema=None, seed=None, verbose=True)`
 
@@ -199,7 +199,7 @@ mspark.append_to_delta(schema, spark, n_rows={"customers": 200, "orders": 800}, 
 ### `write_delta_stream(schema_config, spark, *, catalog=None, database=None, schema=None, batch_size=100_000, partition_by=None, table_properties=None, optimize_after_write=False, create_schema_if_not_exists=True, verbose=True)`
 
 Stream-write very large datasets. Uses Misata's batch generator so the full dataset is never
-buffered in memory — suitable for tens or hundreds of millions of rows.
+buffered in memory, suitable for tens or hundreds of millions of rows.
 
 ```python
 schema.tables[0].row_count = 50_000_000
@@ -231,7 +231,7 @@ Returned by `write_delta`, `write_delta_stream`, `append_to_delta`, `generate_to
 |--------|-------------|
 | `.table_paths` | `{table: fully-qualified Delta path}` |
 | `.rows_written` | `{table: row count}` |
-| `.errors` | `{table: error message}` — empty on full success |
+| `.errors` | `{table: error message}`: empty on full success |
 | `.ok` | `True` if no errors |
 | `.summary()` | Human-readable per-table report |
 | `.raise_on_error()` | Raise `RuntimeError` if any table failed |
@@ -257,11 +257,11 @@ Each `SparkIntegrityViolation` carries `child_table`, `child_column`, `parent_ta
 [`examples/databricks/medallion_fraud_pipeline.py`](https://github.com/rasinmuhammed/misata/blob/main/examples/databricks/medallion_fraud_pipeline.py)
 builds a complete fraud-detection **medallion pipeline**:
 
-1. **Bronze** — generate four FK-linked tables (`customers`, `accounts`, `merchants`,
+1. **Bronze**: generate four FK-linked tables (`customers`, `accounts`, `merchants`,
    `transactions`) with a declared monthly fraud-rate curve (1.8% → 4.1%).
-2. **Silver** — join all four tables, derive fraud-signal features.
-3. **Gold** — aggregate monthly fraud rate and dollar volume.
-4. **Assert** the Gold output matches the *declared* fraud rate — a CI-grade correctness test
+2. **Silver**: join all four tables, derive fraud-signal features.
+3. **Gold**: aggregate monthly fraud rate and dollar volume.
+4. **Assert** the Gold output matches the *declared* fraud rate, a CI-grade correctness test
    that's impossible with Faker or dbldatagen, because they give you no ground truth to check.
 
 Import the `.py` file into Databricks (**Workspace → Import → File**) and **Run all** on

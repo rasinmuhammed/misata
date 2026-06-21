@@ -1,6 +1,6 @@
 # LLM-Assisted Generation
 
-Use a language model to produce a richer schema from an open-ended story — useful for complex or unusual domains where the rule-based parser falls short.
+Use a language model to produce a richer schema from an open-ended story, useful for complex or unusual domains where the rule-based parser falls short.
 
 ```bash
 pip install "misata[llm]"
@@ -14,7 +14,7 @@ pip install "misata[llm]"
 | `openai` | `OPENAI_API_KEY` | GPT-4o / GPT-4-turbo |
 | `anthropic` | `ANTHROPIC_API_KEY` | Claude Sonnet / Opus |
 | `gemini` | `GOOGLE_API_KEY` | Gemini Pro via OpenAI-compat endpoint |
-| `ollama` | — | Fully local, no API key |
+| `ollama` |: | Fully local, no API key |
 
 ## Usage
 

@@ -1,11 +1,11 @@
 ---
-title: "REST API — Generate Synthetic Data Over HTTP"
-description: "Use misata serve to expose a POST /generate endpoint. Send a story, get JSON tables back. Works with any language — JavaScript, Go, Ruby, curl."
+title: "REST API, Generate Synthetic Data Over HTTP"
+description: "Use misata serve to expose a POST /generate endpoint. Send a story, get JSON tables back. Works with any language, JavaScript, Go, Ruby, curl."
 ---
 
 # REST API
 
-`misata serve` exposes a lightweight HTTP API that accepts a plain-English story and returns synthetic data as JSON. Any language that can make an HTTP request can use Misata — no Python required.
+`misata serve` exposes a lightweight HTTP API that accepts a plain-English story and returns synthetic data as JSON. Any language that can make an HTTP request can use Misata, no Python required.
 
 ## Start the server
 

@@ -1,5 +1,5 @@
 site_name: Misata
-site_description: Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database — no training data required.
+site_description: Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.
 site_url: https://rasinmuhammed.github.io/misata
 repo_url: https://github.com/rasinmuhammed/misata
 repo_name: rasinmuhammed/misata

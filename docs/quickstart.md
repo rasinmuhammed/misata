@@ -1,5 +1,5 @@
 ---
-title: Quick Start — Misata Synthetic Data Generator
+title: Quick Start, Misata Synthetic Data Generator
 description: Get started with Misata in 5 minutes. Install, generate multi-table synthetic datasets from plain English, shape data with narrative growth curves, and export to CSV, Parquet, or your database.
 ---
 
@@ -99,7 +99,7 @@ print(report.summary())
 
 ## Narrative growth curves
 
-Describe a growth trajectory in plain English — Misata builds exact per-month targets and shapes generated data to match.
+Describe a growth trajectory in plain English, Misata builds exact per-month targets and shapes generated data to match.
 
 ```python
 # Ecommerce with seasonal story

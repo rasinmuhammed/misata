@@ -1,13 +1,13 @@
 ---
-title: Narrative Growth Patterns — Shape Synthetic Data with Natural Language
-description: Control exactly how your synthetic data rises, dips, and peaks. Misata understands quarterly patterns, named seasonal events (Black Friday, Christmas), and multipliers (doubled, 10x) — turning plain English into precise monthly data shapes.
+title: Narrative Growth Patterns, Shape Synthetic Data with Natural Language
+description: Control exactly how your synthetic data rises, dips, and peaks. Misata understands quarterly patterns, named seasonal events (Black Friday, Christmas), and multipliers (doubled, 10x), turning plain English into precise monthly data shapes.
 ---
 
 # Narrative Growth Patterns
 
 Most synthetic data tools give you random noise. Misata gives you **data that tells a story**.
 
-Describe a growth trajectory in plain English and Misata builds an exact per-month outcome curve — no manual data wrangling, no custom post-processing. The same sentence that describes your dataset also shapes its distribution.
+Describe a growth trajectory in plain English and Misata builds an exact per-month outcome curve, no manual data wrangling, no custom post-processing. The same sentence that describes your dataset also shapes its distribution.
 
 ```python
 import misata
@@ -23,13 +23,13 @@ tables = misata.generate("Fintech payments — strong Q4, flat Q2, dip in March"
 
 ## How it works
 
-When Misata sees trigger words (see [full list below](#trigger-tokens)), it builds an **OutcomeCurve** — a set of 12 monthly target values. The data simulator then shapes row distributions to hit those targets, month by month.
+When Misata sees trigger words (see [full list below](#trigger-tokens)), it builds an **OutcomeCurve**: a set of 12 monthly target values. The data simulator then shapes row distributions to hit those targets, month by month.
 
 The curve is built from three inputs, all of which can appear in the same story and stack together:
 
-1. **Numeric anchors** — explicit values for specific months or quarters
-2. **Qualitative modifiers** — relative factors applied to months or quarters
-3. **Multipliers** — a single end-state factor (doubled, 10×, etc.)
+1. **Numeric anchors**: explicit values for specific months or quarters
+2. **Qualitative modifiers**: relative factors applied to months or quarters
+3. **Multipliers**: a single end-state factor (doubled, 10×, etc.)
 
 ---
 

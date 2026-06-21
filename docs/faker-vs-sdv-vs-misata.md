@@ -24,7 +24,7 @@ the difference with working code so you can pick the right one in under five min
 
 ---
 
-## Faker — row-level fake data, no relationships
+## Faker: row-level fake data, no relationships
 
 Faker is excellent for generating standalone fake values. It has hundreds of
 providers covering names, addresses, credit card numbers, and more.
@@ -64,7 +64,7 @@ in a test fixture or form demo.
 
 ---
 
-## SDV (Synthetic Data Vault) — statistical models from real data
+## SDV (Synthetic Data Vault): statistical models from real data
 
 SDV learns statistical patterns from your actual data and generates synthetic rows
 that match those patterns. It handles single tables, conditional sampling, and some
@@ -82,7 +82,7 @@ synthetic = model.sample(num_rows=1000)
 
 **Where SDV falls short:**
 
-- You must have real data to train from — no real data, no model.
+- You must have real data to train from, no real data, no model.
 - Exact business rules ("fraud rate must be exactly 2%") cannot be pinned.
 - Install pulls in PyTorch, CUDA libs, and ~1 GB of dependencies.
 - Multi-table relational support is limited; deep FK chains require significant
@@ -93,7 +93,7 @@ and you want statistically faithful synthetic copies of it.
 
 ---
 
-## Misata — story-driven relational synthetic data
+## Misata: story-driven relational synthetic data
 
 Misata generates multi-table datasets from plain-English descriptions. No real data
 required. Referential integrity is guaranteed. Business constraints (fraud rates,
@@ -164,7 +164,7 @@ print(schema.summary())
 ```
 
 **Use Misata when:** you need relational multi-table data with business logic,
-exact aggregate targets, or domain-realistic distributions — and you don't want to
+exact aggregate targets, or domain-realistic distributions, and you don't want to
 write schema config by hand.
 
 ---

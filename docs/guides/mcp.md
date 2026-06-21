@@ -1,11 +1,11 @@
 ---
-title: MCP Server — Use Misata from Claude, Cursor, and AI Coding Assistants
+title: MCP Server, Use Misata from Claude, Cursor, and AI Coding Assistants
 description: Misata ships a built-in Model Context Protocol (MCP) server. Wire it into Claude Desktop, Cursor, Windsurf, or any MCP-compatible assistant and generate realistic synthetic data from natural language descriptions.
 ---
 
 # MCP Server
 
-Misata ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server. Once wired in, AI assistants — Claude Desktop, Cursor, Windsurf, Zed, Continue — can generate realistic synthetic datasets on your behalf without you writing a single line of Python.
+Misata ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server. Once wired in, AI assistants, Claude Desktop, Cursor, Windsurf, Zed, Continue, can generate realistic synthetic datasets on your behalf without you writing a single line of Python.
 
 > **TL;DR**: type *"generate a fintech fraud dataset with 10k customers"* in Claude, and Claude calls Misata, writes the CSVs to disk, and shows you a preview.
 
@@ -41,7 +41,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS,
 }
 ```
 
-Restart Claude Desktop. Misata will appear in the tools list — look for the plug icon in the input area.
+Restart Claude Desktop. Misata will appear in the tools list, look for the plug icon in the input area.
 
 ### Cursor
 
@@ -81,16 +81,16 @@ The server exposes six tools:
 
 | Tool | Purpose |
 |:--|:--|
-| `generate_from_schema` | **Primary.** The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof — per-relationship orphan counts, exact roll-ups, seeded reproducibility |
+| `generate_from_schema` | **Primary.** The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof: per-relationship orphan counts, exact roll-ups, seeded reproducibility |
 | `generate_dataset` | Story-based generation: Misata's own parser designs the schema from one sentence |
 | `list_domains` | List all 18 built-in domains with a sample story for each |
-| `preview_story` | Detect domain, scale, locale, and table layout — zero rows generated |
+| `preview_story` | Detect domain, scale, locale, and table layout: zero rows generated |
 | `inspect_schema` | Return the full schema (tables, columns, FK relationships) as structured JSON |
 | `validate_yaml` | Two-layer validation (structural JSON Schema + semantic coherence checks) of a `misata.yaml` |
 
-The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a `species` column; Misata is good at guaranteeing the math — FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. `generate_from_schema`'s tool description teaches the agent the full schema-dict language (per-table `__rows__`, distributions, formulas with `@parent.column` references, exact roll-ups, pattern codes), so any MCP-capable model can drive everything Misata's engine supports.
+The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a `species` column; Misata is good at guaranteeing the math, FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. `generate_from_schema`'s tool description teaches the agent the full schema-dict language (per-table `__rows__`, distributions, formulas with `@parent.column` references, exact roll-ups, pattern codes), so any MCP-capable model can drive everything Misata's engine supports.
 
-Both generation tools write CSVs to a temp directory by default. The agent gets back file paths and a small preview — it never has to dump millions of rows into the chat context.
+Both generation tools write CSVs to a temp directory by default. The agent gets back file paths and a small preview, it never has to dump millions of rows into the chat context.
 
 ---
 
@@ -139,7 +139,7 @@ Returns a list of all 18 domain objects, each with `name`, `keywords`, and `samp
 
 ### `preview_story`
 
-Parses a story and returns domain detection, scale, locale, and table layout — no rows generated.
+Parses a story and returns domain detection, scale, locale, and table layout, no rows generated.
 
 **Input:**
 ```json
@@ -370,13 +370,13 @@ generate_dataset →  misata.generate() + DataFrame.to_csv()
 validate_yaml    →  misata.json_schema() + misata.validate_schema()
 ```
 
-Because the MCP server is bundled inside the `misata` package itself — not a separate distribution — the server and library are always in sync. Update Misata, the MCP server updates automatically.
+Because the MCP server is bundled inside the `misata` package itself, not a separate distribution, the server and library are always in sync. Update Misata, the MCP server updates automatically.
 
 ---
 
 ## Running standalone / debugging
 
-You don't normally need to run `misata-mcp` directly — your AI assistant launches it as a subprocess via stdio. For debugging:
+You don't normally need to run `misata-mcp` directly, your AI assistant launches it as a subprocess via stdio. For debugging:
 
 ```bash
 misata-mcp
@@ -393,7 +393,7 @@ This opens a web UI where you can call each tool, inspect inputs and outputs, an
 
 ---
 
-## Discovery — Smithery
+## Discovery: Smithery
 
 Misata is listed on [Smithery.ai](https://smithery.ai), the MCP server discovery directory. If your AI assistant supports one-click MCP installation via Smithery, you can find Misata there and install it without editing config files manually.
 
@@ -401,4 +401,4 @@ Misata is listed on [Smithery.ai](https://smithery.ai), the MCP server discovery
 
 ## Security note
 
-`generate_dataset` writes files to disk. By default it uses a system temp directory that only the current user can read. If you pass a custom `output_dir`, ensure it is an appropriate path — the agent will not write outside the directory you specify.
+`generate_dataset` writes files to disk. By default it uses a system temp directory that only the current user can read. If you pass a custom `output_dir`, ensure it is an appropriate path, the agent will not write outside the directory you specify.

@@ -1,11 +1,11 @@
 ---
 title: Generate Logistics & Supply Chain Synthetic Data in Python | Misata
-description: Generate realistic logistics synthetic datasets in Python — drivers, vehicles, routes, and shipments with delivery time coherence, on-time rates, and fleet management distributions. No real fleet data required.
+description: Generate realistic logistics synthetic datasets in Python, drivers, vehicles, routes, and shipments with delivery time coherence, on-time rates, and fleet management distributions. No real fleet data required.
 ---
 
 # Generate Logistics and Supply Chain Synthetic Data in Python
 
-Logistics data connects physical assets — vehicles, drivers, and routes — with time-sensitive operations like shipments and deliveries. Building a fleet management system, training a route optimization model, or developing a supply chain analytics dashboard requires data where `delivered_at` is always after `shipped_at`, driver ratings are realistic, and route distances follow the right distribution. Misata generates all of it in one call.
+Logistics data connects physical assets, vehicles, drivers, and routes, with time-sensitive operations like shipments and deliveries. Building a fleet management system, training a route optimization model, or developing a supply chain analytics dashboard requires data where `delivered_at` is always after `shipped_at`, driver ratings are realistic, and route distances follow the right distribution. Misata generates all of it in one call.
 
 The logistics domain generates four interconnected tables: drivers assigned to vehicles, shipments assigned to routes and drivers, all with FK integrity and realistic temporal constraints. On-time delivery rate is ~88% by default and configurable from your story.
 
@@ -32,11 +32,11 @@ Four tables: `drivers` → `vehicles`, `routes`, `shipments` (which reference bo
 
 ### Realistic distributions
 
-- **On-time rate** is ~88% — configurable via story (`"95% on-time rate"`, `"frequent delays"`)
-- **`delivered_at`** is always after `shipped_at` — enforced, not probabilistic
-- **Route distances** lognormal — right mix of short urban hauls and long-distance routes
-- **Driver ratings** beta-distributed in the 4.0–5.0 range — reflecting how platform ratings cluster high
-- **Vehicle capacity** matches vehicle type — light vans have lower capacity than heavy trucks
+- **On-time rate** is ~88%, configurable via story (`"95% on-time rate"`, `"frequent delays"`)
+- **`delivered_at`** is always after `shipped_at`, enforced, not probabilistic
+- **Route distances** lognormal, right mix of short urban hauls and long-distance routes
+- **Driver ratings** beta-distributed in the 4.0–5.0 range, reflecting how platform ratings cluster high
+- **Vehicle capacity** matches vehicle type, light vans have lower capacity than heavy trucks
 
 ## Quick start
 
@@ -65,12 +65,12 @@ print(f"On-time rate: {on_time/total:.1%}")
 
 ## Common use cases
 
-- **Route optimization model training** — generate training data with distance, duration, cost, and driver ratings for last-mile delivery optimization
-- **Fleet management dashboard development** — build vehicle utilization, driver performance, and route efficiency dashboards before your telematics data is connected
-- **Supply chain simulation** — test warehouse management logic against thousands of inbound and outbound shipments with realistic weight and timing distributions
-- **Delivery SLA monitoring** — validate your alerting and escalation logic against shipments in all status states (in transit, delayed, delivered, failed)
-- **Driver scoring algorithm testing** — generate driver histories with varied ratings and delivery completion rates
-- **Logistics ERP integration testing** — seed test databases with full driver-vehicle-route-shipment hierarchies for API validation
+- **Route optimization model training**: generate training data with distance, duration, cost, and driver ratings for last-mile delivery optimization
+- **Fleet management dashboard development**: build vehicle utilization, driver performance, and route efficiency dashboards before your telematics data is connected
+- **Supply chain simulation**: test warehouse management logic against thousands of inbound and outbound shipments with realistic weight and timing distributions
+- **Delivery SLA monitoring**: validate your alerting and escalation logic against shipments in all status states (in transit, delayed, delivered, failed)
+- **Driver scoring algorithm testing**: generate driver histories with varied ratings and delivery completion rates
+- **Logistics ERP integration testing**: seed test databases with full driver-vehicle-route-shipment hierarchies for API validation
 
 ## Advanced: delay scenario modeling
 

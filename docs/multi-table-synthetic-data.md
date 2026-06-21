@@ -62,7 +62,7 @@ Misata generates tables in topological dependency order:
 
 1. Parent tables are generated first (e.g. `customers`).
 2. Primary key pools are collected.
-3. Child tables sample FK columns from the parent pool — every value is valid by construction.
+3. Child tables sample FK columns from the parent pool, every value is valid by construction.
 4. The process repeats depth-first down the relationship graph.
 
 Circular dependencies are detected before generation starts and raise a clear error.

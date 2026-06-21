@@ -1,11 +1,11 @@
 ---
 title: Generate Travel Synthetic Data in Python | Misata
-description: Generate realistic travel synthetic datasets in Python — users, hotels, flights, bookings, and reviews with temporal coherence, conditional cancellation reasons, and loyalty tier distributions. No real booking data required.
+description: Generate realistic travel synthetic datasets in Python, users, hotels, flights, bookings, and reviews with temporal coherence, conditional cancellation reasons, and loyalty tier distributions. No real booking data required.
 ---
 
 # Generate Travel Synthetic Data in Python
 
-Travel platform data has subtle but critical coherence requirements: `check_out` must be after `check_in`, `arrival_at` must be after `departure_at`, and `cancellation_reason` should only be populated for cancelled bookings — never for active or completed ones. Get any of these wrong and your analytics will look broken from the first query. Misata generates a five-table travel dataset where all of these invariants are enforced from the start, across users, hotels, flights, bookings, and reviews.
+Travel platform data has subtle but critical coherence requirements: `check_out` must be after `check_in`, `arrival_at` must be after `departure_at`, and `cancellation_reason` should only be populated for cancelled bookings, never for active or completed ones. Get any of these wrong and your analytics will look broken from the first query. Misata generates a five-table travel dataset where all of these invariants are enforced from the start, across users, hotels, flights, bookings, and reviews.
 
 ```python
 import misata
@@ -40,9 +40,9 @@ Five tables: `users` → `bookings` (linking users, hotels, and flights) → `re
 
 ### Realistic distributions
 
-- **`cancellation_reason` is null for non-cancelled bookings** — conditional null enforced consistently
+- **`cancellation_reason` is null for non-cancelled bookings**: conditional null enforced consistently
 - **`check_out`** always after `check_in`; **`arrival_at`** always after `departure_at`
-- **Hotel `price_per_night`** is correlated with `stars` — 5-star hotels cost more than 2-star
+- **Hotel `price_per_night`** is correlated with `stars`, 5-star hotels cost more than 2-star
 - **Loyalty tier** follows a realistic pyramid: most users are base tier, fewer are gold/platinum
 - **Review ratings** slightly right-skewed with a realistic 1-star tail
 
@@ -75,12 +75,12 @@ print(merged.groupby("loyalty_tier")["rating"].mean())
 
 ## Common use cases
 
-- **Hotel recommendation engine development** — use booking history, star ratings, and review scores to build and evaluate hotel ranking models
-- **Cancellation prediction models** — train classifiers on bookings with status, total_price, loyalty_tier, and lead time to predict cancellation likelihood
-- **Dynamic pricing prototype** — test pricing algorithms against flights and hotels with realistic base price distributions
-- **Booking flow QA** — validate end-to-end booking, modification, and cancellation workflows against data with correct date semantics and status transitions
-- **Customer support tooling** — test support dashboards with realistic booking histories, cancellation reasons, and review text
-- **Loyalty program analytics** — analyse tier upgrade patterns and booking frequency across a realistic loyalty tier distribution
+- **Hotel recommendation engine development**: use booking history, star ratings, and review scores to build and evaluate hotel ranking models
+- **Cancellation prediction models**: train classifiers on bookings with status, total_price, loyalty_tier, and lead time to predict cancellation likelihood
+- **Dynamic pricing prototype**: test pricing algorithms against flights and hotels with realistic base price distributions
+- **Booking flow QA**: validate end-to-end booking, modification, and cancellation workflows against data with correct date semantics and status transitions
+- **Customer support tooling**: test support dashboards with realistic booking histories, cancellation reasons, and review text
+- **Loyalty program analytics**: analyse tier upgrade patterns and booking frequency across a realistic loyalty tier distribution
 
 ## Advanced: seasonal booking narrative
 

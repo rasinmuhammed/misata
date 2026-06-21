@@ -26,9 +26,9 @@ existing_max_id = tables["customers"]["id"].max()   # e.g. 1000
 
 ## Use cases
 
-- **Streaming test fixtures** — generate a baseline, then add rows as tests progress
-- **Dataset growth simulation** — model a platform growing from 1k → 100k users over time
-- **Append-only seeding** — add rows to a live dev database without truncating
+- **Streaming test fixtures**: generate a baseline, then add rows as tests progress
+- **Dataset growth simulation**: model a platform growing from 1k → 100k users over time
+- **Append-only seeding**: add rows to a live dev database without truncating
 
 !!! warning "Seed independence"
     Each call to `generate_more` uses a different seed (`schema.seed + 1` by default). Pass an explicit `seed` for full reproducibility across calls.

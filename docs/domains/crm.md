@@ -1,11 +1,11 @@
 ---
 title: Generate CRM Synthetic Data in Python | Misata
-description: Generate realistic CRM synthetic datasets in Python — companies, contacts, deals, and activities with accurate B2B pipeline stage distributions, lognormal deal values, and sales activity mixes. No real customer data required.
+description: Generate realistic CRM synthetic datasets in Python, companies, contacts, deals, and activities with accurate B2B pipeline stage distributions, lognormal deal values, and sales activity mixes. No real customer data required.
 ---
 
 # Generate CRM Synthetic Data in Python
 
-CRM data is the backbone of every B2B sales tool — but it's also sensitive, and real pipeline data is never available early in development. Misata generates a four-table CRM dataset: companies, contacts, deals, and activities. Deal values are lognormally distributed with a median around $25k (the shape of real B2B pipelines), stage distribution reflects real funnel drop-off, and activity types mirror actual sales rep behavior — 40% email, 30% call, 20% meeting, 10% demo.
+CRM data is the backbone of every B2B sales tool, but it's also sensitive, and real pipeline data is never available early in development. Misata generates a four-table CRM dataset: companies, contacts, deals, and activities. Deal values are lognormally distributed with a median around $25k (the shape of real B2B pipelines), stage distribution reflects real funnel drop-off, and activity types mirror actual sales rep behavior, 40% email, 30% call, 20% meeting, 10% demo.
 
 Every deal references a valid contact and company. Activities are tied to real deals and contacts. `probability` increases monotonically with stage advancement. `close_date` falls in the future for open-stage deals.
 
@@ -32,10 +32,10 @@ Four tables: `companies` → `contacts` and `deals` (both linked to companies), 
 
 ### Realistic distributions
 
-- **Deal values** lognormal ~$25k median — long tail of enterprise deals matching real B2B pipelines
+- **Deal values** lognormal ~$25k median, long tail of enterprise deals matching real B2B pipelines
 - **Pipeline stages:** prospecting 35%, qualification 25%, proposal 20%, negotiation 12%, closed-won 8%
-- **Activity types:** email 40%, call 30%, meeting 20%, demo 10% — matching real sales rep behavior
-- **`probability`** is correlated with stage — later stage = higher close probability
+- **Activity types:** email 40%, call 30%, meeting 20%, demo 10%, matching real sales rep behavior
+- **`probability`** is correlated with stage, later stage = higher close probability
 - **`lead_source`** varies across organic, paid, referral, and outbound channels
 
 ## Quick start
@@ -62,12 +62,12 @@ print(f"Win rate: {len(closed)/len(tables['deals']):.1%}")
 
 ## Common use cases
 
-- **CRM platform demos** — populate a demo environment with realistic accounts, contacts, and pipeline data so prospects see a lived-in product
-- **Lead scoring model training** — generate thousands of contacts with source, title, and deal outcomes to train and evaluate propensity models
-- **Revenue forecasting prototypes** — build weighted pipeline models against deals with stage-accurate probability values before connecting real data
-- **CRM migration testing** — validate ETL scripts and field mappings against a full relational dataset before touching production records
-- **Sales analytics dashboards** — build conversion rate, activity cadence, and pipeline velocity reports on realistic CRM data
-- **Integration QA** — test webhooks, sync jobs, and API integrations against realistic email formats, phone numbers, and company sizes
+- **CRM platform demos**: populate a demo environment with realistic accounts, contacts, and pipeline data so prospects see a lived-in product
+- **Lead scoring model training**: generate thousands of contacts with source, title, and deal outcomes to train and evaluate propensity models
+- **Revenue forecasting prototypes**: build weighted pipeline models against deals with stage-accurate probability values before connecting real data
+- **CRM migration testing**: validate ETL scripts and field mappings against a full relational dataset before touching production records
+- **Sales analytics dashboards**: build conversion rate, activity cadence, and pipeline velocity reports on realistic CRM data
+- **Integration QA**: test webhooks, sync jobs, and API integrations against realistic email formats, phone numbers, and company sizes
 
 ## Advanced: Q4 close push narrative
 

@@ -1,11 +1,11 @@
 ---
-title: "Long-Form Text — Reviews, Support Tickets, and Email Bodies"
-description: "Generate realistic multi-sentence text for product reviews, customer support tickets, and email messages — not Lorem Ipsum."
+title: "Long-Form Text, Reviews, Support Tickets, and Email Bodies"
+description: "Generate realistic multi-sentence text for product reviews, customer support tickets, and email messages, not Lorem Ipsum."
 ---
 
 # Long-Form Text
 
-Misata generates realistic multi-sentence text for content that needs to feel human — product reviews, support tickets, email bodies, social captions, and bios. None of it is Lorem Ipsum.
+Misata generates realistic multi-sentence text for content that needs to feel human, product reviews, support tickets, email bodies, social captions, and bios. None of it is Lorem Ipsum.
 
 ## Supported text types
 
@@ -25,7 +25,7 @@ Misata generates realistic multi-sentence text for content that needs to feel hu
 Column(name="review_text", type="text", distribution_params={"text_type": "review"})
 ```
 
-Reviews are sentiment-weighted: 65% positive, 22% neutral, 13% negative — matching real platform distributions.
+Reviews are sentiment-weighted: 65% positive, 22% neutral, 13% negative, matching real platform distributions.
 
 Sample output:
 ```

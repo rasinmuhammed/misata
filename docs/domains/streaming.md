@@ -1,11 +1,11 @@
 ---
 title: Generate Streaming Platform Synthetic Data in Python | Misata
-description: Generate realistic streaming platform synthetic datasets in Python — subscribers, content, watch history, and ratings with churn coherence, completion rates, and content type distributions. No real viewer data required.
+description: Generate realistic streaming platform synthetic datasets in Python, subscribers, content, watch history, and ratings with churn coherence, completion rates, and content type distributions. No real viewer data required.
 ---
 
 # Generate Streaming Platform Synthetic Data in Python
 
-Streaming platform data has a critical coherence requirement: `churned_at` must be null for active subscribers and non-null for churned ones — and `is_churned` must match. Get this wrong and your churn prediction model trains on contaminated labels. Misata generates a four-table streaming dataset where `is_churned` and `churned_at` are always consistent, content types follow realistic catalog distributions (series 55%, movies 35%, documentaries 10%), and watch completion rates match real streaming benchmarks (~65% for movies).
+Streaming platform data has a critical coherence requirement: `churned_at` must be null for active subscribers and non-null for churned ones, and `is_churned` must match. Get this wrong and your churn prediction model trains on contaminated labels. Misata generates a four-table streaming dataset where `is_churned` and `churned_at` are always consistent, content types follow realistic catalog distributions (series 55%, movies 35%, documentaries 10%), and watch completion rates match real streaming benchmarks (~65% for movies).
 
 ```python
 import misata
@@ -37,11 +37,11 @@ Four tables: `subscribers`, `content`, `watch_history` (linking subscribers to c
 
 ### Realistic distributions
 
-- **`churned_at` is null for active subscribers** — `is_churned` and `churned_at` are always consistent
-- **Content type:** series 55%, movies 35%, documentaries 10% — matching real platform catalog ratios
+- **`churned_at` is null for active subscribers**: `is_churned` and `churned_at` are always consistent
+- **Content type:** series 55%, movies 35%, documentaries 10%, matching real platform catalog ratios
 - **Watch completion** rate ~65% for movies; lower per-episode completion for series
 - **Plan distribution** across basic, standard, and premium tiers with realistic uptake ratios
-- **Device mix** across mobile, smart TV, desktop, and tablet — matching real streaming device splits
+- **Device mix** across mobile, smart TV, desktop, and tablet, matching real streaming device splits
 
 ## Quick start
 
@@ -71,12 +71,12 @@ print(tables["subscribers"]["plan"].value_counts(normalize=True))
 
 ## Common use cases
 
-- **Recommendation model training** — use `watch_history` and `ratings` as the interaction matrix for collaborative filtering models before you have real viewing data
-- **Churn prediction pipelines** — train models on subscriber engagement patterns (watch frequency, completion rates, last active date) against `is_churned` labels
-- **Content performance analytics** — build watch time, completion rate, and rating dashboards by genre, type, and release year
-- **A/B test framework validation** — generate subscriber cohorts with varied plan and country distributions to test experiment assignment pipelines
-- **Personalization engine testing** — validate recommendation ranking logic and fallback strategies against a full content catalog
-- **Subscriber lifecycle QA** — test onboarding, upgrade, downgrade, and cancellation workflows against subscribers with realistic join and churn patterns
+- **Recommendation model training**: use `watch_history` and `ratings` as the interaction matrix for collaborative filtering models before you have real viewing data
+- **Churn prediction pipelines**: train models on subscriber engagement patterns (watch frequency, completion rates, last active date) against `is_churned` labels
+- **Content performance analytics**: build watch time, completion rate, and rating dashboards by genre, type, and release year
+- **A/B test framework validation**: generate subscriber cohorts with varied plan and country distributions to test experiment assignment pipelines
+- **Personalization engine testing**: validate recommendation ranking logic and fallback strategies against a full content catalog
+- **Subscriber lifecycle QA**: test onboarding, upgrade, downgrade, and cancellation workflows against subscribers with realistic join and churn patterns
 
 ## Advanced: viral growth narrative
 

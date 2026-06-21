@@ -1,6 +1,6 @@
 ---
-title: Plain-English Generation — Misata Synthetic Data Generator
-description: Generate realistic multi-table synthetic datasets from a single sentence. Misata's StoryParser detects domain, scale, locale, and growth patterns automatically — no config required.
+title: Plain-English Generation, Misata Synthetic Data Generator
+description: Generate realistic multi-table synthetic datasets from a single sentence. Misata's StoryParser detects domain, scale, locale, and growth patterns automatically, no config required.
 ---
 
 # Plain-English Generation
@@ -64,7 +64,7 @@ print(report.summary())
 #     subscriptions  5,000 rows  (8 columns)
 ```
 
-`preview()` calls no generators and produces no data — it is pure inspection.
+`preview()` calls no generators and produces no data, it is pure inspection.
 
 ### DetectionReport fields
 
@@ -83,14 +83,14 @@ print(report.summary())
 
 ---
 
-## Domain detection — how it scores
+## Domain detection: how it scores
 
 Detection is scored, not first-match. For each domain:
 
 - **+5** if the literal domain name appears in the story (e.g. `"fintech"` → fintech domain gets +5)
 - **+1** per matched keyword
 
-The highest-scoring domain wins. This means `"a fintech company with churn"` correctly detects as **fintech** even though `"churn"` is a SaaS keyword — `"fintech"` earns +5 and beats the single SaaS keyword hit.
+The highest-scoring domain wins. This means `"a fintech company with churn"` correctly detects as **fintech** even though `"churn"` is a SaaS keyword, `"fintech"` earns +5 and beats the single SaaS keyword hit.
 
 If two stories are ambiguous, the `near_misses` field tells you which other domains also matched.
 

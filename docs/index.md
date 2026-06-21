@@ -1,11 +1,11 @@
 ---
-title: Misata — Proof-Backed Python Synthetic Data Generator
+title: Misata, Proof-Backed Python Synthetic Data Generator
 description: Generate realistic multi-table synthetic data from plain English, YAML, or your own database, with Oracle reports for validation, realism, privacy, and reproducibility.
 ---
 
-# Misata — Proof-Backed Python Synthetic Data Generator
+# Misata: Proof-Backed Python Synthetic Data Generator
 
-**Realistic multi-table synthetic data with validation reports — from a sentence, YAML, or your own database.**
+**Realistic multi-table synthetic data with validation reports, from a sentence, YAML, or your own database.**
 
 No ML model. No real data needed. Referential integrity guaranteed across every table. Every CLI generation writes an Oracle report by default.
 
@@ -90,29 +90,29 @@ pip install misata
 
 ## Why Misata over Faker or SDV?
 
-Faker generates one column at a time — you write the loop, manage the IDs, enforce uniqueness yourself.
+Faker generates one column at a time, you write the loop, manage the IDs, enforce uniqueness yourself.
 SDV requires real training data and a fitted model before you get anything.
-**Misata generates a complete relational dataset from a single sentence — no training data, no boilerplate.**
+**Misata generates a complete relational dataset from a single sentence, no training data, no boilerplate.**
 
 | Feature | Faker | SDV | **Misata** |
 |:--|:--:|:--:|:--:|
-| One-liner multi-table generation | — | — | **✓** |
-| Story auto-detects locale + country stats | — | — | **✓** |
-| 18 built-in domain schemas (SaaS → streaming) | — | — | **✓** |
-| Narrative growth curves (Q4 push, Black Friday, 10×) | — | — | **✓** |
-| MCP server — usable from Claude / Cursor / Windsurf | — | — | **✓** |
-| YAML schema committed to git | — | — | **✓** |
-| DB introspection → generate → re-seed | — | Limited | **✓** |
-| Direct PostgreSQL / SQLite seeding | — | — | **✓** |
-| FK integrity across all tables | — | **✓** | **✓** |
+| One-liner multi-table generation |: |: | **✓** |
+| Story auto-detects locale + country stats |: |: | **✓** |
+| 18 built-in domain schemas (SaaS → streaming) |: |: | **✓** |
+| Narrative growth curves (Q4 push, Black Friday, 10×) |: |: | **✓** |
+| MCP server: usable from Claude / Cursor / Windsurf |: |: | **✓** |
+| YAML schema committed to git |: |: | **✓** |
+| DB introspection → generate → re-seed |: | Limited | **✓** |
+| Direct PostgreSQL / SQLite seeding |: |: | **✓** |
+| FK integrity across all tables |: | **✓** | **✓** |
 | Fully offline, no LLM required | **✓** | **✓** | **✓** |
-| Time-series generation | — | — | **✓** |
-| 15 country locale packs | — | — | **✓** |
-| Shareable Oracle report | — | — | **✓** |
+| Time-series generation |: |: | **✓** |
+| 15 country locale packs |: |: | **✓** |
+| Shareable Oracle report |: |: | **✓** |
 
 ---
 
-## Narrative control — tell Misata exactly what shape your data should have
+## Narrative control: tell Misata exactly what shape your data should have
 
 Misata understands natural-language growth patterns and turns them into exact monthly targets:
 
@@ -130,7 +130,7 @@ misata.generate("SaaS startup — MRR 10x growth over the year")
 misata.generate("Fintech payments — strong Q4, dip in Q1, flat Q2")
 ```
 
-Quarterly patterns (`Q1`–`Q4`), named events (Black Friday, Christmas, summer slump, back to school), multipliers (`doubled`, `tripled`, `10x`, `halved`) — all resolve to exact per-month control points in the generated data.
+Quarterly patterns (`Q1`–`Q4`), named events (Black Friday, Christmas, summer slump, back to school), multipliers (`doubled`, `tripled`, `10x`, `halved`), all resolve to exact per-month control points in the generated data.
 
 ---
 
@@ -156,11 +156,11 @@ Then ask Claude: *"Generate a fintech fraud dataset with 1 000 customers and a 2
 
 ## What people use Misata for
 
-- **Test data generation** — seed your dev/staging database with realistic data in seconds
-- **BI and dashboard demos** — populate a demo environment with coherent, believable numbers
-- **Database seeding in CI/CD** — reproducible, seed-controlled datasets for every test run
-- **Privacy-safe development** — work with realistic schemas without exposure to PII
-- **AI agent workflows** — let Claude or Cursor generate the dataset directly via MCP
+- **Test data generation**: seed your dev/staging database with realistic data in seconds
+- **BI and dashboard demos**: populate a demo environment with coherent, believable numbers
+- **Database seeding in CI/CD**: reproducible, seed-controlled datasets for every test run
+- **Privacy-safe development**: work with realistic schemas without exposure to PII
+- **AI agent workflows**: let Claude or Cursor generate the dataset directly via MCP
 
 ---
 

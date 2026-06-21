@@ -1,6 +1,6 @@
 ---
 title: dbt Seed Integration | Misata
-description: Generate synthetic data and write CSV seed files directly into your dbt project with misata dbt-seed. One command — realistic test data in your warehouse.
+description: Generate synthetic data and write CSV seed files directly into your dbt project with misata dbt-seed. One command, realistic test data in your warehouse.
 ---
 
 # dbt Seed Integration
@@ -31,8 +31,8 @@ Run dbt seed to load 3 table(s) into your warehouse.
 
 | Flag | Default | Description |
 |:--|:--|:--|
-| `--story`, `-s` | — | Plain-English dataset description |
-| `--config`, `-c` | — | Path to a `misata.yaml` schema file |
+| `--story`, `-s` |: | Plain-English dataset description |
+| `--config`, `-c` |: | Path to a `misata.yaml` schema file |
 | `--seeds-dir` | `seeds/` | dbt seeds directory |
 | `--rows`, `-n` | `1000` | Row count for the primary table |
 | `--seed` | `42` | Random seed for reproducibility |
@@ -84,7 +84,7 @@ dbt test
 
 ## Regenerating seeds
 
-Seeds are reproducible — same `--seed` value produces identical data:
+Seeds are reproducible, same `--seed` value produces identical data:
 
 ```bash
 # Regenerate with the same data (idempotent)
@@ -137,6 +137,6 @@ for table_name, df in tables.items():
 
 ## Related
 
-- [Database Seeding in Python](database-seeding-python.md) — seed directly into a live database
-- [SQL DDL to Schema](from-ddl.md) — generate from your existing CREATE TABLE statements
-- [Export](../export.md) — Parquet, DuckDB, JSONL export options
+- [Database Seeding in Python](database-seeding-python.md), seed directly into a live database
+- [SQL DDL to Schema](from-ddl.md), generate from your existing CREATE TABLE statements
+- [Export](../export.md), Parquet, DuckDB, JSONL export options

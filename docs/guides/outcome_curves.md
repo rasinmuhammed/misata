@@ -1,13 +1,13 @@
 # Outcome Curve-Driven Synthesis
 
-Misata's outcome-curve engine lets you declare **what your data should aggregate to** rather than how individual rows are distributed. The engine then generates rows that hit your declared targets **exactly** — not approximately.
+Misata's outcome-curve engine lets you declare **what your data should aggregate to** rather than how individual rows are distributed. The engine then generates rows that hit your declared targets **exactly**: not approximately.
 
 This capability is formalised in the published paper:
 
 > **Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark**  
-> Muhammed Rasin — arXiv:2606.08736v1 (2026)
+> Muhammed Rasin, arXiv:2606.08736v1 (2026)
 
-The paper proves the mechanism is exactly conditional-sum sampling of a Gamma population via Lukacs' characterisation. The Aggregate Mean Error (AME) is exactly 0 for the closed-form engine — versus 74–86% miss for off-the-shelf learned synthesisers.
+The paper proves the mechanism is exactly conditional-sum sampling of a Gamma population via Lukacs' characterisation. The Aggregate Mean Error (AME) is exactly 0 for the closed-form engine, versus 74–86% miss for off-the-shelf learned synthesisers.
 
 ---
 
@@ -28,7 +28,7 @@ Verified:   sum(Jan orders) = $10,000.00 ✓  AME = 0
 
 ### 1. Natural Language (NL)
 
-The simplest path — describe your curve in plain English. The `StoryParser` extracts anchors and modifiers automatically:
+The simplest path, describe your curve in plain English. The `StoryParser` extracts anchors and modifiers automatically:
 
 ```python
 import misata
@@ -47,7 +47,7 @@ Supported NL patterns include:
 
 ### 2. SDK Builder (Programmatic)
 
-Use `OutcomeCurveBuilder` when you need precise control — the primary target for the no-code UI backend:
+Use `OutcomeCurveBuilder` when you need precise control, the primary target for the no-code UI backend:
 
 ```python
 from misata import OutcomeCurveBuilder, parse, generate_from_schema
@@ -81,13 +81,13 @@ tables = generate_from_schema(schema)
 | `.spike(period, factor=1.3)` | Multiply a period upward (`factor > 1`) |
 | `.quarter_pattern(q1, q2, q3, q4)` | Set relative multipliers for all four quarters |
 | `.seasonal(black_friday=True, ...)` | Apply named seasonal event multipliers |
-| `.avg_value(mu)` | Average transaction value — drives row count (§3.1) |
-| `.concentration(alpha)` | Dirichlet α — controls dispersion (§3.2) |
+| `.avg_value(mu)` | Average transaction value: drives row count (§3.1) |
+| `.concentration(alpha)` | Dirichlet α: controls dispersion (§3.2) |
 | `.row_bounds(min_tx, max_tx)` | Row-count bounds per period (Prop. 3 guard) |
 | `.intra_period(pattern)` | Within-period timestamp distribution |
 | `.build()` | Returns an `OutcomeCurve` |
 
-`OutcomeCurveBuilder.attach(schema, *curves)` — non-mutating attach (returns a deep copy).
+`OutcomeCurveBuilder.attach(schema, *curves)`, non-mutating attach (returns a deep copy).
 
 **Period formats accepted by `.anchor()`, `.dip()`, `.spike()`:**
 
@@ -144,7 +144,7 @@ misata generate   # → data/orders.csv with exact monthly sums
 
 ## Rate Curves (RCE Axis)
 
-`OutcomeCurve` targets aggregate sums (AME axis). **`RateCurve`** targets the rate of a boolean or categorical column per period — the rate-conformance (RCE) axis introduced in SpecBench.
+`OutcomeCurve` targets aggregate sums (AME axis). **`RateCurve`** targets the rate of a boolean or categorical column per period, the rate-conformance (RCE) axis introduced in SpecBench.
 
 ### SDK
 
@@ -200,7 +200,7 @@ monthly_fraud = (
 
 ## Conformance Preview
 
-Before generating rows, call `conformance_preview()` to see what the engine will produce — period targets, estimated row counts, and clamping warnings. This is what a no-code UI renders to the user before generation:
+Before generating rows, call `conformance_preview()` to see what the engine will produce, period targets, estimated row counts, and clamping warnings. This is what a no-code UI renders to the user before generation:
 
 ```python
 from misata import conformance_preview, OutcomeCurveBuilder, parse
@@ -295,8 +295,8 @@ The engine implements **Proposition 2** from the paper:
 > Given a total `T_p` and `n_p` rows, sample proportions `w` from a symmetric Dirichlet(α). Then `x_i = ⌊w_i · T_p · 10^d⌋ / 10^d` with remainder correction gives `Σ x_i = T_p` exactly.
 
 Key parameters:
-- `concentration` (Dirichlet α) — higher = tighter per-row distribution
-- `avg_transaction_value` (`μ`) — sets `n_p = round(T_p / μ)` (Prop. 3)
-- `min/max_transactions_per_period` — guards against distortion when `n_p` is clamped
+- `concentration` (Dirichlet α), higher = tighter per-row distribution
+- `avg_transaction_value` (`μ`), sets `n_p = round(T_p / μ)` (Prop. 3)
+- `min/max_transactions_per_period`, guards against distortion when `n_p` is clamped
 
 See the full paper at [arXiv:2606.08736v1](https://arxiv.org/abs/2606.08736v1) for proofs and SpecBench benchmark results.

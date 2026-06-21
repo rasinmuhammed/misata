@@ -1,11 +1,11 @@
 ---
-title: Localisation — Country-Accurate Synthetic Data in 15 Locales
-description: Misata generates country-accurate synthetic data for 15 locales including US, UK, Germany, Japan, India, and more — with real salary distributions, national ID formats, and currencies.
+title: Localisation, Country-Accurate Synthetic Data in 15 Locales
+description: Misata generates country-accurate synthetic data for 15 locales including US, UK, Germany, Japan, India, and more, with real salary distributions, national ID formats, and currencies.
 ---
 
 # Localisation
 
-Misata generates country-accurate data automatically — names, salary distributions, national ID formats, currencies, postcodes, and company suffixes — from a geographic signal in your story.
+Misata generates country-accurate data automatically, names, salary distributions, national ID formats, currencies, postcodes, and company suffixes, from a geographic signal in your story.
 
 ## Automatic detection
 
@@ -80,12 +80,12 @@ locale = misata.detect_locale("A generic SaaS company")
 
 ## What locale affects
 
-- **Names** — Faker locale pool (`de_DE` Faker generates German names, `ja_JP` generates Japanese names)
-- **Salary & age distributions** — lognormal/normal priors from national statistics replace the en_US defaults
-- **Postcodes** — pattern-generated to match the country format (e.g. 5 digits for DE, `SW1A 1AA` format for GB)
-- **National IDs** — pattern-generated to match country format (CPF, SSN, Aadhaar, etc.)
-- **Company suffixes** — GmbH/AG for Germany, S.A./SARL for France, Ltd/PLC for UK
-- **Phone prefixes** — country dialling code prepended
+- **Names**: Faker locale pool (`de_DE` Faker generates German names, `ja_JP` generates Japanese names)
+- **Salary & age distributions**: lognormal/normal priors from national statistics replace the en_US defaults
+- **Postcodes**: pattern-generated to match the country format (e.g. 5 digits for DE, `SW1A 1AA` format for GB)
+- **National IDs**: pattern-generated to match country format (CPF, SSN, Aadhaar, etc.)
+- **Company suffixes**: GmbH/AG for Germany, S.A./SARL for France, Ltd/PLC for UK
+- **Phone prefixes**: country dialling code prepended
 
 !!! note "Asset-backed vocabulary takes priority"
     If you have ingested Kaggle vocabulary assets for name columns, those always win over locale-based Faker names. Locale is the fallback, not the override.

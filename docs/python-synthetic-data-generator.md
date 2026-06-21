@@ -1,6 +1,6 @@
 ---
-title: Python Synthetic Data Generator — Misata
-description: Misata is an open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English — no training data, no config. The best Faker alternative for developers.
+title: Python Synthetic Data Generator, Misata
+description: Misata is an open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, no training data, no config. The best Faker alternative for developers.
 ---
 
 # Python Synthetic Data Generator
@@ -50,7 +50,7 @@ Misata understands 7 business domains out of the box:
 
 ## Multi-table with referential integrity
 
-Every child table's foreign key column references a valid parent ID — guaranteed,
+Every child table's foreign key column references a valid parent ID, guaranteed,
 not random:
 
 ```python
@@ -102,11 +102,11 @@ tables = misata.generate_from_schema(schema)
 
 Misata ships calibrated priors so you don't have to configure them:
 
-- **Credit scores** — normal distribution centred on real FICO statistics (mean ≈ 680–720, std ≈ 75)
-- **MRR** — log-normal, because real SaaS revenue is right-skewed
-- **Transaction types** — Zipf distribution, because one type always dominates
-- **Blood types** — exact ABO/Rh frequencies (O+ 38%, A+ 34%, …)
-- **Monetary amounts** — log-normal with realistic min/max bounds
+- **Credit scores**: normal distribution centred on real FICO statistics (mean ≈ 680–720, std ≈ 75)
+- **MRR**: log-normal, because real SaaS revenue is right-skewed
+- **Transaction types**: Zipf distribution, because one type always dominates
+- **Blood types**: exact ABO/Rh frequencies (O+ 38%, A+ 34%, …)
+- **Monetary amounts**: log-normal with realistic min/max bounds
 
 ## LLM-powered generation (optional)
 
@@ -136,7 +136,7 @@ print(report.total_rows)  # 6,000+
 
 - **vs Faker**: Faker generates standalone fake values. Misata generates *related tables*
   that reference each other correctly, with business constraints and distribution control.
-- **vs SDV**: SDV requires real training data. Misata generates from scratch — no data,
+- **vs SDV**: SDV requires real training data. Misata generates from scratch, no data,
   no model, no privacy risk.
 
 See [faker-vs-sdv-vs-misata.md](faker-vs-sdv-vs-misata.md) for a full comparison with

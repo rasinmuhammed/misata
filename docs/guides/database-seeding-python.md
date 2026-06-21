@@ -1,5 +1,5 @@
 ---
-title: Database Seeding in Python — Seed PostgreSQL and SQLite with Synthetic Data
+title: Database Seeding in Python, Seed PostgreSQL and SQLite with Synthetic Data
 description: Learn how to seed a PostgreSQL or SQLite database with realistic synthetic data in Python using Misata. Covers FK relationships, reproducible seeds, and CI/CD integration.
 ---
 
@@ -24,7 +24,7 @@ print(report.table_rows)   # {"users": 1000, "subscriptions": 3000, ...}
 
 ## Supported databases
 
-Misata uses SQLAlchemy under the hood — any SQLAlchemy-compatible database works:
+Misata uses SQLAlchemy under the hood, any SQLAlchemy-compatible database works:
 
 ```python
 # SQLite (local dev)

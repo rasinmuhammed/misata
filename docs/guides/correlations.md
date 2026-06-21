@@ -1,11 +1,11 @@
 ---
-title: "Column Correlations — Make Age Correlate with Salary, Experience with Level"
+title: "Column Correlations, Make Age Correlate with Salary, Experience with Level"
 description: "Enforce Pearson correlations between numeric columns using the Iman-Conover method. Preserves marginal distributions while imposing realistic statistical relationships."
 ---
 
 # Column Correlations
 
-Real-world data has structure: older employees tend to earn more, high-traffic pages tend to have more conversions, longer delivery times tend to lower customer ratings. Misata's correlation engine lets you declare these relationships explicitly — and enforces them without distorting the marginal distributions you already configured.
+Real-world data has structure: older employees tend to earn more, high-traffic pages tend to have more conversions, longer delivery times tend to lower customer ratings. Misata's correlation engine lets you declare these relationships explicitly, and enforces them without distorting the marginal distributions you already configured.
 
 ## How to declare correlations
 
@@ -64,7 +64,7 @@ Declaring correlations does **not** change your marginal distributions. The per-
 3. Decomposes it with Cholesky factorization to generate correlated normal scores
 4. Re-ranks each column's values to match the target rank structure
 
-The result: `age` still follows your normal distribution, `salary` still follows your lognormal — but their *joint distribution* now reflects the declared correlation.
+The result: `age` still follows your normal distribution, `salary` still follows your lognormal, but their *joint distribution* now reflects the declared correlation.
 
 ## Negative correlations
 
@@ -83,7 +83,7 @@ Higher-priced products tend to have fewer returns. Better-reviewed products gene
 
 ## Multiple correlations
 
-You can declare as many pairs as you like. Misata builds a joint correlation matrix and enforces all of them simultaneously. The only constraint: the full matrix must be positive semi-definite (i.e. your correlations can't be logically contradictory — if A↑→B↑ and B↑→C↓, then A↑→C↓ must be consistent).
+You can declare as many pairs as you like. Misata builds a joint correlation matrix and enforces all of them simultaneously. The only constraint: the full matrix must be positive semi-definite (i.e. your correlations can't be logically contradictory, if A↑→B↑ and B↑→C↓, then A↑→C↓ must be consistent).
 
 If the matrix is not positive-definite (contradictory spec), Misata skips correlation enforcement silently and generates independent columns.
 

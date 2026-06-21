@@ -26,7 +26,7 @@ fintech_tables = misata_fixture("A fintech with 200 customers and 2% fraud rate"
 hr_tables     = misata_fixture("An HR company with 300 employees", rows=300)
 ```
 
-Use them in any test file — no imports needed:
+Use them in any test file, no imports needed:
 
 ```python
 # test_billing.py
@@ -52,13 +52,13 @@ def test_fraud_flag_rate(fintech_tables):
 |:--|:--|:--|
 | `story` | required | Plain-English dataset description |
 | `rows` | `1000` | Row count for the primary table |
-| `seed` | `42` | Random seed — same seed = identical data every run |
+| `seed` | `42` | Random seed: same seed = identical data every run |
 | `smart_correlations` | `False` | Auto-add Pearson correlations between related numeric columns |
 | `min_quality_score` | `None` | Retry generation until FidelityChecker score meets threshold |
 
 ## `misata_schema_fixture(story, rows)`
 
-Returns a `SchemaConfig` (no data generated) — useful for testing schema parsing and domain detection:
+Returns a `SchemaConfig` (no data generated), useful for testing schema parsing and domain detection:
 
 ```python
 # conftest.py
@@ -84,7 +84,7 @@ Three fixtures are available to import directly without `conftest.py` setup:
 
 ### `misata_generate`
 
-Injects `misata.generate` — use when you want to generate different datasets within a single test:
+Injects `misata.generate`, use when you want to generate different datasets within a single test:
 
 ```python
 from misata.testing import misata_generate   # imported for type hints only
@@ -132,7 +132,7 @@ def test_determinism(saas_a, saas_b):
 
 ## Scope
 
-By default fixtures have `scope="function"` — fresh data for each test. If you want shared data across a test module (faster), define the fixture manually:
+By default fixtures have `scope="function"`, fresh data for each test. If you want shared data across a test module (faster), define the fixture manually:
 
 ```python
 # conftest.py

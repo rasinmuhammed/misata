@@ -1,11 +1,11 @@
 ---
 title: Generate Gaming Synthetic Data in Python | Misata
-description: Generate realistic gaming synthetic datasets in Python — players, matches, sessions, and achievements with Pareto XP distributions, realistic K/D ratios, and leaderboard data. No real player data required.
+description: Generate realistic gaming synthetic datasets in Python, players, matches, sessions, and achievements with Pareto XP distributions, realistic K/D ratios, and leaderboard data. No real player data required.
 ---
 
 # Generate Gaming Synthetic Data in Python
 
-Gaming data has a distinctive statistical signature: player levels and XP follow heavy-tailed distributions (most players are low-level, a small elite dominates leaderboards), K/D ratios are beta-distributed around 1.0, and achievement unlock patterns follow the player's progression timeline. Misata generates a four-table gaming dataset — players, matches, sessions, and achievements — where all of this is built in and every FK relationship is valid.
+Gaming data has a distinctive statistical signature: player levels and XP follow heavy-tailed distributions (most players are low-level, a small elite dominates leaderboards), K/D ratios are beta-distributed around 1.0, and achievement unlock patterns follow the player's progression timeline. Misata generates a four-table gaming dataset, players, matches, sessions, and achievements, where all of this is built in and every FK relationship is valid.
 
 Whether you're testing a leaderboard API, training a churn prediction model on player activity, or building a game analytics dashboard, you can have a statistically accurate gaming dataset running in seconds.
 
@@ -32,11 +32,11 @@ Four tables: `players`, `matches`, `sessions` (linking players to matches with p
 
 ### Realistic distributions
 
-- **Player levels** follow a right-skewed lognormal — most players are low-to-mid level, a long elite tail reaches max level
-- **XP** follows a Pareto distribution — top players have disproportionately high experience totals
+- **Player levels** follow a right-skewed lognormal, most players are low-to-mid level, a long elite tail reaches max level
+- **XP** follows a Pareto distribution, top players have disproportionately high experience totals
 - **K/D ratio** (kills/deaths per session) beta-distributed around 1.0, with correct shape for ranked play
-- **`last_active`** is always after `joined_at` — temporal coherence enforced
-- **Achievement `unlocked_at`** is always after `joined_at` — no achievements before registration
+- **`last_active`** is always after `joined_at`, temporal coherence enforced
+- **Achievement `unlocked_at`** is always after `joined_at`, no achievements before registration
 
 ## Quick start
 
@@ -60,12 +60,12 @@ print(top_players)
 
 ## Common use cases
 
-- **Leaderboard and ranking API testing** — populate leaderboards with thousands of players across realistic level and XP distributions to stress-test sorting and pagination
-- **Churn prediction models** — generate players with `last_active` timestamps and session frequency for training binary retention classifiers
-- **Matchmaking algorithm development** — use session data with kills, deaths, and scores to prototype skill-based matchmaking without production logs
-- **Game analytics dashboards** — seed BI tools with player activity data that produces sensible DAU/MAU and retention funnel metrics
-- **Achievement system QA** — validate badge unlock logic against thousands of achievements across varied categories and point values
-- **Anti-cheat detection training** — inject anomalous K/D ratios and XP progression patterns to develop detection rule classifiers
+- **Leaderboard and ranking API testing**: populate leaderboards with thousands of players across realistic level and XP distributions to stress-test sorting and pagination
+- **Churn prediction models**: generate players with `last_active` timestamps and session frequency for training binary retention classifiers
+- **Matchmaking algorithm development**: use session data with kills, deaths, and scores to prototype skill-based matchmaking without production logs
+- **Game analytics dashboards**: seed BI tools with player activity data that produces sensible DAU/MAU and retention funnel metrics
+- **Achievement system QA**: validate badge unlock logic against thousands of achievements across varied categories and point values
+- **Anti-cheat detection training**: inject anomalous K/D ratios and XP progression patterns to develop detection rule classifiers
 
 ## Advanced: player growth narrative
 

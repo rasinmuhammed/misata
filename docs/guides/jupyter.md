@@ -1,11 +1,11 @@
 ---
-title: "Jupyter Magic — Generate Synthetic Data Inline in Notebooks"
+title: "Jupyter Magic, Generate Synthetic Data Inline in Notebooks"
 description: "Load the %%misata cell magic to generate multi-table synthetic datasets directly inside Jupyter notebooks with zero boilerplate."
 ---
 
 # Jupyter Magic
 
-The `%%misata` cell magic lets you generate synthetic datasets from a plain-English story directly inside a Jupyter notebook — no imports, no schema objects, no boilerplate.
+The `%%misata` cell magic lets you generate synthetic datasets from a plain-English story directly inside a Jupyter notebook, no imports, no schema objects, no boilerplate.
 
 ## Setup
 
@@ -31,8 +31,8 @@ SaaS company with users, subscriptions, and monthly payments
 
 After running, the following variables appear in your namespace:
 
-- `_misata` — dict of all DataFrames
-- `users_df`, `subscriptions_df`, `payments_df` — one variable per table
+- `_misata`, dict of all DataFrames
+- `users_df`, `subscriptions_df`, `payments_df`, one variable per table
 
 ## Options
 

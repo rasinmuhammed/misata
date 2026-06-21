@@ -1,11 +1,11 @@
 ---
-title: Generation Methods — Misata Python Synthetic Data
-description: Six ways to generate synthetic data with Misata — plain English stories, YAML schemas, database introspection, Python dicts, LLM-assisted, and incremental generation.
+title: Generation Methods, Misata Python Synthetic Data
+description: Six ways to generate synthetic data with Misata, plain English stories, YAML schemas, database introspection, Python dicts, LLM-assisted, and incremental generation.
 ---
 
 # Generation Methods
 
-Misata supports six ways to get data — choose the one that fits your workflow.
+Misata supports six ways to get data, choose the one that fits your workflow.
 
 | Method | Best for | API key needed? |
 |:--|:--|:--:|

@@ -1,11 +1,11 @@
 ---
 title: Generate Real Estate Synthetic Data in Python | Misata
-description: Generate realistic real estate synthetic datasets in Python — agents, properties, and transactions with lognormal home price distributions, realistic days-on-market, and referential integrity. No real MLS data required.
+description: Generate realistic real estate synthetic datasets in Python, agents, properties, and transactions with lognormal home price distributions, realistic days-on-market, and referential integrity. No real MLS data required.
 ---
 
 # Generate Real Estate Synthetic Data in Python
 
-Real estate data has patterns that random generation misses: home prices follow a lognormal distribution with a heavy right tail (the $1M+ tier), days-on-market is lognormal with a median around 23 days, and agent ratings cluster toward 4–5 stars due to platform selection effects. Misata generates a three-table real estate dataset — agents, properties, and transactions — where these distributions are built in and FK relationships are always valid.
+Real estate data has patterns that random generation misses: home prices follow a lognormal distribution with a heavy right tail (the $1M+ tier), days-on-market is lognormal with a median around 23 days, and agent ratings cluster toward 4–5 stars due to platform selection effects. Misata generates a three-table real estate dataset, agents, properties, and transactions, where these distributions are built in and FK relationships are always valid.
 
 ```python
 import misata
@@ -29,11 +29,11 @@ Three tables: `agents` (who manage listings), `properties` (listed inventory), a
 
 ### Realistic distributions
 
-- **Home prices** lognormal with US median ~$410k — realistic heavy right tail for luxury properties
-- **Days on market** lognormal with median ~23 days — fast movers and long-stale listings both present
-- **Agent ratings** beta-distributed toward 4–5 stars — reflecting real platform rating dynamics
-- **~60% of listings close** — remainder are active, expired, or withdrawn
-- **`sqft`** and `price` are correlated — larger properties cost more
+- **Home prices** lognormal with US median ~$410k, realistic heavy right tail for luxury properties
+- **Days on market** lognormal with median ~23 days, fast movers and long-stale listings both present
+- **Agent ratings** beta-distributed toward 4–5 stars, reflecting real platform rating dynamics
+- **~60% of listings close**: remainder are active, expired, or withdrawn
+- **`sqft`** and `price` are correlated, larger properties cost more
 
 ## Quick start
 
@@ -54,12 +54,12 @@ print(f"Total commission revenue: ${transactions['commission'].sum():,.0f}")
 
 ## Common use cases
 
-- **MLS / property search platform development** — seed a test database with listings across price tiers and bedroom counts for search, filter, and sort testing
-- **AVMs (automated valuation models)** — generate training data with realistic price, sqft, bedrooms, and location features for regression model development
-- **Agent performance analytics** — build conversion rate, average days-on-market, and commission dashboards on realistic agent histories
-- **CRM for real estate agents** — test lead management and listing pipeline workflows with realistic property and transaction data
-- **Proptech demo environments** — replace real MLS data exports with synthetic equivalents for vendor demos and investor presentations
-- **Market report generation** — validate report templates and calculations against a full year of synthetic transaction data
+- **MLS / property search platform development**: seed a test database with listings across price tiers and bedroom counts for search, filter, and sort testing
+- **AVMs (automated valuation models)**: generate training data with realistic price, sqft, bedrooms, and location features for regression model development
+- **Agent performance analytics**: build conversion rate, average days-on-market, and commission dashboards on realistic agent histories
+- **CRM for real estate agents**: test lead management and listing pipeline workflows with realistic property and transaction data
+- **Proptech demo environments**: replace real MLS data exports with synthetic equivalents for vendor demos and investor presentations
+- **Market report generation**: validate report templates and calculations against a full year of synthetic transaction data
 
 ## Advanced: market cycle narrative
 

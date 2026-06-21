@@ -5,7 +5,7 @@ description: Generate 10M+ row synthetic datasets without loading everything int
 
 # Streaming Large Synthetic Datasets
 
-`misata.generate_stream()` yields `(table_name, batch_df)` tuples one batch at a time — the full dataset is never held in memory. This is the right interface for generating 10M+ row datasets, writing directly to Parquet, or streaming into a database without buffering.
+`misata.generate_stream()` yields `(table_name, batch_df)` tuples one batch at a time, the full dataset is never held in memory. This is the right interface for generating 10M+ row datasets, writing directly to Parquet, or streaming into a database without buffering.
 
 ## When to use streaming vs standard generation
 
@@ -191,6 +191,6 @@ misata.generate_stream(
 
 ## Related
 
-- [generate()](../quickstart.md) — standard in-memory generation
-- [Export](../export.md) — Parquet, DuckDB, JSONL export
-- [Database Seeding](database-seeding-python.md) — seed directly into a database
+- [generate()](../quickstart.md), standard in-memory generation
+- [Export](../export.md), Parquet, DuckDB, JSONL export
+- [Database Seeding](database-seeding-python.md), seed directly into a database

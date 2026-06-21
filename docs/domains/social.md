@@ -1,11 +1,11 @@
 ---
 title: Generate Social Media Synthetic Data in Python | Misata
-description: Generate realistic social media synthetic datasets in Python — users, posts, follows, reactions, and comments with Pareto follower distributions, realistic captions, and engagement rate distributions. No real user data required.
+description: Generate realistic social media synthetic datasets in Python, users, posts, follows, reactions, and comments with Pareto follower distributions, realistic captions, and engagement rate distributions. No real user data required.
 ---
 
 # Generate Social Media Synthetic Data in Python
 
-Social media data has a signature structure that random generators get completely wrong: follower counts follow a Pareto distribution (a tiny fraction of accounts captures most of the reach), engagement rates are beta-distributed between 1–5%, and captions include hashtags and contextual text — not lorem ipsum. Misata generates a five-table social platform dataset that looks like it came from a real app: users with realistic follower/following ratios, posts with media types, a follows graph, reactions, and threaded comments.
+Social media data has a signature structure that random generators get completely wrong: follower counts follow a Pareto distribution (a tiny fraction of accounts captures most of the reach), engagement rates are beta-distributed between 1–5%, and captions include hashtags and contextual text, not lorem ipsum. Misata generates a five-table social platform dataset that looks like it came from a real app: users with realistic follower/following ratios, posts with media types, a follows graph, reactions, and threaded comments.
 
 ```python
 import misata
@@ -31,11 +31,11 @@ Five tables: `users` → `posts` → `reactions`/`comments`, plus a `follows` gr
 
 ### Realistic distributions
 
-- **Follower counts** follow a Pareto power-law — most accounts have hundreds of followers, a small elite has millions
+- **Follower counts** follow a Pareto power-law, most accounts have hundreds of followers, a small elite has millions
 - **Engagement rate** (~likes/followers) is beta-distributed between 1–5%, matching real influencer benchmarks
-- **`is_verified`** is rare (~2% of accounts) — consistent with real platform verification sparsity
-- **Media types** are distributed across image, video, carousel, and text — not uniformly random
-- **Comments** include `parent_comment_id` for threaded replies — not all comments are top-level
+- **`is_verified`** is rare (~2% of accounts), consistent with real platform verification sparsity
+- **Media types** are distributed across image, video, carousel, and text, not uniformly random
+- **Comments** include `parent_comment_id` for threaded replies, not all comments are top-level
 
 ## Quick start
 
@@ -58,12 +58,12 @@ print(verified["follower_count"].describe())
 
 ## Common use cases
 
-- **Content recommendation model training** — generate user-post interaction data (`reactions`, `watch_history`) for training collaborative filtering and interest models
-- **Social graph analytics** — use the `follows` table to prototype graph algorithms, community detection, and influencer identification
-- **Moderation and trust and safety tooling** — generate comments and posts at scale to test content classification and flagging pipelines
-- **Creator analytics dashboards** — build engagement rate, reach, and growth analytics before real creator data is available
-- **Feed ranking algorithm testing** — validate chronological and ranked feed logic against realistic like/comment/share distributions
-- **A/B test framework validation** — generate user cohorts with varied follower counts and engagement rates for experiment design testing
+- **Content recommendation model training**: generate user-post interaction data (`reactions`, `watch_history`) for training collaborative filtering and interest models
+- **Social graph analytics**: use the `follows` table to prototype graph algorithms, community detection, and influencer identification
+- **Moderation and trust and safety tooling**: generate comments and posts at scale to test content classification and flagging pipelines
+- **Creator analytics dashboards**: build engagement rate, reach, and growth analytics before real creator data is available
+- **Feed ranking algorithm testing**: validate chronological and ranked feed logic against realistic like/comment/share distributions
+- **A/B test framework validation**: generate user cohorts with varied follower counts and engagement rates for experiment design testing
 
 ## Advanced: viral content curves
 

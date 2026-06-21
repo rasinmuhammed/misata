@@ -1,11 +1,11 @@
 ---
-title: "Mimic Mode — Privacy-Safe Synthetic Twins from Real CSV Files"
+title: "Mimic Mode, Privacy-Safe Synthetic Twins from Real CSV Files"
 description: "Analyze any CSV and generate a statistically matching synthetic dataset without retaining real values. Perfect for GDPR compliance, ML training data, and staging environments."
 ---
 
 # Mimic Mode
 
-Mimic mode takes a real CSV file (or DataFrame), analyzes every column's statistical fingerprint, and produces a fresh synthetic dataset that matches the original's structure — without reusing a single real value.
+Mimic mode takes a real CSV file (or DataFrame), analyzes every column's statistical fingerprint, and produces a fresh synthetic dataset that matches the original's structure, without reusing a single real value.
 
 It's the fastest path from *"I have sensitive production data"* to *"I have safe, shareable synthetic data"*.
 
@@ -55,7 +55,7 @@ For each column, Misata's `DataProfiler` runs a five-step analysis:
 | Step | What it does |
 |---|---|
 | **Type detection** | Identifies boolean, date, integer, float, or text |
-| **Distribution fitting** | Fits lognormal (right-skewed), normal, or uniform — whichever matches the data |
+| **Distribution fitting** | Fits lognormal (right-skewed), normal, or uniform: whichever matches the data |
 | **Cardinality check** | Low-cardinality columns become categoricals with real frequency weights |
 | **Semantic inference** | Detects email, name, city, country, latitude, URL, phone, etc. |
 | **Range capture** | Records min/max for numerics, start/end for dates |
