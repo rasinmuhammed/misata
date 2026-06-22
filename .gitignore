@@ -72,3 +72,4 @@ site/
 
 # Cursor/Claude specific config
 .claude/
+.agents/

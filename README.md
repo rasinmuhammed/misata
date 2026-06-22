@@ -4,7 +4,9 @@
 
 # Misata
 
-**Realistic multi-table synthetic data that conforms to the outcome you specify (exact revenue curves, fraud rates, referential integrity, and statistical structure) from a sentence, YAML, or your database. No ML model, no real data.**
+**You declare the outcome. Misata generates the data that provably matches it.**
+
+Realistic, relational rows that hit exact revenue curves, fraud rates, referential integrity, and statistical structure. From a sentence, YAML, or your database. No real data, no ML model.
 
 [![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=flat-square&color=E89030)](https://pypi.org/project/misata/)
 [![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=flat-square)](https://pypi.org/project/misata/)
@@ -27,11 +29,23 @@ This is *outcome-conformant generation*. The mechanism is formalised in an arXiv
 It generates from a plain-English description, a YAML schema, or an existing database schema. No machine-learning model is required. No real data is needed.
 
 Built for:
+- **Known-answer testing**: declare the KPI, generate the data, then assert your dbt, Spark, or SQL transform returns exactly that number. A pipeline test with a ground truth, before any real data exists
 - **Database seeding**: fill dev and staging environments with production-like data
 - **Integration tests**: relational fixtures with FK integrity across every table
 - **Demos and prototypes**: realistic numbers, names, and distributions, no PII
 - **BI and dashboard development**: data shaped like your real domain before launch
 - **Statistical method validation**: longitudinal, grouped, and multi-site datasets that pass mixed-effects models, ICC tests, and autocorrelation checks
+
+---
+
+## Declare or mimic: two ways in
+
+Misata works in two modes, and the difference is the whole point:
+
+- **Declare (the default, no data required).** You state the schema and the outcomes you want, exact revenue curves, fraud rates, rollups, constraints, and Misata generates rows from scratch that conform to them. Use this when you do not have real data, or when you need a *known answer* to test a pipeline, dashboard, or demo against.
+- **Mimic (when you already have data).** Point `misata.mimic()` at a real CSV and get a synthetic twin that matches its distributions and correlations but contains none of the original rows, with `fidelity_report` and `privacy_report` to measure the result. Use this for privacy-safe copies of data you already hold.
+
+Most synthetic-data tools only do the second, learning from a real dataset and imitating it. Misata leads with the first: you declare the answer, then generate the data around it.
 
 ---
 
