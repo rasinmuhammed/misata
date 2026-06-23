@@ -464,6 +464,257 @@ def _constraint_summary(validation_report: Any, quality_report: Any) -> Dict[str
     }
 
 
+def _curve_tolerance(schema_config: Any, table_name: str, column_name: str) -> float:
+    """Return an absolute tolerance for monetary/numeric KPI checks."""
+    try:
+        column = next(
+            col for col in schema_config.get_columns(table_name)
+            if getattr(col, "name", None) == column_name
+        )
+    except Exception:
+        return 0.0
+
+    params = getattr(column, "distribution_params", {}) or {}
+    decimals = params.get("decimals")
+    if isinstance(decimals, int) and decimals > 0:
+        return 10 ** (-decimals)
+    return 0.01 if getattr(column, "type", None) == "float" else 0.0
+
+
+def _relative_error(observed: float, target: float) -> float:
+    denom = abs(target) if abs(target) > 1e-12 else 1.0
+    return abs(observed - target) / denom
+
+
+def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: Any) -> List[Dict[str, Any]]:
+    """Evaluate exact OutcomeCurve targets against generated tables."""
+    curves = list(getattr(schema_config, "outcome_curves", []) or [])
+    if not curves:
+        return []
+
+    from misata.engines import FactEngine
+
+    engine = FactEngine()
+    results: List[Dict[str, Any]] = []
+    tables_by_name = {getattr(table, "name", None): table for table in getattr(schema_config, "tables", [])}
+
+    for curve in curves:
+        table_name = getattr(curve, "table", None)
+        column_name = getattr(curve, "column", None)
+        time_column = getattr(curve, "time_column", "date")
+        result: Dict[str, Any] = {
+            "type": "outcome_curve",
+            "table": table_name,
+            "column": column_name,
+            "time_column": time_column,
+            "time_unit": getattr(curve, "time_unit", "month"),
+            "checked": False,
+            "passed": True,
+            "periods": [],
+        }
+
+        if not engine.curve_has_exact_targets(curve):
+            result["reason"] = "relative_or_missing_exact_targets"
+            results.append(result)
+            continue
+
+        table = tables_by_name.get(table_name)
+        if table is None:
+            result.update({"checked": True, "passed": False, "reason": "missing_schema_table"})
+            results.append(result)
+            continue
+
+        df = tables.get(table_name)
+        if df is None:
+            result.update({"checked": True, "passed": False, "reason": "missing_output_table"})
+            results.append(result)
+            continue
+        if column_name not in df.columns or time_column not in df.columns:
+            result.update({"checked": True, "passed": False, "reason": "missing_output_column"})
+            results.append(result)
+            continue
+
+        plan = engine.build_plan(table, schema_config.get_columns(table_name), [curve])
+        if plan is None:
+            result.update({"checked": True, "passed": False, "reason": "incompatible_curve_plan"})
+            results.append(result)
+            continue
+
+        timestamps = pd.to_datetime(df[time_column], errors="coerce")
+        values = pd.to_numeric(df[column_name], errors="coerce").fillna(0)
+        tolerance = _curve_tolerance(schema_config, table_name, column_name)
+        period_results: List[Dict[str, Any]] = []
+
+        for resolved in plan.curves:
+            if resolved.column != column_name:
+                continue
+            for bucket, target in zip(resolved.buckets, resolved.targets):
+                mask = (timestamps >= bucket.start) & (timestamps < bucket.end)
+                observed = float(values.loc[mask].sum())
+                target_float = float(target)
+                abs_error = abs(observed - target_float)
+                period_passed = abs_error <= tolerance
+                period_results.append({
+                    "period": bucket.label,
+                    "target": target_float,
+                    "observed": observed,
+                    "absolute_error": abs_error,
+                    "relative_error": _relative_error(observed, target_float),
+                    "tolerance": tolerance,
+                    "rows": int(mask.sum()),
+                    "passed": period_passed,
+                })
+
+        result["checked"] = True
+        result["periods"] = period_results
+        result["passed"] = all(period["passed"] for period in period_results)
+        results.append(result)
+
+    return results
+
+
+def _rate_period_key(period: Any) -> Optional[int]:
+    """Parse a RateCurve short period into a 1-based running period index."""
+    period_str = str(period).strip()
+    if not period_str or period_str.lower() == "all":
+        return None
+    if len(period_str) == 7 and period_str[4] == "-" and period_str[5:].isdigit():
+        return int(period_str[5:])
+    if len(period_str) == 7 and period_str[4:6].upper() == "-Q" and period_str[6].isdigit():
+        quarter = int(period_str[6])
+        if 1 <= quarter <= 4:
+            return (quarter - 1) * 3 + 1
+    if period_str.isdigit():
+        return int(period_str)
+    return None
+
+
+def _rate_curve_targets(rate_curve: Any, observed_periods: List[int]) -> Dict[int, float]:
+    """Resolve RateCurve targets for observed running periods."""
+    anchors: Dict[int, float] = {}
+    all_rate: Optional[float] = None
+
+    for point in getattr(rate_curve, "rate_points", []) or []:
+        period = point.get("period")
+        rate = float(point.get("rate", 0.0))
+        if str(period).strip().lower() == "all":
+            all_rate = rate
+            continue
+        key = _rate_period_key(period)
+        if key is not None:
+            anchors[key] = rate
+
+    if all_rate is not None:
+        for period in observed_periods:
+            anchors.setdefault(period, all_rate)
+
+    if not anchors or not observed_periods:
+        return {}
+
+    if getattr(rate_curve, "interpolate", True) and len(anchors) >= 2:
+        max_period = max(max(observed_periods), max(anchors))
+        xs = np.array(sorted(anchors), dtype=float)
+        ys = np.array([anchors[int(x)] for x in xs], dtype=float)
+        grid = np.arange(1, max_period + 1, dtype=float)
+        rates = np.clip(np.interp(grid, xs, ys), 0.0, 1.0)
+        return {period: float(rates[period - 1]) for period in observed_periods if 1 <= period <= max_period}
+
+    return {period: float(anchors[period]) for period in observed_periods if period in anchors}
+
+
+def _rate_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: Any) -> List[Dict[str, Any]]:
+    """Evaluate exact RateCurve targets against generated tables."""
+    results: List[Dict[str, Any]] = []
+    for rate_curve in getattr(schema_config, "rate_curves", []) or []:
+        table_name = getattr(rate_curve, "table", None)
+        column_name = getattr(rate_curve, "column", None)
+        time_column = getattr(rate_curve, "time_column", "date")
+        result: Dict[str, Any] = {
+            "type": "rate_curve",
+            "table": table_name,
+            "column": column_name,
+            "time_column": time_column,
+            "time_unit": getattr(rate_curve, "time_unit", "month"),
+            "checked": True,
+            "passed": True,
+            "periods": [],
+        }
+
+        df = tables.get(table_name)
+        if df is None:
+            result.update({"passed": False, "reason": "missing_output_table"})
+            results.append(result)
+            continue
+        if column_name not in df.columns or time_column not in df.columns:
+            result.update({"passed": False, "reason": "missing_output_column"})
+            results.append(result)
+            continue
+
+        timestamps = pd.to_datetime(df[time_column], errors="coerce")
+        valid = timestamps.dropna()
+        if valid.empty:
+            result.update({"passed": False, "reason": "no_valid_timestamps"})
+            results.append(result)
+            continue
+
+        start_year = int(valid.dt.year.min())
+        start_month = int(valid.dt.month.min())
+        running_period = (
+            (timestamps.dt.year - start_year) * 12
+            + (timestamps.dt.month - start_month)
+            + 1
+        ).fillna(-1).astype(int)
+        observed_periods = sorted(period for period in running_period.unique() if period > 0)
+        targets = _rate_curve_targets(rate_curve, observed_periods)
+
+        true_value = getattr(rate_curve, "true_value", True)
+        period_results: List[Dict[str, Any]] = []
+        for period, target_rate in targets.items():
+            mask = running_period == period
+            row_count = int(mask.sum())
+            if row_count <= 0:
+                continue
+            positive_count = int((df.loc[mask, column_name] == true_value).sum())
+            observed_rate = positive_count / row_count
+            expected_count = int(round(row_count * target_rate))
+            tolerance = 0.5 / row_count + 1e-12
+            period_results.append({
+                "period": str(period).zfill(2) if period <= 12 else str(period),
+                "target_rate": float(target_rate),
+                "observed_rate": float(observed_rate),
+                "target_count": expected_count,
+                "observed_count": positive_count,
+                "absolute_error": abs(observed_rate - target_rate),
+                "tolerance": tolerance,
+                "rows": row_count,
+                "passed": positive_count == expected_count or abs(observed_rate - target_rate) <= tolerance,
+            })
+
+        result["periods"] = period_results
+        result["passed"] = all(period["passed"] for period in period_results)
+        if not period_results:
+            result["reason"] = "no_matching_period_targets"
+        results.append(result)
+
+    return results
+
+
+def _kpi_conformance(tables: Dict[str, pd.DataFrame], schema_config: Any) -> Dict[str, Any]:
+    """Summarize hard KPI conformance checks for the Oracle report."""
+    outcome_results = _outcome_curve_conformance(tables, schema_config)
+    rate_results = _rate_curve_conformance(tables, schema_config)
+    checked_results = [
+        result for result in outcome_results + rate_results
+        if result.get("checked", True)
+    ]
+    return {
+        "passed": all(result.get("passed", False) for result in checked_results) if checked_results else True,
+        "checked": len(checked_results),
+        "outcome_curves": outcome_results,
+        "rate_curves": rate_results,
+    }
+
+
 def _locale_domain_fit(tables: Dict[str, pd.DataFrame], schema_config: Any) -> Dict[str, Any]:
     """Heuristic locale/domain fit checks for identity and geography columns."""
     realism = getattr(schema_config, "realism", None)
@@ -582,6 +833,7 @@ def build_oracle_report(
 
     row_fulfillment = _table_row_fulfillment(tables, schema_config, row_counts)
     constraint_summary = _constraint_summary(validation, quality)
+    kpi_conformance = _kpi_conformance(tables, schema_config)
     locale_fit = _locale_domain_fit(tables, schema_config)
 
     hard_passed = (
@@ -589,6 +841,7 @@ def build_oracle_report(
         and bool(getattr(quality, "passed", False))
         and row_fulfillment["passed"]
         and constraint_summary["passed"]
+        and kpi_conformance["passed"]
     )
 
     oracle = {
@@ -609,6 +862,7 @@ def build_oracle_report(
             "validation": _serialize_validation_report(validation),
             "row_count_fulfillment": row_fulfillment,
             "constraints": constraint_summary,
+            "kpi_conformance": kpi_conformance,
         },
         "advisory": {
             "quality": _serialize_quality_report(quality),
@@ -625,7 +879,7 @@ def build_oracle_report(
             "sampled": sampled,
         },
         "notes": [
-            "Validation, row counts, referential integrity, and configured constraints are hard checks.",
+            "Validation, row counts, referential integrity, KPI conformance, and configured constraints are hard checks.",
             "Privacy, fidelity, locale fit, and quality scores are advisory heuristics.",
         ],
     }
