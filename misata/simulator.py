@@ -784,14 +784,15 @@ class DataSimulator:
                 total_needed_for_table = self.config.get_table(table_name).row_count
 
                 if pool_key not in self._unique_pools:
-                    # Check range capacity
-                    if (high - low) < total_needed_for_table:
+                    # Check range capacity. The inclusive range [low, high] holds
+                    # (high - low + 1) distinct integers.
+                    if (high - low + 1) < total_needed_for_table:
                         # Auto-expand range to fix user error (common in tests/small ranges)
-                        warnings.warn(f"Range {high-low} too small for unique column {column.name} (needs {total_needed_for_table}). Extending max.")
+                        warnings.warn(f"Range {high-low+1} too small for unique column {column.name} (needs {total_needed_for_table}). Extending max.")
                         high = low + total_needed_for_table + 100
 
-                    # Generate full permutation
-                    pool = np.arange(low, high)
+                    # Generate full permutation over the inclusive range.
+                    pool = np.arange(low, high + 1)
                     self.rng.shuffle(pool)
                     self._unique_pools[pool_key] = pool
                     self._unique_counters[pool_key] = 0
@@ -852,7 +853,9 @@ class DataSimulator:
             elif distribution == "uniform":
                 low = params.get("min", 0)
                 high = params.get("max", 1000)
-                values = self.rng.integers(low, high, size=size)
+                # endpoint=True: an integer column declared max=N must be able to
+                # produce N (a 1..5 rating must reach 5; a 0..1 flag must reach 1).
+                values = self.rng.integers(low, high, size=size, endpoint=True)
             elif distribution == "poisson":
                 lam = params.get("lambda", 10)
                 values = self.rng.poisson(lam, size=size)
@@ -867,11 +870,11 @@ class DataSimulator:
                 else:
                     low = params.get("min", 0)
                     high = params.get("max", 1000)
-                    values = self.rng.integers(low, high, size=size)
+                    values = self.rng.integers(low, high, size=size, endpoint=True)
             else:
                 low = params.get("min", 0)
                 high = params.get("max", 1000)
-                values = self.rng.integers(low, high, size=size)
+                values = self.rng.integers(low, high, size=size, endpoint=True)
 
             if "min" in params:
                 values = np.maximum(values, params["min"])
@@ -2937,15 +2940,17 @@ class DataSimulator:
     # ------------------------------------------------------------------
 
     def _apply_null_rates(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
-        """Honour per-column ``null_rate`` and the ``nullable`` flag.
+        """Honour each column's explicit ``null_rate``.
 
-        A column declared ``nullable: true`` without an explicit ``null_rate``
-        uses a 5 % default (enough to surface null-handling bugs in pipelines
-        without overwhelming the data).  ``null_rate: 0`` suppresses nulls even
-        when ``nullable: true``.
+        Nulls are only injected when a column declares an explicit ``null_rate``
+        > 0. ``nullable: true`` alone never introduces nulls: it defaults to
+        true for every dict-schema column, so treating it as "inject ~5%" would
+        silently riddle every column with missing values. Set ``null_rate`` to
+        control missingness explicitly (or use ``__noise__`` for table-wide
+        rates).
 
-        Primary-key and foreign-key columns are always skipped — nulling those
-        would break referential integrity.
+        Primary-key, unique, and foreign-key columns are always skipped —
+        nulling those would break referential integrity.
         """
         pk_cols = {
             c.name for c in self.config.get_columns(table_name)

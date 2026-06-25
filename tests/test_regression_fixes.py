@@ -629,3 +629,63 @@ def test_unknown_columns_stay_free_text():
 
     for col in ("user_agent", "region", "description", "timezone"):
         assert infer(col) is None, f"{col} should be free text, got {infer(col)!r}"
+
+
+def test_entity_catalog_columns_route_to_realistic_generators():
+    """Unambiguous entity columns infer realistic catalog semantic types."""
+    from misata.compat import _infer_text_type as infer
+
+    expected = {
+        "product_name": "product_name", "item_name": "product_name",
+        "product_description": "product_description",
+        "menu_item": "menu_item", "restaurant_name": "restaurant_name",
+        "review_text": "review", "bio": "bio", "caption": "caption",
+    }
+    for col, want in expected.items():
+        assert infer(col) == want, f"{col}: expected {want!r}, got {infer(col)!r}"
+
+
+def test_entity_name_values_are_not_sentences_or_people():
+    """product_name generates product-like values; customer_name stays a person."""
+    schema = from_dict_schema(
+        {
+            "catalog": {
+                "__rows__": 30,
+                "id": {"type": "integer", "primary_key": True},
+                "product_name": {"type": "text"},
+                "customer_name": {"type": "text"},
+            }
+        },
+        seed=3,
+    )
+    df = misata.generate_from_schema(schema)["catalog"]
+    products = df["product_name"].astype(str)
+    # Product names are short labels, not multi-clause business sentences.
+    assert products.str.len().mean() < 40, "product_name looks like sentences"
+    assert not products.str.endswith(".").any(), "product_name should not be sentences"
+    # customer_name should still look like a person (two words, no trailing period).
+    people = df["customer_name"].astype(str)
+    assert (people.str.split().str.len() == 2).mean() > 0.7, "customer_name not person-like"
+
+
+def test_integer_max_is_inclusive():
+    """A declared integer max must be reachable (rating 1..5 must hit 5)."""
+    for lo, hi in [(1, 2), (1, 5), (0, 1), (5, 10)]:
+        schema = from_dict_schema(
+            {"t": {"__rows__": 3000, "v": {"type": "integer", "min": lo, "max": hi}}},
+            seed=1,
+        )
+        v = misata.generate_from_schema(schema)["t"]["v"]
+        assert int(v.min()) == lo, f"min {lo}..{hi}: got {v.min()}"
+        assert int(v.max()) == hi, f"max {lo}..{hi} unreachable: got {v.max()}"
+
+
+def test_unique_integer_range_is_inclusive():
+    """A unique integer column over [1,5] must be able to fill 5 rows exactly."""
+    schema = from_dict_schema(
+        {"u": {"__rows__": 5,
+               "v": {"type": "integer", "min": 1, "max": 5, "unique": True}}},
+        seed=2,
+    )
+    v = sorted(misata.generate_from_schema(schema)["u"]["v"].tolist())
+    assert v == [1, 2, 3, 4, 5], f"unique inclusive range wrong: {v}"

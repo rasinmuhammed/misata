@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Integer `max` was exclusive (off-by-one).** Integer columns sampled with
+  `rng.integers(low, high)` (numpy default `endpoint=False`), so a column
+  declared `min: 1, max: 5` (e.g. a 1–5 rating) **never produced 5**, and
+  `min: 0, max: 1` (a binary flag) never produced 1. `max` is now inclusive for
+  both random and `unique` integer columns, matching how every other tool — and
+  every user — reads a declared max. The full test suite passes unchanged
+  (nothing depended on the off-by-one). Regression tests added.
+
+### Added
+
+- **Entity catalog columns now get realistic values, not sentences.** Building on
+  the text-type fix, unambiguous entity columns (`product_name`, `item_name`,
+  `product_description`, `menu_item`, `dish_name`, `restaurant_name`,
+  `review_text`/`review_body`, `bio`, `caption`) are routed to the realistic
+  catalog generators, producing e.g. `"Portable SSD 1TB"` and `"Pepperoni
+  Calzone"` instead of generic business sentences — while person columns
+  (`customer_name`) still get names.
+
+### Docs
+
+- **`_apply_null_rates` docstring corrected.** It claimed `nullable: true`
+  defaulted to ~5% nulls; the engine only injects nulls when an explicit
+  `null_rate > 0` is set (since `nullable` defaults to true for every
+  dict-schema column, an implicit rate would riddle every column with nulls).
+  The docstring now matches the long-standing behaviour.
+
+### Fixed (text-type)
+
 - **Greedy substring matching turned entity columns into people.** `compat.py`'s
   `text_type` inference scanned for any hint key as a *substring* of the column
   name, so `product_name`, `file_name`, `category_name`, `hostname`,

@@ -148,6 +148,23 @@ _TEXT_TYPE_HINTS: Dict[str, str] = {
     "web_url": "url",
     "url": "url",
     "domain": "domain",
+    # Entity catalog text — routed to the realistic catalog generators
+    # (RealisticTextGenerator) so these get real product/menu/review values
+    # instead of generic business sentences. Unambiguous column names only;
+    # table-context-dependent cases (bare "name"/"title") are left alone.
+    "product_name": "product_name",
+    "product_title": "product_name",
+    "item_name": "product_name",
+    "sku_name": "product_name",
+    "product_description": "product_description",
+    "item_description": "product_description",
+    "menu_item": "menu_item",
+    "dish_name": "menu_item",
+    "restaurant_name": "restaurant_name",
+    "review_text": "review",
+    "review_body": "review",
+    "bio": "bio",
+    "caption": "caption",
 }
 
 # ── Token-aware text_type inference ──────────────────────────────────────────
