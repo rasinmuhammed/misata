@@ -101,6 +101,71 @@ MONETARY_EVENTS = {
     "booking", "invoice", "checkout", "renewal",
 }
 
+# Events whose whole purpose is to record a measured quantity. Without a
+# value column these tables are meaningless (a sensor_reading with no reading).
+MEASURED_EVENTS = {
+    "reading", "measurement", "sample", "observation", "scan", "datapoint",
+    "metric", "signal", "recording", "capture", "telemetry", "reading",
+}
+
+# Events that produce a score / grade / result rather than money or a sensor value.
+SCORED_EVENTS = {
+    "test", "exam", "quiz", "assessment", "inspection", "evaluation",
+    "audit", "survey", "screening", "grade", "checkup",
+}
+
+# Measurable quantities → (unit, (low, high)). When a story names these near a
+# reading/measurement entity, they become *named* numeric columns (temperature,
+# vibration) instead of a single generic "value" — closing the "the prompt said
+# temperature and vibration but the table has neither" gap.
+MEASURABLE_QUANTITIES: Dict[str, "tuple"] = {
+    "temperature": ("celsius", (-10.0, 120.0)),
+    "humidity": ("percent", (0.0, 100.0)),
+    "pressure": ("kpa", (80.0, 120.0)),
+    "vibration": ("mm_s", (0.0, 50.0)),
+    "voltage": ("volts", (0.0, 480.0)),
+    "current": ("amps", (0.0, 100.0)),
+    "power": ("kw", (0.0, 500.0)),
+    "speed": ("km_h", (0.0, 200.0)),
+    "velocity": ("m_s", (0.0, 100.0)),
+    "weight": ("kg", (0.0, 1000.0)),
+    "mass": ("kg", (0.0, 1000.0)),
+    "distance": ("m", (0.0, 10000.0)),
+    "volume": ("liters", (0.0, 1000.0)),
+    "flow": ("l_min", (0.0, 500.0)),
+    "level": ("percent", (0.0, 100.0)),
+    "ph": ("ph", (0.0, 14.0)),
+    "latency": ("ms", (1.0, 2000.0)),
+    "throughput": ("req_s", (0.0, 10000.0)),
+    "altitude": ("m", (0.0, 12000.0)),
+    "depth": ("m", (0.0, 500.0)),
+    "frequency": ("hz", (0.0, 1000.0)),
+    "rpm": ("rpm", (0.0, 8000.0)),
+    "torque": ("nm", (0.0, 1000.0)),
+    "force": ("newtons", (0.0, 5000.0)),
+    "brightness": ("lux", (0.0, 100000.0)),
+    "noise": ("db", (20.0, 120.0)),
+    "glucose": ("mg_dl", (50.0, 300.0)),
+    "oxygen": ("percent", (80.0, 100.0)),
+    "co2": ("ppm", (300.0, 5000.0)),
+}
+
+
+def extract_measures(story: str) -> List["tuple"]:
+    """Named measurable quantities mentioned in the story, in order.
+
+    Returns ``[(name, unit, low, high), ...]`` for any quantity in
+    ``MEASURABLE_QUANTITIES`` whose word appears in the story. Lets explicit
+    attributes ("temperature and vibration readings") become real columns.
+    """
+    text = re.sub(r"[^a-z0-9\s]", " ", story.lower())
+    tokens = set(text.split())
+    out: List["tuple"] = []
+    for name, (unit, (lo, hi)) in MEASURABLE_QUANTITIES.items():
+        if name in tokens:
+            out.append((name, unit, lo, hi))
+    return out
+
 # Words that are never entities: the organisation itself, metrics, units.
 NON_ENTITY_WORDS = {
     # organisation / story scaffolding
@@ -326,10 +391,24 @@ def _pk(entity: ComposedEntity, rows: int) -> Column:
     )
 
 
+def _measure_column(name: str, unit: str, lo: float, hi: float) -> Column:
+    """A bounded normal numeric column for a measured quantity."""
+    mean = (lo + hi) / 2.0
+    return Column(
+        name=name if unit in ("ph", "rpm") else f"{name}_{unit}",
+        type="float",
+        distribution_params={
+            "distribution": "normal", "mean": mean, "std": (hi - lo) / 6.0,
+            "min": lo, "max": hi, "decimals": 2,
+        },
+    )
+
+
 def _columns_for(
     entity: ComposedEntity,
     rows: int,
     parents: List[ComposedEntity],
+    measures: Optional[List["tuple"]] = None,
 ) -> List[Column]:
     head = entity.singular.rsplit("_", 1)[-1]
     cols: List[Column] = [_pk(entity, rows)]
@@ -378,6 +457,26 @@ def _columns_for(
                 "distribution": "lognormal", "mean": 120.0, "std": 80.0,
                 "min": 1.0, "decimals": 2,
             }))
+        # Measured events (sensor readings, lab samples) must carry a value.
+        # Prefer the quantities the story actually named; otherwise a generic
+        # value + unit so the table is never an empty measurement.
+        if head in MEASURED_EVENTS:
+            if measures:
+                cols += [_measure_column(*m) for m in measures]
+            else:
+                cols += [
+                    Column(name="value", type="float", distribution_params={
+                        "distribution": "normal", "mean": 50.0, "std": 15.0,
+                        "min": 0.0, "decimals": 2,
+                    }),
+                    Column(name="unit", type="categorical",
+                           distribution_params={"choices": ["unit"]}),
+                ]
+        elif head in SCORED_EVENTS:
+            cols.append(Column(name="score", type="float", distribution_params={
+                "distribution": "normal", "mean": 72.0, "std": 15.0,
+                "min": 0.0, "max": 100.0, "decimals": 1,
+            }))
     elif entity.archetype == "document":
         cols += [
             Column(name="content", type="text", distribution_params={"text_type": "sentence"}),
@@ -412,6 +511,8 @@ def compose_schema(story: str, default_rows: int = 1000) -> Optional[SchemaConfi
     if not entities:
         return None
 
+    measures = extract_measures(story)
+
     # Events reference the domain's nouns whatever their archetype: an
     # unknown noun ("hives") still anchors FK structure — that's structure,
     # not semantics. Known archetypes are preferred parents.
@@ -422,24 +523,56 @@ def compose_schema(story: str, default_rows: int = 1000) -> Optional[SchemaConfi
     )
     events = [e for e in entities if e.archetype == "event"]
 
+    # ── Cardinality realism (M3) ─────────────────────────────────────────────
+    # The base for *unstated* entities tracks the largest stated count, so a
+    # "200 legal cases" story can't spawn 10,000 attorneys. Events scale off
+    # their parents' counts, not a flat global default, so child volume stays
+    # proportional (a 50-machine fleet yields readings ∝ machines, not 30,000).
+    stated = [e.row_count for e in entities if e.row_count]
+    eff_base = max(stated) if stated else default_rows
+    EVENTS_PER_PARENT = 5
+    EVENT_HARD_CAP = max(eff_base * 20, 50_000)
+
+    def _parent_count(e: ComposedEntity) -> int:
+        if e.row_count:
+            return e.row_count
+        if e.archetype == "place":
+            return max(min(eff_base // 50, 20), 4)
+        if e.archetype == "asset":
+            return max(int(eff_base * 0.5), 5)
+        return max(int(eff_base), 5)  # person, record
+
+    counts: Dict[str, int] = {
+        e.singular: _parent_count(e)
+        for e in entities
+        if e.archetype in ("person", "asset", "place", "record")
+    }
+
     tables: List[Table] = []
     columns: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []
 
     for entity in entities:
-        rows = _default_rows(entity, default_rows)
-
         if entity.archetype in ("person", "asset", "place", "record"):
             parents: List[ComposedEntity] = []
+            rows = counts[entity.singular]
         elif entity.archetype == "event":
             # events reference the actors/assets/places involved (max 3)
             parents = parents_pool[:3]
+            if entity.row_count:
+                rows = entity.row_count
+            else:
+                parent_rows = max((counts.get(p.singular, eff_base) for p in parents), default=eff_base)
+                rows = min(int(parent_rows * EVENTS_PER_PARENT), EVENT_HARD_CAP)
         else:  # document: authored by a person, attached to an event
             parents = [e for e in entities if e.archetype == "person"][:1]
             parents += events[:1]
+            parent_rows = max((counts.get(p.singular, eff_base) for p in parents), default=eff_base)
+            rows = entity.row_count or min(int(parent_rows * 2), EVENT_HARD_CAP)
+        counts[entity.singular] = rows
 
         tables.append(Table(name=entity.table_name, row_count=rows))
-        columns[entity.table_name] = _columns_for(entity, rows, parents)
+        columns[entity.table_name] = _columns_for(entity, rows, parents, measures)
         relationships.extend(
             Relationship(
                 parent_table=p.table_name,
@@ -453,11 +586,18 @@ def compose_schema(story: str, default_rows: int = 1000) -> Optional[SchemaConfi
     entity_summary = ", ".join(
         f"{e.table_name} ({e.archetype})" for e in entities
     )
+    measure_note = (
+        f" Detected measured quantities: {', '.join(m[0] for m in measures)}."
+        if measures else ""
+    )
     return SchemaConfig(
         name="Composed Dataset",
         description=(
-            f"Structurally composed from story entities: {entity_summary}. "
-            "Column semantics are structural, not domain-specific."
+            f"Structurally composed from story entities: {entity_summary}.{measure_note} "
+            "Columns are archetype-inferred (ids, names, dates, statuses, FKs, "
+            "measured values) with realistic cardinality, but are not "
+            "domain-specific. For domain-recognisable values (species, drug "
+            "names, case types) attach a capsule or a sample CSV."
         ),
         tables=tables,
         columns=columns,

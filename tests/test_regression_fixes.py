@@ -689,3 +689,76 @@ def test_unique_integer_range_is_inclusive():
     )
     v = sorted(misata.generate_from_schema(schema)["u"]["v"].tolist())
     assert v == [1, 2, 3, 4, 5], f"unique inclusive range wrong: {v}"
+
+
+# ---------------------------------------------------------------------------
+# Resilience Phase 1: measured values, attribute extraction, cardinality realism
+# (compositional path for unseen domains) — guards docs/resilience.md C2/C3/C4.
+# ---------------------------------------------------------------------------
+
+def test_extract_measures_finds_named_quantities():
+    from misata.composer import extract_measures
+    names = {m[0] for m in extract_measures(
+        "machines emitting temperature and vibration readings every hour")}
+    assert "temperature" in names and "vibration" in names
+
+
+def test_measured_event_gets_named_value_columns():
+    """C2 + C3: a reading table carries the quantities the story named."""
+    from misata.composer import compose_schema
+    schema = compose_schema(
+        "A factory with 50 machines emitting temperature and vibration sensor readings.",
+        default_rows=1000,
+    )
+    cols = {c.name for c in schema.columns["sensor_readings"]}
+    assert "temperature_celsius" in cols and "vibration_mm_s" in cols, cols
+
+
+def test_measured_event_without_named_quantity_gets_generic_value():
+    from misata.composer import compose_schema
+    schema = compose_schema("A network of 20 buoys recording ocean readings.", default_rows=500)
+    reading_tbl = next(t for t in schema.columns if "reading" in t)
+    cols = {c.name for c in schema.columns[reading_tbl]}
+    assert "value" in cols and "unit" in cols, cols
+
+
+def test_cardinality_does_not_explode_unstated_entities():
+    """C4: a 200-case firm must not spawn thousands of attorneys."""
+    from misata.composer import compose_schema
+    schema = compose_schema(
+        "A law firm managing 200 legal cases, clients, attorneys, and court hearings.",
+        default_rows=10_000,
+    )
+    rc = {t.name: t.row_count for t in schema.tables}
+    assert rc["legal_cases"] == 200
+    assert rc["attorneys"] <= 400 and rc["clients"] <= 400, rc
+
+
+def test_event_counts_are_proportional_to_parents():
+    """C4: child events scale off parent volume, not a flat 30k default."""
+    from misata.composer import compose_schema
+    schema = compose_schema(
+        "A factory with 50 machines emitting sensor readings.", default_rows=10_000)
+    rc = {t.name: t.row_count for t in schema.tables}
+    assert rc["machines"] == 50
+    assert rc["sensor_readings"] <= 50 * 20, rc["sensor_readings"]
+
+
+def test_composed_stated_counts_still_honoured():
+    from misata.composer import compose_schema
+    schema = compose_schema("A fleet of 40 trucks and 5000 deliveries.", default_rows=1000)
+    rc = {t.name: t.row_count for t in schema.tables}
+    assert rc["trucks"] == 40 and rc["deliveries"] == 5000
+
+
+def test_composed_measured_values_generate_in_range():
+    import warnings as _w
+    with _w.catch_warnings():
+        _w.simplefilter("ignore")
+        tables = misata.generate(
+            "A factory with 50 machines emitting temperature and vibration sensor readings.",
+            seed=1,
+        )
+    readings = tables["sensor_readings"]
+    assert "temperature_celsius" in readings.columns
+    assert readings["temperature_celsius"].between(-10, 120).all()

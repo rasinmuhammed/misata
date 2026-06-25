@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.1.5] - 2026-06-25
 
+### Added
+
+- **Resilience Phase 1 — recognisable schemas for unseen domains.** The
+  compositional path (`composer`, used when no built-in domain matches) now
+  produces far more usable data for niche/unknown domains (see
+  `docs/resilience.md`):
+  - **Measured-value columns.** Event entities that record a measurement
+    (`reading`, `measurement`, `sample`, `scan`, …) now carry a numeric payload
+    instead of just a date+status — a `sensor_readings` table is no longer an
+    empty measurement. Scored events (`test`, `inspection`, `survey`) get a
+    `score`.
+  - **Story attribute extraction.** Named quantities in the prompt become real
+    columns: "machines emitting **temperature and vibration** readings" yields
+    `temperature_celsius` and `vibration_mm_s` with sane units and ranges
+    (29 quantities recognised).
+  - **Cardinality realism.** Unstated entity counts track the largest *stated*
+    count and events scale off their parents, so "200 legal cases" no longer
+    spawns 10,000 attorneys, and a 50-machine fleet yields readings proportional
+    to machines rather than a flat 30,000.
+  - **Honest coverage note.** Composed schemas state which columns are
+    archetype-inferred and how to upgrade fidelity (capsule or sample CSV).
+
 ### Fixed
 
 - **Integer `max` was exclusive (off-by-one).** Integer columns sampled with
