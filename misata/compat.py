@@ -35,6 +35,7 @@ Example::
 
 from __future__ import annotations
 
+import re
 import warnings
 from typing import Any, Dict, List, Optional
 
@@ -149,6 +150,119 @@ _TEXT_TYPE_HINTS: Dict[str, str] = {
     "domain": "domain",
 }
 
+# ── Token-aware text_type inference ──────────────────────────────────────────
+# Raw substring matching ("name" in "product_name") wrongly turned entity
+# columns into person names and "ip_address"/"mac_address" into street
+# addresses. The matcher below anchors on exact names, identifier suffixes,
+# whole-word compound keys, and head tokens with explicit guards instead.
+
+# Suffixes that mark an identifier/token rather than free text.
+_ID_SUFFIXES = (
+    "_id", "_uuid", "_guid", "_key", "_token", "_hash",
+    "_sid", "_pid", "_fingerprint", "_secret",
+)
+
+# Multi-token hint keys, matched as a whole-word suffix ("billing_address",
+# "first_name") so unrelated columns can't borrow a fragment.
+_COMPOUND_HINT_KEYS = sorted(
+    (k for k in _TEXT_TYPE_HINTS if "_" in k), key=len, reverse=True
+)
+
+# Head tokens that resolve regardless of qualifier.
+_HEAD_TYPE: Dict[str, str] = {
+    "city": "city", "town": "city",
+    "country": "country",
+    "postcode": "postcode", "zipcode": "postcode",
+    "company": "company", "organization": "company", "employer": "company",
+    "url": "url", "website": "url",
+    "domain": "domain",
+    "username": "username",
+    "job": "job", "position": "job",
+    "surname": "last_name",
+}
+
+# For an "*_name" column, the qualifier decides what kind of name it is.
+_NAME_QUALIFIER_TYPE: Dict[str, str] = {
+    "company": "company", "organization": "company", "org": "company",
+    "employer": "company", "business": "company", "vendor": "company",
+    "supplier": "company", "brand": "company",
+    "first": "first_name", "given": "first_name",
+    "last": "last_name", "family": "last_name",
+    "full": "name", "display": "name", "customer": "name", "user": "name",
+    "contact": "name", "account": "name", "holder": "name", "legal": "name",
+    "domain": "domain",
+}
+
+# Qualifiers that make an "*_name" column NOT a person name (entity/technical).
+_NON_PERSON_NAME = {
+    "file", "host", "path", "code", "product", "category", "sub", "table",
+    "column", "field", "event", "app", "application", "service", "tag", "role",
+    "screen", "class", "feature", "node", "queue", "topic", "bucket", "index",
+    "template", "theme", "font", "icon", "color", "currency", "language",
+    "locale", "timezone", "region", "zone", "status", "type", "group",
+    "channel", "segment", "plan", "tier", "sku", "model", "version", "build",
+    "release", "project", "repo", "repository", "branch", "package", "module",
+    "method", "function", "variable", "step", "stage", "device", "machine",
+    "server", "cluster", "network", "site", "page", "menu", "item", "schema",
+    "database", "param", "metric", "report", "dashboard", "widget", "section",
+    "label", "store", "shop", "domain",
+}
+
+# Qualifiers that make an "*_address" column NOT a street address.
+_NON_STREET_ADDRESS = {
+    "ip", "mac", "wallet", "contract", "network", "memory", "bus", "return",
+    "web", "url", "server", "host", "gateway", "broadcast", "subnet", "proxy",
+    "peer", "node", "eth", "btc", "token", "device", "email",
+}
+
+# Tokens that, appearing anywhere, pin the whole column to one generator.
+_PHONE_TOKENS = {"phone", "mobile", "telephone", "fax", "msisdn"}
+
+
+def _infer_text_type(col_name: str) -> Optional[str]:
+    """Infer a semantic ``text_type`` from a column name (token-aware).
+
+    Returns ``None`` when nothing matches confidently, leaving the column as
+    free text rather than guessing a wrong generator.
+    """
+    n = col_name.lower().strip().replace(" ", "_").replace("-", "_")
+    if not n:
+        return None
+    # 1. Exact hint wins.
+    if n in _TEXT_TYPE_HINTS:
+        return _TEXT_TYPE_HINTS[n]
+    # 2. Identifier-like suffix -> uuid (anonymous_id, request_id, device_token).
+    if n.endswith(_ID_SUFFIXES) or n in ("uuid", "guid"):
+        return "uuid"
+    tokens = [t for t in re.split(r"[^a-z0-9]+", n) if t]
+    if not tokens:
+        return None
+    head = tokens[-1]
+    qualifier = tokens[-2] if len(tokens) >= 2 else ""
+    # 3. Strong tokens anywhere.
+    if "email" in tokens:
+        return "email"
+    if any(t in _PHONE_TOKENS for t in tokens):
+        return "phone"
+    # 4. Whole-word compound hint key as a suffix (billing_address, first_name).
+    for key in _COMPOUND_HINT_KEYS:
+        if n == key or n.endswith("_" + key):
+            return _TEXT_TYPE_HINTS[key]
+    # 5. "name" head — person name unless the qualifier marks an entity/tech name.
+    if head == "name":
+        if qualifier in _NAME_QUALIFIER_TYPE:
+            return _NAME_QUALIFIER_TYPE[qualifier]
+        if qualifier in _NON_PERSON_NAME:
+            return None
+        return "name"
+    # 6. "address" head — street address unless a network/crypto address.
+    if head == "address":
+        if qualifier in _NON_STREET_ADDRESS:
+            return None
+        return "address"
+    # 7. Unambiguous head tokens.
+    return _HEAD_TYPE.get(head)
+
 
 def _col_from_dict(
     col_name: str,
@@ -198,14 +312,9 @@ def _col_from_dict(
             params["decimals"] = col_def["decimals"]
 
     elif misata_type == "text":
-        # Infer text_type from column name — exact match wins, then substring
-        n = col_name.lower().replace(" ", "_")
-        inferred = _TEXT_TYPE_HINTS.get(n)
-        if inferred is None:
-            for hint_key, text_type in _TEXT_TYPE_HINTS.items():
-                if hint_key in n:
-                    inferred = text_type
-                    break
+        # Token-aware inference: exact name, id-suffix, whole-word compound key,
+        # then guarded head tokens — never a raw substring scan.
+        inferred = _infer_text_type(col_name)
         if inferred:
             params["text_type"] = inferred
         # Explicit raw type in the dict schema always wins

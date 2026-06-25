@@ -566,3 +566,66 @@ def test_noise_invalid_raises():
     """A malformed __noise__ must fail loudly at schema-compile time."""
     with pytest.raises(ValueError, match="__noise__"):
         from_dict_schema(_noise_spec({"duplicate_rate": 5.0}))  # > 1.0 is invalid
+
+
+# ---------------------------------------------------------------------------
+# Text-type inference: token-aware matching (replaces greedy substring scan)
+# ---------------------------------------------------------------------------
+
+def test_entity_name_columns_are_not_person_names():
+    """`*_name` entity columns must not borrow the person-name generator.
+
+    Greedy substring matching turned product_name / file_name / category_name
+    (and ip_address / mac_address) into human names and street addresses.
+    """
+    from misata.compat import _infer_text_type as infer
+
+    # Entity / technical names: never a person name.
+    for col in (
+        "product_name", "file_name", "filename", "hostname", "category_name",
+        "table_name", "column_name", "event_name", "app_name", "role_name",
+        "tag_name",
+    ):
+        assert infer(col) != "name", f"{col} wrongly resolved to person name"
+
+    # Network / crypto addresses: never a street address.
+    for col in ("ip_address", "mac_address", "wallet_address"):
+        assert infer(col) != "address", f"{col} wrongly resolved to street address"
+
+
+def test_person_and_contact_columns_still_resolve():
+    """The fix must not regress the columns that should resolve."""
+    from misata.compat import _infer_text_type as infer
+
+    expected = {
+        "name": "name", "full_name": "name", "customer_name": "name",
+        "user_name": "name", "first_name": "first_name", "last_name": "last_name",
+        "company_name": "company", "brand_name": "company",
+        "email": "email", "user_email": "email", "email_address": "email",
+        "phone_number": "phone", "mobile_number": "phone",
+        "billing_address": "address", "shipping_address": "address",
+        "shipping_city": "city", "home_country": "country",
+        "zip_code": "postcode", "profile_url": "url", "job_title": "job",
+        "domain_name": "domain",
+    }
+    for col, want in expected.items():
+        assert infer(col) == want, f"{col}: expected {want!r}, got {infer(col)!r}"
+
+
+def test_identifier_suffix_columns_are_uuids():
+    """Token/id-suffixed text columns generate identifiers, not free text."""
+    from misata.compat import _infer_text_type as infer
+
+    for col in (
+        "anonymous_id", "request_id", "device_token", "correlation_id",
+        "user_id", "order_uuid", "session_token",
+    ):
+        assert infer(col) == "uuid", f"{col} should infer uuid, got {infer(col)!r}"
+
+
+def test_unknown_columns_stay_free_text():
+    """Ambiguous names resolve to None (free text) rather than a wrong guess."""
+    from misata.compat import _infer_text_type as infer
+
+    for col in ("user_agent", "region", "description", "timezone"):
+        assert infer(col) is None, f"{col} should be free text, got {infer(col)!r}"

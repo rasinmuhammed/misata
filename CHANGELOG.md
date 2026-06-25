@@ -5,6 +5,26 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.5] - 2026-06-25
+
+### Fixed
+
+- **Greedy substring matching turned entity columns into people.** `compat.py`'s
+  `text_type` inference scanned for any hint key as a *substring* of the column
+  name, so `product_name`, `file_name`, `category_name`, `hostname`,
+  `event_name`, `table_name` (and every other `*_name`) produced **human full
+  names**, while `ip_address` / `mac_address` / `wallet_address` produced
+  **street addresses**, and text `*_id` columns could borrow unrelated
+  generators. The dict-schema / MCP path (used by no-code callers) was the most
+  exposed. Replaced with token-aware matching (`_infer_text_type`): exact name,
+  then identifier suffixes (`_id`, `_uuid`, `_token`, …) → `uuid`, then
+  whole-word compound keys (`billing_address`, `first_name`), then head tokens
+  guarded so `*_name` is only a person name when the qualifier is a person word
+  (and `company_name`/`brand_name` → company), and `*_address` is only a street
+  address when it isn't a network/crypto address. Ambiguous names now stay free
+  text instead of guessing wrong. Regression tests in `test_regression_fixes.py`.
+  This generalises the earlier `anonymous_id` UUID fix to the whole bug class.
+
 ## [0.8.1.1] - 2026-06-19
 
 ### Fixed
