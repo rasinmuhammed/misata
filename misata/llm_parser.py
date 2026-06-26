@@ -318,9 +318,10 @@ class LLMSchemaGenerator:
             "protocol": "anthropic",
         },
         "bedrock": {
-            # AWS Bedrock — Claude via the Converse API. Credentials come from
-            # the standard AWS chain (env vars / IAM role), not a single key.
-            # Region from AWS_REGION, model from BEDROCK_MODEL_ID (or default).
+            # AWS Bedrock — Claude via the Converse API. Simplest auth: a Bedrock
+            # API key in AWS_BEARER_TOKEN_BEDROCK (no IAM access keys needed);
+            # the standard AWS chain (IAM keys / role) also works. Region from
+            # AWS_REGION, model from BEDROCK_MODEL_ID (or default).
             # Sonnet 4.5 is the quality default for schema generation; set
             # BEDROCK_MODEL_ID to a Haiku id for a cheaper/faster path, or to a
             # region inference-profile id (us./eu./global.) if your account

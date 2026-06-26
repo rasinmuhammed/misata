@@ -97,7 +97,9 @@ llm = [
     "openai>=1.0.0",
 ]
 bedrock = [
-    "boto3>=1.34.0",   # AWS Bedrock Converse API (Claude) — server-funded LLM path
+    # >=1.39 so the simple Bedrock API key (AWS_BEARER_TOKEN_BEDROCK) is honoured,
+    # not just IAM access keys. Converse API (Claude) — server-funded LLM path.
+    "boto3>=1.39.0",
 ]
 formulas = [
     "simpleeval>=0.9.0",
