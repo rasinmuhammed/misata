@@ -1627,57 +1627,124 @@ def validate_cmd(csv_file: str, schema: Optional[str], story: Optional[str], tab
               help="Plain-English story to generate data from.")
 @click.option("--config", "-c", type=click.Path(exists=True), default=None,
               help="misata.yaml schema file.")
-@click.option("--seeds-dir", type=click.Path(), default="seeds",
-              help="dbt seeds directory (default: seeds/).")
+@click.option("--seeds-dir", type=click.Path(), default=None,
+              help="dbt seeds directory (auto-detected from dbt_project.yml, or 'seeds/').")
 @click.option("--rows", "-n", type=int, default=1000,
               help="Row count for the primary table (default: 1000).")
 @click.option("--seed", type=int, default=42,
               help="Random seed for reproducibility (default: 42).")
 @click.option("--force", is_flag=True, default=False,
               help="Overwrite existing seed CSV files.")
+@click.option("--schema-yml/--no-schema-yml", "emit_schema_yml", default=True,
+              help="Generate a dbt schema.yml with tests (default: on).")
+@click.option("--save-misata-yaml/--no-save-misata-yaml", "save_misata", default=True,
+              help="Save misata.yaml alongside seeds for reproducibility (default: on).")
+@click.option("--locale", type=str, default=None,
+              help="Locale for names, addresses, phone formats (e.g. de_DE, pt_BR, ja_JP).")
+@click.option("--capsule", type=click.Path(exists=True), default=None,
+              help="Capsule JSON whose vocabularies override built-in pools.")
 def dbt_seed_cmd(
     story: Optional[str],
     config: Optional[str],
-    seeds_dir: str,
+    seeds_dir: Optional[str],
     rows: int,
     seed: int,
     force: bool,
+    emit_schema_yml: bool,
+    save_misata: bool,
+    locale: Optional[str],
+    capsule: Optional[str],
 ) -> None:
-    """Generate synthetic data and write CSV files into a dbt seeds directory.
+    """Generate synthetic data into a dbt seeds/ directory with full integration.
 
-    Generates one CSV per table and writes them to the specified seeds directory.
-    Run `dbt seed` afterwards to load them into your data warehouse.
+    \b
+    Generates CSV seed files, a dbt-compatible schema.yml with tests (unique,
+    not_null, relationships), and a misata.yaml for reproducibility. Auto-detects
+    your dbt project's seed-paths from dbt_project.yml.
 
+    \b
+    Features:
+      • Auto-generates _misata_seeds.yml with dbt tests
+      • Auto-detects dbt project and seed-paths
+      • Warns when seed files exceed dbt size recommendations
+      • Saves misata.yaml for one-command reproducibility
+
+    \b
     Examples:
-
-        misata dbt-seed --story "A SaaS company with 1k users" --seeds-dir seeds/
-
-        misata dbt-seed --config misata.yaml --rows 5000 --seeds-dir dbt/seeds/
-
-        misata dbt-seed -s "A fintech with fraud data" -n 2000 --force
+        misata dbt-seed -s "A SaaS company with 1k users, 20% churn"
+        misata dbt-seed --config misata.yaml --rows 5000
+        misata dbt-seed -s "Fintech with fraud" --locale en_US --force
+        misata dbt-seed -s "Ecommerce" --no-schema-yml --seeds-dir my_seeds/
     """
     print_banner()
-    from pathlib import Path
 
-    seeds_path = Path(seeds_dir)
+    from misata.dbt import (
+        detect_dbt_project,
+        generate_dbt_schema_yml,
+        write_seeds_with_report,
+    )
+    from misata.yaml_schema import save_yaml_schema
+
+    # ── Auto-detect dbt project ──────────────────────────────────────────
+    dbt_project = detect_dbt_project()
+    if dbt_project:
+        console.print(
+            f"[dim]📁 Detected dbt project:[/dim] "
+            f"[cyan]{dbt_project.project_name}[/cyan] "
+            f"[dim]at {dbt_project.project_root}[/dim]"
+        )
+
+    # Resolve seeds directory: explicit flag > dbt_project.yml > default
+    if seeds_dir is not None:
+        seeds_path = Path(seeds_dir)
+    elif dbt_project:
+        seeds_path = dbt_project.seeds_dir_abs
+        console.print(f"[dim]   Using seed-paths from dbt_project.yml: {seeds_path}[/dim]")
+    else:
+        seeds_path = Path("seeds")
+
     seeds_path.mkdir(parents=True, exist_ok=True)
 
-    # Build schema
+    # ── Build schema ─────────────────────────────────────────────────────
+    if not story and not config:
+        # Auto-detect misata.yaml
+        if Path("misata.yaml").exists():
+            config = "misata.yaml"
+            console.print("[dim]Auto-detected misata.yaml[/dim]")
+        else:
+            console.print("[red]Error:[/red] provide --story or --config (or create misata.yaml)")
+            raise SystemExit(1)
+
     if config:
         schema_config = load_yaml_schema(config, rows=rows, seed=seed)
         console.print(f"[dim]Schema loaded from {config}[/dim]")
-    elif story:
+    else:
         from misata.story_parser import StoryParser
         schema_config = StoryParser().parse(story, default_rows=rows)
         schema_config.seed = seed
-        console.print(f"[dim]Parsed domain:[/dim] [cyan]{schema_config.domain or 'generic'}[/cyan]")
-    else:
-        console.print("[red]Error:[/red] provide --story or --config")
-        raise SystemExit(1)
+        console.print(
+            f"[dim]Parsed domain:[/dim] [cyan]{schema_config.domain or 'generic'}[/cyan] "
+            f"[dim]({len(schema_config.tables)} tables)[/dim]"
+        )
 
-    # Generate
+    # Apply locale
+    if locale:
+        from misata.schema import RealismConfig
+        if schema_config.realism is None:
+            object.__setattr__(schema_config, "realism", RealismConfig())
+        object.__setattr__(schema_config.realism, "locale", locale)
+        console.print(f"[dim]Locale:[/dim] [cyan]{locale}[/cyan]")
+
+    # Attach capsule
+    if capsule:
+        from misata import _attach_capsule
+        _attach_capsule(schema_config, capsule)
+        console.print(f"[dim]Capsule:[/dim] [cyan]{capsule}[/cyan]")
+
+    # ── Generate data ────────────────────────────────────────────────────
     from misata.simulator import DataSimulator
-    import pandas as pd
+
+    console.print(f"\n⚙️  Generating {len(schema_config.tables)} table(s)...")
 
     sim = DataSimulator(schema_config)
     tables: dict = {}
@@ -1687,33 +1754,219 @@ def dbt_seed_cmd(
         else:
             tables[name] = batch
 
-    # Write CSVs
-    written = []
-    skipped = []
-    for table_name, df in tables.items():
-        dest = seeds_path / f"{table_name}.csv"
-        if dest.exists() and not force:
-            skipped.append(table_name)
-            continue
-        df.to_csv(dest, index=False)
-        written.append((table_name, len(df), str(dest)))
+    # ── Write seeds with size intelligence ───────────────────────────────
+    written, skipped, size_reports = write_seeds_with_report(
+        tables, seeds_path, force=force,
+    )
 
+    console.print()
+    total_rows = 0
     for table_name, row_count, path in written:
+        total_rows += row_count
+        # Find size report for this table
+        size_info = next((r for r in size_reports if r.table_name == table_name), None)
+        size_str = f" ({size_info.file_size_human})" if size_info else ""
         console.print(
-            f"[green]✓[/green] [bold]{table_name}[/bold] — "
-            f"{row_count:,} rows → [cyan]{path}[/cyan]"
+            f"  [green]✓[/green] [bold]{table_name}[/bold] — "
+            f"{row_count:,} rows{size_str} → [cyan]{path}[/cyan]"
         )
+
     for table_name in skipped:
         console.print(
-            f"[yellow]⚠[/yellow] [bold]{table_name}[/bold] — "
+            f"  [yellow]⚠[/yellow] [bold]{table_name}[/bold] — "
             f"skipped (file exists, use --force to overwrite)"
         )
 
+    # Size warnings
+    for report in size_reports:
+        if report.exceeds_hard_limit:
+            console.print(
+                f"\n  [red]⛔ {report.table_name}:[/red] {report.recommendation}"
+            )
+        elif report.exceeds_recommended:
+            console.print(
+                f"\n  [yellow]⚠️  {report.table_name}:[/yellow] {report.recommendation}"
+            )
+
+    # ── Generate schema.yml ──────────────────────────────────────────────
+    if emit_schema_yml and written:
+        schema_yml_content = generate_dbt_schema_yml(
+            schema_config, tables, resource_type="seeds",
+        )
+        schema_yml_path = seeds_path / "_misata_seeds.yml"
+        schema_yml_path.write_text(schema_yml_content, encoding="utf-8")
+        console.print(
+            f"\n  [green]✓[/green] [bold]_misata_seeds.yml[/bold] — "
+            f"dbt tests generated → [cyan]{schema_yml_path}[/cyan]"
+        )
+
+    # ── Save misata.yaml for reproducibility ─────────────────────────────
+    if save_misata and written:
+        misata_yaml_path = seeds_path / "misata.yaml"
+        save_yaml_schema(schema_config, misata_yaml_path)
+        console.print(
+            f"  [green]✓[/green] [bold]misata.yaml[/bold] — "
+            f"schema saved for reproducibility → [cyan]{misata_yaml_path}[/cyan]"
+        )
+
+    # ── Next steps ───────────────────────────────────────────────────────
     if written:
         console.print(
-            f"\n[dim]Run [bold]dbt seed[/bold] to load {len(written)} table(s) "
-            f"into your warehouse.[/dim]"
+            f"\n[bold green]✓ Done![/bold green] "
+            f"{len(written)} table(s), {total_rows:,} rows total."
         )
+        console.print("\n[dim]Next steps:[/dim]")
+        console.print("  [cyan]1.[/cyan] dbt seed")
+        console.print("  [cyan]2.[/cyan] dbt run")
+        console.print("  [cyan]3.[/cyan] dbt test")
+        if any(r.exceeds_recommended for r in size_reports):
+            console.print(
+                "\n[dim]💡 Tip: For large datasets, use "
+                "[bold]misata generate --db-url postgresql://...[/bold] "
+                "and declare a dbt source instead of a seed.[/dim]"
+            )
+
+
+@main.command("dbt-fixture")
+@click.option("--story", "-s", type=str, default=None,
+              help="Plain-English story to generate data from.")
+@click.option("--config", "-c", type=click.Path(exists=True), default=None,
+              help="misata.yaml schema file.")
+@click.option("--output-dir", "-o", type=click.Path(), default=None,
+              help="Output directory for fixtures (auto-detected from dbt project, or tests/fixtures/).")
+@click.option("--rows", "-n", type=int, default=50,
+              help="Max rows per fixture (default: 50 — unit tests should be small).")
+@click.option("--seed", type=int, default=42,
+              help="Random seed for reproducibility (default: 42).")
+@click.option("--tables", "-t", type=str, default=None,
+              help="Comma-separated list of tables to generate fixtures for (default: all).")
+@click.option("--locale", type=str, default=None,
+              help="Locale for names, addresses, phone formats (e.g. de_DE, pt_BR).")
+def dbt_fixture_cmd(
+    story: Optional[str],
+    config: Optional[str],
+    output_dir: Optional[str],
+    rows: int,
+    seed: int,
+    tables: Optional[str],
+    locale: Optional[str],
+) -> None:
+    """Generate dbt 1.8+ unit test fixture CSVs from a story or schema.
+
+    \b
+    Creates small, focused CSV files designed for dbt unit tests, plus an
+    example YAML file showing how to wire them into your dbt project.
+
+    \b
+    Features:
+      • Generates small fixtures (default 50 rows) — perfect for unit tests
+      • Auto-detects dbt project's test-paths
+      • Produces _unit_tests_example.yml with ready-to-copy dbt unit test blocks
+      • Preserves FK integrity across fixture files
+
+    \b
+    Examples:
+        misata dbt-fixture -s "Ecommerce with 500 orders, 5% returns"
+        misata dbt-fixture --config misata.yaml --tables orders,customers
+        misata dbt-fixture -s "SaaS with churn" --rows 30 -o tests/fixtures/
+    """
+    print_banner()
+
+    from misata.dbt import detect_dbt_project, generate_dbt_fixtures
+
+    # ── Auto-detect dbt project ──────────────────────────────────────────
+    dbt_project = detect_dbt_project()
+    if dbt_project:
+        console.print(
+            f"[dim]📁 Detected dbt project:[/dim] "
+            f"[cyan]{dbt_project.project_name}[/cyan]"
+        )
+
+    # Resolve output directory
+    if output_dir is not None:
+        fixtures_path = Path(output_dir)
+    elif dbt_project:
+        fixtures_path = dbt_project.fixtures_dir
+        console.print(f"[dim]   Using test-paths from dbt_project.yml: {fixtures_path}[/dim]")
+    else:
+        fixtures_path = Path("tests") / "fixtures"
+
+    # ── Build schema ─────────────────────────────────────────────────────
+    if not story and not config:
+        if Path("misata.yaml").exists():
+            config = "misata.yaml"
+            console.print("[dim]Auto-detected misata.yaml[/dim]")
+        else:
+            console.print("[red]Error:[/red] provide --story or --config (or create misata.yaml)")
+            raise SystemExit(1)
+
+    if config:
+        schema_config = load_yaml_schema(config, rows=rows, seed=seed)
+        console.print(f"[dim]Schema loaded from {config}[/dim]")
+    else:
+        from misata.story_parser import StoryParser
+        schema_config = StoryParser().parse(story, default_rows=rows)
+        schema_config.seed = seed
+        console.print(
+            f"[dim]Parsed domain:[/dim] [cyan]{schema_config.domain or 'generic'}[/cyan]"
+        )
+
+    # Apply locale
+    if locale:
+        from misata.schema import RealismConfig
+        if schema_config.realism is None:
+            object.__setattr__(schema_config, "realism", RealismConfig())
+        object.__setattr__(schema_config.realism, "locale", locale)
+
+    # Parse table filter
+    table_filter = None
+    if tables:
+        table_filter = [t.strip() for t in tables.split(",")]
+
+    # ── Generate data ────────────────────────────────────────────────────
+    from misata.simulator import DataSimulator
+
+    console.print(f"\n⚙️  Generating {len(schema_config.tables)} table(s) for fixtures...")
+
+    sim = DataSimulator(schema_config)
+    all_tables: dict = {}
+    for name, batch in sim.generate_all():
+        if name in all_tables:
+            all_tables[name] = pd.concat([all_tables[name], batch], ignore_index=True)
+        else:
+            all_tables[name] = batch
+
+    # ── Generate fixtures ────────────────────────────────────────────────
+    result = generate_dbt_fixtures(
+        schema_config,
+        all_tables,
+        fixtures_path,
+        max_rows=rows,
+        table_filter=table_filter,
+    )
+
+    console.print()
+    for table_name, row_count, path in result.fixtures_written:
+        console.print(
+            f"  [green]✓[/green] [bold]{table_name}_fixture[/bold] — "
+            f"{row_count} rows → [cyan]{path}[/cyan]"
+        )
+
+    if result.unit_tests_yml_path:
+        console.print(
+            f"\n  [green]✓[/green] [bold]_unit_tests_example.yml[/bold] — "
+            f"example unit test definitions → [cyan]{result.unit_tests_yml_path}[/cyan]"
+        )
+
+    console.print(
+        f"\n[bold green]✓ Done![/bold green] "
+        f"{len(result.fixtures_written)} fixture(s) generated."
+    )
+    console.print("\n[dim]Next steps:[/dim]")
+    console.print("  [cyan]1.[/cyan] Copy unit test blocks from _unit_tests_example.yml")
+    console.print("      into your models/schema.yml")
+    console.print("  [cyan]2.[/cyan] Create the expected output fixtures (_expected.csv)")
+    console.print("  [cyan]3.[/cyan] dbt test --select test_type:unit")
 
 
 @main.group("capsule")

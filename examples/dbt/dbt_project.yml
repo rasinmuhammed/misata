@@ -1,0 +1,13 @@
+name: misata_dbt_example
+version: '1.0.0'
+config-version: 2
+profile: default
+
+seed-paths: ['seeds']
+model-paths: ['models']
+test-paths: ['tests']
+macro-paths: ['macros']
+
+clean-targets:
+  - target
+  - dbt_packages

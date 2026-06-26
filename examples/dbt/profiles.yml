@@ -1,0 +1,10 @@
+# Local, zero-setup profile using DuckDB. No warehouse required.
+#   pip install dbt-duckdb
+#   cd examples/dbt && DBT_PROFILES_DIR=. dbt seed && dbt run && dbt test
+default:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: target/misata_dbt_example.duckdb
+      threads: 4

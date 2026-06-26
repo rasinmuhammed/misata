@@ -1,0 +1,49 @@
+name: misata_dbt_example
+seed: 42
+
+# The schema that generates the dbt seeds. Edit and re-run generate_seeds.sh.
+tables:
+  users:
+    rows: 800
+    columns:
+      user_id: { type: int, unique: true }
+      email:   { type: text, text_type: email }
+      country: { type: text, text_type: country }
+
+  subscriptions:
+    rows: 6000
+    columns:
+      subscription_id: { type: int, unique: true }
+      user_id:         { type: foreign_key }
+      plan:            { type: categorical, choices: [starter, pro, enterprise] }
+      amount:          { type: float, min: 5, max: 2000 }
+      start_date:      { type: date }
+
+relationships:
+  - "users.user_id → subscriptions.user_id"
+
+# Declare the answer: monthly MRR climbs from $50k to $200k, to the cent.
+# Whatever the per-row amounts end up being, sum(amount) per calendar month
+# equals these targets exactly. seeds/expected_mrr.csv is the same answer key,
+# and tests/assert_mrr_curve.sql proves the dbt model reproduces it.
+outcome_curves:
+  - table: subscriptions
+    column: amount
+    time_column: start_date
+    time_unit: month
+    pattern_type: growth
+    avg_transaction_value: 250   # ~5.8k subscription rows, comfortably under dbt's seed-size guideline
+    start_date: "2024-01-01"
+    curve_points:
+      - {month: 1,  value: 50000}
+      - {month: 2,  value: 60000}
+      - {month: 3,  value: 72000}
+      - {month: 4,  value: 86000}
+      - {month: 5,  value: 103000}
+      - {month: 6,  value: 110000}
+      - {month: 7,  value: 124000}
+      - {month: 8,  value: 140000}
+      - {month: 9,  value: 156000}
+      - {month: 10, value: 172000}
+      - {month: 11, value: 188000}
+      - {month: 12, value: 200000}

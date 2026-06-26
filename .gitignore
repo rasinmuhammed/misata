@@ -36,6 +36,7 @@ tests/*
 !tests/test_regressions.py
 !tests/test_regression_fixes.py
 !tests/test_mimic_fidelity.py
+!tests/test_dbt.py
 jman_output/
 llm_test/
 ml_demo_output/
@@ -45,6 +46,16 @@ demo_*.py
 generated_data/
 test_data/
 *.csv
+
+# dbt example: ignore generated seeds, keep only the hand-declared answer key
+examples/dbt/seeds/*
+!examples/dbt/seeds/expected_mrr.csv
+# dbt build artifacts
+examples/dbt/target/
+examples/dbt/dbt_packages/
+examples/dbt/logs/
+examples/dbt/.user.yml
+*.duckdb
 
 # IDE
 .vscode/
@@ -73,3 +84,16 @@ site/
 # Cursor/Claude specific config
 .claude/
 .agents/
+
+# research: internal process/strategy (kept local, never public)
+research/PAPER_WRITER_PROMPT.md
+research/WRITING_COACH_PROMPT.md
+research/00_moat_and_scope.md
+research/06_adversarial_review.md
+research/07_adversarial_review_round2.md
+research/08_adversarial_review_round3.md
+research/09_adversarial_review_round4.md
+research/10_adversarial_review_round5.md
+research/11_adversarial_review_round6.md
+research/dbt_ecosystem_research.md
+research/dbt_integration_reality_check.md
