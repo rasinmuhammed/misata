@@ -75,8 +75,12 @@ def _provider_available(provider: str) -> tuple[bool, str]:
     if provider == "groq":
         return (bool(os.environ.get("GROQ_API_KEY")), "set GROQ_API_KEY")
     if provider == "bedrock":
-        ok = bool(os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_PROFILE"))
-        return ok, "set AWS creds (AWS_ACCESS_KEY_ID/SECRET or AWS_PROFILE) + enable Bedrock model access"
+        ok = bool(
+            os.environ.get("AWS_BEARER_TOKEN_BEDROCK")  # the simple Bedrock API key
+            or os.environ.get("AWS_ACCESS_KEY_ID")
+            or os.environ.get("AWS_PROFILE")
+        )
+        return ok, "set AWS_BEARER_TOKEN_BEDROCK (Bedrock API key) or AWS creds, + enable model access"
     return True, ""
 
 
