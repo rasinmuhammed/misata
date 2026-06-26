@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.8.1.6"
+version = "0.8.1.7"
 description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare — exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
@@ -95,6 +95,9 @@ orm = [
 llm = [
     "groq>=0.4.0",
     "openai>=1.0.0",
+]
+bedrock = [
+    "boto3>=1.34.0",   # AWS Bedrock Converse API (Claude) — server-funded LLM path
 ]
 formulas = [
     "simpleeval>=0.9.0",

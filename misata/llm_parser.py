@@ -14,7 +14,7 @@ import re
 import time
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from groq import Groq
@@ -317,6 +317,19 @@ class LLMSchemaGenerator:
             "default_model": "claude-haiku-4-5-20251001",
             "protocol": "anthropic",
         },
+        "bedrock": {
+            # AWS Bedrock — Claude via the Converse API. Credentials come from
+            # the standard AWS chain (env vars / IAM role), not a single key.
+            # Region from AWS_REGION, model from BEDROCK_MODEL_ID (or default).
+            # Sonnet 4.5 is the quality default for schema generation; set
+            # BEDROCK_MODEL_ID to a Haiku id for a cheaper/faster path, or to a
+            # region inference-profile id (us./eu./global.) if your account
+            # requires it.
+            "base_url": None,
+            "env_key": None,
+            "default_model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "protocol": "bedrock",
+        },
         "gemini": {
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "env_key": "GEMINI_API_KEY",
@@ -363,15 +376,18 @@ class LLMSchemaGenerator:
         if not self.api_key and config["env_key"]:
             self.api_key = os.environ.get(config["env_key"])
 
-        if not self.api_key and self.provider not in ("ollama",):
+        if not self.api_key and self.provider not in ("ollama", "bedrock"):
             env_key = config["env_key"]
             raise ValueError(
                 f"{self.provider.title()} API key required. "
                 f"Set {env_key} environment variable or pass api_key parameter."
             )
 
-        # Set model
+        # Set model. Bedrock model ids vary by what's enabled in the account/
+        # region, so an env override is honoured before the default.
         self.model = model or config["default_model"]
+        if self.provider == "bedrock":
+            self.model = model or os.environ.get("BEDROCK_MODEL_ID") or config["default_model"]
 
         # Set base URL
         self.base_url = base_url or config["base_url"]
@@ -391,6 +407,25 @@ class LLMSchemaGenerator:
                     "anthropic package required. Install with: pip install anthropic"
                 )
             self.client = _anthropic_sdk.Anthropic(api_key=self.api_key)
+
+        elif self.provider == "bedrock":
+            try:
+                import boto3  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "boto3 required for the Bedrock provider. "
+                    "Install with: pip install 'misata[bedrock]' (or pip install boto3)."
+                )
+            # Region: explicit base_url override, then standard AWS env vars.
+            # Credentials (AWS_ACCESS_KEY_ID/SECRET or an IAM role) are resolved
+            # by boto3's default chain — never passed or stored here.
+            region = (
+                self.base_url
+                or os.environ.get("AWS_REGION")
+                or os.environ.get("AWS_DEFAULT_REGION")
+                or "us-east-1"
+            )
+            self.client = boto3.client("bedrock-runtime", region_name=region)
 
         else:
             # OpenAI, Ollama, and Gemini all use the OpenAI-compatible interface
@@ -601,8 +636,11 @@ Include reference tables with inline_data for lookup values and transactional ta
         last_exc: Optional[Exception] = None
         for attempt in range(max_retries):
             try:
-                if getattr(self, "_protocol", "openai") == "anthropic":
+                protocol = getattr(self, "_protocol", "openai")
+                if protocol == "anthropic":
                     content = self._call_anthropic(messages, max_tokens, temperature)
+                elif protocol == "bedrock":
+                    content = self._call_bedrock(messages, max_tokens, temperature)
                 else:
                     content = self._call_openai_compatible(messages, max_tokens, temperature)
                 if not content:
@@ -611,7 +649,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             except Exception as exc:
                 last_exc = exc
                 exc_str = str(exc).lower()
-                if any(s in exc_str for s in ("rate_limit", "429", "timeout", "502", "503", "504", "connection", "overloaded")):
+                if any(s in exc_str for s in ("rate_limit", "429", "timeout", "502", "503", "504", "connection", "overloaded", "throttl")):
                     wait = 2 ** attempt
                     warnings.warn(f"LLM API transient error (attempt {attempt + 1}/{max_retries}): {exc}. Retrying in {wait}s.")
                     time.sleep(wait)
@@ -684,6 +722,46 @@ Include reference tables with inline_data for lookup values and transactional ta
             messages=turns,
         )
         return response.content[0].text
+
+    def _call_bedrock(self, messages: List[Dict], max_tokens: int, temperature: float) -> str:
+        """Call AWS Bedrock via the Converse API (provider-agnostic message format).
+
+        Converse separates the system prompt and uses a content-block message
+        shape. Bedrock has no JSON-mode flag, so — like the Anthropic path — we
+        nudge the model to emit JSON only.
+        """
+        system_text = ""
+        turns: List[Dict] = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_text = msg["content"]
+            else:
+                turns.append({"role": msg["role"], "content": [{"text": msg["content"]}]})
+
+        if turns and not turns[-1]["content"][0]["text"].strip().endswith("JSON"):
+            turns[-1]["content"][0]["text"] += "\n\nRespond with valid JSON only."
+
+        kwargs: Dict[str, Any] = {
+            "modelId": self.model,
+            "messages": turns,
+            # Bedrock caps Claude output well below our 6000 default on some
+            # models; 4096 is universally safe for schema JSON.
+            "inferenceConfig": {"maxTokens": min(max_tokens, 4096), "temperature": temperature},
+        }
+        if system_text:
+            system_blocks: List[Dict[str, Any]] = [{"text": system_text}]
+            # Prompt caching only applies when a cached block reaches Bedrock's
+            # minimum (~4096 tokens). Add the cache point only for a large
+            # enough system prompt (~4 chars/token) so it's a safe no-op today
+            # and auto-activates if the prompt grows. Note: the win is modest
+            # here regardless — this workload's cost is output-dominated, and
+            # caching discounts only input.
+            if len(system_text) >= 16000:
+                system_blocks.append({"cachePoint": {"type": "default"}})
+            kwargs["system"] = system_blocks
+
+        response = self.client.converse(**kwargs)
+        return response["output"]["message"]["content"][0]["text"]
 
     def _parse_json_response(self, raw: str) -> Dict:
         """

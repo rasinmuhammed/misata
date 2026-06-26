@@ -5,6 +5,22 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.7] - 2026-06-26
+
+### Added
+
+- **AWS Bedrock provider (Claude via the Converse API).** `LLMSchemaGenerator`
+  gains a `bedrock` provider so the LLM schema path can run on Amazon Bedrock —
+  ideal as a credit-funded server default (Claude Haiku/Sonnet) with BYOK still
+  available as an override. Credentials come from the standard AWS chain (env
+  vars / IAM role), the region from `AWS_REGION`, and the model from
+  `BEDROCK_MODEL_ID` (default `anthropic.claude-sonnet-4-5-20250929-v1:0` — the
+  quality pick for schema generation; set a Haiku id for cheaper/faster).
+  Install with `pip install 'misata[bedrock]'`. Uses the modern provider-
+  agnostic Converse API (`bedrock-runtime.converse`), with a JSON nudge,
+  output-token cap, throttle-aware retries, and an opt-in prompt-cache point on
+  large system prompts (≥4k tokens).
+
 ## [0.8.1.5] - 2026-06-25
 
 ### Added

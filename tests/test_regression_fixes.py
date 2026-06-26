@@ -762,3 +762,50 @@ def test_composed_measured_values_generate_in_range():
     readings = tables["sensor_readings"]
     assert "temperature_celsius" in readings.columns
     assert readings["temperature_celsius"].between(-10, 120).all()
+
+
+# ---------------------------------------------------------------------------
+# AWS Bedrock provider (Converse API) — server-funded LLM path
+# ---------------------------------------------------------------------------
+
+def test_bedrock_provider_builds_converse_payload(monkeypatch):
+    """The bedrock provider formats messages for the Converse API correctly."""
+    pytest.importorskip("boto3")
+    from unittest.mock import MagicMock
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    from misata.llm_parser import LLMSchemaGenerator
+
+    gen = LLMSchemaGenerator(provider="bedrock", model="anthropic.claude-3-5-haiku-20241022-v1:0")
+    assert gen.provider == "bedrock" and gen._protocol == "bedrock"
+
+    captured = {}
+    def fake_converse(**kw):
+        captured.update(kw)
+        return {"output": {"message": {"content": [{"text": '{"ok": true}'}]}}}
+    gen.client = MagicMock()
+    gen.client.converse = fake_converse
+
+    out = gen._call_bedrock(
+        [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+        max_tokens=6000, temperature=0.3,
+    )
+    assert out == '{"ok": true}'
+    assert captured["modelId"] == "anthropic.claude-3-5-haiku-20241022-v1:0"
+    assert captured["system"] == [{"text": "sys"}]
+    assert captured["inferenceConfig"]["maxTokens"] == 4096  # capped for Bedrock
+    # Converse content-block message shape, with a JSON nudge on the last turn.
+    last = captured["messages"][-1]["content"][0]["text"]
+    assert last.startswith("hi")
+    assert last.strip().endswith("JSON only.")
+
+
+def test_bedrock_model_id_env_override(monkeypatch):
+    pytest.importorskip("boto3")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("BEDROCK_MODEL_ID", "custom.model.id")
+    from misata.llm_parser import LLMSchemaGenerator
+    assert LLMSchemaGenerator(provider="bedrock").model == "custom.model.id"
