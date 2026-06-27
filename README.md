@@ -378,7 +378,7 @@ schema = misata.from_dict_schema({
 ```python
 from misata import LLMSchemaGenerator
 
-gen = LLMSchemaGenerator(provider="groq")          # free tier, fast
+gen = LLMSchemaGenerator(provider="groq", model="llama-3.3-70b-versatile")  # free tier, fast & reliable
 # gen = LLMSchemaGenerator(provider="anthropic")   # Claude
 # gen = LLMSchemaGenerator(provider="ollama", model="llama3")  # fully local, no API key
 
@@ -389,6 +389,8 @@ tables = misata.generate_from_schema(schema)
 ```
 
 Requires `pip install "misata[llm]"` plus one of `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
+
+> **Groq model tip:** `llama-3.3-70b-versatile` is the reliable free-tier default. Larger models (e.g. `openai/gpt-oss-120b`) can return `413 Request too large` on Groq's free tier — use them only on a paid tier. Whatever the model returns, generation never crashes on an imperfect schema: missing relationships, malformed probabilities, and out-of-range `time_unit`s are repaired automatically.
 
 ### 6. Incremental generation, grow a dataset without re-seeding
 

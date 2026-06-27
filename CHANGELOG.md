@@ -5,10 +5,25 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.1.7] - 2026-06-26
+## [0.8.1.7] - 2026-06-27
 
 ### Fixed
 
+- **Crash-proof against imperfect LLM output.** Cross-domain testing surfaced
+  several ways a slightly-off model schema aborted the whole generation (and, in
+  hosted use, silently fell back to the keyless parser). All are now coerced or
+  skipped rather than fatal:
+  - A `foreign_key` column with **no matching `Relationship`** (e.g.
+    `sellers.tier_id` with no link to `tiers`) — the most common model slip. The
+    parser now infers the parent table from the column name and adds the
+    relationship, or demotes a genuinely-orphan FK to a plain `int` so the schema
+    still validates.
+  - Categorical `probabilities` given as mixed ints/strings, the wrong length, or
+    not summing to 1 — now coerced to floats and renormalised, or dropped so the
+    engine falls back to a uniform distribution (previously crashed `sum()`).
+  - An `outcome_curve` `time_unit` outside `{day, week, month}` (e.g. `"quarter"`)
+    is normalised; any still-malformed curve is skipped instead of failing the
+    whole schema.
 - **LLM-path value quality on lookup/dimension columns.** On the LLM schema
   path, free-text columns whose values the model didn't pin via `inline_data`
   fell to bad generators: a `plans.name` / `status` / `type` became **person
@@ -16,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   description**. `realism._infer_semantic` now (a) maps `domain`/`website`/`*_url`
   to a URL, (b) treats a bare `name` as a person only in person tables
   (users/customers/…) and otherwise as a short neutral label, and (c) routes
-  `status`/`type`/`tier`/`category`/… to short labels instead of sentences.
+  `status`/`type`/`tier`/`category`/… and `*_name` label columns (`batch_name`,
+  `block_name`, …) to short labels instead of lorem sentences.
   The system prompt is also reinforced so plans/statuses/types reliably ship as
   `is_reference` tables with real `inline_data` (e.g. Starter/Pro/Enterprise),
   which the engine already honours exactly.
