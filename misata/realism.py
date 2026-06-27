@@ -50,6 +50,27 @@ JOB_TITLES = _JOB_TITLES_BY_DOMAIN["generic"]
 
 COUNTRIES = list(CITIES_BY_COUNTRY.keys())
 
+# Table-name substrings that make a bare "name" column a *person* name. Anything
+# else (plans, statuses, types, categories) is a lookup/dimension table whose
+# labels should come from the schema's inline_data, not a person generator.
+_PERSON_TABLE_HINTS = (
+    "user", "customer", "person", "people", "employee", "member", "contact",
+    "author", "owner", "student", "patient", "doctor", "nurse", "driver",
+    "rider", "agent", "seller", "buyer", "applicant", "client", "subscriber",
+    "guest", "staff", "attendee", "participant", "passenger", "tenant", "donor",
+    "player", "instructor", "teacher", "manager", "candidate", "lead",
+)
+
+# Generic, domain-neutral labels for a lookup table that arrived without
+# inline_data — far better than person names or lorem sentences for a 3-20 row
+# dimension table (plan tiers, statuses, types).
+CATEGORY_LABELS = [
+    "Standard", "Basic", "Premium", "Pro", "Enterprise", "Starter", "Plus",
+    "Lite", "Advanced", "Core", "Team", "Business", "Free", "Custom", "Trial",
+    "Active", "Inactive", "Pending", "Default", "Primary", "Secondary",
+    "General", "Essential", "Professional", "Ultimate", "Growth", "Scale",
+]
+
 # Product name pools — now sourced from the rich seed pools
 PRODUCT_NAME_POOLS = PRODUCT_BY_CATEGORY
 
@@ -265,6 +286,8 @@ class RealisticTextGenerator:
         if semantic == "slug_source":
             words = self.rng.choice(["modern", "prime", "atlas", "core", "blue", "summit"], size=(size, 2))
             return np.array([f"{left}-{right}" for left, right in words])
+        if semantic == "category_label":
+            return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
         if semantic in {"product_name", "product_description"}:
             return self._generate_product_text(size=size, semantic=semantic, table_data=table_data)
         if semantic == "bio":
@@ -328,6 +351,8 @@ class RealisticTextGenerator:
             return "postal_code"
         if "phone" in name or "mobile" in name or "tel" in name:
             return "phone_number"
+        if name in ("domain", "website", "site", "homepage") or name.endswith("_domain") or name.endswith("_url"):
+            return "url"
         if name in ("national_id", "ssn", "cpf", "aadhaar", "nid", "tax_id") or "national_id" in name:
             return "national_id"
         if name in ("review", "review_text", "review_body"):
@@ -352,8 +377,22 @@ class RealisticTextGenerator:
             return "comment_body"
         if "product" in table or "item" in table or "listing" in table:
             return "product_name"
-        if name == "name":
-            return "person_name"
+        if name in ("name", "full_name", "display_name"):
+            # Only a *person* table's bare "name" is a person. A lookup/dimension
+            # table (plans, statuses, types, categories) should carry its real
+            # labels via inline_data; if it doesn't, a person name is the worst
+            # possible guess, so fall through to a neutral short label instead.
+            if any(p in table for p in _PERSON_TABLE_HINTS):
+                return "person_name"
+            return "category_label"
+        # Short categorical-label columns: a free-text status/type/tier should be
+        # a label, not a lorem sentence (these usually arrive as enums/inline_data;
+        # this is the fallback when they don't).
+        if name in (
+            "status", "type", "category", "tier", "level", "kind", "stage",
+            "label", "grade", "class", "mode", "priority", "severity", "plan",
+        ):
+            return "category_label"
         if name in ("bio", "about"):
             return "bio"
         if name == "caption":

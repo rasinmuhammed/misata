@@ -39,6 +39,11 @@ def test_example_runs_without_error(script, tmp_path):
     if not script.exists():
         pytest.skip(f"{script.name} missing")
 
+    # Scripts that need live API keys / network (manual dev tools) — can't run
+    # cleanly in a few seconds without credentials.
+    if script.name in {"provider_bakeoff.py"}:
+        pytest.skip(f"{script.name} requires live LLM credentials / network")
+
     # Run with the example's directory as cwd so any relative I/O lands in tmp_path.
     env = os.environ.copy()
     env["PYTHONWARNINGS"] = "ignore"

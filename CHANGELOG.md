@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.1.7] - 2026-06-26
 
+### Fixed
+
+- **LLM-path value quality on lookup/dimension columns.** On the LLM schema
+  path, free-text columns whose values the model didn't pin via `inline_data`
+  fell to bad generators: a `plans.name` / `status` / `type` became **person
+  names** or **lorem sentences**, and a `domain` column became a **product
+  description**. `realism._infer_semantic` now (a) maps `domain`/`website`/`*_url`
+  to a URL, (b) treats a bare `name` as a person only in person tables
+  (users/customers/…) and otherwise as a short neutral label, and (c) routes
+  `status`/`type`/`tier`/`category`/… to short labels instead of sentences.
+  The system prompt is also reinforced so plans/statuses/types reliably ship as
+  `is_reference` tables with real `inline_data` (e.g. Starter/Pro/Enterprise),
+  which the engine already honours exactly.
+
 ### Added
 
 - **AWS Bedrock provider (Claude via the Converse API).** `LLMSchemaGenerator`

@@ -809,3 +809,40 @@ def test_bedrock_model_id_env_override(monkeypatch):
     monkeypatch.setenv("BEDROCK_MODEL_ID", "custom.model.id")
     from misata.llm_parser import LLMSchemaGenerator
     assert LLMSchemaGenerator(provider="bedrock").model == "custom.model.id"
+
+
+# ---------------------------------------------------------------------------
+# Realism value-generation: lookup tables / domain (LLM path, no inline_data)
+# ---------------------------------------------------------------------------
+
+def test_realism_lookup_name_is_not_a_person():
+    """A free-text `name` in a lookup/dimension table must not become a person."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(1))
+    # lookup/dimension tables -> a neutral label, never a person
+    assert g._infer_semantic("name", "plans") == "category_label"
+    assert g._infer_semantic("name", "subscription_status") == "category_label"
+    assert g._infer_semantic("status", "subscription_status") == "category_label"
+    assert g._infer_semantic("type", "usage_event_type") == "category_label"
+    # real person tables still resolve to a person name
+    assert g._infer_semantic("name", "customers") == "person_name"
+    assert g._infer_semantic("name", "users") == "person_name"
+
+
+def test_realism_domain_is_a_url_not_a_sentence():
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(1))
+    assert g._infer_semantic("domain", "customers") == "url"
+    vals = list(g.generate("domain", "customers", 3, None))
+    assert all(str(v).startswith("http") for v in vals), vals
+
+
+def test_realism_category_label_values_are_short():
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(3))
+    vals = [str(v) for v in g.generate("name", "plans", 5, None)]
+    # short labels, not person names or sentences
+    assert all(len(v) < 30 and "." not in v for v in vals), vals
