@@ -793,6 +793,19 @@ Include reference tables with inline_data for lookup values and transactional ta
 
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _normalize_time_unit(unit) -> str:
+        """Map an LLM time_unit onto the schema's allowed {day, week, month}."""
+        u = str(unit or "month").lower().strip()
+        mapping = {
+            "daily": "day", "hour": "day", "hourly": "day",
+            "weekly": "week", "biweekly": "week", "fortnight": "week",
+            "monthly": "month", "quarter": "month", "quarterly": "month",
+            "year": "month", "yearly": "month", "annual": "month", "annually": "month",
+        }
+        u = mapping.get(u, u)
+        return u if u in ("day", "week", "month") else "month"
+
     def _normalize_distribution_params(self, col_type: str, params: Dict) -> Dict:
         """Normalize LLM output variations in distribution_params."""
         normalized = params.copy()
@@ -814,6 +827,33 @@ Include reference tables with inline_data for lookup values and transactional ta
                 normalized["choices"] = normalized.pop("options")
             if "choices" not in normalized:
                 normalized["choices"] = ["A", "B", "C"]
+
+        # Coerce/repair probabilities. The LLM sometimes emits string numbers
+        # ("0.5"), mixes ints and strings, gives the wrong count, or values that
+        # don't sum to 1 — any of which crashes validation's sum(). Make it
+        # bullet-proof: keep a clean float list that matches `choices` and sums
+        # to 1, else drop it so the engine falls back to a uniform distribution.
+        if "probabilities" in normalized:
+            probs = normalized.get("probabilities")
+            choices = normalized.get("choices")
+            cleaned = None
+            if isinstance(probs, (list, tuple)):
+                try:
+                    cleaned = [float(p) for p in probs]
+                except (TypeError, ValueError):
+                    cleaned = None
+            if cleaned is not None and any(p < 0 for p in cleaned):
+                cleaned = None
+            if cleaned is not None and isinstance(choices, (list, tuple)) and len(cleaned) != len(choices):
+                cleaned = None  # length mismatch — let the engine use uniform
+            if cleaned is not None:
+                total = sum(cleaned)
+                if total > 0:
+                    normalized["probabilities"] = [p / total for p in cleaned]
+                else:
+                    normalized.pop("probabilities", None)
+            else:
+                normalized.pop("probabilities", None)
 
         # Curve Fitting for 'control_points'
         if "control_points" in normalized:
@@ -946,27 +986,33 @@ Include reference tables with inline_data for lookup values and transactional ta
                 description=e.get("description")
             ))
 
-        # Parse outcome curves (temporal patterns from natural language)
+        # Parse outcome curves (temporal patterns from natural language). The LLM
+        # sometimes emits a time_unit the schema doesn't allow ("quarter") or an
+        # otherwise-malformed curve; normalize what we can and skip (don't crash
+        # the whole generation) what we can't.
         outcome_curves = []
         for c in schema_dict.get("outcome_curves", []):
-            if not all(key in c for key in ["table", "column"]):
+            if not isinstance(c, dict) or not all(key in c for key in ["table", "column"]):
                 continue
-            outcome_curves.append(OutcomeCurve(
-                table=c["table"],
-                column=c["column"],
-                time_column=c.get("time_column", "date"),
-                time_unit=c.get("time_unit", "month"),
-                pattern_type=c.get("pattern_type", "seasonal"),
-                value_mode=c.get("value_mode", "auto"),
-                intra_period_pattern=c.get("intra_period_pattern", "uniform"),
-                description=c.get("description"),
-                avg_transaction_value=c.get("avg_transaction_value"),
-                min_transactions_per_period=c.get("min_transactions_per_period", 1),
-                max_transactions_per_period=c.get("max_transactions_per_period", 10000),
-                concentration=c.get("concentration", 2.0),
-                start_date=c.get("start_date"),
-                curve_points=c.get("curve_points", [])
-            ))
+            try:
+                outcome_curves.append(OutcomeCurve(
+                    table=c["table"],
+                    column=c["column"],
+                    time_column=c.get("time_column", "date"),
+                    time_unit=self._normalize_time_unit(c.get("time_unit")),
+                    pattern_type=c.get("pattern_type", "seasonal"),
+                    value_mode=c.get("value_mode", "auto"),
+                    intra_period_pattern=c.get("intra_period_pattern", "uniform"),
+                    description=c.get("description"),
+                    avg_transaction_value=c.get("avg_transaction_value"),
+                    min_transactions_per_period=c.get("min_transactions_per_period", 1),
+                    max_transactions_per_period=c.get("max_transactions_per_period", 10000),
+                    concentration=c.get("concentration", 2.0),
+                    start_date=c.get("start_date"),
+                    curve_points=c.get("curve_points", [])
+                ))
+            except Exception as exc:  # malformed curve — keep the schema, drop the curve
+                warnings.warn(f"Skipping malformed outcome_curve for {c.get('table')}.{c.get('column')}: {exc}")
 
         # Repair common LLM quirks in an outcome curve's time_column so a well-formed curve
         # is not discarded over a malformed pointer. Two patterns recur across models: a
@@ -994,6 +1040,13 @@ Include reference tables with inline_data for lookup values and transactional ta
             else:
                 oc.time_column = tc
 
+        # Repair the single most common LLM mistake: a foreign_key column with no
+        # matching Relationship (e.g. sellers.tier_id but no relationship to
+        # `tiers`). Left alone it raises SchemaValidationError and crashes the
+        # whole generation. We infer the parent from the column name; if no parent
+        # table exists we demote the orphan FK to a plain int so it still passes.
+        self._repair_foreign_keys(tables, columns, relationships)
+
         return SchemaConfig(
             name=schema_dict.get("name", "Generated Dataset"),
             description=schema_dict.get("description"),
@@ -1005,6 +1058,56 @@ Include reference tables with inline_data for lookup values and transactional ta
             noise_config=schema_dict.get("noise_config"),
             seed=schema_dict.get("seed", 42)
         )
+
+    @staticmethod
+    def _repair_foreign_keys(tables, columns, relationships) -> None:
+        """Ensure every foreign_key column has a Relationship, or is demoted to int."""
+        table_names = [t.name for t in tables]
+        existing = {(r.child_table, r.child_key) for r in relationships}
+
+        def find_parent(base: str, child_table: str):
+            b = base.lower()
+            bsing = b[:-1] if b.endswith("s") else b
+            best, best_score = None, 0
+            for tn in table_names:
+                t = tn.lower()
+                tsing = t[:-1] if t.endswith("s") else t
+                leaf = t.split("_")[-1]
+                leafsing = leaf[:-1] if leaf.endswith("s") else leaf
+                if t == b or t == b + "s" or t == b + "es" or tsing == bsing:
+                    score = 3
+                elif leaf == b or leafsing == bsing:
+                    score = 2
+                elif t.endswith("_" + b) or t.endswith("_" + b + "s"):
+                    score = 1
+                else:
+                    continue
+                # prefer a different table over a self-match, then shorter names
+                if score > best_score or (score == best_score and best and tn != child_table and best == child_table):
+                    best, best_score = tn, score
+            return best
+
+        for tname, cols in columns.items():
+            for col in cols:
+                if col.type != "foreign_key" or (tname, col.name) in existing:
+                    continue
+                base = re.sub(r"(_id|_fk|_key|_ref|id)$", "", col.name.lower()) or col.name.lower()
+                parent = find_parent(base, tname)
+                if parent:
+                    relationships.append(Relationship(
+                        parent_table=parent, parent_key="id",
+                        child_table=tname, child_key=col.name,
+                    ))
+                    existing.add((tname, col.name))
+                else:
+                    # No parent table to point at — demote to a plain int so the
+                    # schema validates instead of crashing on an orphan FK.
+                    col.type = "int"
+                    params = dict(col.distribution_params or {})
+                    params.setdefault("distribution", "uniform")
+                    params.setdefault("min", 1)
+                    params.setdefault("max", 1000)
+                    col.distribution_params = params
 
     def enrich_schema(
         self,

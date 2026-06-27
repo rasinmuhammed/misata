@@ -385,6 +385,13 @@ class RealisticTextGenerator:
             if any(p in table for p in _PERSON_TABLE_HINTS):
                 return "person_name"
             return "category_label"
+        if name.endswith("_name"):
+            # batch_name, block_name, tank_name, event_name, plan_name, ... —
+            # person/company/product *_name are already handled above, so what
+            # reaches here is an entity label, not a lorem sentence.
+            if any(p in table for p in _PERSON_TABLE_HINTS):
+                return "person_name"
+            return "category_label"
         # Short categorical-label columns: a free-text status/type/tier should be
         # a label, not a lorem sentence (these usually arrive as enums/inline_data;
         # this is the fallback when they don't).

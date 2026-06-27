@@ -846,3 +846,63 @@ def test_realism_category_label_values_are_short():
     vals = [str(v) for v in g.generate("name", "plans", 5, None)]
     # short labels, not person names or sentences
     assert all(len(v) < 30 and "." not in v for v in vals), vals
+
+
+# ---------------------------------------------------------------------------
+# LLM-output robustness: imperfect-but-close schemas must not crash generation
+# ---------------------------------------------------------------------------
+
+def _new_gen():
+    from misata.llm_parser import LLMSchemaGenerator
+    return LLMSchemaGenerator.__new__(LLMSchemaGenerator)
+
+
+def test_llm_probabilities_coerced_and_renormalized():
+    g = _new_gen()
+    # mixed int/str (used to crash validation's sum()) -> clean floats summing to 1
+    out = g._normalize_distribution_params("categorical",
+        {"choices": ["a", "b", "c"], "probabilities": [1, "2", 1]})
+    assert out["probabilities"] == [0.25, 0.5, 0.25]
+    # length mismatch / garbage -> dropped (engine falls back to uniform)
+    assert "probabilities" not in g._normalize_distribution_params("categorical",
+        {"choices": ["a", "b"], "probabilities": [0.5, 0.3, 0.2]})
+    assert "probabilities" not in g._normalize_distribution_params("categorical",
+        {"choices": ["a", "b"], "probabilities": "high"})
+
+
+def test_llm_time_unit_normalized_to_allowed_enum():
+    g = _new_gen()
+    assert g._normalize_time_unit("quarter") == "month"
+    assert g._normalize_time_unit("yearly") == "month"
+    assert g._normalize_time_unit("daily") == "day"
+    assert g._normalize_time_unit("bogus") == "month"
+    assert g._normalize_time_unit(None) == "month"
+
+
+def test_llm_foreign_key_without_relationship_is_repaired():
+    g = _new_gen()
+    schema_dict = {
+        "name": "t", "seed": 1,
+        "tables": [
+            {"name": "tiers", "is_reference": True,
+             "inline_data": [{"id": 1, "name": "Gold"}, {"id": 2, "name": "Silver"}]},
+            {"name": "sellers", "row_count": 40},
+            {"name": "orphans", "row_count": 10},
+        ],
+        "columns": {
+            "sellers": [{"name": "id", "type": "int", "unique": True},
+                        {"name": "tier_id", "type": "foreign_key"}],
+            "orphans": [{"name": "id", "type": "int", "unique": True},
+                        {"name": "nonexistent_id", "type": "foreign_key"}],
+        },
+        "relationships": [],
+    }
+    cfg = g._parse_schema(schema_dict)
+    # inferred the missing relationship to `tiers`
+    assert ("tiers", "sellers", "tier_id") in [
+        (r.parent_table, r.child_table, r.child_key) for r in cfg.relationships]
+    # orphan FK (no parent table) demoted to int, not left to crash validation
+    assert {c.name: c.type for c in cfg.get_columns("orphans")}["nonexistent_id"] == "int"
+    # and it actually generates with valid FK integrity
+    tables = misata.generate_from_schema(cfg)
+    assert set(tables["sellers"]["tier_id"]).issubset(set(tables["tiers"]["id"]))
