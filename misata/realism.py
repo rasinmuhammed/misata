@@ -61,6 +61,16 @@ _PERSON_TABLE_HINTS = (
     "player", "instructor", "teacher", "manager", "candidate", "lead",
 )
 
+# Table names that strongly imply the "name" column is an organisation name.
+# Checked against table_name.lower() with substring matching.
+_COMPANY_TABLE_HINTS = (
+    "company", "companies", "vendor", "vendors", "brand", "brands",
+    "organization", "organizations", "org", "orgs", "merchant", "merchants",
+    "supplier", "suppliers", "employer", "employers",
+    "firm", "store", "shop", "account", "accounts",
+    "partner", "partners",
+)
+
 # Generic, domain-neutral labels for a lookup table that arrived without
 # inline_data — far better than person names or lorem sentences for a 3-20 row
 # dimension table (plan tiers, statuses, types).
@@ -69,6 +79,25 @@ CATEGORY_LABELS = [
     "Lite", "Advanced", "Core", "Team", "Business", "Free", "Custom", "Trial",
     "Active", "Inactive", "Pending", "Default", "Primary", "Secondary",
     "General", "Essential", "Professional", "Ultimate", "Growth", "Scale",
+]
+
+# Industry / vertical sector names for "industry", "sector", "vertical" columns.
+_INDUSTRY_LABELS = [
+    "SaaS", "FinTech", "HealthTech", "EdTech", "E-commerce", "Retail",
+    "Healthcare", "Finance", "Manufacturing", "Logistics", "Media",
+    "Real Estate", "Consulting", "Legal", "Marketing", "HR Tech",
+    "Cybersecurity", "Analytics", "AI / ML", "Biotech", "CleanTech",
+    "InsurTech", "PropTech", "Gaming", "Travel", "Food & Beverage",
+    "Telecommunications", "Energy", "Agriculture", "Automotive",
+]
+
+# Event / action type labels for "event_name", "event_type", "action_name" columns.
+_EVENT_TYPE_LABELS = [
+    "page_view", "click", "signup", "login", "logout", "purchase", "checkout",
+    "add_to_cart", "search", "download", "upload", "share", "invite",
+    "subscription_created", "subscription_updated", "subscription_cancelled",
+    "payment_succeeded", "payment_failed", "trial_started", "trial_converted",
+    "feature_used", "onboarding_completed", "churn", "referral",
 ]
 
 # Product name pools — now sourced from the rich seed pools
@@ -163,22 +192,28 @@ class RealisticTextGenerator:
                 return np.array([f"{f} {l}" for f, l in zip(first, last)])
             return self._person_frame(table_name, size)["full"]
         if semantic == "name":
-            # "name" is ambiguous — both column qualifier and table name decide.
-            # "customer_name", "full_name", "display_name" etc. are person names
-            # even in non-person tables (the qualifier makes the intent clear).
-            # Bare "name" in a dimension/lookup table (plans, statuses, tiers …)
-            # is a category label, not a human name.
+            # "name" is ambiguous — column qualifier + table name together decide.
+            # "customer_name", "full_name", "display_name" → person even in non-person tables.
+            # "name" in companies/vendors/orgs → company name.
+            # "name" in plans/statuses/lookup tables → short tier label.
             _PERSON_NAME_QUALIFIERS = {
                 "customer", "user", "full", "display", "contact", "account",
                 "holder", "legal", "person", "owner", "agent", "client", "member",
             }
+            _tbl = table_name.lower()
             _col_lower = column_name.lower()
             _col_has_person_qualifier = any(q in _col_lower for q in _PERSON_NAME_QUALIFIERS)
-            if _col_has_person_qualifier or any(p in table_name.lower() for p in _PERSON_TABLE_HINTS):
+            if _col_has_person_qualifier or any(p in _tbl for p in _PERSON_TABLE_HINTS):
                 if faker and not _has_capsule_vocab("first_name"):
                     return np.array([faker.name() for _ in range(size)])
                 return self._person_frame(table_name, size)["full"]
+            if any(c in _tbl for c in _COMPANY_TABLE_HINTS):
+                return self.generate(column_name, table_name, size, "company_name")
             return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
+        if semantic == "industry":
+            return self.rng.choice(self._vocabulary("industry", _INDUSTRY_LABELS), size=size)
+        if semantic == "event_type":
+            return self.rng.choice(self._vocabulary("event_type", _EVENT_TYPE_LABELS), size=size)
         if semantic == "email":
             # Use names already generated in this row when available
             _PROVIDERS = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com", "hotmail.com"]
@@ -395,19 +430,21 @@ class RealisticTextGenerator:
         if "product" in table or "item" in table or "listing" in table:
             return "product_name"
         if name in ("name", "full_name", "display_name"):
-            # Only a *person* table's bare "name" is a person. A lookup/dimension
-            # table (plans, statuses, types, categories) should carry its real
-            # labels via inline_data; if it doesn't, a person name is the worst
-            # possible guess, so fall through to a neutral short label instead.
+            # Context-dependent: person table → person name, company/org table →
+            # company name, everything else (plans, statuses …) → tier label.
             if any(p in table for p in _PERSON_TABLE_HINTS):
                 return "person_name"
+            if any(c in table for c in _COMPANY_TABLE_HINTS):
+                return "company_name"
             return "category_label"
         if name.endswith("_name"):
-            # batch_name, block_name, tank_name, event_name, plan_name, ... —
-            # person/company/product *_name are already handled above, so what
-            # reaches here is an entity label, not a lorem sentence.
+            # event_name, plan_name, batch_name, … — routed by context.
             if any(p in table for p in _PERSON_TABLE_HINTS):
                 return "person_name"
+            if any(c in table for c in _COMPANY_TABLE_HINTS):
+                return "company_name"
+            if "event" in name or "event" in table or "action" in table or "activity" in table:
+                return "event_type"
             return "category_label"
         # Short categorical-label columns: a free-text status/type/tier should be
         # a label, not a lorem sentence (these usually arrive as enums/inline_data;
@@ -418,7 +455,7 @@ class RealisticTextGenerator:
         ):
             return "category_label"
         if name in ("industry", "sector", "vertical", "niche", "market", "segment"):
-            return "category_label"
+            return "industry"
         if name in ("bio", "about"):
             return "bio"
         if name == "caption":

@@ -943,13 +943,15 @@ def test_realism_domain_semantic_type_gives_url():
     assert all(v.startswith("https://") for v in vals), f"expected URL: {vals}"
 
 
-def test_realism_industry_column_is_category_label():
+def test_realism_industry_column_is_industry_type():
     """industry/sector/vertical columns must not fall through to lorem sentences."""
     import numpy as np
-    from misata.realism import RealisticTextGenerator
+    from misata.realism import RealisticTextGenerator, _INDUSTRY_LABELS
     g = RealisticTextGenerator(np.random.default_rng(10))
-    assert g._infer_semantic("industry", "companies") == "category_label"
-    assert g._infer_semantic("sector", "leads") == "category_label"
-    assert g._infer_semantic("vertical", "accounts") == "category_label"
+    assert g._infer_semantic("industry", "companies") == "industry"
+    assert g._infer_semantic("sector", "leads") == "industry"
+    assert g._infer_semantic("vertical", "accounts") == "industry"
     vals = [str(v) for v in g.generate("industry", "companies", 5, None)]
+    # Must be short, no sentences, and drawn from the industry vocabulary
     assert all(len(v) < 40 and "." not in v for v in vals), f"looks like a sentence: {vals}"
+    assert any(v in _INDUSTRY_LABELS for v in vals), f"not industry labels: {vals}"
