@@ -163,10 +163,18 @@ class RealisticTextGenerator:
                 return np.array([f"{f} {l}" for f, l in zip(first, last)])
             return self._person_frame(table_name, size)["full"]
         if semantic == "name":
-            # "name" is ambiguous — context decides. A person table (users, customers,
-            # employees …) gets a human full name; a dimension/lookup table (plans,
-            # statuses, tiers …) gets a short category label instead of lorem text.
-            if any(p in table_name.lower() for p in _PERSON_TABLE_HINTS):
+            # "name" is ambiguous — both column qualifier and table name decide.
+            # "customer_name", "full_name", "display_name" etc. are person names
+            # even in non-person tables (the qualifier makes the intent clear).
+            # Bare "name" in a dimension/lookup table (plans, statuses, tiers …)
+            # is a category label, not a human name.
+            _PERSON_NAME_QUALIFIERS = {
+                "customer", "user", "full", "display", "contact", "account",
+                "holder", "legal", "person", "owner", "agent", "client", "member",
+            }
+            _col_lower = column_name.lower()
+            _col_has_person_qualifier = any(q in _col_lower for q in _PERSON_NAME_QUALIFIERS)
+            if _col_has_person_qualifier or any(p in table_name.lower() for p in _PERSON_TABLE_HINTS):
                 if faker and not _has_capsule_vocab("first_name"):
                     return np.array([faker.name() for _ in range(size)])
                 return self._person_frame(table_name, size)["full"]

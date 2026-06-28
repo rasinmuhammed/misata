@@ -1245,7 +1245,7 @@ class DataSimulator:
             # Kaggle-enriched asset store) so these paths get real, diverse,
             # domain-appropriate values automatically.
             _REALISTIC_TYPE_MAP = {
-                "name":                   "person_name",
+                "name":                   "name",
                 "email":                  "email",
                 "company":                "company_name",
                 "first_name":             "first_name",
@@ -1291,6 +1291,15 @@ class DataSimulator:
                 or text_strategy
                 or _REALISTIC_TYPE_MAP.get(text_type)
             )
+            # When no text_type was declared and the semantic map didn't fire,
+            # try column-name inference so columns like "industry", "event_name",
+            # "sector" get category labels instead of falling to business-note sentences.
+            # "description" is _infer_semantic's own catch-all — skip it here so
+            # truly generic columns (notes, feedback, details) stay on the sentence path.
+            if not declared and not semantic:
+                _name_inferred = self.realistic_text._infer_semantic(column.name, table_name)
+                if _name_inferred and _name_inferred != "description":
+                    semantic = _name_inferred
             # Route to RealisticTextGenerator for known types OR any unrecognised
             # type that is not a legacy free-text type (sentence, word, etc.)
             _LEGACY_ONLY = {"sentence", "word", "address", "phone", "url"}
