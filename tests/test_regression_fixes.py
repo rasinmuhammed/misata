@@ -955,3 +955,54 @@ def test_realism_industry_column_is_industry_type():
     # Must be short, no sentences, and drawn from the industry vocabulary
     assert all(len(v) < 40 and "." not in v for v in vals), f"looks like a sentence: {vals}"
     assert any(v in _INDUSTRY_LABELS for v in vals), f"not industry labels: {vals}"
+
+
+# ---------------------------------------------------------------------------
+# 0.8.1.8 pass-2: person_name guard, product tables, action_name, column qualifier
+# ---------------------------------------------------------------------------
+
+def test_realism_explicit_person_name_in_lookup_table_is_guarded():
+    """If the LLM hardcodes text_type='person_name' on plans.name, the guard
+    must intercept and return a tier label, not a human name."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(42))
+    vals = [str(v) for v in g.generate("name", "plans", 5, "person_name")]
+    assert all(len(v) < 30 and " " not in v or " " not in v for v in vals), (
+        f"person_name guard failed — still generating person names in plans: {vals}"
+    )
+    # person tables must still produce human names even with explicit person_name
+    person_vals = [str(v) for v in g.generate("name", "users", 5, "person_name")]
+    assert all(" " in v for v in person_vals), f"users.name should be person: {person_vals}"
+
+
+def test_realism_products_table_name_column_generates_product_names():
+    """products.name must route to product_name, not category_label or person names."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(3))
+    got = g._infer_semantic("name", "products")
+    assert got == "product_name", f"expected product_name, got {got!r}"
+    got2 = g._infer_semantic("name", "items")
+    assert got2 == "product_name", f"expected product_name for items table, got {got2!r}"
+
+
+def test_realism_action_name_in_logs_gives_event_type():
+    """action_name in logs/events must produce event-type slugs, not category labels."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator, _EVENT_TYPE_LABELS
+    g = RealisticTextGenerator(np.random.default_rng(5))
+    vals = [str(v) for v in g.generate("action_name", "logs", 6, None)]
+    assert all(len(v) < 40 and "." not in v for v in vals), f"looks like sentence: {vals}"
+    # At least some should come from the event vocabulary
+    assert any(v in _EVENT_TYPE_LABELS for v in vals), f"not event labels: {vals}"
+
+
+def test_realism_customer_name_infer_semantic_returns_person():
+    """_infer_semantic must return 'person_name' for customer_name in any table."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(1))
+    assert g._infer_semantic("customer_name", "invoices") == "person_name"
+    assert g._infer_semantic("recipient_name", "emails") == "person_name"
+    assert g._infer_semantic("company_name", "orders") == "company_name"

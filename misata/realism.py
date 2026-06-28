@@ -184,6 +184,18 @@ class RealisticTextGenerator:
                 return self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
             return self._person_frame(table_name, size)["last"]
         if semantic == "person_name":
+            # Guard: a bare "name"/"full_name"/"display_name" in a non-person
+            # table is almost certainly an LLM mislabelling (plans.name, etc.).
+            # Column qualifiers or person-table context override this guard.
+            _BARE_NAME_COLS = {"name", "full_name", "display_name"}
+            _tbl_pn = table_name.lower()
+            if (
+                column_name.lower() in _BARE_NAME_COLS
+                and not any(p in _tbl_pn for p in _PERSON_TABLE_HINTS)
+            ):
+                if any(c in _tbl_pn for c in _COMPANY_TABLE_HINTS):
+                    return self.generate(column_name, table_name, size, "company_name")
+                return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
             if faker and not _has_capsule_vocab("first_name"):
                 return np.array([faker.name() for _ in range(size)])
             if _has_capsule_vocab("first_name"):
@@ -195,11 +207,16 @@ class RealisticTextGenerator:
             # "name" is ambiguous — column qualifier + table name together decide.
             # "customer_name", "full_name", "display_name" → person even in non-person tables.
             # "name" in companies/vendors/orgs → company name.
+            # "name" in products/items → product name.
             # "name" in plans/statuses/lookup tables → short tier label.
             _PERSON_NAME_QUALIFIERS = {
                 "customer", "user", "full", "display", "contact", "account",
                 "holder", "legal", "person", "owner", "agent", "client", "member",
             }
+            _PRODUCT_TABLE_HINTS = (
+                "product", "products", "item", "items", "listing", "listings",
+                "catalog", "catalogue", "merchandise", "inventory", "sku", "offer",
+            )
             _tbl = table_name.lower()
             _col_lower = column_name.lower()
             _col_has_person_qualifier = any(q in _col_lower for q in _PERSON_NAME_QUALIFIERS)
@@ -209,6 +226,10 @@ class RealisticTextGenerator:
                 return self._person_frame(table_name, size)["full"]
             if any(c in _tbl for c in _COMPANY_TABLE_HINTS):
                 return self.generate(column_name, table_name, size, "company_name")
+            if any(pt in _tbl for pt in _PRODUCT_TABLE_HINTS):
+                return self.generate(column_name, table_name, size, "product_name")
+            if "event" in _col_lower or "action" in _col_lower:
+                return self.generate(column_name, table_name, size, "event_type")
             return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
         if semantic == "industry":
             return self.rng.choice(self._vocabulary("industry", _INDUSTRY_LABELS), size=size)
@@ -431,19 +452,35 @@ class RealisticTextGenerator:
             return "product_name"
         if name in ("name", "full_name", "display_name"):
             # Context-dependent: person table → person name, company/org table →
-            # company name, everything else (plans, statuses …) → tier label.
+            # company name, product table → product name, else → tier label.
             if any(p in table for p in _PERSON_TABLE_HINTS):
                 return "person_name"
             if any(c in table for c in _COMPANY_TABLE_HINTS):
                 return "company_name"
+            if any(pt in table for pt in (
+                "product", "products", "item", "items", "listing",
+                "catalog", "catalogue", "inventory", "sku",
+            )):
+                return "product_name"
             return "category_label"
         if name.endswith("_name"):
-            # event_name, plan_name, batch_name, … — routed by context.
-            if any(p in table for p in _PERSON_TABLE_HINTS):
+            # Use the qualifier (prefix before "_name") as the primary signal,
+            # then fall back to table context.
+            _qualifier = name[:-5]  # e.g. "customer" from "customer_name"
+            _PERSON_COL_QUALIFIERS = {
+                "customer", "user", "full", "display", "contact", "account",
+                "holder", "legal", "person", "owner", "agent", "client", "member",
+                "recipient", "employee", "buyer", "applicant", "sender", "driver",
+            }
+            _COMPANY_COL_QUALIFIERS = {
+                "company", "vendor", "brand", "organization", "supplier",
+                "employer", "business", "firm", "partner", "merchant",
+            }
+            if _qualifier in _PERSON_COL_QUALIFIERS or any(p in table for p in _PERSON_TABLE_HINTS):
                 return "person_name"
-            if any(c in table for c in _COMPANY_TABLE_HINTS):
+            if _qualifier in _COMPANY_COL_QUALIFIERS or any(c in table for c in _COMPANY_TABLE_HINTS):
                 return "company_name"
-            if "event" in name or "event" in table or "action" in table or "activity" in table:
+            if "event" in name or "action" in name or "event" in table or "action" in table or "activity" in table:
                 return "event_type"
             return "category_label"
         # Short categorical-label columns: a free-text status/type/tier should be
