@@ -9,21 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`plan.name` / `event_name` / `industry` still generate person names or lorem
-  sentences when the dict-schema path explicitly sets `text_type: "name"` or
-  `text_type: "domain"`.** Root cause: `compat.py` and the studio API both inject
-  `text_type: "name"` for any bare `name` column, bypassing `_infer_semantic`'s
-  table-context guard. `generate_text` then had no handler for `semantic == "name"`,
-  so it fell through to the product-description catch-all (sentences) — or, when
-  the LLM set `text_type: "person_name"` directly, to person names regardless of
-  table.
-  - Added a table-context–aware `semantic == "name"` handler in `generate_text`:
-    person tables → full name; dimension/lookup tables → short category label.
-  - Added `semantic == "domain"` as an alias for the URL generator so columns
-    enriched with `text_type: "domain"` produce `https://…` values.
-  - Added `industry`, `sector`, `vertical`, `niche`, `market`, `segment` to the
-    `category_label` branch of `_infer_semantic` — they were falling through to
-    the lorem-sentence catch-all.
+- **`plans.name` generates person names or lorem sentences (LLM path and
+  dict-schema path).** Multi-layer root cause, fully fixed:
+  - `simulator.py` `_REALISTIC_TYPE_MAP["name"]` was hard-wired to
+    `"person_name"`, bypassing all table-context logic. Changed to `"name"` so
+    the context-aware handler in `realism.py` is reached.
+  - Added a table-context–aware `semantic == "name"` handler: person tables →
+    full name; company/vendor/org tables → company name; product/catalog tables →
+    product name; event/action columns → event-type slug; everything else
+    (plans, statuses, lookup tables) → short tier label.
+  - Added a guard on `semantic == "person_name"`: bare `name`/`full_name`/
+    `display_name` in a non-person table (the LLM mislabelling pattern) now
+    returns a tier label or company name instead of a human name. Qualified
+    columns (`customer_name`, `recipient_name`) and person tables are unaffected.
+  - Removed the erroneous `^name` pattern from `engine_public._SEMANTIC_RULES`
+    that was stamping `text_type: "name"` on every `plans.name` column before
+    it reached the generator.
+- **`industry` / `sector` / `vertical` columns generate lorem sentences.** Added
+  a pre-inference block in `simulator.py` that calls `_infer_semantic` for
+  columns with no declared `text_type` before they fall to the legacy
+  sentence-generator path. Added `"industry"` semantic type with a curated 30-item
+  `_INDUSTRY_LABELS` vocabulary (FinTech, Manufacturing, EdTech, …).
+- **`event_name` / `action_name` columns generate lorem sentences.** Fixed by
+  the same simulator pre-inference block. `_infer_semantic` now routes
+  `*_name` columns whose qualifier or table context indicates an event/action to
+  the new `"event_type"` semantic type (24-item `_EVENT_TYPE_LABELS` vocabulary).
+  Also fixed via column-name check in the `semantic == "name"` handler so
+  `action_name` is caught even when `compat.py` sets `text_type: "name"`.
+- **`companies.name` generates tier labels after the `plans.name` fix.**
+  Added `_COMPANY_TABLE_HINTS` tuple; company/vendor/org/merchant/… tables
+  now route bare `name` columns to the `company_name` generator.
+- **`products.name` / `items.name` generates tier labels.** Added product-table
+  detection to both the `semantic == "name"` handler and `_infer_semantic`,
+  routing these columns to `product_name`.
+- **`customer_name` in non-person tables (invoices, orders) returns category
+  labels from `_infer_semantic`.** The `*_name` suffix branch now inspects the
+  column qualifier directly (customer/user/recipient → person_name;
+  company/vendor/merchant → company_name) independently of the table name.
+- **`domain` columns generate product-description sentences.** Added
+  `semantic in ("url", "domain")` alias so `text_type: "domain"` from
+  `engine_public._SEMANTIC_RULES` routes to the URL generator.
 
 ## [0.8.1.7] - 2026-06-27
 
