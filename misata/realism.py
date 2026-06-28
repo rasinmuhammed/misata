@@ -162,6 +162,15 @@ class RealisticTextGenerator:
                 last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
                 return np.array([f"{f} {l}" for f, l in zip(first, last)])
             return self._person_frame(table_name, size)["full"]
+        if semantic == "name":
+            # "name" is ambiguous — context decides. A person table (users, customers,
+            # employees …) gets a human full name; a dimension/lookup table (plans,
+            # statuses, tiers …) gets a short category label instead of lorem text.
+            if any(p in table_name.lower() for p in _PERSON_TABLE_HINTS):
+                if faker and not _has_capsule_vocab("first_name"):
+                    return np.array([faker.name() for _ in range(size)])
+                return self._person_frame(table_name, size)["full"]
+            return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
         if semantic == "email":
             # Use names already generated in this row when available
             _PROVIDERS = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com", "hotmail.com"]
@@ -280,7 +289,7 @@ class RealisticTextGenerator:
             return self._generate_phone_number(size=size)
         if semantic == "national_id":
             return self._generate_national_id(size=size)
-        if semantic == "url":
+        if semantic in ("url", "domain"):
             slugs = self._slugify(self.generate(column_name, table_name, size, "company_name"))
             return np.array([f"https://www.{slug}.com" for slug in slugs])
         if semantic == "slug_source":
@@ -399,6 +408,8 @@ class RealisticTextGenerator:
             "status", "type", "category", "tier", "level", "kind", "stage",
             "label", "grade", "class", "mode", "priority", "severity", "plan",
         ):
+            return "category_label"
+        if name in ("industry", "sector", "vertical", "niche", "market", "segment"):
             return "category_label"
         if name in ("bio", "about"):
             return "bio"

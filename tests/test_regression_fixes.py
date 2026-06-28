@@ -906,3 +906,50 @@ def test_llm_foreign_key_without_relationship_is_repaired():
     # and it actually generates with valid FK integrity
     tables = misata.generate_from_schema(cfg)
     assert set(tables["sellers"]["tier_id"]).issubset(set(tables["tiers"]["id"]))
+
+
+# ---------------------------------------------------------------------------
+# 0.8.1.8 value-quality: explicit text_type passthrough from dict schema
+# ---------------------------------------------------------------------------
+
+def test_realism_name_semantic_type_in_lookup_table_gives_label():
+    """When from_dict_schema passthrough sets text_type='name' on a lookup column,
+    the generator must produce a short label, not a person name or lorem sentence."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(7))
+    # explicit semantic_type="name" in a non-person table → category label
+    vals = [str(v) for v in g.generate("name", "plans", 6, "name")]
+    assert all(len(v) < 30 for v in vals), f"too long: {vals}"
+    assert not any(v.count(" ") >= 2 for v in vals), f"looks like a person name: {vals}"
+
+
+def test_realism_name_semantic_type_in_person_table_gives_full_name():
+    """When text_type='name' is on a column in a person table, a human name is correct."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(8))
+    vals = [str(v) for v in g.generate("name", "customers", 5, "name")]
+    # full names have at least one space
+    assert all(" " in v for v in vals), f"expected full name with space: {vals}"
+
+
+def test_realism_domain_semantic_type_gives_url():
+    """When engine_public.py enrichment sets text_type='domain', the result is a URL."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(9))
+    vals = [str(v) for v in g.generate("domain", "companies", 4, "domain")]
+    assert all(v.startswith("https://") for v in vals), f"expected URL: {vals}"
+
+
+def test_realism_industry_column_is_category_label():
+    """industry/sector/vertical columns must not fall through to lorem sentences."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(10))
+    assert g._infer_semantic("industry", "companies") == "category_label"
+    assert g._infer_semantic("sector", "leads") == "category_label"
+    assert g._infer_semantic("vertical", "accounts") == "category_label"
+    vals = [str(v) for v in g.generate("industry", "companies", 5, None)]
+    assert all(len(v) < 40 and "." not in v for v in vals), f"looks like a sentence: {vals}"

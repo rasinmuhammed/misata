@@ -5,6 +5,26 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.8] - 2026-06-28
+
+### Fixed
+
+- **`plan.name` / `event_name` / `industry` still generate person names or lorem
+  sentences when the dict-schema path explicitly sets `text_type: "name"` or
+  `text_type: "domain"`.** Root cause: `compat.py` and the studio API both inject
+  `text_type: "name"` for any bare `name` column, bypassing `_infer_semantic`'s
+  table-context guard. `generate_text` then had no handler for `semantic == "name"`,
+  so it fell through to the product-description catch-all (sentences) — or, when
+  the LLM set `text_type: "person_name"` directly, to person names regardless of
+  table.
+  - Added a table-context–aware `semantic == "name"` handler in `generate_text`:
+    person tables → full name; dimension/lookup tables → short category label.
+  - Added `semantic == "domain"` as an alias for the URL generator so columns
+    enriched with `text_type: "domain"` produce `https://…` values.
+  - Added `industry`, `sector`, `vertical`, `niche`, `market`, `segment` to the
+    `category_label` branch of `_infer_semantic` — they were falling through to
+    the lorem-sentence catch-all.
+
 ## [0.8.1.7] - 2026-06-27
 
 ### Fixed
