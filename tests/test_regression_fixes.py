@@ -1108,6 +1108,24 @@ def test_dict_schema_forwards_lambda_and_null_rate():
     assert abs(df["opt"].isna().mean() - 0.15) < 0.03, "null_rate not applied"
 
 
+def test_dict_schema_forwards_depends_on_default():
+    """0.8.1.10: from_dict_schema must forward the depends_on `default` branch so a
+    row whose predictor value is unmapped falls back to it (was dropped)."""
+    schema = from_dict_schema({
+        "emp": {
+            "__rows__": 4000,
+            "role": {"type": "string", "enum": ["Intern", "Engineer"], "probabilities": [0.5, 0.5]},
+            "salary": {"type": "float", "depends_on": "role",
+                       "mapping": {"Intern": {"mean": 40000, "std": 2000}},  # Engineer unmapped
+                       "default": {"mean": 90000, "std": 3000}},
+        }
+    }, seed=1)
+    params = {c.name: c.distribution_params for c in schema.get_columns("emp")}["salary"]
+    assert params.get("default") == {"mean": 90000, "std": 3000}, "depends_on default dropped"
+    df = misata.generate_from_schema(schema)["emp"]
+    assert abs(df[df.role == "Engineer"]["salary"].mean() - 90000) < 4000, "default branch not applied"
+
+
 def test_binomial_and_zipf_distributions_in_simulator():
     """0.8.1.10: the simulator's integer path lacked `binomial` and `zipf`, so both
     fell through to uniform[0,1000]. zipf in particular is what the LLM is told to

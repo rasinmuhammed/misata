@@ -108,7 +108,11 @@ nav:
     - Mimic Mode: guides/mimic.md
     - Geospatial Realism: guides/geospatial.md
     - Long-Form Text: guides/long-form-text.md
+    - Outcome Curves: guides/outcome_curves.md
+    - Rate Curves: guides/rate_curves.md
     - Column Correlations: guides/correlations.md
+    - Conditional Columns: guides/conditional-columns.md
+    - Distribution Reference: guides/distributions.md
     - Anomaly Injection: guides/anomaly-injection.md
     - Research Benchmarks: guides/research-benchmarks.md
     - Jupyter Magic: guides/jupyter.md

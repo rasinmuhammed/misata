@@ -368,7 +368,7 @@ def _col_from_dict(
         if col_def.get(quality_key) is not None:
             params[quality_key] = col_def[quality_key]
     # Cross-column / cross-table logic
-    for passthrough in ("formula", "depends_on", "mapping", "zero_inflate", "rollup",
+    for passthrough in ("formula", "depends_on", "mapping", "default", "zero_inflate", "rollup",
                         "inherits_curve_from", "references", "after_column", "relative_to",
                         "null_if", "min_gap_days", "sequence_start", "quantize",
                         "pattern", "pattern_weights", "text_type",

@@ -55,6 +55,29 @@ schema = SchemaConfig(
 
 **What you get in practice:** Misata uses the Iman-Conover rank correlation method, which achieves the target correlation within ±0.03–0.05 of the declared value.
 
+## Dict schema (`__correlations__`)
+
+The same correlations are available from a plain dict schema (and from the LLM/studio path) via the table-level `__correlations__` directive — no Python objects required:
+
+```python
+import misata
+
+schema = {
+    "loans": {
+        "__rows__": 8000,
+        "credit_score":        {"type": "integer", "distribution": "normal", "mean": 680, "std": 80, "min": 300, "max": 850},
+        "default_probability": {"type": "float", "distribution": "beta", "a": 2.0, "b": 8.0, "min": 0, "max": 1},
+        # default rate rises as credit score falls → negative r
+        "__correlations__": [
+            {"col_a": "credit_score", "col_b": "default_probability", "r": -0.6},
+        ],
+    }
+}
+tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=1))
+```
+
+In **Misata Studio**, select a table and use the **Correlations** panel in the Inspector to link two numeric columns and drag the `r` slider; this serialises to exactly the directive above.
+
 ## How it works (Iman-Conover method)
 
 Declaring correlations does **not** change your marginal distributions. The per-column `distribution` params are respected exactly. Instead, Misata:
