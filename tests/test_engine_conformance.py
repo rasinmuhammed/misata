@@ -86,6 +86,41 @@ def test_rate_curve_conforms_per_period():
     assert abs(d[d.m == 12]["churned"].mean() - 0.20) < 0.02
 
 
+def test_categorical_rate_curve_conforms():
+    """A rate curve on a non-boolean categorical column (true_value = one label of
+    several) must hit the target exactly, not the target plus the base incidence —
+    and must keep the other labels present."""
+    s = {"orders": {"__rows__": 12000,
+            "dt": {"type": "date", "start": "2024-01-01", "end": "2024-12-31"},
+            "status": {"type": "string", "enum": ["ok", "refunded", "pending"],
+                       "probabilities": [0.7, 0.2, 0.1]}},
+        "__rate_curves__": [{"table": "orders", "column": "status", "time_column": "dt",
+            "time_unit": "month", "true_value": "refunded", "interpolate": True,
+            "rate_points": [{"period": 1, "rate": 0.05}, {"period": 12, "rate": 0.40}]}]}
+    d = gen(s)["orders"]; d["m"] = pd.to_datetime(d["dt"]).dt.month
+    assert abs((d[d.m == 1]["status"] == "refunded").mean() - 0.05) < 0.025
+    assert abs((d[d.m == 12]["status"] == "refunded").mean() - 0.40) < 0.03
+    assert set(d["status"].unique()) == {"ok", "refunded", "pending"}, "other labels dropped"
+
+
+def test_correlation_and_curve_on_same_column_warns():
+    """Declaring a correlation and an outcome curve on the SAME column can't honour
+    both; the engine must warn rather than silently dropping the correlation."""
+    s = {"sales": {"__rows__": 2000, "id": {"type": "integer", "primary_key": True},
+            "dt": {"type": "date", "start": "2024-01-01", "end": "2024-12-31"},
+            "amount": {"type": "float", "min": 10, "max": 100},
+            "cost": {"type": "float", "distribution": "normal", "mean": 50, "std": 10},
+            "__correlations__": [{"col_a": "amount", "col_b": "cost", "r": 0.6}]},
+        "__outcome_curves__": [{"table": "sales", "column": "amount", "time_column": "dt",
+            "time_unit": "month", "value_mode": "absolute",
+            "curve_points": [{"month": 1, "target_value": 50000}]}]}
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        misata.generate_from_schema(from_dict_schema(s, seed=1))
+    assert any("correlation" in str(x.message) and "outcome curve" in str(x.message) for x in w), \
+        "expected a clash warning for correlation+curve on the same column"
+
+
 @pytest.mark.parametrize("target_r", [0.7, -0.6])
 def test_correlation_enforced(target_r):
     d = gen({"t": {"__rows__": 5000,

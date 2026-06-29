@@ -2178,6 +2178,17 @@ class DataSimulator:
         df = df.copy()
         true_val = rc.true_value
 
+        # For a string categorical (true_value is one of several labels), the
+        # negative class must be reassigned to a DIFFERENT label — otherwise the
+        # base incidence of true_value leaks on top of the declared rate. Capture
+        # the other labels from the originally-generated values, once.
+        other_labels = None
+        if not isinstance(true_val, bool) and isinstance(true_val, str):
+            other_labels = [
+                v for v in pd.unique(df[rc.column])
+                if v != true_val and pd.notna(v)
+            ]
+
         for month_idx, target_rate in month_to_rate.items():
             period_mask = row_month_idx == month_idx
             if not period_mask.any():
@@ -2207,8 +2218,15 @@ class DataSimulator:
             elif isinstance(true_val, (int, float)):
                 # For numeric "flags" (0 vs true_val): set non-positives to 0
                 df.loc[chosen_neg, rc.column] = 0
-            # For string categoricals: leave non-positives at their generated value.
-            # Only override the positives to guarantee the declared positive rate.
+            elif other_labels:
+                # String categorical: any negative row currently holding true_val
+                # would leak above the target rate. Reassign those to another label
+                # so the realised rate of true_val equals the declared rate exactly.
+                neg_vals = df.loc[chosen_neg, rc.column].to_numpy()
+                leak = chosen_neg[neg_vals == true_val]
+                if len(leak) > 0:
+                    df.loc[leak, rc.column] = self.rng.choice(other_labels, size=len(leak))
+            # (no other labels available → degenerate single-category column, leave as-is)
 
         return df
 
@@ -2816,6 +2834,22 @@ class DataSimulator:
         involved = {c for c in involved if c in df.columns and pd.api.types.is_numeric_dtype(df[c])}
         if len(involved) < 2:
             return df
+
+        # A column that is BOTH correlated and an outcome-curve target cannot honour
+        # both: the curve reorders/rescales the column per period to hit its sums,
+        # which scrambles the rank-correlation. Warn rather than silently dropping it.
+        curve_targets = {
+            oc.column for oc in (getattr(self.config, "outcome_curves", None) or [])
+            if getattr(oc, "table", None) == table_name
+        }
+        clash = involved & curve_targets
+        if clash:
+            warnings.warn(
+                f"Column(s) {sorted(clash)} in '{table_name}' have both a correlation "
+                "and an outcome curve. The outcome curve takes precedence; the declared "
+                "correlation on these columns will not hold. Put the curve on a different "
+                "column, or drop the correlation."
+            )
 
         cols = sorted(involved)
         n = len(df)

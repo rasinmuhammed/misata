@@ -30,10 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   child's primary key and producing wrong values for most rows. The formula engine
   now (a) receives the authoritative FK column from the declared relationships and
   (b) never falls back to a literal `id` when guessing the FK.
+- **Categorical rate curves leaked the base incidence on top of the target.** A
+  `rate_curve` on a non-boolean categorical column (e.g. `status`, `true_value:
+  "refunded"`) set the positive rows to the target but left negatives untouched —
+  so rows already holding `true_value` from the base distribution added on top,
+  pushing every period above target (Jan 0.14 vs 0.05 declared). Negatives that
+  still hold `true_value` are now reassigned to another label, so the realised rate
+  equals the declared rate exactly. Boolean/numeric flags were already exact.
+- **A correlation and an outcome curve on the same column now warn.** They cannot
+  both hold (the curve reorders the column to hit its sums, scrambling the
+  correlation); the engine previously dropped the correlation silently and now
+  emits a warning naming the column.
 - Added `tests/test_engine_conformance.py`: a standing suite that validates the
-  engine's output statistically (distribution fidelity, rate/curve conformance,
-  correlation, cross-table formula joins) so this class of silently-wrong-data bug
-  cannot regress.
+  engine's output statistically (distribution fidelity, rate/curve conformance
+  incl. categorical, correlation, cross-table formula joins) so this class of
+  silently-wrong-data bug cannot regress.
 
 ### Changed
 
