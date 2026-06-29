@@ -844,8 +844,11 @@ class DataSimulator:
                     sigma = np.sqrt(np.log(1 + (std / mean) ** 2))
                     mu = np.log(mean) - 0.5 * sigma ** 2
                 values = self.rng.lognormal(mu, sigma, size=size).astype(int)
-            elif distribution in ("power_law", "pareto"):
-                alpha = float(params.get("alpha", 1.5))
+            elif distribution in ("power_law", "pareto", "zipf"):
+                # "zipf" is accepted as an alias (its shape param is "a"); mapped
+                # onto the same Pareto sampler so a heavy-tail request never
+                # silently degrades to uniform noise.
+                alpha = float(params.get("alpha", params.get("a", 1.5)))
                 scale = float(params.get("scale", params.get("min", 1)))
                 # Pareto: X = scale / U^(1/alpha), U ~ Uniform(0,1)
                 u = self.rng.uniform(0, 1, size=size)
@@ -859,6 +862,10 @@ class DataSimulator:
             elif distribution == "poisson":
                 lam = params.get("lambda", 10)
                 values = self.rng.poisson(lam, size=size)
+            elif distribution == "binomial":
+                n = int(params.get("n", 10))
+                p = float(params.get("p", 0.5))
+                values = self.rng.binomial(n, p, size=size)
             elif distribution == "empirical":
                 # Inverse-CDF sampling from stored quantiles — reproduces any
                 # marginal shape (used by mimic when no parametric fit is good).
@@ -967,8 +974,8 @@ class DataSimulator:
                     sigma = np.sqrt(np.log(1 + (std / mean) ** 2))
                     mu = np.log(mean) - 0.5 * sigma ** 2
                 values = self.rng.lognormal(mu, sigma, size=size)
-            elif distribution in ("power_law", "pareto"):
-                alpha = float(params.get("alpha", 1.5))
+            elif distribution in ("power_law", "pareto", "zipf"):
+                alpha = float(params.get("alpha", params.get("a", 1.5)))
                 scale = float(params.get("scale", params.get("min", 1.0)))
                 u = self.rng.uniform(0, 1, size=size)
                 values = scale / np.power(u, 1.0 / alpha)

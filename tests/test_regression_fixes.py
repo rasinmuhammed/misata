@@ -1089,6 +1089,44 @@ def test_time_unit_quarter_only_for_rate_curves():
     assert g._normalize_time_unit("quarter", allow_quarter=True) == "quarter"
 
 
+def test_dict_schema_forwards_lambda_and_null_rate():
+    """0.8.1.10: from_dict_schema dropped poisson `lambda` and column `null_rate`
+    (and binomial n/p), so declared distributions silently degraded. They must now
+    reach the generator."""
+    schema = from_dict_schema({
+        "t": {
+            "__rows__": 20000,
+            "k":   {"type": "integer", "distribution": "poisson", "lambda": 4, "min": 0},
+            "opt": {"type": "float", "distribution": "normal", "mean": 5, "std": 1, "null_rate": 0.15},
+        }
+    }, seed=1)
+    params = {c.name: c.distribution_params for c in schema.get_columns("t")}
+    assert params["k"].get("lambda") == 4, "poisson lambda dropped by from_dict_schema"
+    assert params["opt"].get("null_rate") == 0.15, "null_rate dropped by from_dict_schema"
+    df = misata.generate_from_schema(schema)["t"]
+    assert abs(df["k"].mean() - 4) < 0.3, f"poisson mean {df['k'].mean():.2f} ≠ 4 (lambda ignored)"
+    assert abs(df["opt"].isna().mean() - 0.15) < 0.03, "null_rate not applied"
+
+
+def test_binomial_and_zipf_distributions_in_simulator():
+    """0.8.1.10: the simulator's integer path lacked `binomial` and `zipf`, so both
+    fell through to uniform[0,1000]. zipf in particular is what the LLM is told to
+    emit for heavy-tailed columns."""
+    bn = misata.generate_from_schema(from_dict_schema(
+        {"t": {"__rows__": 20000, "k": {"type": "integer", "distribution": "binomial", "n": 10, "p": 0.3}}},
+        seed=1))["t"]
+    assert bn["k"].max() <= 10, f"binomial exceeded n=10 (max {bn['k'].max()}) — fell back to uniform"
+    assert abs(bn["k"].mean() - 3.0) < 0.3, f"binomial mean {bn['k'].mean():.2f} ≠ n*p=3"
+
+    zf = misata.generate_from_schema(from_dict_schema(
+        {"t": {"__rows__": 20000, "views": {"type": "integer", "distribution": "zipf", "a": 2.0, "min": 1}}},
+        seed=1))["t"]
+    median, mx = float(np.median(zf["views"])), int(zf["views"].max())
+    assert median <= 5 and mx > median * 20, (
+        f"zipf not heavy-tailed (median={median}, max={mx}) — likely fell back to uniform"
+    )
+
+
 def test_rate_curve_on_fk_id_column_is_dropped():
     """A rate curve attached to a foreign-key id column (e.g. status_id) is dropped."""
     cfg = _parse({

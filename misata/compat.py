@@ -352,11 +352,21 @@ def _col_from_dict(
     # their distributions, exact percentages, formulas, and cross-table logic.
     if col_def.get("distribution") is not None:
         params["distribution"] = col_def["distribution"]
-    # Distribution shape parameters (lognormal mu/sigma, normal mean/std, pareto alpha, ...)
+    # Distribution shape parameters (lognormal mu/sigma, normal mean/std, pareto alpha,
+    # poisson lambda, binomial n/p, ...). These must reach the generator verbatim or
+    # the declared distribution silently degrades to its default.
     for dist_key in ("mu", "sigma", "mean", "std", "alpha", "scale", "a", "b",
-                     "lam", "shape", "loc"):
+                     "lam", "lambda", "shape", "loc", "n", "p"):
         if col_def.get(dist_key) is not None:
             params[dist_key] = col_def[dist_key]
+    # The poisson generator reads "lambda"; accept the common "lam" alias too.
+    if "lam" in params and "lambda" not in params:
+        params["lambda"] = params["lam"]
+    # Data-quality knobs the generators honor per-column (were being dropped, so a
+    # declared null_rate / outlier_rate produced clean data).
+    for quality_key in ("null_rate", "outlier_rate"):
+        if col_def.get(quality_key) is not None:
+            params[quality_key] = col_def[quality_key]
     # Cross-column / cross-table logic
     for passthrough in ("formula", "depends_on", "mapping", "zero_inflate", "rollup",
                         "inherits_curve_from", "references", "after_column", "relative_to",

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.1.10] - 2026-06-29
 
+### Fixed
+
+- **`from_dict_schema` silently dropped several distribution parameters**, so a
+  declared distribution degraded to its default and produced wrong data. Found by
+  an intensive engine-conformance sweep. Now forwarded: poisson `lambda` (the
+  passthrough list had only `lam`, but the generator reads `lambda` — broken both
+  ways), binomial `n`/`p`, and per-column `null_rate` / `outlier_rate`. Because the
+  studio canvas round-trips every schema (including LLM output) through
+  `from_dict_schema`, this affected hosted generation too.
+- **The simulator's numeric path lacked `binomial` and `zipf`.** Both fell through
+  to `uniform[0, 1000]`, silently. `zipf` matters most: it is the distribution the
+  0.8.1.9 prompt instructs the model to emit for heavy-tailed columns ("a few get
+  most"), so a power-law request was producing uniform noise. `binomial` is now
+  implemented and `zipf` is accepted as an alias of the Pareto sampler (shape
+  param `a`), on both the integer and float paths.
+
 ### Changed
 
 - **Sharpened the quantitative-pattern disambiguation** after JSON-level testing
