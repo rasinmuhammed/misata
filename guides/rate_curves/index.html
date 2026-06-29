@@ -6,31 +6,35 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
+        <meta name="description" content="Declare the exact share of a boolean or categorical outcome per period — churn rising 2% to 9%, fraud climbing through the year — enforced with zero rate-conformance error.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/resilience/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/guides/rate_curves/">
       
       
+        <link rel="prev" href="../outcome_curves/">
+      
+      
+        <link rel="next" href="../correlations/">
       
       
         
       
       
-      <link rel="icon" href="../assets/logo.svg">
+      <link rel="icon" href="../../assets/logo.svg">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Resilience & Coverage Design — being bulletproof across every domain - Misata</title>
+        <title>Rate Curves, Make a Churn or Fraud Rate Rise Over Time - Misata</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -49,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="../assets/custom.css">
+      <link rel="stylesheet" href="../../assets/custom.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -76,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#resilience-coverage-design-being-bulletproof-across-every-domain" class="md-skip">
+        <a href="#rate-curves" class="md-skip">
           Skip to content
         </a>
       
@@ -90,9 +94,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -109,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Resilience &amp; Coverage Design — being bulletproof across every domain
+              Rate Curves, Make a Churn or Fraud Rate Rise Over Time
             
           </span>
         </div>
@@ -222,7 +226,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -241,7 +245,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
+      <a href="../../quickstart/" class="md-tabs__link">
         
   
   
@@ -262,7 +266,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../generation/" class="md-tabs__link">
+        <a href="../../generation/" class="md-tabs__link">
           
   
   
@@ -282,7 +286,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../localisation/" class="md-tabs__link">
+      <a href="../../localisation/" class="md-tabs__link">
         
   
   
@@ -301,7 +305,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../timeseries/" class="md-tabs__link">
+      <a href="../../timeseries/" class="md-tabs__link">
         
   
   
@@ -322,7 +326,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../domains/" class="md-tabs__link">
+        <a href="../../domains/" class="md-tabs__link">
           
   
   
@@ -342,7 +346,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../constraints/" class="md-tabs__link">
+      <a href="../../constraints/" class="md-tabs__link">
         
   
   
@@ -361,7 +365,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../export/" class="md-tabs__link">
+      <a href="../../export/" class="md-tabs__link">
         
   
   
@@ -380,7 +384,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../spark/" class="md-tabs__link">
+      <a href="../../spark/" class="md-tabs__link">
         
   
   
@@ -399,7 +403,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../validate/" class="md-tabs__link">
+      <a href="../../validate/" class="md-tabs__link">
         
   
   
@@ -418,7 +422,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../cli/" class="md-tabs__link">
+      <a href="../../cli/" class="md-tabs__link">
         
   
   
@@ -435,11 +439,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../guides/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -475,9 +481,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href="../.." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../assets/logo.svg" alt="logo">
+  <img src="../../assets/logo.svg" alt="logo">
 
     </a>
     Misata
@@ -504,7 +510,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -531,7 +537,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -593,7 +599,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../generation/" class="md-nav__link ">
+            <a href="../../generation/" class="md-nav__link ">
               
   
   
@@ -637,7 +643,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/story/" class="md-nav__link">
+      <a href="../../generation/story/" class="md-nav__link">
         
   
   
@@ -665,7 +671,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/yaml/" class="md-nav__link">
+      <a href="../../generation/yaml/" class="md-nav__link">
         
   
   
@@ -693,7 +699,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/database/" class="md-nav__link">
+      <a href="../../generation/database/" class="md-nav__link">
         
   
   
@@ -721,7 +727,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/dict/" class="md-nav__link">
+      <a href="../../generation/dict/" class="md-nav__link">
         
   
   
@@ -749,7 +755,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/llm/" class="md-nav__link">
+      <a href="../../generation/llm/" class="md-nav__link">
         
   
   
@@ -777,7 +783,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../generation/incremental/" class="md-nav__link">
+      <a href="../../generation/incremental/" class="md-nav__link">
         
   
   
@@ -812,7 +818,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../localisation/" class="md-nav__link">
+      <a href="../../localisation/" class="md-nav__link">
         
   
   
@@ -839,7 +845,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../timeseries/" class="md-nav__link">
+      <a href="../../timeseries/" class="md-nav__link">
         
   
   
@@ -958,7 +964,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/" class="md-nav__link">
+      <a href="../../domains/" class="md-nav__link">
         
   
   
@@ -986,7 +992,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/saas/" class="md-nav__link">
+      <a href="../../domains/saas/" class="md-nav__link">
         
   
   
@@ -1014,7 +1020,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/ecommerce/" class="md-nav__link">
+      <a href="../../domains/ecommerce/" class="md-nav__link">
         
   
   
@@ -1042,7 +1048,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/fintech/" class="md-nav__link">
+      <a href="../../domains/fintech/" class="md-nav__link">
         
   
   
@@ -1070,7 +1076,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/healthcare/" class="md-nav__link">
+      <a href="../../domains/healthcare/" class="md-nav__link">
         
   
   
@@ -1098,7 +1104,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/hr/" class="md-nav__link">
+      <a href="../../domains/hr/" class="md-nav__link">
         
   
   
@@ -1126,7 +1132,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/logistics/" class="md-nav__link">
+      <a href="../../domains/logistics/" class="md-nav__link">
         
   
   
@@ -1154,7 +1160,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/marketplace/" class="md-nav__link">
+      <a href="../../domains/marketplace/" class="md-nav__link">
         
   
   
@@ -1182,7 +1188,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/social/" class="md-nav__link">
+      <a href="../../domains/social/" class="md-nav__link">
         
   
   
@@ -1210,7 +1216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/realestate/" class="md-nav__link">
+      <a href="../../domains/realestate/" class="md-nav__link">
         
   
   
@@ -1238,7 +1244,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/pharma/" class="md-nav__link">
+      <a href="../../domains/pharma/" class="md-nav__link">
         
   
   
@@ -1266,7 +1272,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/fooddelivery/" class="md-nav__link">
+      <a href="../../domains/fooddelivery/" class="md-nav__link">
         
   
   
@@ -1294,7 +1300,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/edtech/" class="md-nav__link">
+      <a href="../../domains/edtech/" class="md-nav__link">
         
   
   
@@ -1322,7 +1328,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/gaming/" class="md-nav__link">
+      <a href="../../domains/gaming/" class="md-nav__link">
         
   
   
@@ -1350,7 +1356,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/crm/" class="md-nav__link">
+      <a href="../../domains/crm/" class="md-nav__link">
         
   
   
@@ -1378,7 +1384,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/crypto/" class="md-nav__link">
+      <a href="../../domains/crypto/" class="md-nav__link">
         
   
   
@@ -1406,7 +1412,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/insurance/" class="md-nav__link">
+      <a href="../../domains/insurance/" class="md-nav__link">
         
   
   
@@ -1434,7 +1440,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/travel/" class="md-nav__link">
+      <a href="../../domains/travel/" class="md-nav__link">
         
   
   
@@ -1462,7 +1468,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../domains/streaming/" class="md-nav__link">
+      <a href="../../domains/streaming/" class="md-nav__link">
         
   
   
@@ -1497,7 +1503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../constraints/" class="md-nav__link">
+      <a href="../../constraints/" class="md-nav__link">
         
   
   
@@ -1524,7 +1530,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../export/" class="md-nav__link">
+      <a href="../../export/" class="md-nav__link">
         
   
   
@@ -1551,7 +1557,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../spark/" class="md-nav__link">
+      <a href="../../spark/" class="md-nav__link">
         
   
   
@@ -1578,7 +1584,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../validate/" class="md-nav__link">
+      <a href="../../validate/" class="md-nav__link">
         
   
   
@@ -1605,7 +1611,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
+      <a href="../../cli/" class="md-nav__link">
         
   
   
@@ -1629,6 +1635,8 @@
       
   
   
+    
+  
   
   
     
@@ -1688,20 +1696,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../guides/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1719,13 +1730,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1745,7 +1756,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/faker-vs-sdv-vs-misata/" class="md-nav__link">
+      <a href="../faker-vs-sdv-vs-misata/" class="md-nav__link">
         
   
   
@@ -1773,7 +1784,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/multi-table-synthetic-data/" class="md-nav__link">
+      <a href="../multi-table-synthetic-data/" class="md-nav__link">
         
   
   
@@ -1801,7 +1812,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/database-seeding-python/" class="md-nav__link">
+      <a href="../database-seeding-python/" class="md-nav__link">
         
   
   
@@ -1829,7 +1840,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/synthetic-data-for-bi-demos/" class="md-nav__link">
+      <a href="../synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -1857,7 +1868,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../python-synthetic-data-generator/" class="md-nav__link">
+      <a href="../../python-synthetic-data-generator/" class="md-nav__link">
         
   
   
@@ -1885,7 +1896,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/mimic/" class="md-nav__link">
+      <a href="../mimic/" class="md-nav__link">
         
   
   
@@ -1913,7 +1924,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/geospatial/" class="md-nav__link">
+      <a href="../geospatial/" class="md-nav__link">
         
   
   
@@ -1941,7 +1952,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/long-form-text/" class="md-nav__link">
+      <a href="../long-form-text/" class="md-nav__link">
         
   
   
@@ -1969,7 +1980,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/outcome_curves/" class="md-nav__link">
+      <a href="../outcome_curves/" class="md-nav__link">
         
   
   
@@ -1994,10 +2005,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../guides/rate_curves/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rate Curves
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2013,6 +2051,109 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#declare-a-rate-curve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declare a rate curve
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Declare a rate curve">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dict-schema-__rate_curves__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dict schema (__rate_curves__)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schemaconfig-python-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SchemaConfig (Python API)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate_points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rate_points
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#natural-language-the-studio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Natural language &amp; the studio
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-mistakes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common mistakes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2025,7 +2166,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/correlations/" class="md-nav__link">
+      <a href="../correlations/" class="md-nav__link">
         
   
   
@@ -2053,7 +2194,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/conditional-columns/" class="md-nav__link">
+      <a href="../conditional-columns/" class="md-nav__link">
         
   
   
@@ -2081,7 +2222,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/distributions/" class="md-nav__link">
+      <a href="../distributions/" class="md-nav__link">
         
   
   
@@ -2109,7 +2250,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/anomaly-injection/" class="md-nav__link">
+      <a href="../anomaly-injection/" class="md-nav__link">
         
   
   
@@ -2137,7 +2278,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/research-benchmarks/" class="md-nav__link">
+      <a href="../research-benchmarks/" class="md-nav__link">
         
   
   
@@ -2165,7 +2306,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/jupyter/" class="md-nav__link">
+      <a href="../jupyter/" class="md-nav__link">
         
   
   
@@ -2193,7 +2334,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/rest-api/" class="md-nav__link">
+      <a href="../rest-api/" class="md-nav__link">
         
   
   
@@ -2221,7 +2362,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/narrative-patterns/" class="md-nav__link">
+      <a href="../narrative-patterns/" class="md-nav__link">
         
   
   
@@ -2249,7 +2390,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/mcp/" class="md-nav__link">
+      <a href="../mcp/" class="md-nav__link">
         
   
   
@@ -2277,7 +2418,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/testing/" class="md-nav__link">
+      <a href="../testing/" class="md-nav__link">
         
   
   
@@ -2305,7 +2446,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/from-ddl/" class="md-nav__link">
+      <a href="../from-ddl/" class="md-nav__link">
         
   
   
@@ -2333,7 +2474,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/dbt-seed/" class="md-nav__link">
+      <a href="../dbt-seed/" class="md-nav__link">
         
   
   
@@ -2361,7 +2502,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/streaming/" class="md-nav__link">
+      <a href="../streaming/" class="md-nav__link">
         
   
   
@@ -2416,44 +2557,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-the-bar-five-fidelity-dimensions" class="md-nav__link">
+  <a href="#declare-a-rate-curve" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. The bar: five fidelity dimensions
+        Declare a rate curve
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-where-we-stand-the-tiered-resilience-model-honest-audit" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Where we stand: the tiered resilience model (honest audit)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-the-empirical-cliffs-stress-test-june-2026" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. The empirical cliffs (stress test, June 2026)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. The empirical cliffs (stress test, June 2026)">
+    <nav class="md-nav" aria-label="Declare a rate curve">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#c1-archetype-collapse-drops-domain-specific-columns" class="md-nav__link">
+  <a href="#dict-schema-__rate_curves__" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C1 — Archetype collapse drops domain-specific columns
+        Dict schema (__rate_curves__)
       
     </span>
   </a>
@@ -2461,32 +2580,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#c2-measured-values-are-missing-the-whole-point-of-telemetrylabs" class="md-nav__link">
+  <a href="#schemaconfig-python-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C2 — Measured values are missing (the whole point of telemetry/labs)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#c3-explicit-story-attributes-are-ignored" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        C3 — Explicit story attributes are ignored
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#c4-cardinality-is-unrealistic-ignores-stated-and-implied-ratios" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        C4 — Cardinality is unrealistic / ignores stated and implied ratios
+        SchemaConfig (Python API)
       
     </span>
   </a>
@@ -2499,10 +2596,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-use-case-taxonomy-what-we-must-cover" class="md-nav__link">
+  <a href="#rate_points" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Use-case taxonomy (what we must cover)
+        rate_points
       
     </span>
   </a>
@@ -2510,104 +2607,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-the-resilience-architecture-implementable" class="md-nav__link">
+  <a href="#verify" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. The resilience architecture (implementable)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="5. The resilience architecture (implementable)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#m1-attribute-extraction-from-the-story-closes-c3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        M1 — Attribute extraction from the story (closes C3)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#m2-measured-value-columns-for-eventreading-archetypes-closes-c2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        M2 — Measured-value columns for event/reading archetypes (closes C2)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#m3-cardinality-realism-engine-closes-c4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        M3 — Cardinality realism engine (closes C4)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#m4-domain-capsules-as-the-niche-coverage-flywheel-closes-c1-c5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        M4 — Domain capsules as the niche-coverage flywheel (closes C1, C5)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#m5-shape-archetype-generators-closes-weak-shapes-3568" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        M5 — Shape-archetype generators (closes weak shapes 3/5/6/8)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#m6-business-rule-validation-gate-the-trust-moment-raises-axis-3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        M6 — Business-rule validation gate (the trust moment) (raises axis 3)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#m7-honest-degradation-contract-never-silently-wrong-safety-net" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        M7 — Honest-degradation contract (never silently wrong) (safety net)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-the-always-credible-guarantee-degradation-ladder" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. The "always credible" guarantee (degradation ladder)
+        Verify
       
     </span>
   </a>
@@ -2615,10 +2618,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#7-phased-roadmap-impact-ordered-each-shippable" class="md-nav__link">
+  <a href="#natural-language-the-studio" class="md-nav__link">
     <span class="md-ellipsis">
       
-        7. Phased roadmap (impact-ordered, each shippable)
+        Natural language &amp; the studio
       
     </span>
   </a>
@@ -2626,30 +2629,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#8-how-we-measure-bulletproof-so-its-not-vibes" class="md-nav__link">
+  <a href="#common-mistakes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        8. How we measure "bulletproof" (so it's not vibes)
+        Common mistakes
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="8. How we measure &#34;bulletproof&#34; (so it&#39;s not vibes)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#sources" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sources
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2673,290 +2659,79 @@
   
 
 
-<h1 id="resilience-coverage-design-being-bulletproof-across-every-domain">Resilience &amp; Coverage Design — being bulletproof across every domain</h1>
+<h1 id="rate-curves">Rate Curves</h1>
+<p>An <strong>outcome curve</strong> controls <em>how much</em> of a numeric column accumulates per period (revenue, volume). A <strong>rate curve</strong> controls <em>what fraction</em> of a boolean or categorical outcome is positive per period: a churn rate rising from 2% to 9% over a year, a fraud rate climbing through the holidays, a conversion rate improving each quarter.</p>
+<p>This is the Rate-Conformance (RCE) axis from the paper — orthogonal to the aggregate (AME) axis that outcome curves cover. The engine flips exactly <code>round(n_period × rate)</code> rows per period, so the realised rate matches your target with <strong>RCE = 0</strong>.</p>
 <blockquote>
-<p><strong>Goal.</strong> A user can describe <em>any</em> business — a SaaS, a vineyard, a vet clinic,
-a semiconductor fab, a microfinance co-op in Lagos — and get data that is
-<em>structurally correct, statistically plausible, business-rule valid, and
-domain-recognisable</em>. Where we cannot be accurate, we are <strong>honestly
-approximate and never silently wrong</strong>. This document defines the bar, audits
-where we stand, and lays out an implementable path to get there.</p>
+<p>Pick the right tool: a <em>magnitude over time</em> is an <a href="../outcome_curves/">outcome curve</a>; a <em>rate/proportion over time</em> is a rate curve; a <em>static split</em> with no time component is just categorical <code>probabilities</code>.</p>
 </blockquote>
-<p>This is the difference between "yet another Faker wrapper" and an engine teams
-trust. The perception of "simple tool" is earned the moment a user sees a
-<code>sensor_readings</code> table with no reading value, or a 200-case law firm with
-10,000 attorneys. This doc is about never shipping that moment.</p>
 <hr />
-<h2 id="1-the-bar-five-fidelity-dimensions">1. The bar: five fidelity dimensions</h2>
-<p>The synthetic-data literature converges on five axes. We hold every dataset to
-all five, in priority order:</p>
-<ol>
-<li><strong>Structural fidelity</strong> — the right tables, keys, and relationships exist.</li>
-<li><strong>Referential integrity</strong> — no orphans; child rows point at real parents.</li>
-<li><strong>Business-logic validity</strong> — rows obey domain rules (a refund ≤ the order;
-   a discharge date ≥ an admission date; a churned user has a cancel event).
-   <em>This is the axis most tools fail</em> — data that is "statistically plausible
-   but violates domain logic."</li>
-<li><strong>Statistical fidelity</strong> — marginals and joint distributions look real
-   (lognormal revenue, bimodal ages, correlated height/weight).</li>
-<li><strong>Domain recognisability</strong> — a domain expert glancing at the data says "yes,
-   that's a vet clinic" (species, breeds, vaccine names) not "that's the
-   archetype skeleton of a vet clinic" (model, status, acquired_date).</li>
-</ol>
-<p>Misata is already strong on 1–2, partial on 3–4, and <strong>weakest on 5</strong> — which
-is exactly the axis a human notices first.</p>
-<hr />
-<h2 id="2-where-we-stand-the-tiered-resilience-model-honest-audit">2. Where we stand: the tiered resilience model (honest audit)</h2>
-<p>Misata already has a real, layered architecture — not a single keyword lookup.
-Coverage degrades gracefully across tiers:</p>
-<table>
-<thead>
-<tr>
-<th>Tier</th>
-<th>Mechanism</th>
-<th>Module</th>
-<th>Covers</th>
-<th>Limit</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>T1</td>
-<td><strong>Keyword domains</strong> (18)</td>
-<td><code>story_parser.DOMAIN_KEYWORDS</code></td>
-<td>saas, ecommerce, fintech, healthcare, pharma, crypto, social, realestate, marketplace, logistics, hr, edtech, gaming, crm, insurance, travel, streaming, fooddelivery</td>
-<td>Hand-tuned; only these 18 are rich</td>
-</tr>
-<tr>
-<td>T2</td>
-<td><strong>Statistical priors</strong> (7)</td>
-<td><code>domain_priors</code></td>
-<td>realistic distributions for known metrics (mrr, salary, premium…)</td>
-<td>Only 7 domains, ~dozens of metrics</td>
-</tr>
-<tr>
-<td>T3</td>
-<td><strong>Archetype lattice</strong></td>
-<td><code>composer</code></td>
-<td><em>any</em> unseen domain → person/asset/place/event/document tables via morphology</td>
-<td>Structurally good, <strong>value-shallow</strong></td>
-</tr>
-<tr>
-<td>T4</td>
-<td><strong>LLM schema + values</strong></td>
-<td><code>llm_parser</code>, <code>smart_values</code></td>
-<td>open-ended stories, niche columns</td>
-<td>Needs a key; non-deterministic unless cached</td>
-</tr>
-<tr>
-<td>T5</td>
-<td><strong>Learn-from-real</strong></td>
-<td><code>profiler</code>, <code>mimic</code>, <code>capsule_from_dataframes</code></td>
-<td>exact-domain fidelity from a sample CSV</td>
-<td>Requires the user to <em>have</em> data</td>
-</tr>
-<tr>
-<td>T6</td>
-<td><strong>Capsules</strong></td>
-<td><code>capsules</code></td>
-<td>shareable, reviewable domain vocab packs (vet, legal, …)</td>
-<td>Today few exist; community-seeded</td>
-</tr>
-</tbody>
-</table>
-<p><strong>The fallback chain works.</strong> The cliff is <em>what each tier produces for niche
-columns</em>, not <em>whether</em> it produces something.</p>
-<hr />
-<h2 id="3-the-empirical-cliffs-stress-test-june-2026">3. The empirical cliffs (stress test, June 2026)</h2>
-<p>Four niche domains pushed through the story path (<code>misata.generate</code>). Structure
-held; the gaps below are real and reproducible.</p>
-<h3 id="c1-archetype-collapse-drops-domain-specific-columns">C1 — Archetype collapse drops domain-specific columns</h3>
-<ul>
-<li><strong>Vet clinic</strong> <code>animals</code> → <code>[animal_id, model, status, acquired_date]</code>.
-  An animal became an <em>asset</em> (model/acquired_date) instead of having
-  <strong>species, breed, name, age, weight</strong>.</li>
-<li><strong>Vineyard</strong> <code>wine_lots</code> → <code>[name, city, is_active]</code> — a wine lot got a
-  <code>city</code> (place confusion), not varietal/vintage/volume.</li>
-</ul>
-<h3 id="c2-measured-values-are-missing-the-whole-point-of-telemetrylabs">C2 — Measured values are missing (the whole point of telemetry/labs)</h3>
-<ul>
-<li><strong>Factory</strong> <code>sensor_readings</code> → <code>[…, reading_date, status]</code> with <strong>no
-  temperature, no vibration</strong> — the measurement named in the story is absent.</li>
-<li>Event/reading entities lack their core numeric payload.</li>
-</ul>
-<h3 id="c3-explicit-story-attributes-are-ignored">C3 — Explicit story attributes are ignored</h3>
-<ul>
-<li>"temperature and vibration sensor readings", "billable hours" — named in the
-  prompt, <strong>never become columns</strong>. The parser extracts <em>entities</em>, not
-  <em>attributes</em>.</li>
-</ul>
-<h3 id="c4-cardinality-is-unrealistic-ignores-stated-and-implied-ratios">C4 — Cardinality is unrealistic / ignores stated and implied ratios</h3>
-<ul>
-<li>200 legal cases → <strong>10,000 attorneys</strong> and <strong>10,000 clients</strong>.</li>
-<li>300 pet owners → 2,000 animals (≈7 pets each) and 30,000 vaccinations.</li>
-<li>50 machines → 30,000 readings (no link to "hourly × duration").</li>
-<li>Default <code>30000</code>/<code>10000</code>/<code>2000</code> row counts override commonsense ratios.</li>
-</ul>
-<p>These four cliffs are the entire gap between "plausible skeleton" and
-"recognisable dataset." Each is independently fixable.</p>
-<hr />
-<h2 id="4-use-case-taxonomy-what-we-must-cover">4. Use-case taxonomy (what we must cover)</h2>
-<p>Two orthogonal axes. Resilience = covering the <strong>product</strong> of them, not just
-the rows.</p>
-<p><strong>A. Domain breadth</strong> (industry vocabulary + business rules)
-SaaS · ecommerce/retail · fintech/banking · payments/fraud · crypto/web3 ·
-healthcare/clinical · pharma/trials · insurance/actuarial · HR/payroll ·
-CRM/sales · logistics/supply-chain · manufacturing/IoT · energy/utilities ·
-telco · real-estate · travel/hospitality · gaming · streaming/media · social ·
-edtech · gov/civic · legal · agriculture · scientific/lab · non-profit ·
-automotive/AV · construction · field-service.</p>
-<p><strong>B. Data-shape archetypes</strong> (the <em>physics</em> of the rows, domain-independent)
-1. <strong>Entity/dimension</strong> (users, products) — identity + attributes.
-2. <strong>Event/fact</strong> (orders, clicks, payments) — timestamped, FK-heavy.
-3. <strong>Time-series/telemetry</strong> (sensor readings, prices, vitals) — regular
-   cadence, autocorrelated values, units.
-4. <strong>State-machine/lifecycle</strong> (subscriptions, claims, tickets) — status
-   transitions with valid orderings.
-5. <strong>Hierarchy/graph</strong> (org charts, bill-of-materials, referrals) — self-refs.
-6. <strong>Ledger/double-entry</strong> (accounting, wallets) — sums that must balance.
-7. <strong>Document/text</strong> (reviews, notes, contracts) — realistic prose.
-8. <strong>Geospatial/movement</strong> (trips, deliveries) — coherent lat/long paths.</p>
-<p>Misata is strong on 1, 2, 7; partial on 4; <strong>weak on 3, 5, 6, 8</strong>. These shape
-archetypes are <em>more leverage than more domains</em> — they generalise across every
-industry. A robust time-series + ledger + lifecycle engine makes 30 domains
-credible at once.</p>
-<hr />
-<h2 id="5-the-resilience-architecture-implementable">5. The resilience architecture (implementable)</h2>
-<p>Seven mechanisms, each mapped to code, each closing a specific cliff. Ordered by
-impact-to-effort.</p>
-<h3 id="m1-attribute-extraction-from-the-story-closes-c3">M1 — Attribute extraction from the story  <em>(closes C3)</em></h3>
-<p>Teach the parser to lift <strong>named attributes</strong>, not just entities. "machines
-emitting <strong>temperature and vibration</strong>", "<strong>billable hours</strong>", "orders with a
-<strong>total</strong> and <strong>discount</strong>".</p>
-<ul>
-<li><em>Where:</em> new pass in <code>composer.extract_entities</code> / <code>story_parser</code>, run after
-  entity extraction. Regex + a noun-attribute lexicon (<code>temperature→float°C</code>,
-  <code>hours→float</code>, <code>vibration→float</code>), attached to the nearest entity.</li>
-<li><em>Output:</em> extra <code>Column</code>s with <code>domain_priors</code>-backed distributions.</li>
-<li><em>Acceptance:</em> the factory story yields <code>sensor_readings.temperature</code> and
-  <code>.vibration</code> with sane units/ranges.</li>
-</ul>
-<h3 id="m2-measured-value-columns-for-eventreading-archetypes-closes-c2">M2 — Measured-value columns for event/reading archetypes  <em>(closes C2)</em></h3>
-<p>Every <code>event</code>/<code>reading</code> entity gets a <strong>payload column</strong> appropriate to its
-verb: a <code>reading</code> → a <code>value</code> (+<code>unit</code>); a <code>payment</code> → an <code>amount</code>; a <code>test</code> →
-a <code>result</code>. Misata already tags <code>MONETARY_EVENTS</code>; generalise to
-<code>MEASURED_EVENTS</code> → <code>{value, unit}</code> and <code>SCORED_EVENTS</code> → <code>{score}</code>.</p>
-<ul>
-<li><em>Where:</em> <code>composer._columns_for(entity)</code> archetype → column synthesis.</li>
-<li><em>Acceptance:</em> no reading/measurement table ships without its numeric payload.</li>
-</ul>
-<h3 id="m3-cardinality-realism-engine-closes-c4">M3 — Cardinality realism engine  <em>(closes C4)</em></h3>
-<p>Replace flat <code>30000</code>/<code>10000</code> defaults with <strong>ratio-aware</strong> row counts:
-1. Honour explicitly stated counts ("200 cases", "50 machines").
-2. Derive child counts from <strong>relationship multipliers</strong> (pets-per-owner ≈ 1.6;
-   readings = machines × cadence × window; attorneys ≪ cases).
-3. Default multipliers per <code>(parent_archetype, child_archetype)</code> pair, seeded
-   from <code>domain_priors</code> + commonsense lattice; overridable in the schema.</p>
-<ul>
-<li><em>Where:</em> <code>composer._default_rows</code> + <code>RealismConfig.relationship_multipliers</code>
-  (already exists — wire it into the composer path and the studio).</li>
-<li><em>Acceptance:</em> a 200-case firm has ~20–60 attorneys, not 10,000.</li>
-</ul>
-<h3 id="m4-domain-capsules-as-the-niche-coverage-flywheel-closes-c1-c5">M4 — Domain capsules as the niche-coverage flywheel  <em>(closes C1, C5)</em></h3>
-<p>Capsules are the scalable answer to "infinite domains." A capsule supplies:
-vocab pools (species, breeds, vaccine names, varietals), per-column
-distributions, business rules, and cardinality priors — <strong>without touching the
-engine</strong>.</p>
-<ul>
-<li><em>Ship a starter library</em> (vet, legal, manufacturing, energy, agriculture,
-  scientific) using <code>capsule_from_llm</code> + human review, stored as reviewable
-  JSON. Each new capsule upgrades a domain from T3→T1 quality.</li>
-<li><em>Auto-select</em> a capsule when story keywords match; <em>auto-build</em> one on the
-  fly via <code>capsule_from_llm</code> when a key is present and no capsule fits, then
-  cache it.</li>
-<li><em>Where:</em> <code>capsules</code>, <code>story_parser</code> domain hook, <code>realism</code> vocab lookup.</li>
-<li><em>Acceptance:</em> "vet clinic" animals have species/breed/name; a community PR
-  adds a domain in one reviewable file.</li>
-</ul>
-<h3 id="m5-shape-archetype-generators-closes-weak-shapes-3568">M5 — Shape-archetype generators  <em>(closes weak shapes 3/5/6/8)</em></h3>
-<p>Domain-independent generators for the data <em>physics</em>:
-- <strong>Time-series:</strong> cadence + AR(1)/trend/seasonality + noise + unit. (Partial
-  <code>time_series</code> param exists — promote to a first-class archetype with cadence
-  inference from the story: "every hour".)
-- <strong>Ledger/double-entry:</strong> a <code>balance</code>/<code>__ledger__</code> directive guaranteeing
-  debits = credits and running balances ≥ 0.
-- <strong>Hierarchy/graph:</strong> self-referential FK with depth/branching control.
-- <strong>Geospatial:</strong> coherent point sequences within a bounding region.
-- <em>Where:</em> new <code>generators</code> + simulator hooks; declared via dict directives so
-  the studio can expose them no-code.
-- <em>Acceptance:</em> an accounting dataset balances to the cent; sensor telemetry is
-  autocorrelated, not white noise.</p>
-<h3 id="m6-business-rule-validation-gate-the-trust-moment-raises-axis-3">M6 — Business-rule validation gate (the trust moment)  <em>(raises axis 3)</em></h3>
-<p>A post-generation <strong>validator</strong> that checks declared + inferred invariants and
-either repairs or reports them, surfaced like the integrity proof:
-- temporal ordering (<code>created_at ≤ updated_at ≤ closed_at</code>),
-- lifecycle legality (status transitions follow the declared machine),
-- arithmetic (<code>line_items.sum == order.total</code>, <code>refund ≤ amount</code>),
-- range/category sanity per column.
-- <em>Where:</em> extend <code>validation.py</code> + the <code>integrity</code> proof into a full
-  <strong>conformance report</strong> returned with every run.
-- <em>Acceptance:</em> every run ships a pass/fail card per invariant; violations are
-  never silent.</p>
-<h3 id="m7-honest-degradation-contract-never-silently-wrong-safety-net">M7 — Honest-degradation contract (never silently wrong)  <em>(safety net)</em></h3>
-<p>When confidence is low, <strong>say so</strong> instead of guessing:
-- a per-column/table <strong>confidence</strong> (T1 capsule vs T3 archetype guess),
-- a run-level <strong>coverage report</strong>: "animals: archetype-inferred (no vet
-  capsule) — values are generic; add a capsule or sample CSV for fidelity,"
-- the existing <code>StoryParser</code> fallback warning, generalised and structured.
-- <em>Acceptance:</em> a user never <em>discovers</em> shallowness by surprise; the tool
-  told them, with the fix one step away (capsule / CSV / LLM key).</p>
-<hr />
-<h2 id="6-the-always-credible-guarantee-degradation-ladder">6. The "always credible" guarantee (degradation ladder)</h2>
-<p>For any input, Misata picks the <strong>highest tier that applies</strong> and reports it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>exact CSV sample?        → T5 mimic            (highest fidelity, privacy-safe twin)
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>matching capsule?        → T1/T4 capsule        (domain-recognisable values)
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>known keyword domain?    → T1 priors            (tuned schema + distributions)
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>LLM key + niche story?   → T4 LLM + cache       (open-ended, then frozen)
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>anything else?           → T3 archetype + M1/M2 (structurally right, honestly generic)
+<h2 id="declare-a-rate-curve">Declare a rate curve</h2>
+<h3 id="dict-schema-__rate_curves__">Dict schema (<code>__rate_curves__</code>)</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;subscriptions&quot;</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="s2">&quot;__rows__&quot;</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="s2">&quot;id&quot;</span><span class="p">:</span>         <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="s2">&quot;primary_key&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="s2">&quot;churn_date&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-12-31&quot;</span><span class="p">},</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="s2">&quot;churned&quot;</span><span class="p">:</span>    <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;boolean&quot;</span><span class="p">},</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="p">},</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="s2">&quot;__rate_curves__&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="p">{</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="s2">&quot;table&quot;</span><span class="p">:</span> <span class="s2">&quot;subscriptions&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            <span class="s2">&quot;column&quot;</span><span class="p">:</span> <span class="s2">&quot;churned&quot;</span><span class="p">,</span>          <span class="c1"># the boolean/categorical column</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>            <span class="s2">&quot;time_column&quot;</span><span class="p">:</span> <span class="s2">&quot;churn_date&quot;</span><span class="p">,</span>  <span class="c1"># buckets rows into periods</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>            <span class="s2">&quot;time_unit&quot;</span><span class="p">:</span> <span class="s2">&quot;month&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>            <span class="s2">&quot;true_value&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>           <span class="c1"># the value counted as &quot;positive&quot;</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>            <span class="s2">&quot;interpolate&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>          <span class="c1"># linearly fill between anchor points</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>            <span class="s2">&quot;rate_points&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>                <span class="p">{</span><span class="s2">&quot;period&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>  <span class="s2">&quot;rate&quot;</span><span class="p">:</span> <span class="mf">0.02</span><span class="p">},</span>   <span class="c1"># 2% churn in January</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>                <span class="p">{</span><span class="s2">&quot;period&quot;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s2">&quot;rate&quot;</span><span class="p">:</span> <span class="mf">0.09</span><span class="p">},</span>   <span class="c1"># rising to 9% by December</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>            <span class="p">],</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>        <span class="p">}</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="p">],</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p">}</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">misata</span><span class="o">.</span><span class="n">from_dict_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">7</span><span class="p">))</span>
 </code></pre></div>
-<p>No branch returns broken or silently-wrong data. Every branch returns the
-conformance + coverage report (M6/M7). That contract — <em>correct or candid,
-never confidently wrong</em> — is what separates a serious engine from a toy.</p>
+<h3 id="schemaconfig-python-api">SchemaConfig (Python API)</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">RateCurve</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">RateCurve</span><span class="p">(</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">table</span><span class="o">=</span><span class="s2">&quot;subscriptions&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">column</span><span class="o">=</span><span class="s2">&quot;churned&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">time_column</span><span class="o">=</span><span class="s2">&quot;churn_date&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">time_unit</span><span class="o">=</span><span class="s2">&quot;month&quot;</span><span class="p">,</span>          <span class="c1"># day | week | month | quarter</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">true_value</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">interpolate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">rate_points</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>        <span class="p">{</span><span class="s2">&quot;period&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-01&quot;</span><span class="p">,</span> <span class="s2">&quot;rate&quot;</span><span class="p">:</span> <span class="mf">0.02</span><span class="p">},</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>        <span class="p">{</span><span class="s2">&quot;period&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-12&quot;</span><span class="p">,</span> <span class="s2">&quot;rate&quot;</span><span class="p">:</span> <span class="mf">0.09</span><span class="p">},</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="p">],</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">)</span>
+</code></pre></div>
+<p>Attach it via <code>SchemaConfig(rate_curves=[...])</code>.</p>
 <hr />
-<h2 id="7-phased-roadmap-impact-ordered-each-shippable">7. Phased roadmap (impact-ordered, each shippable)</h2>
-<p><strong>Phase 1 — Recognisability &amp; honesty (closes the "simple tool" perception)</strong>
-- M1 attribute extraction, M2 measured-value columns, M3 cardinality realism.
-- M7 coverage report (cheap, huge trust win).
-- <em>Result:</em> niche stories produce <em>recognisable</em> schemas with payloads and sane
-  scale, and admit what they inferred.</p>
-<p><strong>Phase 2 — The capsule flywheel (scales to infinite domains)</strong>
-- M4 starter capsule library (6–10 domains) + auto-select + on-the-fly build.
-- Capsule contribution guide + CI validation; community can add a domain in one
-  file.</p>
-<p><strong>Phase 3 — Shape mastery (credible across data physics)</strong>
-- M5 time-series, ledger, hierarchy, geospatial archetypes.
-- Studio no-code controls for each.</p>
-<p><strong>Phase 4 — The trust gate (enterprise-grade)</strong>
-- M6 full business-rule conformance report, repair loop, exportable as an audit
-  artifact.</p>
-<p>Each phase is independently valuable and independently shippable; each adds
-acceptance tests to <code>tests/</code> (e.g. <code>test_resilience_&lt;phase&gt;.py</code>) so coverage is
-provable, not asserted.</p>
-<hr />
-<h2 id="8-how-we-measure-bulletproof-so-its-not-vibes">8. How we measure "bulletproof" (so it's not vibes)</h2>
-<p>A <strong>coverage benchmark</strong>: a corpus of ~40 stories spanning the §4 taxonomy,
-scored automatically on the five §1 axes + recognisability (expert rubric or
-capsule-match rate). Run in CI; a release cannot regress the aggregate score.
-This turns "resilient for every use case" into a number that goes up.</p>
-<hr />
-<h3 id="sources">Sources</h3>
+<h2 id="rate_points"><code>rate_points</code></h2>
+<p>Each point is <code>{"period": &lt;p&gt;, "rate": &lt;0..1&gt;}</code>:</p>
 <ul>
-<li><a href="https://bluegen.ai/what-industries-use-synthetic-data/">Synthetic data by industry — use cases &amp; regulation (bluegen.ai)</a></li>
-<li><a href="https://research.aimultiple.com/synthetic-data-use-cases/">Top synthetic data use cases (AIMultiple)</a></li>
-<li><a href="https://bluegen.ai/how-reliable-is-synthetic-data/">How reliable is synthetic data — failure modes (bluegen.ai)</a></li>
-<li><a href="https://www.synthesized.io/post/why-referential-integrity-matters-in-test-data-management">Why referential integrity matters in test data (Synthesized)</a></li>
-<li><a href="https://arxiv.org/html/2410.03411v1">Benchmarking fidelity &amp; utility of synthetic relational data (arXiv)</a></li>
-<li><a href="https://www.mjvinnovation.com/blog/how-to-validate-synthetic-data-the-guide-to-fidelity-utility-and-privacy/">How to validate synthetic data: fidelity, utility, privacy (MJV)</a></li>
+<li><code>period</code> accepts a <code>"YYYY-MM"</code> string, a <code>"YYYY-Qn"</code> quarter, or a bare 1-based month index.</li>
+<li><code>rate</code> is the share of rows in that period whose <code>column</code> equals <code>true_value</code>.</li>
+<li>With <code>interpolate: True</code>, rates between anchors are filled linearly; with <code>False</code>, only the declared periods are constrained.</li>
+</ul>
+<h2 id="verify">Verify</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">df</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscriptions&quot;</span><span class="p">]</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">df</span><span class="p">[</span><span class="s2">&quot;m&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;churn_date&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">month</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;m&quot;</span><span class="p">)[</span><span class="s2">&quot;churned&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>   <span class="c1"># ≈ 0.02 … 0.09, monotonic</span>
+</code></pre></div>
+<h2 id="natural-language-the-studio">Natural language &amp; the studio</h2>
+<p>The LLM schema path extracts rate curves from prompts like <em>"monthly churn rises from 2% in January to 9% by December"</em>. In <strong>Misata Studio</strong>, the <strong>Shape</strong> tab has a <em>Rate curves</em> designer, and the <strong>Explore</strong> tab overlays the realised rate against your target.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul>
+<li><strong>A static split is not a rate curve.</strong> "70% resolved, 20% pending, 10% escalated" has no time dimension — use categorical <code>probabilities</code> instead.</li>
+<li><strong>Curves belong on measure columns.</strong> A rate curve targets a boolean/categorical column, never an <code>id</code>/foreign-key column (the engine drops those).</li>
 </ul>
 
 
@@ -2964,6 +2739,9 @@ This turns "resilient for every use case" into a number that goes up.</p>
 
 
 
+
+  
+  
 
 
 
@@ -3046,10 +2824,10 @@ This turns "resilient for every use case" into a number that goes up.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
