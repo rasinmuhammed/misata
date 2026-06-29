@@ -1432,10 +1432,19 @@ def _fix_category_from_product_name(df: pd.DataFrame, columns: set[str], table_n
     "home & garden"). Only runs on product/item tables, and only rewrites rows whose name
     is a recognized product name; anything else is left untouched.
     """
-    if "category" not in columns or "name" not in columns:
+    if "category" not in columns:
+        return
+    # The product-name column is usually "name", but marketplace/catalog tables
+    # call it "title" (and occasionally "product_name"). Pick whichever exists.
+    name_col = next((c for c in ("name", "title", "product_name") if c in columns), None)
+    if name_col is None:
         return
     tl = table_name.lower()
-    if "product" not in tl and "item" not in tl:
+    _PRODUCT_TABLE_TOKENS = (
+        "product", "item", "listing", "catalog", "catalogue", "marketplace",
+        "sku", "merchandise", "inventory", "offer", "goods",
+    )
+    if not any(tok in tl for tok in _PRODUCT_TABLE_TOKENS):
         return
 
     existing_cats = [str(c) for c in df["category"].dropna().unique()]
@@ -1460,30 +1469,59 @@ def _fix_category_from_product_name(df: pd.DataFrame, columns: set[str], table_n
     # Pools that this table's category vocabulary CAN represent.
     representable = {p for p, c in pool_to_cat.items() if c is not None}
 
-    names = df["name"].tolist()
+    # Map a category VALUE present in the table back to a canonical product pool,
+    # so we can drive names from the (usually diverse) category enum.
+    def _cat_to_pool(cat_value: str) -> Optional[str]:
+        cl = str(cat_value).lower()
+        for p in PRODUCT_NAME_POOLS:
+            if p in cl or cl in p or p in cl.split():
+                return p
+        return None
+
+    # Decide the authoritative direction. The product-name column frequently
+    # collapses to a single default pool (it is generated before the category
+    # column is available), whereas the category enum is a proper, diverse draw.
+    # When the category column is the more diverse signal AND it maps cleanly to
+    # product pools, drive NAMES from CATEGORY (preserves diversity + coherence).
+    # Otherwise fall back to the original name→category direction.
+    names = df[name_col].tolist()
     cats = df["category"].tolist()
-    for i, nm in enumerate(names):
-        nm = str(nm)
-        pool = _NAME_TO_POOL.get(nm)
-        if pool is None:
-            continue
-        mapped = pool_to_cat.get(pool)
-        if mapped is not None:
-            # Name's pool is representable: set the category to match the name.
-            cats[i] = mapped
-        elif representable:
-            # Name's pool (e.g. "food") has no category in this store. Rather than leave a
-            # mismatch, swap the NAME to a product from a representable pool, deterministically
-            # chosen from the row's current category so the (name, category) pair is coherent.
-            cur = str(cats[i]).lower()
-            target_pool = next(
-                (p for p in representable
-                 if p in cur or cur in p or p in cur.split()),
-                sorted(representable)[0],
-            )
-            pool_names = PRODUCT_NAME_POOLS[target_pool]
-            names[i] = pool_names[hash(nm) % len(pool_names)]
-    df["name"] = names
+    name_pools = {_NAME_TO_POOL.get(str(n)) for n in names} - {None}
+    cat_pools = {_cat_to_pool(c) for c in cats} - {None}
+    category_authoritative = len(cat_pools) > len(name_pools) and len(cat_pools) >= 2
+
+    if category_authoritative:
+        for i, cat in enumerate(cats):
+            pool = _cat_to_pool(cat)
+            if pool is None:
+                continue
+            cur_pool = _NAME_TO_POOL.get(str(names[i]))
+            if cur_pool != pool:  # name doesn't belong to its category — regenerate it
+                pool_names = PRODUCT_NAME_POOLS[pool]
+                names[i] = pool_names[hash(str(names[i]) + str(i)) % len(pool_names)]
+    else:
+        for i, nm in enumerate(names):
+            nm = str(nm)
+            pool = _NAME_TO_POOL.get(nm)
+            if pool is None:
+                continue
+            mapped = pool_to_cat.get(pool)
+            if mapped is not None:
+                # Name's pool is representable: set the category to match the name.
+                cats[i] = mapped
+            elif representable:
+                # Name's pool (e.g. "food") has no category in this store. Swap the NAME to a
+                # product from a representable pool, deterministically chosen from the row's
+                # current category so the (name, category) pair is coherent.
+                cur = str(cats[i]).lower()
+                target_pool = next(
+                    (p for p in representable
+                     if p in cur or cur in p or p in cur.split()),
+                    sorted(representable)[0],
+                )
+                pool_names = PRODUCT_NAME_POOLS[target_pool]
+                names[i] = pool_names[hash(nm) % len(pool_names)]
+    df[name_col] = names
     df["category"] = cats
 
 

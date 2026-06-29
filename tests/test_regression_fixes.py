@@ -1006,3 +1006,152 @@ def test_realism_customer_name_infer_semantic_returns_person():
     assert g._infer_semantic("customer_name", "invoices") == "person_name"
     assert g._infer_semantic("recipient_name", "emails") == "person_name"
     assert g._infer_semantic("company_name", "orders") == "company_name"
+
+
+# ---------------------------------------------------------------------------
+# 0.8.1.9: curve extraction toolbox — rate_curves, id-column guard, correlations
+# ---------------------------------------------------------------------------
+
+def _parse(schema_dict):
+    from misata.llm_parser import LLMSchemaGenerator
+    return LLMSchemaGenerator.__new__(LLMSchemaGenerator)._parse_schema(schema_dict)
+
+
+def test_rate_curve_is_parsed_from_llm_output():
+    """A `rate_curves` key from the LLM must become RateCurve objects (was dropped)."""
+    cfg = _parse({
+        "name": "t", "seed": 1,
+        "tables": [{"name": "subs", "row_count": 1000}],
+        "columns": {"subs": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "churn_date", "type": "date"},
+            {"name": "churned", "type": "boolean"},
+        ]},
+        "relationships": [],
+        "rate_curves": [{
+            "table": "subs", "column": "churned", "time_column": "churn_date",
+            "time_unit": "quarter", "true_value": True,
+            "rate_points": [{"period": 1, "rate": 0.02}, {"period": 12, "rate": 0.09}],
+        }],
+    })
+    assert len(cfg.rate_curves) == 1
+    rc = cfg.rate_curves[0]
+    assert rc.table == "subs" and rc.column == "churned"
+    assert rc.time_unit == "quarter"          # RateCurve allows quarter
+    assert len(rc.rate_points) == 2
+
+
+def test_outcome_curve_on_id_column_is_dropped():
+    """A curve attached to an id/pk/fk column is meaningless and must be dropped."""
+    cfg = _parse({
+        "name": "t", "seed": 1,
+        "tables": [{"name": "views", "row_count": 1000}],
+        "columns": {"views": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "viewed_at", "type": "date"},
+            {"name": "watch_seconds", "type": "int"},
+        ]},
+        "relationships": [],
+        "outcome_curves": [
+            {"table": "views", "column": "id", "time_column": "viewed_at",
+             "pattern_type": "growth", "curve_points": [{"month": 1, "target_value": 5}]},
+            {"table": "views", "column": "watch_seconds", "time_column": "viewed_at",
+             "pattern_type": "growth", "curve_points": [{"month": 1, "target_value": 5}]},
+        ],
+    })
+    cols = [c.column for c in cfg.outcome_curves]
+    assert "id" not in cols, "curve on id column should have been dropped"
+    assert "watch_seconds" in cols, "valid measure curve should be kept"
+
+
+def test_table_correlations_parsed_from_llm_output():
+    """Pairwise numeric correlations on a table must round-trip (was never read)."""
+    cfg = _parse({
+        "name": "t", "seed": 1,
+        "tables": [{"name": "loans", "row_count": 8000,
+                    "correlations": [{"col_a": "credit_score", "col_b": "default_prob", "r": -0.6}]}],
+        "columns": {"loans": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "credit_score", "type": "int"},
+            {"name": "default_prob", "type": "float"},
+        ]},
+        "relationships": [],
+    })
+    corr = cfg.tables[0].correlations
+    assert corr and corr[0]["col_a"] == "credit_score" and corr[0]["r"] == -0.6
+
+
+def test_time_unit_quarter_only_for_rate_curves():
+    """OutcomeCurve normalizes quarter→month; RateCurve keeps quarter."""
+    from misata.llm_parser import LLMSchemaGenerator
+    g = LLMSchemaGenerator.__new__(LLMSchemaGenerator)
+    assert g._normalize_time_unit("quarter") == "month"
+    assert g._normalize_time_unit("quarter", allow_quarter=True) == "quarter"
+
+
+def test_rate_curve_on_fk_id_column_is_dropped():
+    """A rate curve attached to a foreign-key id column (e.g. status_id) is dropped."""
+    cfg = _parse({
+        "name": "t", "seed": 1,
+        "tables": [{"name": "tickets", "row_count": 100}],
+        "columns": {"tickets": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "status_id", "type": "foreign_key"},
+            {"name": "resolved", "type": "boolean"},
+            {"name": "created_at", "type": "date"},
+        ]},
+        "relationships": [],
+        "rate_curves": [
+            {"table": "tickets", "column": "status_id", "time_column": "created_at",
+             "rate_points": [{"period": 1, "rate": 0.1}]},
+            {"table": "tickets", "column": "resolved", "time_column": "created_at",
+             "rate_points": [{"period": 1, "rate": 0.7}]},
+        ],
+    })
+    cols = [c.column for c in cfg.rate_curves]
+    assert "status_id" not in cols, "rate curve on fk id column should be dropped"
+    assert "resolved" in cols, "rate curve on a boolean column should be kept"
+
+
+def test_semantic_type_in_type_field_does_not_crash():
+    """`type: "email"` (a semantic type in the type field) coerces to text+text_type,
+    and a wholly-unknown type falls back to text instead of raising."""
+    cfg = _parse({
+        "name": "t", "seed": 1,
+        "tables": [{"name": "people", "row_count": 50}],
+        "columns": {"people": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "contact", "type": "email"},
+            {"name": "blob", "type": "geojson"},
+        ]},
+        "relationships": [],
+    })
+    by = {c.name: c for c in cfg.columns["people"]}
+    assert by["contact"].type == "text"
+    assert by["contact"].distribution_params.get("text_type") == "email"
+    assert by["blob"].type == "text"   # unknown type → text, no crash
+
+
+def test_listing_title_category_are_coherent_and_diverse():
+    """C8: a marketplace `listings` table's title must match its category, while
+    the category distribution stays diverse (not collapsed to one pool)."""
+    from misata.realism import _NAME_TO_POOL
+    schema = from_dict_schema({
+        "listings": {
+            "__rows__": 60,
+            "listing_id": {"type": "integer", "primary_key": True},
+            "title": {"type": "text", "text_type": "product_name"},
+            "category": {"type": "string",
+                         "enum": ["electronics", "home", "books", "clothing", "sports", "beauty"]},
+        }
+    }, seed=7)
+    df = misata.generate_from_schema(schema)["listings"]
+    mismatch = 0
+    cats = set()
+    for title, cat in zip(df["title"].astype(str), df["category"].astype(str)):
+        cats.add(cat)
+        pool = _NAME_TO_POOL.get(title)
+        if pool and pool.lower() not in cat.lower() and cat.lower() not in pool.lower():
+            mismatch += 1
+    assert mismatch == 0, f"{mismatch} title/category mismatches"
+    assert len(cats) >= 3, f"category collapsed to {cats} — lost diversity"

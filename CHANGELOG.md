@@ -5,6 +5,54 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.9] - 2026-06-29
+
+### Added
+
+- **`rate_curves` are now extracted from natural language.** A rate / proportion
+  of a boolean or categorical outcome that changes over time ("churn rate rises
+  from 2% to 9% over the year") is now emitted as a `rate_curve` and parsed into
+  the schema. Previously the LLM had no way to express this and folded everything
+  into `outcome_curves`. The engine already supported rate curves end to end; only
+  the extraction layer (system prompt + parser) was missing.
+- **Table-level `correlations` are now parsed from LLM output.** "Default rate
+  rises as credit score falls" becomes a pairwise `{col_a, col_b, r}` correlation
+  on the table (negative `r` for inverse relationships) instead of a degenerate
+  empty curve.
+
+### Changed
+
+- **System prompt rewritten with a quantitative-pattern decision tree.** The model
+  was funnelling every quantitative statement into an `outcome_curve`. The prompt
+  now teaches four distinct tools and when to use each: `outcome_curves`
+  (magnitude over time), `rate_curves` (rate/proportion over time), categorical
+  `probabilities` (a static split like "70/20/10"), and `distribution_params`
+  (a shape like power-law/long-tail). It also documents `depends_on` for
+  conditional rates ("approval 80% auto / 60% health") and table `correlations`.
+
+### Fixed
+
+- **Curves on id / primary-key / foreign-key columns are dropped.** Models
+  routinely attached a curve to a key column when no real measure existed
+  (e.g. a curve on `video_views.id` or a rate on `tickets.status_id`). Both
+  `outcome_curves` and `rate_curves` are now validated; a curve on a non-measure
+  column is skipped with a warning instead of producing meaningless output.
+- **Spurious curves are no longer invented.** The prompt now instructs the model
+  to emit a curve only when the story actually describes a time trend, rather than
+  for "ANY time-based pattern".
+- **A semantic type in the `type` field no longer crashes the parse.** When the
+  model emits `type: "email"` (or `url`, `phone`, `name`, …) — a `text_type`
+  mistakenly placed in the `type` field — it is coerced to a `text` column with
+  the intent preserved as `text_type`. Any wholly-unknown type falls back to
+  `text` with a warning instead of raising a `ValidationError`.
+- **Product `title`/`category` coherence on marketplace tables.** A
+  "27-inch Monitor" tagged `books` is an obvious tell. `category` is now made
+  coherent with the product name on any product/listing/catalog/marketplace
+  table (previously only tables literally named `*product*`/`*item*`, and only a
+  `name` column — `title` was ignored). The fix is category-authoritative when the
+  category column is the more diverse signal, so coherence does not collapse the
+  category distribution to a single value.
+
 ## [0.8.1.8] - 2026-06-28
 
 ### Fixed
