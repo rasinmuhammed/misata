@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   most"), so a power-law request was producing uniform noise. `binomial` is now
   implemented and `zipf` is accepted as an alias of the Pareto sampler (shape
   param `a`), on both the integer and float paths.
+- **Cross-table formulas mis-joined when the parent PK name differed from the
+  child FK name.** `billed = hours * @employees.hourly_rate` resolved correctly
+  only when the parent key and child FK shared a name; with the standard
+  convention (parent PK `id`, child FK `employee_id`) the resolver fell back to
+  matching the child's own `id` column, joining the child to the parent on the
+  child's primary key and producing wrong values for most rows. The formula engine
+  now (a) receives the authoritative FK column from the declared relationships and
+  (b) never falls back to a literal `id` when guessing the FK.
+- Added `tests/test_engine_conformance.py`: a standing suite that validates the
+  engine's output statistically (distribution fidelity, rate/curve conformance,
+  correlation, cross-table formula joins) so this class of silently-wrong-data bug
+  cannot regress.
 
 ### Changed
 

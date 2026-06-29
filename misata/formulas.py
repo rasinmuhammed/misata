@@ -167,19 +167,29 @@ class FormulaEngine:
                     f"(looked for {singular}_id, {table_name}_id, id)"
                 )
 
-            # Resolve the FK column on THIS table that references the parent. Preference:
-            # explicit mapping, then the same name as the parent key (the common case:
-            # timesheets.employee_id -> employees.employee_id), then conventional fallbacks.
+            # Resolve the FK column on THIS table that references the parent.
+            # Preference: explicit mapping (authoritative, from the relationships),
+            # then conventional FK names (`employee_id`, `employees_id`), then a
+            # named parent key only if it is not the generic "id".
+            #
+            # We must NEVER fall back to a literal "id": a child's own primary key
+            # is named "id", and matching it would join the child to the parent on
+            # the child's PK (timesheets.id -> employees.id), silently producing
+            # wrong values for every row whose id has no matching parent.
             fk_col = fk_mappings.get(table_name)
             if fk_col is None or fk_col not in df.columns:
-                for cand in (parent_key, f"{singular}_id", f"{table_name}_id", "id"):
+                candidates = [f"{singular}_id", f"{table_name}_id"]
+                if parent_key and parent_key != "id":
+                    candidates.insert(0, parent_key)
+                fk_col = None
+                for cand in candidates:
                     if cand in df.columns:
                         fk_col = cand
                         break
             if fk_col is None or fk_col not in df.columns:
                 raise ValueError(
                     f"No FK column on this table references '{table_name}' "
-                    f"(looked for {parent_key}, {singular}_id, {table_name}_id)"
+                    f"(looked for {singular}_id, {table_name}_id)"
                 )
 
             lookup_map = ref_table.set_index(parent_key)[col_name].to_dict()

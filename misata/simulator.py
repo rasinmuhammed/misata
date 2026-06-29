@@ -3332,10 +3332,21 @@ class DataSimulator:
         tables_for_engine = {**self.context, table_name: df}
         engine = FormulaEngine(tables_for_engine)
 
+        # Authoritative FK mapping from the declared relationships: parent table →
+        # the exact child FK column. This lets a cross-table formula
+        # (@employees.hourly_rate) join on the real FK instead of guessing from
+        # column names, which mis-joins when the parent PK is "id" and the child
+        # FK is "employee_id".
+        fk_mappings = {
+            rel.parent_table: rel.child_key
+            for rel in self.config.relationships
+            if rel.child_table == table_name
+        }
+
         for col in formula_cols:
             formula = col.distribution_params["formula"]
             try:
-                result = engine.evaluate_with_lookups(df, formula)
+                result = engine.evaluate_with_lookups(df, formula, fk_mappings=fk_mappings)
                 df[col.name] = result
             except (ValueError, ImportError) as e:
                 warnings.warn(f"Formula column '{col.name}' skipped: {e}")
