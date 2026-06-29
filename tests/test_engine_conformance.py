@@ -186,6 +186,40 @@ def test_fk_integrity_three_level():
     assert set(t["stores"]["region_id"]).issubset(set(t["regions"]["id"]))
 
 
+def test_self_referential_fk_is_valid_and_intact():
+    """A self-referential FK (employees.manager_id → employees.id) must be allowed
+    (not rejected as a cycle) and reference only valid in-table ids."""
+    d = gen({"employees": {
+        "__rows__": 500,
+        "id": {"type": "integer", "primary_key": True},
+        "name": {"type": "string", "text_type": "name"},
+        "manager_id": {"type": "integer", "foreign_key": {"table": "employees", "column": "id"}},
+    }})["employees"]
+    assert set(d["manager_id"].dropna()).issubset(set(d["id"])), "self-ref FK has orphans"
+
+
+def test_zero_row_table_is_emitted_empty():
+    """`__rows__: 0` must produce an empty table (with its columns), not be dropped
+    or coerced to the default row count."""
+    t = gen({"staging": {"__rows__": 0,
+        "id": {"type": "integer", "primary_key": True}, "v": {"type": "float"}}})
+    assert "staging" in t and len(t["staging"]) == 0
+    assert list(t["staging"].columns) == ["id", "v"]
+
+
+def test_child_of_empty_parent_gets_null_fk_not_orphans():
+    """A child referencing a 0-row parent must get NULL foreign keys (nothing to
+    point at) — never fabricated orphan ids that break referential integrity."""
+    t = gen({
+        "empty": {"__rows__": 0, "id": {"type": "integer", "primary_key": True}},
+        "child": {"__rows__": 100, "id": {"type": "integer", "primary_key": True},
+                  "e": {"type": "integer", "foreign_key": {"table": "empty", "column": "id"}}},
+    })
+    e = t["child"]["e"]
+    assert e.isna().all(), "empty-parent FK should be all null"
+    assert len(set(e.dropna()) - set(t["empty"]["id"])) == 0, "no orphan FKs allowed"
+
+
 def test_determinism_same_seed():
     a = gen({"t": {"__rows__": 1000, "x": {"type": "float", "distribution": "normal", "mean": 0, "std": 1}}}, seed=123)["t"]
     b = gen({"t": {"__rows__": 1000, "x": {"type": "float", "distribution": "normal", "mean": 0, "std": 1}}}, seed=123)["t"]

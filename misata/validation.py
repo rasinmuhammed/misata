@@ -182,6 +182,12 @@ def validate_schema(schema: Any) -> None:
     # Build adjacency: parent → children
     adj: Dict[str, List[str]] = {t.name: [] for t in schema.tables}
     for r in schema.relationships:
+        # A self-referential FK (e.g. employees.manager_id → employees.id) is not a
+        # cycle: the table is generated as a whole, then the self-FK is sampled from
+        # its own already-generated primary keys. Skip it here, as the topological
+        # sort does, so it isn't misreported as a circular relationship.
+        if r.parent_table == r.child_table:
+            continue
         if r.parent_table in adj:
             adj[r.parent_table].append(r.child_table)
 

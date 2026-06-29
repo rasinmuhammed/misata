@@ -41,6 +41,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both hold (the curve reorders the column to hit its sums, scrambling the
   correlation); the engine previously dropped the correlation silently and now
   emits a warning naming the column.
+- **Self-referential foreign keys are now supported.** A common pattern —
+  `employees.manager_id → employees.id`, threaded comments, category trees — was
+  rejected by the validator as a "circular relationship". The validator now skips
+  self-edges (as the topological sort already did); the self-FK is sampled from the
+  table's own generated primary keys with full integrity.
+- **Empty (`__rows__: 0`) tables are honoured.** A 0-row table was silently coerced
+  to the default row count (and, when standalone, dropped from the output). It now
+  produces an empty table with its declared columns. The `Table.row_count` model
+  accepts `0` (only negatives are rejected).
+- **A child of an empty parent gets NULL foreign keys, not orphans.** When a parent
+  table has no rows, child FK columns previously fabricated random ids that pointed
+  at nothing; they are now null, preserving referential integrity.
 - Added `tests/test_engine_conformance.py`: a standing suite that validates the
   engine's output statistically (distribution fidelity, rate/curve conformance
   incl. categorical, correlation, cross-table formula joins) so this class of

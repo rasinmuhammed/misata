@@ -547,7 +547,10 @@ def from_dict_schema(
         table_rows = row_count
         for rows_key in ("__rows__", "__row_count__", "rows", "row_count"):
             val = table_def.get(rows_key)
-            if isinstance(val, int) and val > 0:
+            # Honour an explicit 0 (empty table) — only a missing/negative/non-int
+            # value falls back to the global default. `bool` is excluded since it
+            # subclasses int.
+            if isinstance(val, int) and not isinstance(val, bool) and val >= 0:
                 table_rows = val
                 break
 

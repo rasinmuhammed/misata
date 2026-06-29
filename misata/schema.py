@@ -92,7 +92,8 @@ class Table(BaseModel):
     """
 
     name: str
-    row_count: int = Field(default=100, gt=0)
+    # ge=0: 0 is a valid (empty) table; only negative counts are rejected.
+    row_count: int = Field(default=100, ge=0)
     description: Optional[str] = None
     is_reference: bool = False
     inline_data: Optional[List[Dict[str, Any]]] = None

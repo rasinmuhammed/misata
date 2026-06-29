@@ -1137,12 +1137,14 @@ class DataSimulator:
             parent_ids = self._get_parent_ids(relationship)
 
             if len(parent_ids) == 0:
+                # The parent has no rows to reference (e.g. a 0-row parent). Emit
+                # NULL foreign keys rather than fabricating orphan IDs — preserving
+                # the engine's referential-integrity guarantee.
                 warnings.warn(
-                    f"Parent table '{relationship.parent_table}' has no valid IDs in context (after filters). "
-                    f"Generating sequential IDs for foreign key '{column.name}'."
+                    f"Parent table '{relationship.parent_table}' has no rows; foreign key "
+                    f"'{column.name}' in '{table_name}' will be null (nothing to reference)."
                 )
-                values = self.rng.integers(1, max(size // 10, 100), size=size)
-                return values
+                return np.array([None] * size, dtype=object)
 
             sampling = params.get("sampling", "uniform")
             if sampling == "pareto":
@@ -1765,6 +1767,15 @@ class DataSimulator:
                 output_df = self._apply_configured_noise(fact_df.copy(), table_name, table)
                 yield output_df
                 return
+
+        # A 0-row table is a valid (empty) table — emit it with its columns so it
+        # still appears in the output and any child FK lookup finds an empty parent
+        # rather than a missing key.
+        if total_rows == 0:
+            empty = pd.DataFrame({c.name: pd.Series(dtype="object") for c in columns})
+            self._update_context(table_name, empty)
+            yield empty
+            return
 
         rows_generated = 0
 
