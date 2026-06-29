@@ -193,7 +193,10 @@ Keywords: "peak"/"spike"/"surge" -> high; "dip"/"drop" -> low;
 ]
 
 ### Tool 2 — rate_curves (a rate/proportion over time)
-For a percentage of a boolean/categorical outcome that changes across periods.
+Use this ONLY when a percentage CHANGES ACROSS TIME ("rises from 2% in Jan to 9%
+by Dec", "fraud climbs over the year"). It needs ≥2 rate_points at DIFFERENT
+periods. If the percentages do not change over time, this is NOT a rate_curve —
+use Tool 3 instead.
 `column` is the boolean/categorical column; `true_value` is the positive class.
 Each rate_point is `{"period": "<YYYY-MM>" or month index, "rate": <0..1>}`.
 
@@ -210,10 +213,16 @@ Each rate_point is `{"period": "<YYYY-MM>" or month index, "rate": <0..1>}`.
 ]
 
 ### Tool 3 — static proportions (no time) -> probabilities
-"70% resolved, 20% pending, 10% escalated" is NOT a curve. Put it on the column:
+A breakdown whose percentages sum across CATEGORIES at a single point in time
+(NO "over the year", NO "rises to", NO month/period) is a static split. It is
+NOT a rate_curve and NOT an outcome_curve — put it directly on the column as
+`choices` + `probabilities`. Example — "70% resolved, 20% pending, 10% escalated":
 {"name": "status", "type": "categorical",
  "distribution_params": {"choices": ["resolved","pending","escalated"],
                           "probabilities": [0.70, 0.20, 0.10]}}
+Litmus test: if the numbers add up to 100% across categories, it's Tool 3
+(probabilities). If a single percentage moves between two times, it's Tool 2
+(rate_curve).
 
 ### Tool 4 — distribution shape -> distribution_params
 "a few creators get millions of views, most get very few" is NOT a curve. It is a
@@ -631,10 +640,14 @@ CRITICAL INSTRUCTIONS:
 3. Create TRANSACTIONAL TABLES (is_reference: false) with row_count for high-volume data like users, transactions, events, etc.
 4. Use foreign_key to link transactional tables to reference tables.
 5. Default row count for transactional tables: {default_rows}
-6. If the user mentions time patterns (peaks, dips, trends, growth), extract them as outcome_curves.
-7. If the story contains explicit numeric targets by month/period, prefer exact `target_value` outcome_curves with `value_mode: "absolute"` over relative curves.
-8. If the user mentions sub-period trends ("slow weekends"), set `intra_period_pattern` ("weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy"). 
-9. If the user mentions a time range (e.g., "last 2 years"), set date column start/end accordingly.
+6. For quantitative patterns, pick the RIGHT tool (see the decision tree in the system prompt):
+   a MAGNITUDE over time -> outcome_curves; a RATE/PROPORTION of a bool/categorical over time -> rate_curves;
+   a STATIC split ("70/20/10") -> categorical probabilities; a SHAPE ("a few get most") -> a heavy-tailed distribution;
+   a CONDITIONAL rate ("approval depends on type") -> depends_on; two correlated numeric columns -> table correlations.
+7. If the story gives explicit numeric targets by month/period, use exact `target_value` outcome_curves with `value_mode: "absolute"`.
+8. Never attach a curve to an id/primary-key/foreign-key column, and do NOT invent curves the story didn't describe.
+9. If the user mentions sub-period trends ("slow weekends"), set `intra_period_pattern` ("weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy").
+10. If the user mentions a time range (e.g., "last 2 years"), set date column start/end accordingly.
 
 Output valid JSON. Be creative and domain-specific - DO NOT copy the system prompt examples."""
         user_prompt += self._build_feedback_prompt(story=story)

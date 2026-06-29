@@ -5,6 +5,23 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.10] - 2026-06-29
+
+### Changed
+
+- **Sharpened the quantitative-pattern disambiguation** after JSON-level testing
+  of 0.8.1.9. Two refinements, both verified against live model output:
+  - The per-call user prompt no longer reinforces "extract them as
+    outcome_curves" (which contradicted the new decision tree); it now points at
+    the full toolbox.
+  - A static categorical split ("70% resolved, 20% pending, 10% escalated") was
+    being mis-emitted as a `rate_curve` now that rate curves are prominent. The
+    prompt now draws a sharp line: percentages that sum across categories at one
+    point in time → categorical `probabilities` (Tool 3); a single percentage
+    that moves between two periods → `rate_curve` (Tool 2). Confirmed: the
+    proportion case now emits `probabilities` and the churn-rate case still emits
+    a `rate_curve`.
+
 ## [0.8.1.9] - 2026-06-29
 
 ### Added
