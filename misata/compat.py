@@ -524,6 +524,10 @@ def from_dict_schema(
         try:
             noise_config = NoiseConfig(**raw_noise)
         except Exception as e:
+            # Deliberately fail-loud (unlike the shaping curves): __noise__ is the
+            # ground truth a data-quality pipeline is tested against. Silently
+            # dropping a malformed spec would run the test on clean data without
+            # the user knowing — a worse failure than aborting.
             raise ValueError(f"__noise__ is invalid: {e}") from e
 
     # __domain__ stores the domain name on the SchemaConfig for post-generation validation
