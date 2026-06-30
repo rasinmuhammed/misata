@@ -497,21 +497,23 @@ def from_dict_schema(
     relationships: List[Relationship] = []
 
     # Top-level directives (not tables): declared outcome curves and rate
-    # curves, the schema-level half of the engine contract. Lists of plain
-    # dicts validated through the pydantic models so a bad declaration fails
-    # loudly at schema-compile time, not mid-generation.
+    # curves, the schema-level half of the engine contract. A single malformed
+    # directive must NOT abort the whole generation — it is skipped with a
+    # warning so the rest of the schema still produces data, mirroring the
+    # resilience of the LLM-parser path. (A frontend or hand-written schema can
+    # easily get one curve wrong; losing all output over it is the wrong failure.)
     outcome_curves: List[OutcomeCurve] = []
     for i, curve_def in enumerate(schemas.get("__outcome_curves__") or []):
         try:
             outcome_curves.append(OutcomeCurve(**curve_def))
         except Exception as e:
-            raise ValueError(f"__outcome_curves__[{i}] is invalid: {e}") from e
+            warnings.warn(f"Skipping invalid __outcome_curves__[{i}]: {e}")
     rate_curves: List[RateCurve] = []
     for i, rate_def in enumerate(schemas.get("__rate_curves__") or []):
         try:
             rate_curves.append(RateCurve(**rate_def))
         except Exception as e:
-            raise ValueError(f"__rate_curves__[{i}] is invalid: {e}") from e
+            warnings.warn(f"Skipping invalid __rate_curves__[{i}]: {e}")
 
     # __noise__ injects declared data-quality defects (nulls, outliers, typos,
     # duplicates) at a known rate — so a data-cleaning / DQ pipeline can be

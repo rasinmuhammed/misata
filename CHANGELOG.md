@@ -5,6 +5,17 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.11] - 2026-06-30
+
+### Fixed
+
+- **A single malformed `__rate_curves__` / `__outcome_curves__` directive no longer
+  aborts the whole generation.** `from_dict_schema` raised a `ValueError` on the
+  first invalid curve, so one bad directive (e.g. a frontend sending the wrong
+  shape) produced *no data at all* — "Schema rejected by engine". Invalid curves
+  are now skipped with a warning and the rest of the schema still generates,
+  matching the resilience the LLM-parser path already had.
+
 ## [0.8.1.10] - 2026-06-29
 
 ### Fixed

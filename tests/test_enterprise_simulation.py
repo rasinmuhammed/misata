@@ -316,13 +316,19 @@ class TestDictSchemaOutcomeCurves:
         assert abs(monthly[6] - 120000.0) < 0.01
         assert abs(monthly[12] - 200000.0) < 0.01
 
-    def test_invalid_curve_fails_at_compile_time(self):
-        import pytest
-        with pytest.raises(ValueError, match="__outcome_curves__\\[0\\]"):
-            misata.from_dict_schema({
-                "__outcome_curves__": [{"column": "amount"}],  # missing table
+    def test_invalid_curve_is_skipped_not_fatal(self):
+        # 0.8.1.11: a malformed curve is skipped with a warning, not raised — one
+        # bad directive must never abort the whole schema (it produced no data).
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = misata.from_dict_schema({
+                "__outcome_curves__": [{"column": "amount"}],  # missing table → skipped
                 "orders": {"order_id": {"type": "integer", "primary_key": True}},
             })
+        assert [t.name for t in config.tables] == ["orders"]
+        assert len(config.outcome_curves) == 0
+        assert any("__outcome_curves__" in str(x.message) for x in w)
 
     def test_directive_keys_are_not_tables(self):
         config = misata.from_dict_schema({

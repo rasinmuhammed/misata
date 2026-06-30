@@ -1108,6 +1108,28 @@ def test_dict_schema_forwards_lambda_and_null_rate():
     assert abs(df["opt"].isna().mean() - 0.15) < 0.03, "null_rate not applied"
 
 
+def test_malformed_curve_directive_is_skipped_not_fatal():
+    """0.8.1.11: a single malformed __rate_curves__/__outcome_curves__ directive
+    must be skipped with a warning, not abort the whole generation. (A frontend or
+    hand-written schema can easily get one curve wrong; losing all output is the
+    wrong failure.)"""
+    import warnings as _w
+    schema = {
+        "loans": {"__rows__": 500, "id": {"type": "integer", "primary_key": True},
+                  "loan_date": {"type": "date", "start": "2024-01-01", "end": "2024-12-31"},
+                  "defaulted": {"type": "boolean", "probability": 0.1}},
+        # malformed: missing `table`, wrong keys (the shape an old studio build sent)
+        "__rate_curves__": [{"column": "loans.defaulted", "start_rate": 0.03, "end_rate": 0.11}],
+        # malformed outcome curve too
+        "__outcome_curves__": [{"column": "amount"}],
+    }
+    with _w.catch_warnings(record=True) as w:
+        _w.simplefilter("always")
+        df = misata.generate_from_schema(from_dict_schema(schema, seed=1))["loans"]
+    assert len(df) == 500, "generation aborted over a bad curve instead of skipping it"
+    assert any("rate_curves" in str(x.message) for x in w), "no skip warning emitted"
+
+
 def test_dict_schema_forwards_depends_on_default():
     """0.8.1.10: from_dict_schema must forward the depends_on `default` branch so a
     row whose predictor value is unmapped falls back to it (was dropped)."""
