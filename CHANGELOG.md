@@ -5,6 +5,29 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.13] - 2026-07-01
+
+### Fixed
+
+- **Correlation language no longer hallucinated as outcome_curve.** Phrases like
+  "price rises with square footage" and "price falls with distance from city center"
+  describe cross-column statistical relationships, not time-series. The system prompt
+  now has an explicit disambiguation rule (Tool 5) with a concrete real-estate example
+  so the LLM emits `correlations` on the table instead of inventing a `listing_date`
+  outcome_curve that was never requested.
+- **Reference table inline_data now uses domain-specific values.** Tables like
+  `cities`, `property_types`, and `amenity_types` previously received generic
+  business-tier labels ("Standard", "Premium", "Business", "Primary"). A new
+  DOMAIN-SPECIFIC VALUES rule with concrete examples (cities → ["San Francisco", …],
+  property_types → ["Apartment", "House", …]) prevents the LLM from reusing SaaS-tier
+  vocabulary for real-world entity tables.
+- **bedrooms / bathrooms now typed as int (not enum/categorical).** Added explicit
+  smart defaults: `Bedrooms: int, categorical, choices: [1,2,3,4,5,6]` and
+  `Bathrooms: float, categorical, choices: [1.0,1.5,2.0,2.5,3.0,3.5]`.
+- **FK columns (*_id) now correctly typed as foreign_key.** Added a CRITICAL rule
+  to the TRANSACTIONAL TABLES section: every column ending in `_id` that references
+  another table must use `"type": "foreign_key"`, not `"text"` or `"int"`.
+
 ## [0.8.1.12] - 2026-06-30
 
 ### Fixed
