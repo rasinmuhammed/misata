@@ -84,7 +84,7 @@ extract a detailed schema with:
 Respond in JSON format only."""
 
         response = self.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="qwen/qwen3-32b",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": story}

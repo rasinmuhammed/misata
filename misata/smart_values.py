@@ -599,7 +599,7 @@ Return ONLY a JSON array of strings, no explanation. Example:
         try:
             if self.provider == "groq":
                 response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model="qwen/qwen3-32b",
                     messages=[
                         {"role": "system", "content": "You are a domain expert generating realistic test data. Output only valid JSON."},
                         {"role": "user", "content": prompt}

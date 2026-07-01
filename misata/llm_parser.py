@@ -376,7 +376,7 @@ class LLMSchemaGenerator:
         "groq": {
             "base_url": None,  # Uses default
             "env_key": "GROQ_API_KEY",
-            "default_model": "llama-3.3-70b-versatile",
+            "default_model": "qwen/qwen3-32b",
             "protocol": "openai",
         },
         "openai": {
@@ -490,23 +490,30 @@ class LLMSchemaGenerator:
             self.client = _anthropic_sdk.Anthropic(api_key=self.api_key)
 
         elif self.provider == "bedrock":
-            try:
-                import boto3  # noqa: F401
-            except ImportError:
-                raise ImportError(
-                    "boto3 required for the Bedrock provider. "
-                    "Install with: pip install 'misata[bedrock]' (or pip install boto3)."
-                )
-            # Region: explicit base_url override, then standard AWS env vars.
-            # Credentials (AWS_ACCESS_KEY_ID/SECRET or an IAM role) are resolved
-            # by boto3's default chain — never passed or stored here.
-            region = (
+            # Prefer a Bedrock bearer token (AWS_BEARER_TOKEN_BEDROCK env var or
+            # api_key param) for direct HTTP — no boto3 or IAM credentials needed.
+            # Falls back to boto3 with the standard AWS credential chain if no
+            # bearer token is available.
+            bearer = self.api_key or os.environ.get("AWS_BEARER_TOKEN_BEDROCK")
+            self._bedrock_region = (
                 self.base_url
                 or os.environ.get("AWS_REGION")
                 or os.environ.get("AWS_DEFAULT_REGION")
                 or "us-east-1"
             )
-            self.client = boto3.client("bedrock-runtime", region_name=region)
+            if bearer:
+                self._bedrock_bearer = bearer
+                self.client = None
+            else:
+                self._bedrock_bearer = None
+                try:
+                    import boto3
+                except ImportError:
+                    raise ImportError(
+                        "boto3 required for the Bedrock provider when no bearer token is set. "
+                        "Install with: pip install 'misata[bedrock]', or set AWS_BEARER_TOKEN_BEDROCK."
+                    )
+                self.client = boto3.client("bedrock-runtime", region_name=self._bedrock_region)
 
         else:
             # OpenAI, Ollama, and Gemini all use the OpenAI-compatible interface
@@ -814,7 +821,13 @@ Include reference tables with inline_data for lookup values and transactional ta
         Converse separates the system prompt and uses a content-block message
         shape. Bedrock has no JSON-mode flag, so — like the Anthropic path — we
         nudge the model to emit JSON only.
+
+        Auth: prefers a bearer token (AWS_BEARER_TOKEN_BEDROCK / api_key) via
+        direct HTTPS — no boto3 or IAM credentials needed. Falls back to boto3
+        when no bearer token is set.
         """
+        import json as _json
+
         system_text = ""
         turns: List[Dict] = []
         for msg in messages:
@@ -826,25 +839,38 @@ Include reference tables with inline_data for lookup values and transactional ta
         if turns and not turns[-1]["content"][0]["text"].strip().endswith("JSON"):
             turns[-1]["content"][0]["text"] += "\n\nRespond with valid JSON only."
 
-        kwargs: Dict[str, Any] = {
-            "modelId": self.model,
+        payload: Dict[str, Any] = {
             "messages": turns,
-            # Bedrock caps Claude output well below our 6000 default on some
-            # models; 4096 is universally safe for schema JSON.
             "inferenceConfig": {"maxTokens": min(max_tokens, 4096), "temperature": temperature},
         }
         if system_text:
             system_blocks: List[Dict[str, Any]] = [{"text": system_text}]
-            # Prompt caching only applies when a cached block reaches Bedrock's
-            # minimum (~4096 tokens). Add the cache point only for a large
-            # enough system prompt (~4 chars/token) so it's a safe no-op today
-            # and auto-activates if the prompt grows. Note: the win is modest
-            # here regardless — this workload's cost is output-dominated, and
-            # caching discounts only input.
             if len(system_text) >= 16000:
                 system_blocks.append({"cachePoint": {"type": "default"}})
-            kwargs["system"] = system_blocks
+            payload["system"] = system_blocks
 
+        if getattr(self, "_bedrock_bearer", None):
+            import requests as _req
+            endpoint = (
+                f"https://bedrock-runtime.{self._bedrock_region}.amazonaws.com"
+                f"/model/{self.model}/converse"
+            )
+            resp = _req.post(
+                endpoint,
+                headers={
+                    "Authorization": f"Bearer {self._bedrock_bearer}",
+                    "Content-Type": "application/json",
+                },
+                data=_json.dumps(payload),
+                timeout=60,
+            )
+            if not resp.ok:
+                raise RuntimeError(f"Bedrock bearer error: {resp.status_code} {resp.text}")
+            data = resp.json()
+            return data["output"]["message"]["content"][0]["text"]
+
+        # boto3 path (IAM credentials)
+        kwargs: Dict[str, Any] = {"modelId": self.model, **payload}
         response = self.client.converse(**kwargs)
         return response["output"]["message"]["content"][0]["text"]
 
