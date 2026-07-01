@@ -5,6 +5,23 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.12] - 2026-06-30
+
+### Fixed
+
+- **Reference-table label columns produced business sentences instead of labels.**
+  When the LLM auto-creates a lookup table (`payment_methods`, `churn_reasons`, …)
+  without `inline_data`, the engine filled its label column — and columns named
+  `method` or `reason` fell to the lorem-sentence generator, so a payment method
+  read "Client requested a follow-up call." They now resolve to short realistic
+  labels: a curated payment-method vocabulary (Credit Card, PayPal, Bank Transfer,
+  …), short churn/return reasons, and `*_method` → category labels.
+- **Small reference tables no longer repeat labels.** Label-family columns
+  (category/status/type/industry/event/payment/reason) now sample WITHOUT
+  replacement when the row count fits the vocabulary, so a 4-row `payment_methods`
+  table gets four distinct methods. Large fact-table columns keep sampling with
+  replacement to preserve their distribution.
+
 ## [0.8.1.11] - 2026-06-30
 
 ### Fixed

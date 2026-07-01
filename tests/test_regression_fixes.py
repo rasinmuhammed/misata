@@ -1108,6 +1108,38 @@ def test_dict_schema_forwards_lambda_and_null_rate():
     assert abs(df["opt"].isna().mean() - 0.15) < 0.03, "null_rate not applied"
 
 
+def test_reference_label_columns_are_labels_not_sentences():
+    """0.8.1.12: auto-created lookup tables without inline_data must fill their
+    label column with short realistic labels, never business sentences — a
+    payment_methods.method of 'Client requested a follow-up call.' is a demo-killer.
+    And a small reference table should not repeat labels."""
+    schema = {
+        "payment_methods": {"__rows__": 4, "id": {"type": "integer", "primary_key": True}, "method": {"type": "text"}},
+        "churn_reasons":    {"__rows__": 3, "id": {"type": "integer", "primary_key": True}, "reason": {"type": "text"}},
+    }
+    t = misata.generate_from_schema(from_dict_schema(schema, seed=42))
+    methods = t["payment_methods"]["method"].astype(str)
+    reasons = t["churn_reasons"]["reason"].astype(str)
+    # short labels, not sentences
+    assert methods.str.len().max() < 30 and not methods.str.endswith(".").any(), methods.tolist()
+    assert reasons.str.len().max() < 40 and not reasons.str.endswith(".").any(), reasons.tolist()
+    # a real payment method appears
+    assert methods.str.contains("Card|PayPal|Transfer|Pay|Cash|Crypto", case=False, regex=True).any()
+    # distinct within a small reference table
+    assert methods.nunique() == len(methods), f"duplicate methods: {methods.tolist()}"
+    assert reasons.nunique() == len(reasons), f"duplicate reasons: {reasons.tolist()}"
+
+
+def test_reference_labels_keep_distribution_in_fact_tables():
+    """The distinct-labels rule must only apply to small lookup tables — a large
+    fact-table categorical still samples with replacement (a distribution)."""
+    schema = {"orders": {"__rows__": 4000, "id": {"type": "integer", "primary_key": True},
+                         "method": {"type": "text"}}}
+    df = misata.generate_from_schema(from_dict_schema(schema, seed=1))["orders"]
+    # 4000 rows over ~14 methods → heavy repetition, not 4000 distinct
+    assert df["method"].nunique() <= 20 and df["method"].duplicated().sum() > 3000
+
+
 def test_malformed_curve_directive_is_skipped_not_fatal():
     """0.8.1.11: a single malformed __rate_curves__/__outcome_curves__ directive
     must be skipped with a warning, not abort the whole generation. (A frontend or

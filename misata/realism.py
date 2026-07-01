@@ -100,6 +100,23 @@ _EVENT_TYPE_LABELS = [
     "feature_used", "onboarding_completed", "churn", "referral",
 ]
 
+# Payment-method labels for "method"/"payment_method" columns (common in
+# auto-created lookup tables the LLM leaves without inline_data).
+_PAYMENT_METHOD_LABELS = [
+    "Credit Card", "Debit Card", "PayPal", "Bank Transfer", "Apple Pay",
+    "Google Pay", "Wire Transfer", "ACH", "Cash on Delivery", "Gift Card",
+    "Cryptocurrency", "Klarna", "Stripe", "Venmo",
+]
+
+# Short reason labels for "reason"/"*_reason" columns — never business sentences.
+_REASON_LABELS = [
+    "Too expensive", "Switched to competitor", "No longer needed",
+    "Missing features", "Poor customer support", "Technical issues",
+    "Found a better alternative", "Budget cuts", "Low usage",
+    "Hard to use", "Billing problem", "Relocated", "Service discontinued",
+    "Unsatisfied with quality", "Other",
+]
+
 # Product name pools — now sourced from the rich seed pools
 PRODUCT_NAME_POOLS = PRODUCT_BY_CATEGORY
 
@@ -195,7 +212,7 @@ class RealisticTextGenerator:
             ):
                 if any(c in _tbl_pn for c in _COMPANY_TABLE_HINTS):
                     return self.generate(column_name, table_name, size, "company_name")
-                return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
+                return self._labels("category_label", CATEGORY_LABELS, size)
             if faker and not _has_capsule_vocab("first_name"):
                 return np.array([faker.name() for _ in range(size)])
             if _has_capsule_vocab("first_name"):
@@ -230,11 +247,15 @@ class RealisticTextGenerator:
                 return self.generate(column_name, table_name, size, "product_name")
             if "event" in _col_lower or "action" in _col_lower:
                 return self.generate(column_name, table_name, size, "event_type")
-            return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
+            return self._labels("category_label", CATEGORY_LABELS, size)
         if semantic == "industry":
-            return self.rng.choice(self._vocabulary("industry", _INDUSTRY_LABELS), size=size)
+            return self._labels("industry", _INDUSTRY_LABELS, size)
         if semantic == "event_type":
-            return self.rng.choice(self._vocabulary("event_type", _EVENT_TYPE_LABELS), size=size)
+            return self._labels("event_type", _EVENT_TYPE_LABELS, size)
+        if semantic == "payment_method":
+            return self._labels("payment_method", _PAYMENT_METHOD_LABELS, size)
+        if semantic == "reason":
+            return self._labels("reason", _REASON_LABELS, size)
         if semantic == "email":
             # Use names already generated in this row when available
             _PROVIDERS = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com", "hotmail.com"]
@@ -360,7 +381,7 @@ class RealisticTextGenerator:
             words = self.rng.choice(["modern", "prime", "atlas", "core", "blue", "summit"], size=(size, 2))
             return np.array([f"{left}-{right}" for left, right in words])
         if semantic == "category_label":
-            return self.rng.choice(self._vocabulary("category_label", CATEGORY_LABELS), size=size)
+            return self._labels("category_label", CATEGORY_LABELS, size)
         if semantic in {"product_name", "product_description"}:
             return self._generate_product_text(size=size, semantic=semantic, table_data=table_data)
         if semantic == "bio":
@@ -483,6 +504,15 @@ class RealisticTextGenerator:
             if "event" in name or "action" in name or "event" in table or "action" in table or "activity" in table:
                 return "event_type"
             return "category_label"
+        # Payment-method and reason lookup columns — extremely common in
+        # auto-created reference tables, and the worst offenders when they fall to
+        # the lorem-sentence path ("payment method: Client requested a follow-up").
+        if name in ("method", "payment_method", "pay_method", "billing_method", "tender"):
+            return "payment_method"
+        if name.endswith("_method"):
+            return "category_label"  # shipping_method etc. → short label, not a sentence
+        if name == "reason" or name.endswith("_reason"):
+            return "reason"
         # Short categorical-label columns: a free-text status/type/tier should be
         # a label, not a lorem sentence (these usually arrive as enums/inline_data;
         # this is the fallback when they don't).
@@ -841,6 +871,17 @@ class RealisticTextGenerator:
             if values:
                 return values
         return list(fallback)
+
+    def _labels(self, name: str, fallback: Iterable[str], size: int) -> np.ndarray:
+        """Draw ``size`` short labels from a vocabulary. When the request fits the
+        vocabulary (a small lookup / reference table, e.g. 4 payment methods),
+        sample WITHOUT replacement so the labels are distinct — a 4-row
+        payment_methods table shouldn't repeat "Credit Card". Larger fact-table
+        columns keep sampling with replacement to preserve a distribution."""
+        vocab = self._vocabulary(name, fallback)
+        if 0 < size <= len(vocab):
+            return self.rng.choice(vocab, size=size, replace=False)
+        return self.rng.choice(vocab, size=size)
 
 
 class EntityCoherenceEngine:
