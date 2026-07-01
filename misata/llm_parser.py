@@ -81,16 +81,30 @@ Small lookup / dimension tables (3-20 rows) with ACTUAL DATA you generate.
   e.g. plans the user described as "Starter, Pro, Enterprise":
   `"inline_data": [{"id":1,"name":"Starter","monthly_price":49},{"id":2,"name":"Pro","monthly_price":199},{"id":3,"name":"Enterprise","monthly_price":499}]`
   e.g. an invoice_status table: `[{"id":1,"status":"Pending"},{"id":2,"status":"Paid"},{"id":3,"status":"Overdue"}]`
-- DOMAIN-SPECIFIC VALUES ONLY. NEVER use generic business-tier labels
-  ("Standard", "Premium", "Basic", "Primary", "Secondary", "Business", "Team",
-  "Lite", "Free", "Active", "Custom") for tables that represent real-world
-  entities. Use realistic, domain-appropriate values:
-    - cities → ["San Francisco", "Los Angeles", "New York", "Chicago", "Miami", "Austin", "Seattle"]
-    - property_types → ["Apartment", "House", "Condo", "Townhouse", "Villa", "Studio", "Loft"]
-    - amenity_types → ["Pool", "Gym", "Parking", "Garden", "Elevator", "Rooftop Terrace", "Concierge"]
-    - listing_statuses → ["Active", "Pending", "Sold", "Off Market", "Expired"]
+- DOMAIN-SPECIFIC VALUES ONLY. The following words are SaaS subscription-tier
+  vocabulary. They MUST NEVER appear as label values in domain reference tables
+  (cities, property types, heating types, parking types, amenity types, etc.):
+  "Premium", "Enterprise", "Professional", "Essential", "Team", "Ultimate",
+  "Scale", "Starter", "Growth", "Core", "Max", "Ultra", "Pro", "Lite",
+  "Default", "General", "Advanced", "Basic", "Free", "Standard", "Primary",
+  "Secondary", "Pending", "Active", "Inactive", "Custom", "Plus", "Business"
+  ← these words describe SAAS TIERS, not real-world entities. Using them for
+  cities or property types is WRONG.
+
+  CORRECT domain-specific values:
+    - cities → ["San Francisco", "Los Angeles", "New York", "Chicago", "Miami",
+                "Austin", "Seattle", "Denver", "Boston", "Phoenix"]
+    - property_types → ["Single Family Home", "Condo", "Townhouse", "Multi-Family",
+                        "Apartment", "Studio", "Loft", "Villa", "Manufactured Home"]
+    - heating_types → ["Central Air", "Electric", "Natural Gas", "Radiant Heat",
+                       "Heat Pump", "Baseboard", "Geothermal"]
+    - parking_types → ["Attached Garage", "Detached Garage", "Street Parking",
+                       "Driveway", "Carport", "Underground", "None"]
+    - listing_statuses → inline_data with: Active, Pending, Sold, Off Market, Expired
+    - amenity_types → ["Pool", "Gym", "Parking", "Garden", "Elevator", "Rooftop Terrace"]
     - job_titles → ["Software Engineer", "Data Scientist", "Product Manager", "Designer"]
-    - payment_methods → ["Credit Card", "Bank Transfer", "PayPal", "Crypto"]
+    - payment_methods → ["Credit Card", "Bank Transfer", "PayPal", "ACH Transfer"]
+
 - EXACT USER VALUES: When the user's story explicitly names the values for a
   category (e.g., "Free, Pro, Enterprise plans"), use EXACTLY those values —
   do not add, rename, or remove any. Only invent values when the user did NOT
@@ -1111,6 +1125,33 @@ Include reference tables with inline_data for lookup values and transactional ta
                     )
                     col_type = "text"
 
+                # Coerce known small-integer columns from categorical/enum to int.
+                # Models often emit bedrooms/bathrooms as enum or categorical; they
+                # must be int so they render and export as numbers, not labels.
+                _INT_FORCE_NAMES = {
+                    "bedrooms", "num_bedrooms", "bedroom_count", "beds",
+                    "bathrooms", "num_bathrooms", "bathroom_count", "baths",
+                    "half_baths", "full_baths",
+                    "floors", "stories", "num_floors", "num_stories",
+                    "rooms", "num_rooms", "room_count",
+                }
+                if col_type == "categorical" and c.get("name", "").lower() in _INT_FORCE_NAMES:
+                    col_type = "int"
+                    if not raw_params.get("distribution"):
+                        col_lc = c.get("name", "").lower()
+                        if "bath" in col_lc:
+                            raw_params = {
+                                "distribution": "categorical",
+                                "choices": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5],
+                                "probabilities": [0.10, 0.20, 0.35, 0.20, 0.10, 0.05],
+                            }
+                        else:
+                            raw_params = {
+                                "distribution": "categorical",
+                                "choices": [1, 2, 3, 4, 5, 6],
+                                "probabilities": [0.05, 0.20, 0.35, 0.25, 0.10, 0.05],
+                            }
+
                 normalized_params = self._normalize_distribution_params(col_type, raw_params)
 
                 columns[table_name].append(Column(
@@ -1327,20 +1368,16 @@ Include reference tables with inline_data for lookup values and transactional ta
     def _repair_foreign_keys(tables, columns, relationships) -> None:
         """Ensure every foreign_key column has a Relationship, or is demoted to int.
 
-        Also promotes child_key columns that are declared in a Relationship but
-        typed as text/int (common LLM mistake) to foreign_key so the simulator
-        can resolve them correctly.
+        Three passes:
+        1. Auto-detect *_id columns typed as text/int that match a known parent table
+           by name → promote to foreign_key and add the missing Relationship.
+        2. Promote child_key columns already declared in a Relationship but wrongly
+           typed as text/int → foreign_key.
+        3. Handle foreign_key typed columns that still lack a Relationship → create
+           one or demote to int if no parent can be found.
         """
         table_names = [t.name for t in tables]
         existing = {(r.child_table, r.child_key) for r in relationships}
-
-        # Promote: any column that appears as child_key in a declared Relationship
-        # but is typed as text/int should become foreign_key.
-        for rel in relationships:
-            for col in columns.get(rel.child_table, []):
-                if col.name == rel.child_key and col.type not in ("foreign_key",):
-                    col.type = "foreign_key"
-                    col.distribution_params = {}
 
         def find_parent(base: str, child_table: str):
             b = base.lower()
@@ -1364,6 +1401,39 @@ Include reference tables with inline_data for lookup values and transactional ta
                     best, best_score = tn, score
             return best
 
+        # Pass 1: auto-detect *_id columns typed as text/int that have no Relationship.
+        # The LLM frequently emits city_id/property_type_id as "text"; we match by name
+        # and promote them so the simulator can resolve FK values correctly.
+        for tname, cols in columns.items():
+            for col in cols:
+                name_lc = col.name.lower()
+                if col.type == "foreign_key":
+                    continue
+                if col.unique:
+                    continue
+                if name_lc == "id" or not name_lc.endswith("_id"):
+                    continue
+                if (tname, col.name) in existing:
+                    continue
+                base = re.sub(r"(_id)$", "", name_lc) or name_lc
+                parent = find_parent(base, tname)
+                if parent:
+                    col.type = "foreign_key"
+                    col.distribution_params = {}
+                    relationships.append(Relationship(
+                        parent_table=parent, parent_key="id",
+                        child_table=tname, child_key=col.name,
+                    ))
+                    existing.add((tname, col.name))
+
+        # Pass 2: promote child_key columns in declared Relationships typed as text/int.
+        for rel in relationships:
+            for col in columns.get(rel.child_table, []):
+                if col.name == rel.child_key and col.type != "foreign_key":
+                    col.type = "foreign_key"
+                    col.distribution_params = {}
+
+        # Pass 3: foreign_key columns still missing a Relationship → create one or demote.
         for tname, cols in columns.items():
             for col in cols:
                 if col.type != "foreign_key" or (tname, col.name) in existing:
