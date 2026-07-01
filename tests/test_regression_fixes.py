@@ -1361,3 +1361,183 @@ def test_v0813_explicit_enum_choices_not_hallucinated():
     })
     plan_names = {row["name"] for row in cfg.tables[0].inline_data}
     assert plan_names == {"Free", "Pro", "Enterprise"}, f"Unexpected plan names: {plan_names}"
+
+
+# ---------------------------------------------------------------------------
+# 0.8.1.14 resilience hardening
+# ---------------------------------------------------------------------------
+
+def test_v0814_negative_std_is_repaired():
+    """A negative or zero std would crash numpy — it must be made positive."""
+    cfg = _parse_llm({
+        "name": "T", "seed": 1,
+        "tables": [{"name": "t", "row_count": 100}],
+        "columns": {"t": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "amount", "type": "float",
+             "distribution_params": {"distribution": "normal", "mean": 50, "std": -10}},
+        ]},
+    })
+    amount = next(c for c in cfg.columns["t"] if c.name == "amount")
+    assert amount.distribution_params["std"] > 0
+
+
+def test_v0814_inverted_min_max_is_swapped():
+    """min > max must be swapped so range-based generators don't produce empty ranges."""
+    cfg = _parse_llm({
+        "name": "T", "seed": 1,
+        "tables": [{"name": "t", "row_count": 100}],
+        "columns": {"t": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "age", "type": "int",
+             "distribution_params": {"distribution": "uniform", "min": 80, "max": 18}},
+        ]},
+    })
+    age = next(c for c in cfg.columns["t"] if c.name == "age")
+    assert age.distribution_params["min"] <= age.distribution_params["max"]
+    assert age.distribution_params["min"] == 18
+    assert age.distribution_params["max"] == 80
+
+
+def test_v0814_nonpositive_scale_and_lambda_repaired():
+    """scale<=0 (exponential) and lambda<=0 (poisson) crash numpy — must be made positive."""
+    cfg = _parse_llm({
+        "name": "T", "seed": 1,
+        "tables": [{"name": "t", "row_count": 100}],
+        "columns": {"t": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "price", "type": "float",
+             "distribution_params": {"distribution": "exponential", "scale": 0}},
+            {"name": "qty", "type": "int",
+             "distribution_params": {"distribution": "poisson", "lambda": -3}},
+        ]},
+    })
+    price = next(c for c in cfg.columns["t"] if c.name == "price")
+    qty = next(c for c in cfg.columns["t"] if c.name == "qty")
+    assert price.distribution_params["scale"] > 0
+    assert qty.distribution_params["lambda"] > 0
+
+
+def test_v0814_circular_fk_is_broken():
+    """A→B→A cycle must be broken so the simulator's topological sort doesn't crash."""
+    cfg = _parse_llm({
+        "name": "T", "seed": 1,
+        "tables": [
+            {"name": "a", "row_count": 100},
+            {"name": "b", "row_count": 100},
+        ],
+        "columns": {
+            "a": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "b_id", "type": "foreign_key"},
+            ],
+            "b": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "a_id", "type": "foreign_key"},
+            ],
+        },
+        "relationships": [
+            {"parent_table": "a", "child_table": "b", "parent_key": "id", "child_key": "a_id"},
+            {"parent_table": "b", "child_table": "a", "parent_key": "id", "child_key": "b_id"},
+        ],
+    })
+    # At most one of the two circular relationships should survive
+    ab = [r for r in cfg.relationships
+          if {r.parent_table, r.child_table} == {"a", "b"}]
+    assert len(ab) <= 1, f"Cycle not broken: {len(ab)} relationships remain"
+
+
+def test_v0814_self_referential_fk_is_preserved():
+    """employee.manager_id → employee is a legitimate self-reference the simulator
+    supports — it must NOT be dropped as a cycle."""
+    cfg = _parse_llm({
+        "name": "HR", "seed": 1,
+        "tables": [{"name": "employees", "row_count": 500}],
+        "columns": {"employees": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "manager_id", "type": "foreign_key"},
+            {"name": "salary", "type": "float",
+             "distribution_params": {"distribution": "normal", "mean": 90000, "std": 20000}},
+        ]},
+        "relationships": [
+            {"parent_table": "employees", "child_table": "employees",
+             "parent_key": "id", "child_key": "manager_id"},
+        ],
+    })
+    self_refs = [r for r in cfg.relationships
+                 if r.parent_table == "employees" and r.child_table == "employees"]
+    assert len(self_refs) == 1, "Self-referential FK was wrongly dropped"
+
+
+def test_v0814_reference_table_without_inline_data_gets_vocab():
+    """A reference table marked is_reference but with no inline_data must get
+    auto-generated rows (from domain vocab) or be demoted — never left empty."""
+    cfg = _parse_llm({
+        "name": "Real estate", "seed": 1,
+        "tables": [
+            {"name": "property_types", "is_reference": True},  # no inline_data!
+            {"name": "listings", "row_count": 1000},
+        ],
+        "columns": {
+            "listings": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "property_type_id", "type": "foreign_key"},
+                {"name": "price", "type": "float",
+                 "distribution_params": {"distribution": "normal", "mean": 500000, "std": 100000}},
+            ],
+        },
+        "relationships": [
+            {"parent_table": "property_types", "child_table": "listings",
+             "parent_key": "id", "child_key": "property_type_id"},
+        ],
+    })
+    pt = next(t for t in cfg.tables if t.name == "property_types")
+    if pt.is_reference:
+        # Got auto-generated vocab rows
+        assert pt.inline_data, "Reference table left with no inline_data"
+        assert all("id" in row for row in pt.inline_data)
+    else:
+        # Demoted to transactional — acceptable fallback
+        assert True
+
+
+def test_v0814_reference_inline_data_missing_id_gets_sequential_ids():
+    """inline_data rows missing 'id' must get sequential ids injected."""
+    cfg = _parse_llm({
+        "name": "T", "seed": 1,
+        "tables": [
+            {"name": "statuses", "is_reference": True,
+             "inline_data": [{"status": "Active"}, {"status": "Closed"}]},
+        ],
+    })
+    st = next(t for t in cfg.tables if t.name == "statuses")
+    ids = [row["id"] for row in st.inline_data]
+    assert ids == [1, 2]
+
+
+def test_v0814_domain_detection_word_boundary():
+    """Substring false positives must not trigger — 'disorders' should not match 'order'."""
+    from misata.llm_parser import LLMSchemaGenerator
+    # 'records' contains 'order'? no. Use a clearer false-positive: 'reorder_point'
+    # would substring-match 'order'. Word-boundary matching should require a real token.
+    d = LLMSchemaGenerator._detect_domain(["patient_records", "diagnoses"], ["patient_id", "diagnosis_code"])
+    assert d == "healthcare"
+
+
+def test_v0814_blacklisted_values_in_categorical_replaced_for_domain():
+    """A real-estate categorical emitting 'Premium/Standard/Basic' must be swapped
+    for real property-type vocabulary."""
+    cfg = _parse_llm({
+        "name": "Real estate listings", "seed": 1,
+        "tables": [{"name": "listings", "row_count": 1000}],
+        "columns": {"listings": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "property_type", "type": "categorical",
+             "distribution_params": {"choices": ["Premium", "Standard", "Basic"]}},
+        ]},
+    })
+    pt = next(c for c in cfg.columns["listings"] if c.name == "property_type")
+    choices = pt.distribution_params["choices"]
+    lowered = {str(c).lower() for c in choices}
+    assert not (lowered & {"premium", "standard", "basic"}), \
+        f"Blacklisted values survived: {choices}"

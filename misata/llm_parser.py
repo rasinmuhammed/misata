@@ -1202,6 +1202,45 @@ Include reference tables with inline_data for lookup values and transactional ta
             else:
                 normalized.pop("probabilities", None)
 
+        # Numeric distribution parameter sanity — the simulator crashes on
+        # impossible values (negative std, inverted min/max, non-positive scale).
+        # Fix them deterministically so generation always succeeds.
+        if "std" in normalized:
+            try:
+                std_val = float(normalized["std"])
+                normalized["std"] = max(abs(std_val), 1e-6)
+            except (TypeError, ValueError):
+                normalized.pop("std", None)
+
+        if "min" in normalized and "max" in normalized:
+            try:
+                mn, mx = float(normalized["min"]), float(normalized["max"])
+                if mn > mx:
+                    normalized["min"], normalized["max"] = mx, mn
+            except (TypeError, ValueError):
+                pass
+
+        if "scale" in normalized:
+            try:
+                if float(normalized["scale"]) <= 0:
+                    normalized["scale"] = 1.0
+            except (TypeError, ValueError):
+                normalized.pop("scale", None)
+
+        if "lambda" in normalized:
+            try:
+                if float(normalized["lambda"]) <= 0:
+                    normalized["lambda"] = 1.0
+            except (TypeError, ValueError):
+                normalized.pop("lambda", None)
+
+        if "a" in normalized and normalized.get("distribution") in ("zipf", "pareto", "powerlaw"):
+            try:
+                if float(normalized["a"]) <= 1:
+                    normalized["a"] = 1.1
+            except (TypeError, ValueError):
+                normalized.pop("a", None)
+
         # Curve Fitting for 'control_points'
         if "control_points" in normalized:
             try:
@@ -1209,7 +1248,6 @@ Include reference tables with inline_data for lookup values and transactional ta
                 dist_type = normalized.get("distribution", "normal")
                 fitter = CurveFitter()
                 fitted_params = fitter.fit_distribution(points, dist_type)
-                # Merge fitted params, keeping any manual overrides if they exist (or overwriting? let's overwrite for safety)
                 normalized.update(fitted_params)
             except Exception as exc:
                 warnings.warn(f"Curve fitting failed for control_points: {exc}")
@@ -1534,6 +1572,19 @@ Include reference tables with inline_data for lookup values and transactional ta
         # table exists we demote the orphan FK to a plain int so it still passes.
         self._repair_foreign_keys(tables, columns, relationships)
 
+        # Detect and break circular FK chains before they reach the simulator.
+        # The simulator raises ValueError on cycles; better to remove one edge
+        # here with a clear warning than to crash generation silently. Passing
+        # columns lets it demote the orphaned FK column left by the dropped edge.
+        self._break_circular_relationships(tables, relationships, columns)
+
+        # Ensure every reference table has usable inline_data. The LLM sometimes
+        # marks a table as is_reference without emitting data rows; auto-generate
+        # from domain vocabulary or demote to a transactional table.
+        col_names_for_domain = [c.name for cols in columns.values() for c in cols]
+        domain_for_repair = self._detect_domain([t.name for t in tables], col_names_for_domain)
+        self._repair_reference_inline_data(tables, columns, domain_for_repair)
+
         schema = SchemaConfig(
             name=schema_dict.get("name", "Generated Dataset"),
             description=schema_dict.get("description"),
@@ -1551,11 +1602,14 @@ Include reference tables with inline_data for lookup values and transactional ta
 
     @staticmethod
     def _detect_domain(table_names: List[str], col_names: List[str]) -> Optional[str]:
-        """Infer the dataset domain from table and column names."""
+        """Infer the dataset domain from table and column names using word-boundary matching."""
         corpus = " ".join(table_names + col_names).lower()
         scores: Dict[str, int] = {}
         for domain, signals in _DOMAIN_SIGNALS:
-            score = sum(1 for s in signals if s in corpus)
+            score = sum(
+                1 for s in signals
+                if re.search(r"\b" + re.escape(s) + r"\b", corpus)
+            )
             if score > 0:
                 scores[domain] = score
         return max(scores, key=lambda k: scores[k]) if scores else None
@@ -1604,6 +1658,29 @@ Include reference tables with inline_data for lookup values and transactional ta
                     new_params["choices"] = replacement
                     new_params.pop("probabilities", None)
                     col.distribution_params = new_params
+
+        # Enforce vocabulary in reference table inline_data rows.
+        # The LLM sometimes emits blacklisted values directly in the lookup rows.
+        for table in schema.tables:
+            if not table.is_reference or not table.inline_data:
+                continue
+            tname_key = re.sub(r"s$", "", table.name.lower())
+            for vocab_key, values in domain_vocab.items():
+                if vocab_key not in tname_key and tname_key not in vocab_key:
+                    continue
+                # Found a vocabulary match for this reference table — check each row
+                # for a non-id label column and replace any blacklisted values.
+                for row in table.inline_data:
+                    if not isinstance(row, dict):
+                        continue
+                    for col_name, cell_val in row.items():
+                        if col_name == "id":
+                            continue
+                        if isinstance(cell_val, str) and cell_val.lower().strip() in _BLACKLISTED_VALUES:
+                            # Replace with a value from the vocabulary (cycle through)
+                            idx = (row.get("id", 1) - 1) % len(values)
+                            row[col_name] = values[idx]
+                break
 
     @staticmethod
     def _repair_foreign_keys(tables, columns, relationships) -> None:
@@ -1696,6 +1773,144 @@ Include reference tables with inline_data for lookup values and transactional ta
                     params.setdefault("min", 1)
                     params.setdefault("max", 1000)
                     col.distribution_params = params
+
+    @staticmethod
+    def _break_circular_relationships(
+        tables: List[Table],
+        relationships: List[Relationship],
+        columns: Optional[Dict[str, List]] = None,
+    ) -> None:
+        """Detect and break multi-table cycles in FK relationships.
+
+        The simulator raises ValueError on cross-table cycles (a→b→a). We remove
+        the last edge that closes each cycle and warn. Self-referential FKs
+        (employee.manager_id → employee) are NOT cycles here — the simulator
+        handles them explicitly — so they are excluded from detection and never
+        dropped. When an edge is dropped, the now-orphaned FK column is demoted
+        to a plain int so it doesn't fail validation. Modifies `relationships`
+        (and `columns`, if given) in-place.
+        """
+        from collections import deque as _deque
+
+        def _demote_orphan(child_table: str, child_key: str) -> None:
+            """Turn a now-parentless FK column into a plain int."""
+            if columns is None:
+                return
+            for col in columns.get(child_table, []):
+                if col.name == child_key and col.type == "foreign_key":
+                    col.type = "int"
+                    params = dict(col.distribution_params or {})
+                    params.setdefault("distribution", "uniform")
+                    params.setdefault("min", 1)
+                    params.setdefault("max", 1000)
+                    col.distribution_params = params
+
+        table_names = {t.name for t in tables}
+        while True:
+            # Build parent→children adjacency, excluding self-referential edges.
+            fwd: Dict[str, set] = {n: set() for n in table_names}
+            in_deg: Dict[str, int] = {n: 0 for n in table_names}
+            for rel in relationships:
+                if rel.parent_table == rel.child_table:
+                    continue  # self-referential — legitimate, skip
+                if rel.parent_table not in table_names or rel.child_table not in table_names:
+                    continue
+                if rel.child_table not in fwd[rel.parent_table]:
+                    fwd[rel.parent_table].add(rel.child_table)
+                    in_deg[rel.child_table] += 1
+
+            # Kahn's algorithm — any node left unvisited is in a cycle.
+            q = _deque(n for n, d in in_deg.items() if d == 0)
+            visited = set()
+            while q:
+                n = q.popleft()
+                visited.add(n)
+                for child in fwd[n]:
+                    in_deg[child] -= 1
+                    if in_deg[child] == 0:
+                        q.append(child)
+
+            cycle_members = table_names - visited
+            if not cycle_members:
+                break  # no cross-table cycle remains
+
+            # Remove the last non-self-referential relationship inside the cycle.
+            for i in range(len(relationships) - 1, -1, -1):
+                rel = relationships[i]
+                if rel.parent_table == rel.child_table:
+                    continue  # never drop a self-referential FK
+                if rel.child_table in cycle_members and rel.parent_table in cycle_members:
+                    warnings.warn(
+                        f"Circular FK detected — dropping relationship "
+                        f"{rel.parent_table}.{rel.parent_key} → "
+                        f"{rel.child_table}.{rel.child_key} to break the cycle."
+                    )
+                    relationships.pop(i)
+                    _demote_orphan(rel.child_table, rel.child_key)
+                    break
+            else:
+                break  # safety: nothing removable, exit to avoid infinite loop
+
+    @staticmethod
+    def _repair_reference_inline_data(
+        tables: List[Table],
+        columns: Dict[str, List],
+        domain: Optional[str],
+    ) -> None:
+        """Ensure every reference table has usable inline_data.
+
+        Three sub-cases:
+        1. inline_data rows are missing the `id` column → add sequential ids.
+        2. inline_data is None/empty and we can find domain vocab for the
+           table → auto-generate rows from _DOMAIN_VOCAB.
+        3. inline_data is None/empty and no vocab match → convert to a regular
+           transactional table (is_reference=False) with a warning so the
+           simulator doesn't produce empty DataFrames.
+        """
+        domain_vocab: Dict[str, List] = _DOMAIN_VOCAB.get(domain, {}) if domain else {}
+
+        for table in tables:
+            if not table.is_reference:
+                continue
+
+            rows = table.inline_data
+
+            # Case 1: rows exist but id column is missing → inject it
+            if rows and isinstance(rows[0], dict) and "id" not in rows[0]:
+                for i, row in enumerate(rows, 1):
+                    row.setdefault("id", i)
+                continue
+
+            # Cases 2 & 3: no inline_data at all
+            if rows:
+                continue
+
+            # Try to generate from domain vocabulary
+            tname_key = re.sub(r"s$", "", table.name.lower())  # strip trailing 's'
+            matched_values: Optional[List] = None
+            for vocab_key, values in domain_vocab.items():
+                if vocab_key in tname_key or tname_key in vocab_key:
+                    matched_values = values
+                    break
+
+            if matched_values:
+                # Infer the non-id label column name from existing columns or table name
+                cols = columns.get(table.name, [])
+                label_col = next(
+                    (c.name for c in cols if c.name not in ("id",) and c.type in ("text", "categorical")),
+                    "name",
+                )
+                table.inline_data = [
+                    {"id": i + 1, label_col: v} for i, v in enumerate(matched_values)
+                ]
+                table.row_count = len(matched_values)
+            else:
+                # No vocab — demote to transactional so simulator generates it normally
+                warnings.warn(
+                    f"Reference table '{table.name}' has no inline_data and no "
+                    f"matching vocabulary — converting to a regular table."
+                )
+                table.is_reference = False
 
     def enrich_schema(
         self,
