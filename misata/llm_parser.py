@@ -91,6 +91,15 @@ Small lookup / dimension tables (3-20 rows) with ACTUAL DATA you generate.
     - listing_statuses → ["Active", "Pending", "Sold", "Off Market", "Expired"]
     - job_titles → ["Software Engineer", "Data Scientist", "Product Manager", "Designer"]
     - payment_methods → ["Credit Card", "Bank Transfer", "PayPal", "Crypto"]
+- EXACT USER VALUES: When the user's story explicitly names the values for a
+  category (e.g., "Free, Pro, Enterprise plans"), use EXACTLY those values —
+  do not add, rename, or remove any. Only invent values when the user did NOT
+  specify them.
+- HUMAN-READABLE STRINGS in inline_data and choices: for display columns (type,
+  status, method, category, reason, tier, plan, channel, industry, department)
+  always use Title Case or Sentence case strings ("Credit Card", "In Progress",
+  "Off Market") — NEVER snake_case ("credit_card", "in_progress", "off_market").
+  Snake_case is for column NAMES only, not values.
 - For free-text columns on transactional tables, set a `text_type` when obvious
   (email, name, company, url for domains, phone, address, city, country).
 
@@ -1316,9 +1325,22 @@ Include reference tables with inline_data for lookup values and transactional ta
 
     @staticmethod
     def _repair_foreign_keys(tables, columns, relationships) -> None:
-        """Ensure every foreign_key column has a Relationship, or is demoted to int."""
+        """Ensure every foreign_key column has a Relationship, or is demoted to int.
+
+        Also promotes child_key columns that are declared in a Relationship but
+        typed as text/int (common LLM mistake) to foreign_key so the simulator
+        can resolve them correctly.
+        """
         table_names = [t.name for t in tables]
         existing = {(r.child_table, r.child_key) for r in relationships}
+
+        # Promote: any column that appears as child_key in a declared Relationship
+        # but is typed as text/int should become foreign_key.
+        for rel in relationships:
+            for col in columns.get(rel.child_table, []):
+                if col.name == rel.child_key and col.type not in ("foreign_key",):
+                    col.type = "foreign_key"
+                    col.distribution_params = {}
 
         def find_parent(base: str, child_table: str):
             b = base.lower()

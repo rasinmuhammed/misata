@@ -1265,3 +1265,99 @@ def test_listing_title_category_are_coherent_and_diverse():
             mismatch += 1
     assert mismatch == 0, f"{mismatch} title/category mismatches"
     assert len(cats) >= 3, f"category collapsed to {cats} — lost diversity"
+
+
+# ---------------------------------------------------------------------------
+# 0.8.1.13 regressions
+# ---------------------------------------------------------------------------
+
+def _parse_llm(d: dict):
+    """Thin helper: run a raw LLM-output dict through _parse_schema."""
+    from misata.llm_parser import LLMSchemaGenerator
+    gen = object.__new__(LLMSchemaGenerator)
+    gen.enable_feedback = False
+    gen._feedback_db = None
+    return gen._parse_schema(d)
+
+
+def test_v0813_correlation_language_not_treated_as_outcome_curve():
+    """'price rises with square_footage' must become a table correlation, NOT an outcome_curve."""
+    cfg = _parse_llm({
+        "name": "Real-estate", "seed": 42,
+        "tables": [
+            {"name": "listings", "row_count": 10000,
+             "correlations": [
+                 {"col_a": "price", "col_b": "square_footage", "r": 0.75},
+                 {"col_a": "price", "col_b": "distance_from_city_center_miles", "r": -0.65},
+             ]},
+        ],
+        "columns": {"listings": [
+            {"name": "id",          "type": "int",   "unique": True},
+            {"name": "price",       "type": "float", "distribution_params": {"distribution": "normal", "mean": 500000, "std": 150000}},
+            {"name": "square_footage", "type": "int","distribution_params": {"distribution": "normal", "mean": 1800, "std": 500}},
+            {"name": "distance_from_city_center_miles", "type": "float",
+             "distribution_params": {"distribution": "normal", "mean": 8, "std": 5}},
+            {"name": "listing_date", "type": "date", "distribution_params": {"start": "2024-01-01", "end": "2024-12-31"}},
+        ]},
+        "relationships": [],
+        "outcome_curves": [],
+        "rate_curves": [],
+    })
+    # Correlations must be captured
+    assert len(cfg.tables[0].correlations) == 2
+    col_pairs = {(c["col_a"], c["col_b"]) for c in cfg.tables[0].correlations}
+    assert ("price", "square_footage") in col_pairs
+    assert ("price", "distance_from_city_center_miles") in col_pairs
+    # No spurious curves must exist
+    assert cfg.outcome_curves == []
+    assert cfg.rate_curves == []
+
+
+def test_v0813_fk_id_columns_keep_foreign_key_type():
+    """city_id / property_type_id emitted as 'text' by LLM must NOT be coerced — they should
+    be caught by the FK-repair path and either linked or demoted to int, never stay as text."""
+    cfg = _parse_llm({
+        "name": "Real-estate", "seed": 42,
+        "tables": [
+            {"name": "cities", "row_count": 5, "is_reference": True,
+             "inline_data": [{"id": 1, "name": "San Francisco"}, {"id": 2, "name": "Los Angeles"},
+                             {"id": 3, "name": "New York"}, {"id": 4, "name": "Chicago"}, {"id": 5, "name": "Miami"}]},
+            {"name": "listings", "row_count": 1000},
+        ],
+        "columns": {"listings": [
+            {"name": "id",       "type": "int",  "unique": True},
+            # LLM mistakenly emits city_id as text — must be repaired
+            {"name": "city_id",  "type": "text", "distribution_params": {}},
+            {"name": "price",    "type": "float","distribution_params": {"distribution": "normal", "mean": 500000, "std": 100000}},
+        ]},
+        "relationships": [
+            {"parent_table": "cities", "child_table": "listings", "parent_key": "id", "child_key": "city_id"},
+        ],
+    })
+    by = {c.name: c for c in cfg.columns["listings"]}
+    # After repair, city_id must be foreign_key (the relationship exists so it should not be demoted)
+    assert by["city_id"].type == "foreign_key", f"city_id type was {by['city_id'].type!r}"
+
+
+def test_v0813_explicit_enum_choices_not_hallucinated():
+    """When the user names values explicitly (Free/Pro/Enterprise), inline_data must contain
+    exactly those values — the parser must not silently accept extra hallucinated entries."""
+    cfg = _parse_llm({
+        "name": "SaaS", "seed": 1,
+        "tables": [
+            {"name": "plans", "is_reference": True,
+             "inline_data": [
+                 {"id": 1, "name": "Free"},
+                 {"id": 2, "name": "Pro"},
+                 {"id": 3, "name": "Enterprise"},
+             ]},
+            {"name": "users", "row_count": 1000},
+        ],
+        "columns": {"users": [
+            {"name": "id",      "type": "int", "unique": True},
+            {"name": "plan_id", "type": "foreign_key"},
+        ]},
+        "relationships": [{"parent_table": "plans", "child_table": "users", "parent_key": "id", "child_key": "plan_id"}],
+    })
+    plan_names = {row["name"] for row in cfg.tables[0].inline_data}
+    assert plan_names == {"Free", "Pro", "Enterprise"}, f"Unexpected plan names: {plan_names}"
