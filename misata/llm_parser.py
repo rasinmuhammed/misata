@@ -59,6 +59,149 @@ def _load_env():
 
 _load_env()
 
+# ---------------------------------------------------------------------------
+# Domain vocabulary — deterministic post-processing enforces these values
+# instead of relying on the LLM to remember the right words.
+# ---------------------------------------------------------------------------
+
+_DOMAIN_SIGNALS: List[tuple] = [
+    ("real_estate", [
+        "listing", "listings", "properties", "property", "homes", "home",
+        "apartment", "apartments", "condo", "condos", "house", "houses",
+        "realt", "mortgage", "mls", "sqft", "square_foot", "square_footage",
+    ]),
+    ("ecommerce", [
+        "order", "orders", "product", "products", "cart", "checkout",
+        "purchase", "purchases", "inventory", "shop", "sku", "catalog",
+    ]),
+    ("healthcare", [
+        "patient", "patients", "doctor", "doctors", "hospital", "clinic",
+        "diagnosis", "diagnoses", "prescription", "appointment", "procedure",
+    ]),
+    ("finance", [
+        "account", "accounts", "transaction", "transactions", "loan", "loans",
+        "bank", "payment", "payments", "credit", "debit", "ledger", "portfolio",
+    ]),
+    ("hr", [
+        "employee", "employees", "department", "departments", "salary", "payroll",
+        "hire", "performance", "headcount", "workforce",
+    ]),
+    ("saas", [
+        "subscription", "subscriptions", "tenant", "tenants", "mrr", "arr",
+        "churn", "billing", "workspace", "feature",
+    ]),
+    ("logistics", [
+        "shipment", "shipments", "delivery", "deliveries", "warehouse",
+        "freight", "carrier", "route", "tracking",
+    ]),
+    ("education", [
+        "student", "students", "course", "courses", "grade", "grades",
+        "enrollment", "teacher", "lesson", "exam",
+    ]),
+]
+
+_DOMAIN_VOCAB: Dict[str, Dict[str, List]] = {
+    "real_estate": {
+        "property_type": ["Single Family Home", "Condo", "Townhouse", "Multi-Family", "Apartment", "Studio", "Loft"],
+        "listing_status": ["Active", "Pending", "Sold", "Off Market", "Expired"],
+        "status": ["Active", "Pending", "Sold", "Off Market", "Expired"],
+        "city": ["San Francisco", "Los Angeles", "New York", "Chicago", "Miami", "Austin", "Seattle", "Denver", "Boston", "Phoenix"],
+        "state": ["CA", "NY", "TX", "FL", "WA", "CO", "IL", "AZ", "GA", "NC"],
+        "neighborhood_type": ["Urban", "Suburban", "Rural", "Downtown", "Waterfront", "Historic District"],
+        "heating_type": ["Central Air", "Electric", "Natural Gas", "Radiant Heat", "Heat Pump", "Baseboard"],
+        "cooling_type": ["Central AC", "Window Units", "Mini-Split", "Evaporative Cooler", "None"],
+        "parking": ["Attached Garage", "Detached Garage", "Street Parking", "Driveway", "Carport", "None"],
+        "parking_type": ["Attached Garage", "Detached Garage", "Street Parking", "Driveway", "Carport", "None"],
+        "condition": ["Excellent", "Good", "Fair", "Needs Work", "New Construction"],
+        "property_style": ["Ranch", "Colonial", "Victorian", "Contemporary", "Craftsman", "Tudor", "Cape Cod"],
+        "amenity_type": ["Pool", "Gym", "Garden", "Elevator", "Rooftop Terrace", "Concierge", "Doorman"],
+        "view_type": ["City View", "Ocean View", "Mountain View", "Garden View", "No View"],
+        "listing_type": ["For Sale", "For Rent", "For Lease"],
+    },
+    "ecommerce": {
+        "category": ["Electronics", "Clothing & Apparel", "Home & Garden", "Sports & Outdoors", "Books", "Toys & Games", "Food & Grocery", "Beauty & Health"],
+        "order_status": ["Processing", "Awaiting Shipment", "Shipped", "Out for Delivery", "Delivered", "Returned", "Cancelled"],
+        "status": ["Processing", "Awaiting Shipment", "Shipped", "Delivered", "Returned", "Cancelled"],
+        "shipping_method": ["Standard", "Express", "Overnight", "Free Shipping", "In-Store Pickup"],
+        "payment_method": ["Credit Card", "Debit Card", "PayPal", "Apple Pay", "Google Pay", "Bank Transfer"],
+        "return_reason": ["Defective Product", "Wrong Item Sent", "Changed Mind", "Better Price Found", "Arrived Too Late"],
+        "product_condition": ["New", "Like New", "Good", "Acceptable", "Refurbished"],
+    },
+    "healthcare": {
+        "blood_type": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+        "department": ["Cardiology", "Oncology", "Neurology", "Pediatrics", "Emergency", "Orthopedics", "Radiology", "Surgery"],
+        "appointment_status": ["Scheduled", "Completed", "Cancelled", "No Show", "Rescheduled"],
+        "status": ["Scheduled", "Completed", "Cancelled", "No Show", "Rescheduled"],
+        "visit_type": ["Initial Consultation", "Follow-up", "Annual Checkup", "Emergency", "Procedure"],
+        "insurance_type": ["Private", "Medicare", "Medicaid", "Self-Pay", "Workers Compensation"],
+    },
+    "finance": {
+        "account_type": ["Checking", "Savings", "Credit", "Investment", "Mortgage", "Business"],
+        "transaction_type": ["Debit", "Credit", "Transfer", "Deposit", "Withdrawal", "Payment"],
+        "status": ["Completed", "Pending", "Failed", "Reversed", "Processing"],
+        "transaction_status": ["Completed", "Pending", "Failed", "Reversed", "Processing"],
+        "loan_status": ["Current", "Late", "Delinquent", "Default", "Paid Off"],
+        "credit_rating": ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"],
+        "payment_method": ["ACH Transfer", "Wire Transfer", "Check", "Credit Card", "Debit Card"],
+    },
+    "hr": {
+        "department": ["Engineering", "Sales", "Marketing", "Finance", "Human Resources", "Operations", "Product", "Legal", "Customer Support"],
+        "employment_type": ["Full-time", "Part-time", "Contract", "Intern", "Temporary"],
+        "status": ["Active", "On Leave", "Terminated", "Resigned", "Retired"],
+        "employment_status": ["Active", "On Leave", "Terminated", "Resigned", "Retired"],
+        "performance_rating": ["Exceptional", "Exceeds Expectations", "Meets Expectations", "Below Expectations", "Unsatisfactory"],
+        "education_level": ["High School", "Associate Degree", "Bachelor's Degree", "Master's Degree", "PhD"],
+    },
+    "saas": {
+        "plan_type": ["Free", "Starter", "Pro", "Business", "Enterprise"],
+        "plan": ["Free", "Starter", "Pro", "Business", "Enterprise"],
+        "status": ["Active", "Trial", "Past Due", "Cancelled", "Paused"],
+        "subscription_status": ["Active", "Trial", "Past Due", "Cancelled", "Paused"],
+        "billing_cycle": ["Monthly", "Annual", "Quarterly"],
+        "churn_reason": ["Too Expensive", "Missing Features", "Found Alternative", "Business Closed", "No Longer Needed"],
+    },
+    "logistics": {
+        "status": ["Received", "Processing", "In Transit", "Out for Delivery", "Delivered", "Returned"],
+        "shipment_status": ["Received", "Processing", "In Transit", "Out for Delivery", "Delivered", "Returned"],
+        "carrier": ["FedEx", "UPS", "DHL", "USPS", "Amazon Logistics"],
+        "service_level": ["Standard Ground", "2-Day Air", "Next Day Air", "International Economy", "International Express"],
+    },
+    "education": {
+        "department": ["Computer Science", "Mathematics", "Physics", "English", "History", "Biology", "Chemistry", "Business", "Arts"],
+        "letter_grade": ["A", "A-", "B+", "B", "B-", "C+", "C", "D", "F"],
+        "enrollment_status": ["Enrolled", "Withdrawn", "Graduated", "On Leave", "Suspended"],
+        "status": ["Enrolled", "Withdrawn", "Graduated", "On Leave", "Suspended"],
+        "course_type": ["Lecture", "Lab", "Seminar", "Online", "Hybrid"],
+    },
+}
+
+_COL_VOCAB: Dict[str, List] = {
+    "gender": ["Male", "Female", "Non-binary", "Prefer not to say"],
+    "sex": ["Male", "Female"],
+    "country": ["United States", "United Kingdom", "Canada", "Germany", "France", "Australia", "Japan", "India", "Brazil"],
+    "currency": ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "INR"],
+    "day_of_week": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    "quarter": ["Q1", "Q2", "Q3", "Q4"],
+    "season": ["Spring", "Summer", "Fall", "Winter"],
+    "priority": ["Low", "Medium", "High", "Critical"],
+    "severity": ["Low", "Medium", "High", "Critical"],
+    "size": ["XS", "S", "M", "L", "XL", "XXL"],
+    "language": ["English", "Spanish", "French", "German", "Chinese", "Japanese", "Portuguese", "Arabic"],
+    "continent": ["North America", "South America", "Europe", "Asia", "Africa", "Australia", "Antarctica"],
+    "color": ["Red", "Blue", "Green", "Yellow", "Black", "White", "Gray", "Orange", "Purple", "Brown"],
+}
+
+_BLACKLISTED_VALUES: frozenset = frozenset({
+    "premium", "enterprise", "professional", "essential", "team", "ultimate",
+    "scale", "starter", "growth", "core", "max", "ultra", "pro", "lite",
+    "default", "general", "advanced", "basic", "standard", "primary",
+    "secondary", "custom", "plus", "business",
+    "type_a", "type_b", "type_c", "type_d",
+    "category_a", "category_b", "category_c",
+    "value_1", "value_2", "value_3",
+    "option_1", "option_2", "option_3",
+})
+
 
 SYSTEM_PROMPT = """You are Misata, an expert synthetic data architect. Your job is to generate REALISTIC database schemas based ONLY on the user's story. 
 
@@ -81,30 +224,11 @@ Small lookup / dimension tables (3-20 rows) with ACTUAL DATA you generate.
   e.g. plans the user described as "Starter, Pro, Enterprise":
   `"inline_data": [{"id":1,"name":"Starter","monthly_price":49},{"id":2,"name":"Pro","monthly_price":199},{"id":3,"name":"Enterprise","monthly_price":499}]`
   e.g. an invoice_status table: `[{"id":1,"status":"Pending"},{"id":2,"status":"Paid"},{"id":3,"status":"Overdue"}]`
-- DOMAIN-SPECIFIC VALUES ONLY. The following words are SaaS subscription-tier
-  vocabulary. They MUST NEVER appear as label values in domain reference tables
-  (cities, property types, heating types, parking types, amenity types, etc.):
-  "Premium", "Enterprise", "Professional", "Essential", "Team", "Ultimate",
-  "Scale", "Starter", "Growth", "Core", "Max", "Ultra", "Pro", "Lite",
-  "Default", "General", "Advanced", "Basic", "Free", "Standard", "Primary",
-  "Secondary", "Pending", "Active", "Inactive", "Custom", "Plus", "Business"
-  ← these words describe SAAS TIERS, not real-world entities. Using them for
-  cities or property types is WRONG.
-
-  CORRECT domain-specific values:
-    - cities → ["San Francisco", "Los Angeles", "New York", "Chicago", "Miami",
-                "Austin", "Seattle", "Denver", "Boston", "Phoenix"]
-    - property_types → ["Single Family Home", "Condo", "Townhouse", "Multi-Family",
-                        "Apartment", "Studio", "Loft", "Villa", "Manufactured Home"]
-    - heating_types → ["Central Air", "Electric", "Natural Gas", "Radiant Heat",
-                       "Heat Pump", "Baseboard", "Geothermal"]
-    - parking_types → ["Attached Garage", "Detached Garage", "Street Parking",
-                       "Driveway", "Carport", "Underground", "None"]
-    - listing_statuses → inline_data with: Active, Pending, Sold, Off Market, Expired
-    - amenity_types → ["Pool", "Gym", "Parking", "Garden", "Elevator", "Rooftop Terrace"]
-    - job_titles → ["Software Engineer", "Data Scientist", "Product Manager", "Designer"]
-    - payment_methods → ["Credit Card", "Bank Transfer", "PayPal", "ACH Transfer"]
-
+- DOMAIN-SPECIFIC VALUES ONLY. Use real-world vocabulary for each domain.
+  SaaS tier words ("Premium", "Standard", "Advanced", "Basic", "Core", "Pro")
+  MUST NOT appear as values for non-SaaS categories (cities, property types,
+  heating types, parking, etc.). Use the COMPLETE EXAMPLE at the end of this
+  prompt as a reference for correct real-estate vocabulary.
 - EXACT USER VALUES: When the user's story explicitly names the values for a
   category (e.g., "Free, Pro, Enterprise plans"), use EXACTLY those values —
   do not add, rename, or remove any. Only invent values when the user did NOT
@@ -315,6 +439,65 @@ If the user mentions wanting messy, dirty, or imperfect data, include a `noise_c
 - "Past year" -> start: 2025-01-01, end: 2025-12-31
 - "Historical data" -> start: 2020-01-01, end: 2025-12-31
 - No mention -> Default to current year (2025)
+
+## COMPLETE WORKED EXAMPLE
+
+Story: "A real-estate dataset of 10,000 listings where price rises with square footage and falls with distance from the city center."
+
+```json
+{
+  "name": "Real Estate Listings",
+  "seed": 42,
+  "tables": [
+    {"name":"property_types","is_reference":true,"row_count":7,
+     "inline_data":[
+       {"id":1,"name":"Single Family Home"},{"id":2,"name":"Condo"},
+       {"id":3,"name":"Townhouse"},{"id":4,"name":"Multi-Family"},
+       {"id":5,"name":"Apartment"},{"id":6,"name":"Studio"},{"id":7,"name":"Loft"}
+     ]},
+    {"name":"listing_statuses","is_reference":true,"row_count":5,
+     "inline_data":[
+       {"id":1,"status":"Active"},{"id":2,"status":"Pending"},{"id":3,"status":"Sold"},
+       {"id":4,"status":"Off Market"},{"id":5,"status":"Expired"}
+     ]},
+    {"name":"listings","is_reference":false,"row_count":10000,
+     "correlations":[
+       {"col_a":"price","col_b":"square_footage","r":0.75},
+       {"col_a":"price","col_b":"distance_from_city_center_miles","r":-0.65}
+     ]}
+  ],
+  "columns":{
+    "listings":[
+      {"name":"id","type":"int","distribution_params":{"distribution":"uniform","min":1,"max":10000},"unique":true},
+      {"name":"property_type_id","type":"foreign_key","distribution_params":{}},
+      {"name":"status_id","type":"foreign_key","distribution_params":{}},
+      {"name":"price","type":"float","distribution_params":{"distribution":"lognormal","mean":12.5,"std":0.6,"min":80000,"decimals":0}},
+      {"name":"square_footage","type":"int","distribution_params":{"distribution":"normal","mean":1800,"std":600,"min":400,"max":8000}},
+      {"name":"bedrooms","type":"int","distribution_params":{"distribution":"categorical","choices":[1,2,3,4,5,6],"probabilities":[0.05,0.20,0.35,0.25,0.10,0.05]}},
+      {"name":"bathrooms","type":"float","distribution_params":{"distribution":"categorical","choices":[1.0,1.5,2.0,2.5,3.0],"probabilities":[0.15,0.25,0.35,0.20,0.05]}},
+      {"name":"distance_from_city_center_miles","type":"float","distribution_params":{"distribution":"exponential","scale":8.0,"min":0.1,"decimals":1}},
+      {"name":"year_built","type":"int","distribution_params":{"distribution":"normal","mean":1985,"std":25,"min":1900,"max":2024}},
+      {"name":"listing_date","type":"date","distribution_params":{"start":"2023-01-01","end":"2025-12-31"}},
+      {"name":"city","type":"text","distribution_params":{"text_type":"city"}},
+      {"name":"address","type":"text","distribution_params":{"text_type":"address"}}
+    ]
+  },
+  "relationships":[
+    {"parent_table":"property_types","child_table":"listings","parent_key":"id","child_key":"property_type_id"},
+    {"parent_table":"listing_statuses","child_table":"listings","parent_key":"id","child_key":"status_id"}
+  ],
+  "outcome_curves":[],
+  "rate_curves":[],
+  "events":[]
+}
+```
+
+Key points this example demonstrates:
+- Reference table inline_data uses REAL values ("Single Family Home", "Active") — NEVER "Premium/Standard/Basic"
+- "price rises WITH square_footage" → `correlations` on the table (r=+0.75), NOT outcome_curves
+- "price falls WITH distance" → `correlations` (r=-0.65), NOT outcome_curves
+- outcome_curves=[] because the story has NO time trend
+- Every *_id column → `"type":"foreign_key"`, never text or int
 
 Generate schemas ONLY based on the user's story. Be creative and domain-specific."""
 
@@ -1351,7 +1534,7 @@ Include reference tables with inline_data for lookup values and transactional ta
         # table exists we demote the orphan FK to a plain int so it still passes.
         self._repair_foreign_keys(tables, columns, relationships)
 
-        return SchemaConfig(
+        schema = SchemaConfig(
             name=schema_dict.get("name", "Generated Dataset"),
             description=schema_dict.get("description"),
             tables=tables,
@@ -1363,6 +1546,64 @@ Include reference tables with inline_data for lookup values and transactional ta
             noise_config=schema_dict.get("noise_config"),
             seed=schema_dict.get("seed", 42)
         )
+        self._enforce_vocabulary(schema)
+        return schema
+
+    @staticmethod
+    def _detect_domain(table_names: List[str], col_names: List[str]) -> Optional[str]:
+        """Infer the dataset domain from table and column names."""
+        corpus = " ".join(table_names + col_names).lower()
+        scores: Dict[str, int] = {}
+        for domain, signals in _DOMAIN_SIGNALS:
+            score = sum(1 for s in signals if s in corpus)
+            if score > 0:
+                scores[domain] = score
+        return max(scores, key=lambda k: scores[k]) if scores else None
+
+    @staticmethod
+    def _enforce_vocabulary(schema: SchemaConfig) -> None:
+        """Replace LLM-hallucinated categorical values with domain-validated vocabulary.
+
+        Only activates when the current choices contain blacklisted words (SaaS tier
+        labels used in non-SaaS contexts). Leaves good LLM-generated values untouched.
+        """
+        table_names = [t.name for t in schema.tables]
+        col_names_all = [c.name for cols in schema.columns.values() for c in cols]
+        domain = LLMSchemaGenerator._detect_domain(table_names, col_names_all)
+        domain_vocab: Dict[str, List] = _DOMAIN_VOCAB.get(domain, {}) if domain else {}
+
+        for _tname, cols in schema.columns.items():
+            for col in cols:
+                if col.type != "categorical":
+                    continue
+                params = col.distribution_params or {}
+                choices = params.get("choices", [])
+                if not isinstance(choices, list) or not choices:
+                    continue
+
+                choices_lower = {str(c).lower().strip() for c in choices}
+                if not (choices_lower & _BLACKLISTED_VALUES):
+                    continue  # choices look fine — do not override
+
+                col_key = re.sub(r"(_id|_name|_code|_type|_label|_value)$", "", col.name.lower())
+
+                replacement: Optional[List] = None
+                for vocab_key, values in _COL_VOCAB.items():
+                    if vocab_key in col_key or col_key in vocab_key:
+                        replacement = values
+                        break
+
+                if replacement is None and domain_vocab:
+                    for vocab_key, values in domain_vocab.items():
+                        if vocab_key in col_key or col_key in vocab_key:
+                            replacement = values
+                            break
+
+                if replacement:
+                    new_params = dict(params)
+                    new_params["choices"] = replacement
+                    new_params.pop("probabilities", None)
+                    col.distribution_params = new_params
 
     @staticmethod
     def _repair_foreign_keys(tables, columns, relationships) -> None:
