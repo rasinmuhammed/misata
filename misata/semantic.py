@@ -11,6 +11,38 @@ from typing import Any, Dict, List, Optional, Tuple
 from misata.schema import Column
 
 
+# Keys that indicate a caller explicitly shaped a numeric distribution. If any
+# are present (or a non-default distribution is named), semantic inference must
+# not override the column's range — the user's intent wins.
+_MEANINGFUL_DIST_KEYS = frozenset({
+    "mean", "std", "mu", "sigma", "scale", "lambda", "choices", "probabilities",
+    "alpha", "a", "b", "min", "max", "quantiles", "rate", "depends_on",
+    "control_points", "profiles",
+})
+
+
+def _has_explicit_distribution(params: Dict[str, Any]) -> bool:
+    """True when params carry a user-specified distribution shape (not the bare
+    auto-injected ``{"distribution": "normal"}`` default)."""
+    if not params:
+        return False
+    if set(params) & _MEANINGFUL_DIST_KEYS:
+        return True
+    dist = params.get("distribution")
+    return bool(dist) and dist != "normal"
+
+
+# Column names whose values must never be negative — a `min: 0` floor is safe to
+# add when the caller gave an explicit distribution but no min. Word-boundary
+# matched so "list_price"/"total_revenue" qualify but "coverage"/"agenda" do not.
+_NONNEGATIVE_NAME_RE = re.compile(
+    r"(?:^|_)(price|cost|amount|fee|total|subtotal|tax|revenue|income|salary|"
+    r"wage|mrr|arr|balance|payment|charge|budget|quantity|qty|count|age|"
+    r"square_footage|sqft|footage|area|distance|weight|height|duration|"
+    r"discount|deposit|premium|rent|value)(?:$|_)"
+)
+
+
 # Semantic patterns: regex -> (type, distribution_params)
 SEMANTIC_PATTERNS: List[Tuple[str, str, Dict[str, Any]]] = [
     # Email patterns
@@ -137,11 +169,19 @@ class SemanticInference:
                     # Default sentence generation - probably wrong for semantic names
                     should_fix = True
 
-            # Case 2: Numeric column that could be negative but shouldn't be
+            # Case 2: Numeric column that could be negative but shouldn't be.
+            # CRITICAL: never override a distribution the user/LLM explicitly
+            # parameterised. A house price declared as normal(mean=500000) must
+            # NOT be silently replaced by the generic uniform(0, 1000) prior —
+            # that was the root cause of "senseless values" (e.g. $500k homes
+            # priced at $1–$999). Semantic inference exists to help *bare*
+            # columns (e.g. from DB introspection with no distribution), so we
+            # only apply it when no explicit distribution shape is present.
             if column.type in ["int", "float"]:
-                if "price" in column.name.lower() or "age" in column.name.lower():
-                    if "min" not in column.distribution_params:
-                        should_fix = True
+                if not _has_explicit_distribution(column.distribution_params):
+                    if "price" in column.name.lower() or "age" in column.name.lower():
+                        if "min" not in column.distribution_params:
+                            should_fix = True
 
         if should_fix:
             # Merge inferred params with existing (inferred takes precedence)
@@ -152,6 +192,26 @@ class SemanticInference:
                 distribution_params=merged_params,
                 nullable=column.nullable,
                 unique=column.unique
+            )
+
+        # Non-negativity floor for money/quantity columns that carry an EXPLICIT
+        # distribution but no `min`. This never changes the distribution, mean,
+        # or max — it only adds `min: 0` so a wide normal (e.g. house price
+        # normal(500000, 150000)) can't produce a negative value in its tail.
+        if (
+            column.type in ("int", "float")
+            and "min" not in column.distribution_params
+            and _has_explicit_distribution(column.distribution_params)
+            and _NONNEGATIVE_NAME_RE.search(column.name.lower())
+        ):
+            floored = dict(column.distribution_params)
+            floored["min"] = 0
+            return Column(
+                name=column.name,
+                type=column.type,
+                distribution_params=floored,
+                nullable=column.nullable,
+                unique=column.unique,
             )
 
         return column

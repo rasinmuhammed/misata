@@ -1541,3 +1541,51 @@ def test_v0814_blacklisted_values_in_categorical_replaced_for_domain():
     lowered = {str(c).lower() for c in choices}
     assert not (lowered & {"premium", "standard", "basic"}), \
         f"Blacklisted values survived: {choices}"
+
+
+def test_v0814_semantic_inference_never_overrides_explicit_price_distribution():
+    """A house price declared normal(mean=500000) must NOT be replaced by the
+    generic uniform(0,1000) semantic prior. This was the biggest 'senseless
+    values' bug — $500k homes coming out as $1–$999."""
+    cfg = _parse_llm({
+        "name": "Real estate", "seed": 42,
+        "tables": [{"name": "listings", "row_count": 3000}],
+        "columns": {"listings": [
+            {"name": "id", "type": "int", "unique": True},
+            {"name": "price", "type": "float",
+             "distribution_params": {"distribution": "normal", "mean": 500000, "std": 150000}},
+        ]},
+    })
+    sim = DataSimulator(cfg)  # apply_semantic_fixes=True by default
+    df = {n: d for n, d in sim.generate_all()}["listings"]
+    # Mean must be near the declared 500k, not the generic ~500 uniform prior.
+    assert df["price"].mean() > 100000, \
+        f"Explicit price distribution was overridden — mean={df['price'].mean():.0f}"
+    # Non-negativity floor: no negative prices even in the tail.
+    assert df["price"].min() >= 0, f"Negative price generated: {df['price'].min()}"
+
+
+def test_v0814_semantic_inference_still_helps_bare_price_column():
+    """The semantic prior must still fire for a BARE price column (e.g. from DB
+    introspection with no distribution) — the fix only protects explicit ones."""
+    from misata.semantic import apply_semantic_inference
+    from misata.schema import Column as _Col
+    fixed = apply_semantic_inference({"t": [_Col(name="price", type="float", distribution_params={})]})
+    params = fixed["t"][0].distribution_params
+    assert params.get("distribution") == "uniform"
+    assert params.get("max") == 1000
+
+
+def test_v0814_money_column_gets_nonnegative_floor():
+    """An explicit wide distribution on a money column with no min gets a min:0
+    floor (distribution/mean untouched) so it can't go negative."""
+    from misata.semantic import apply_semantic_inference
+    from misata.schema import Column as _Col
+    fixed = apply_semantic_inference({"t": [
+        _Col(name="salary", type="float",
+             distribution_params={"distribution": "normal", "mean": 60000, "std": 40000}),
+    ]})
+    params = fixed["t"][0].distribution_params
+    assert params["min"] == 0
+    assert params["mean"] == 60000  # untouched
+    assert params["distribution"] == "normal"  # untouched
