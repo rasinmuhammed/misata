@@ -5,6 +5,54 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1.14] - 2026-07-02
+
+Quality + resilience release. The theme: **generation never crashes, and never
+silently produces senseless values.**
+
+### Fixed
+
+- **Explicit numeric distributions are no longer overridden (the big one).**
+  Semantic inference (on by default) matched columns named exactly
+  `price`/`cost`/`amount`/`salary`/etc. and overwrote the caller's declared
+  distribution with a generic `uniform(0, 1000)` prior. A house price declared
+  `normal(mean=500000)` came out as $1–$999. Semantic inference now only fills in
+  **bare** columns (e.g. from DB introspection); any explicitly-parameterised
+  distribution is left untouched. Money/measure columns also get a `min: 0` floor
+  so a wide normal can't produce negative prices in its tail.
+- **Impossible distribution params are repaired instead of crashing numpy.**
+  Negative `std` → abs, inverted `min`/`max` → swapped, `scale`/`lambda` ≤ 0 →
+  positive, `zipf`/`pareto` `a` ≤ 1 → 1.1.
+- **Circular foreign-key chains are detected and broken.** Cross-table cycles
+  (a→b→a) previously raised `ValueError` in the simulator. The closing edge is now
+  dropped with a warning and the orphaned FK column demoted to int. Self-referential
+  FKs (`employee.manager_id → employee`) are preserved — the simulator supports them.
+- **Reference tables with no `inline_data` are auto-filled or demoted.** Previously
+  they produced empty/garbled output. They now get rows from domain vocabulary, or
+  are converted to a regular table. Rows missing `id` get sequential ids injected.
+
+### Added
+
+- **Deterministic domain vocabulary enforcement.** Hallucinated categorical values
+  (SaaS-tier words like "Premium"/"Standard"/"Basic" used for property types, cities,
+  statuses) are replaced with domain-correct vocabulary from a built-in library —
+  in both column `choices` and reference-table `inline_data`. Domain is detected via
+  word-boundary matching so "reorder"/"disorders" don't false-match "order".
+- **Richer system prompt.** Replaced the brittle blacklist with a complete worked
+  real-estate example showing correct `inline_data`, `correlations` (not
+  `outcome_curves`) for "price rises with sqft", and `foreign_key`-typed FK columns.
+- **FK auto-detect skips primary-key columns.** `*_id` columns that are a table's
+  own unique PK are no longer wrongly promoted to foreign keys.
+
+### Notes
+
+- 962 tests pass. Verified end-to-end: a deliberately hostile schema (bad params,
+  circular FKs, empty reference tables, blacklisted values, all at once) parses,
+  validates, and generates without a single crash; and "price rises with square
+  footage" now yields prices with mean ~$492k / min $0 / max ~$977k, correlation intact.
+- Studio-side companion (separate repo): a **Refine Schema** chat bar in the Design
+  view + `POST /engine/refine-schema` for token-efficient natural-language schema edits.
+
 ## [0.8.1.13] - 2026-07-01
 
 ### Fixed
