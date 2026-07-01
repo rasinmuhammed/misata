@@ -718,11 +718,21 @@ class DataSimulator:
             choices = params.get("choices", ["A", "B", "C"])
             # Accept "weights" as an alias for "probabilities" (matches dbldatagen
             # and user intuition; "probabilities" takes precedence if both given)
+            user_declared_probs = bool(params.get("probabilities") or params.get("weights"))
             probabilities = params.get("probabilities") or params.get("weights") or None
 
             # Ensure choices is a list
             if not isinstance(choices, list):
                 choices = list(choices)
+
+            # Lookup/reference tables: when the table has ≤ len(choices) rows and
+            # no explicit distribution was declared, sample without replacement so
+            # every row carries a distinct label (e.g. a 4-row order_status table
+            # gets four distinct statuses, not four draws that may repeat).
+            sampling = params.get("sampling", "auto")
+            if size <= len(choices) and not user_declared_probs:
+                values = self.rng.choice(choices, size=size, replace=False)
+                return values
 
             # Real categorical data is never uniform: statuses, categories,
             # countries and payment methods all follow rank-frequency power
@@ -734,7 +744,6 @@ class DataSimulator:
             # always be the first one listed). Declared probabilities always
             # win; ``sampling="uniform"`` opts out; legacy ``sampling="zipf"``
             # keeps its documented listed-order behaviour.
-            sampling = params.get("sampling", "auto")
             if probabilities is None and len(choices) > 1:
                 if sampling == "zipf":
                     exponent = float(params.get("zipf_exponent", 1.2))

@@ -117,6 +117,29 @@ _REASON_LABELS = [
     "Unsatisfied with quality", "Other",
 ]
 
+_CHANNEL_LABELS = [
+    "Email", "Organic Search", "Paid Search", "Social Media", "Direct",
+    "Referral", "Affiliate", "Display Ads", "YouTube", "Content Marketing",
+    "Influencer", "Trade Show", "Newsletter", "Podcast", "Cold Outreach",
+]
+
+_DEPARTMENT_LABELS = [
+    "Engineering", "Product", "Sales", "Marketing", "Customer Success",
+    "Finance", "Legal", "HR", "Operations", "Data", "Security", "Design",
+    "Support", "Research", "Business Development",
+]
+
+_REGION_LABELS = [
+    "North America", "EMEA", "APAC", "LATAM", "US East", "US West",
+    "US Central", "Europe", "Asia Pacific", "Middle East", "Africa",
+    "Southeast Asia", "ANZ",
+]
+
+_CURRENCY_CODES = [
+    "USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR", "BRL",
+    "MXN", "KRW", "SGD", "HKD", "NOK", "SEK", "DKK", "NZD", "ZAR", "AED",
+]
+
 # Product name pools — now sourced from the rich seed pools
 PRODUCT_NAME_POOLS = PRODUCT_BY_CATEGORY
 
@@ -256,6 +279,14 @@ class RealisticTextGenerator:
             return self._labels("payment_method", _PAYMENT_METHOD_LABELS, size)
         if semantic == "reason":
             return self._labels("reason", _REASON_LABELS, size)
+        if semantic == "channel":
+            return self._labels("channel", _CHANNEL_LABELS, size)
+        if semantic == "department":
+            return self._labels("department", _DEPARTMENT_LABELS, size)
+        if semantic == "region":
+            return self._labels("region", _REGION_LABELS, size)
+        if semantic == "currency":
+            return self._labels("currency", _CURRENCY_CODES, size)
         if semantic == "email":
             # Use names already generated in this row when available
             _PROVIDERS = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com", "hotmail.com"]
@@ -513,12 +544,21 @@ class RealisticTextGenerator:
             return "category_label"  # shipping_method etc. → short label, not a sentence
         if name == "reason" or name.endswith("_reason"):
             return "reason"
+        if name in ("channel", "acquisition_channel", "marketing_channel", "source_channel", "utm_medium"):
+            return "channel"
+        if name in ("department", "dept", "division", "business_unit"):
+            return "department"
+        if name in ("region", "territory", "zone", "district", "geo", "geography"):
+            return "region"
+        if name in ("currency", "currency_code", "pay_currency", "invoice_currency"):
+            return "currency"
         # Short categorical-label columns: a free-text status/type/tier should be
         # a label, not a lorem sentence (these usually arrive as enums/inline_data;
         # this is the fallback when they don't).
         if name in (
             "status", "type", "category", "tier", "level", "kind", "stage",
             "label", "grade", "class", "mode", "priority", "severity", "plan",
+            "source", "medium",
         ):
             return "category_label"
         if name in ("industry", "sector", "vertical", "niche", "market", "segment"):
