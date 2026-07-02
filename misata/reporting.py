@@ -376,6 +376,26 @@ def build_data_card_with_metadata(
     return card
 
 
+class ReportBundle(dict):
+    """Dict of advisory reports with attribute access.
+
+    ``bundle["privacy"]`` and ``bundle.privacy`` are equivalent;
+    ``bundle.privacy_report`` / ``bundle.fidelity_report`` are accepted
+    aliases so both naming styles in the docs resolve.
+    """
+
+    _ALIASES = {"privacy_report": "privacy", "fidelity_report": "fidelity"}
+
+    def __getattr__(self, item: str) -> Any:
+        key = self._ALIASES.get(item, item)
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(
+                f"ReportBundle has no report {item!r}; available: {sorted(self)}"
+            ) from None
+
+
 def analyze_generation(
     tables: Dict[str, pd.DataFrame],
     schema_config: Any,
@@ -383,10 +403,18 @@ def analyze_generation(
     *,
     row_counts: Optional[Dict[str, int]] = None,
     sampled: bool = False,
-) -> Dict[str, Any]:
-    """Run selected advisory reports for generated data."""
-    requested_reports = reports or []
-    output: Dict[str, Any] = {}
+) -> "ReportBundle":
+    """Run advisory reports for generated data.
+
+    ``reports=None`` (the default) runs all three: ``privacy``, ``fidelity``,
+    and ``data_card``. Pass an explicit list to run a subset (or ``[]`` for
+    none). Returns a :class:`ReportBundle`, a dict that also supports
+    attribute access (``bundle.fidelity.overall_score``).
+    """
+    requested_reports = (
+        ["privacy", "fidelity", "data_card"] if reports is None else reports
+    )
+    output: "ReportBundle" = ReportBundle()
 
     if "privacy" in requested_reports:
         output["privacy"] = PrivacyAnalyzer().analyze(tables)
@@ -413,10 +441,12 @@ def build_generation_report_bundle(
 ) -> GenerationReportBundle:
     """Build validation plus optional advisory reports."""
     resolved_validation = validation_report or validate_data(tables, schema_config)
+    # None here keeps this bundle's historical meaning: no extra advisory
+    # reports unless explicitly requested (analyze_generation's None = all).
     extra_reports = analyze_generation(
         tables,
         schema_config,
-        reports=reports,
+        reports=reports if reports is not None else [],
         row_counts=row_counts,
         sampled=sampled,
     )
@@ -428,20 +458,41 @@ def _table_row_fulfillment(
     schema_config: Any,
     row_counts: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
-    """Compare requested table sizes with generated table sizes."""
+    """Compare requested table sizes with generated table sizes.
+
+    Tables governed by an exact outcome curve derive their row count from the
+    curve plan (target ÷ avg transaction value per period), not from the
+    requested ``row_count`` — for those, the check verifies non-emptiness and
+    records the derivation instead of failing the Oracle on a number the
+    engine was *supposed* to override. KPI conformance is checked separately.
+    """
     checks: Dict[str, Any] = {}
     all_passed = True
     counts = row_counts or {table_name: len(df) for table_name, df in tables.items()}
 
+    curve_tables = {
+        getattr(curve, "table", None)
+        for curve in getattr(schema_config, "outcome_curves", []) or []
+    }
+
     for table in getattr(schema_config, "tables", []):
         expected = int(getattr(table, "row_count", 0) or 0)
         actual = int(counts.get(table.name, len(tables.get(table.name, []))))
-        passed = actual == expected
-        checks[table.name] = {
-            "expected_rows": expected,
-            "actual_rows": actual,
-            "passed": passed,
-        }
+        if table.name in curve_tables:
+            passed = actual > 0
+            checks[table.name] = {
+                "expected_rows": expected,
+                "actual_rows": actual,
+                "row_count_derived_from_outcome_curve": True,
+                "passed": passed,
+            }
+        else:
+            passed = actual == expected
+            checks[table.name] = {
+                "expected_rows": expected,
+                "actual_rows": actual,
+                "passed": passed,
+            }
         all_passed = all_passed and passed
 
     return {"passed": all_passed, "tables": checks}

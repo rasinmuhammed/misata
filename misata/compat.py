@@ -421,6 +421,83 @@ def _detect_pk(table_def: Dict[str, Any]) -> Optional[str]:
     return "id" if "id" in table_def else None
 
 
+def _looks_like_table_def(value: Any) -> bool:
+    """A table definition (vs a column definition) has a ``columns`` dict or a
+    row-count key; a column definition has a ``type``/``enum``-shaped body."""
+    if not isinstance(value, dict):
+        return False
+    if isinstance(value.get("columns"), dict):
+        return True
+    return any(k in value for k in ("rows", "row_count", "__rows__", "__row_count__"))
+
+
+def _parse_relationship_entry(entry: Any) -> Optional[Relationship]:
+    """Parse an envelope-level relationship: ``"users.user_id → orders.user_id"``
+    (or ``->``), or a dict with parent/child keys."""
+    if isinstance(entry, str):
+        for arrow in ("→", "->"):
+            if arrow in entry:
+                left, right = (s.strip() for s in entry.split(arrow, 1))
+                if "." in left and "." in right:
+                    p_table, p_key = (s.strip() for s in left.rsplit(".", 1))
+                    c_table, c_key = (s.strip() for s in right.rsplit(".", 1))
+                    return Relationship(parent_table=p_table, child_table=c_table,
+                                        parent_key=p_key, child_key=c_key)
+        return None
+    if isinstance(entry, dict):
+        try:
+            return Relationship(**entry)
+        except Exception:
+            return None
+    return None
+
+
+def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize the YAML-style envelope format into the flat dict format.
+
+    ``{"name": ..., "seed": ..., "tables": {...}, "relationships": [...]}``
+    is what ``misata.yaml`` and several README examples use; callers frequently
+    hand the same shape to :func:`from_dict_schema`. Without this unwrap the
+    parser used to treat ``tables`` as a table named "tables" and silently
+    generate garbage.
+    """
+    raw_tables = schemas.get("tables")
+    if not isinstance(raw_tables, dict) or not raw_tables:
+        return schemas
+    if not all(_looks_like_table_def(v) for v in raw_tables.values()):
+        # ``tables`` is (bizarrely) a real table of column defs — leave it alone.
+        return schemas
+
+    flat: Dict[str, Any] = {}
+    # Hoist known envelope keys into their dunder forms.
+    if schemas.get("name"):
+        flat["__name__"] = schemas["name"]
+    if schemas.get("seed") is not None:
+        flat["__seed__"] = schemas["seed"]
+    if schemas.get("domain"):
+        flat["__domain__"] = schemas["domain"]
+    for env_key, dunder in (("outcome_curves", "__outcome_curves__"),
+                            ("rate_curves", "__rate_curves__"),
+                            ("noise", "__noise__")):
+        if schemas.get(env_key) is not None:
+            flat[dunder] = schemas[env_key]
+    # Preserve any dunder directives passed alongside the envelope.
+    for k, v in schemas.items():
+        if k.startswith("__"):
+            flat[k] = v
+    if schemas.get("relationships"):
+        flat["__relationships__"] = schemas["relationships"]
+    # Envelope-level constraints route to their table's __constraints__.
+    for c_def in schemas.get("constraints") or []:
+        if isinstance(c_def, dict) and c_def.get("table") in raw_tables:
+            tdef = raw_tables[c_def["table"]]
+            if isinstance(tdef, dict):
+                tdef.setdefault("__constraints__", []).append(
+                    {k: v for k, v in c_def.items() if k != "table"})
+    flat.update(raw_tables)
+    return flat
+
+
 def from_dict_schema(
     schemas: Dict[str, Any],
     row_count: int = 1000,
@@ -492,9 +569,25 @@ def from_dict_schema(
 
         tables = misata.generate_from_schema(schema)
     """
+    schemas = _unwrap_envelope(schemas)
+
     tables: List[Table] = []
     columns_map: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []
+
+    # Envelope metadata hoisted by _unwrap_envelope.
+    schema_name = schemas.get("__name__") or "Imported schema"
+    if schemas.get("__seed__") is not None:
+        try:
+            seed = int(schemas["__seed__"])
+        except (TypeError, ValueError):
+            pass
+    for i, rel_def in enumerate(schemas.get("__relationships__") or []):
+        rel = _parse_relationship_entry(rel_def)
+        if rel is not None:
+            relationships.append(rel)
+        else:
+            warnings.warn(f"Skipping unparseable relationships[{i}]: {rel_def!r}")
 
     # Top-level directives (not tables): declared outcome curves and rate
     # curves, the schema-level half of the engine contract. A single malformed
@@ -560,7 +653,19 @@ def from_dict_schema(
                 table_rows = val
                 break
 
-        pk_col = _detect_pk(table_def)
+        # Nested per-table format: {"rows": N, "columns": {...}} — read the
+        # column defs from the sub-dict while table-level keys stay on the
+        # outer def. (This is the misata.yaml shape handed to dict callers.)
+        _raw_columns = table_def.get("columns")
+        col_source = (
+            _raw_columns
+            if isinstance(_raw_columns, dict)
+            and _raw_columns
+            and all(isinstance(v, dict) for v in _raw_columns.values())
+            else table_def
+        )
+
+        pk_col = _detect_pk(col_source)
         table_cols: List[Column] = []
 
         # Per-table constraints — e.g. inequality (end_date > start_date), col_range, etc.
@@ -609,17 +714,30 @@ def from_dict_schema(
         else:
             table_correlations = list(_raw_corr)
 
-        for col_name, col_def in table_def.items():
+        for col_name, col_def in col_source.items():
             if col_name.startswith("__") or not isinstance(col_def, dict):
                 continue
 
-            # Collect FK relationships
+            # Collect FK relationships — nested dict form or
+            # ``references: "parent_table.parent_key"`` string form.
             fk_ref = col_def.get("foreign_key")
             if fk_ref and isinstance(fk_ref, dict):
                 relationships.append(Relationship(
                     parent_table=fk_ref["table"],
                     child_table=table_name,
                     parent_key=fk_ref.get("column", "id"),
+                    child_key=col_name,
+                ))
+            elif (
+                isinstance(col_def.get("references"), str)
+                and "." in col_def["references"]
+                and (fk_ref or str(col_def.get("type", "")).lower() == "foreign_key")
+            ):
+                p_table, p_key = col_def["references"].rsplit(".", 1)
+                relationships.append(Relationship(
+                    parent_table=p_table.strip(),
+                    child_table=table_name,
+                    parent_key=p_key.strip(),
                     child_key=col_name,
                 ))
 
@@ -642,7 +760,7 @@ def from_dict_schema(
         columns_map[table_name] = table_cols
 
     return SchemaConfig(
-        name="Imported schema",
+        name=schema_name,
         tables=tables,
         columns=columns_map,
         relationships=relationships,

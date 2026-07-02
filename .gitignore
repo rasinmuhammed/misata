@@ -37,6 +37,7 @@ tests/*
 !tests/test_regression_fixes.py
 !tests/test_mimic_fidelity.py
 !tests/test_dbt.py
+!tests/test_dict_schema_formats.py
 jman_output/
 llm_test/
 ml_demo_output/

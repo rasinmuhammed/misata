@@ -314,6 +314,8 @@ tables = misata.generate_from_schema(schema)
 **Declared outcome curves**: add `__outcome_curves__` as a top-level key alongside the table definitions. Generated rows sum to every declared target exactly, to the cent:
 
 ```python
+import pandas as pd
+
 schema = misata.from_dict_schema({
     "__outcome_curves__": [{
         "table": "orders",
@@ -977,11 +979,12 @@ paths = misata.generate_documents(tables, tmpl, table="orders", output_dir="/tmp
 ## Quality and privacy analysis
 
 ```python
-bundle = misata.analyze_generation(tables, schema)
+bundle = misata.analyze_generation(tables, schema)   # runs privacy, fidelity, data_card
 
-print(bundle.data_card.summary())        # row counts, null rates, type distribution
-print(bundle.fidelity_report.score)      # 0–1 statistical fidelity score vs. schema intent
-print(bundle.privacy_report.pii_risk)    # column-level PII exposure analysis
+print(bundle.fidelity.overall_score)     # 0–100 statistical fidelity score vs. schema intent
+print(bundle.fidelity.grade)             # letter grade for the same score
+print(bundle.privacy.overall_risk_score) # heuristic PII / re-identification risk
+print(bundle.data_card.tables)           # per-table row counts and metadata
 ```
 
 ---
