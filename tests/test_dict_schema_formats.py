@@ -157,3 +157,87 @@ class TestAnalyzeGenerationBundle:
         }, seed=2)
         tables = misata.generate_from_schema(schema)
         assert dict(misata.analyze_generation(tables, schema, reports=[])) == {}
+
+
+class TestReferenceTableRealism:
+    """0.8.1.16: lookup tables get distinct, head-noun-appropriate labels
+    (misata.studio field report: property_types.name was Premium/Essential,
+    listing_statuses had duplicate labels)."""
+
+    def _gen(self, schema_dict, seed=9):
+        return misata.generate_from_schema(misata.from_dict_schema(schema_dict, seed=seed))
+
+    def test_property_types_get_property_labels(self):
+        t = self._gen({
+            "property_types": {"__rows__": 7,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string"}},
+        })["property_types"]
+        vals = set(t["name"])
+        assert len(vals) == 7, "reference labels must be distinct"
+        assert vals & {"House", "Apartment", "Condo", "Townhouse", "Villa",
+                       "Studio", "Duplex", "Penthouse", "Cottage", "Land"}, vals
+
+    def test_statuses_tables_distinct_domain_labels(self):
+        tables = self._gen({
+            "listing_statuses": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "status": {"type": "string"}},
+            "order_statuses": {"__rows__": 6,
+                "id": {"type": "integer", "primary_key": True},
+                "status": {"type": "string"}},
+        })
+        for name in ("listing_statuses", "order_statuses"):
+            vals = list(tables[name]["status"])
+            assert len(set(vals)) == len(vals), f"{name} labels must be distinct: {vals}"
+        assert set(tables["listing_statuses"]["status"]) <= {
+            "Active", "Pending", "Sold", "Under Offer", "Withdrawn",
+            "Expired", "Coming Soon", "Off Market"}
+
+    def test_lookup_choices_distinct_even_with_probabilities(self):
+        t = self._gen({
+            "payment_methods": {"__rows__": 4,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "categorical",
+                         "choices": ["Card", "Cash", "Wire", "PayPal"],
+                         "probabilities": [0.7, 0.1, 0.1, 0.1]}},
+        })["payment_methods"]
+        vals = list(t["name"])
+        assert len(set(vals)) == 4, vals
+
+
+class TestRelativeDefaultStd:
+    """0.8.1.16: a mean without std must get a mean-scaled default, not a fixed
+    20 (price mean=80000 rendered visually constant and correlation-dead)."""
+
+    def test_float_mean_only_gets_scaled_spread(self):
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "listings": {"__rows__": 4000,
+                "id": {"type": "integer", "primary_key": True},
+                "price": {"type": "float", "mean": 80000}},
+        }, seed=3))["listings"]
+        rel_spread = t["price"].std() / t["price"].mean()
+        assert rel_spread > 0.10, f"relative spread {rel_spread:.4f} too tight"
+
+    def test_correlations_deliver_on_mean_only_column(self):
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "listings": {"__rows__": 6000,
+                "__correlations__": [
+                    {"col_a": "price", "col_b": "sqft", "r": 0.65},
+                    {"col_a": "price", "col_b": "distance", "r": -0.45}],
+                "id": {"type": "integer", "primary_key": True},
+                "price": {"type": "float", "mean": 450000},
+                "sqft": {"type": "integer", "min": 400, "max": 5000},
+                "distance": {"type": "float", "min": 0.1, "max": 30}},
+        }, seed=3))["listings"]
+        c = t[["price", "sqft", "distance"]].corr()
+        assert abs(c.loc["price", "sqft"] - 0.65) < 0.08
+        assert abs(c.loc["price", "distance"] + 0.45) < 0.08
+
+    def test_explicit_std_still_wins(self):
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "x": {"__rows__": 3000,
+                "id": {"type": "integer", "primary_key": True},
+                "v": {"type": "float", "mean": 1000, "std": 10}},
+        }, seed=4))["x"]
+        assert 8 < t["v"].std() < 12

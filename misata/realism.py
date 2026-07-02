@@ -69,6 +69,17 @@ _PERSON_ROLE_COLUMNS = {
     "photographer", "illustrator", "narrator", "host", "speaker",
 }
 
+# Lookup/reference tables: `<head>_types` / `<head>_statuses` etc. Their label
+# column must hold labels for the HEAD noun (property_types → House/Apartment),
+# never generic tier words, and must be distinct.
+_REF_TABLE_KIND_RE = re.compile(
+    r"^(?:(?P<head>.+?)_)?(?P<kind>types?|status(?:es)?|categor(?:y|ies)|"
+    r"tiers?|levels?|methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?)$",
+    re.IGNORECASE,
+)
+_REF_LABEL_COLUMNS = {"name", "label", "title", "status", "value", "state",
+                      "type", "category", "kind", "description"}
+
 # Table names whose "title" column is a creative work, not a job.
 _MEDIA_TABLE_HINTS = (
     "movie", "film", "show", "series", "episode", "book", "novel",
@@ -200,6 +211,38 @@ class RealisticTextGenerator:
                     self._faker = None
         return self._faker
 
+    def _reference_table_labels(
+        self, column_name: str, table_name: str, size: int
+    ) -> Optional[np.ndarray]:
+        """Distinct, head-noun-appropriate labels for lookup tables, or None.
+
+        ``property_types.name`` → House/Apartment/Condo…, ``listing_statuses.
+        status`` → Active/Pending/Sold… Generic pools cover unknown heads.
+        Only fires for label-ish columns in small reference tables.
+        """
+        if size > 50 or column_name.lower() not in _REF_LABEL_COLUMNS:
+            return None
+        m = _REF_TABLE_KIND_RE.match(table_name.lower().strip())
+        if not m:
+            return None
+        from misata.vocab_seeds import (
+            GENERIC_STATUSES, REFERENCE_STATUS_POOLS, REFERENCE_TYPE_POOLS,
+        )
+        head = (m.group("head") or "").rstrip("s")
+        kind = m.group("kind").lower()
+        if kind.startswith("status") or kind.startswith("stage"):
+            pool = REFERENCE_STATUS_POOLS.get(head, GENERIC_STATUSES)
+        else:
+            pool = REFERENCE_TYPE_POOLS.get(head)
+            if pool is None:
+                pool = self._vocabulary("category_label", CATEGORY_LABELS)
+        pool = list(pool)
+        if size <= len(pool):
+            return self.rng.choice(pool, size=size, replace=False)
+        # More rows than labels: use every label once, then repeat.
+        reps = np.tile(pool, size // len(pool) + 1)[:size]
+        return np.array(reps)
+
     def generate(
         self,
         column_name: str,
@@ -208,6 +251,12 @@ class RealisticTextGenerator:
         semantic_type: Optional[str] = None,
         table_data: Optional[pd.DataFrame] = None,
     ) -> np.ndarray:
+        # Lookup-table labels win over everything: a reference table's label
+        # column is an enumeration, not a distribution.
+        ref_labels = self._reference_table_labels(column_name, table_name, size)
+        if ref_labels is not None:
+            return ref_labels
+
         semantic = semantic_type or self._infer_semantic(column_name, table_name)
 
         # When a non-default locale is active, prefer Faker for person/address data

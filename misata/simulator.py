@@ -9,6 +9,7 @@ This module implements vectorized data generation with support for:
 - Pure Python text generation (no external dependencies)
 """
 
+import re
 import warnings
 import zlib
 from collections import defaultdict, deque
@@ -17,6 +18,14 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+
+# Lookup/reference tables enumerate labels (property_types, order_statuses…);
+# their label columns must be distinct and domain-appropriate.
+_REFERENCE_TABLE_RE = re.compile(
+    r"(?:^|_)(?:types?|status(?:es)?|categor(?:y|ies)|tiers?|levels?|"
+    r"methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?|classes)$",
+    re.IGNORECASE,
+)
 
 from misata.assets import AssetStore
 from misata.curve_inheritance import TemporalDensityMap, resolve_inherits_curve_from
@@ -730,7 +739,20 @@ class DataSimulator:
             # every row carries a distinct label (e.g. a 4-row order_status table
             # gets four distinct statuses, not four draws that may repeat).
             sampling = params.get("sampling", "auto")
-            if size <= len(choices) and not user_declared_probs:
+            # A lookup table enumerates its labels — weighted draws that
+            # repeat ("cancelled" twice in a 5-row statuses table) are always
+            # wrong there, so distinctness overrides declared probabilities.
+            # When the declared choices are too FEW for the table (semantic
+            # enrichment's generic 4-status list on a 5-row statuses table),
+            # the head-noun reference pools supply proper distinct labels.
+            _is_ref_table = bool(_REFERENCE_TABLE_RE.search(str(table_name or "")))
+            if _is_ref_table and size > len(choices):
+                ref_vals = self.realistic_text._reference_table_labels(
+                    column.name, table_name, size
+                )
+                if ref_vals is not None:
+                    return ref_vals
+            if size <= len(choices) and (not user_declared_probs or _is_ref_table):
                 values = self.rng.choice(choices, size=size, replace=False)
                 return values
 
@@ -840,7 +862,14 @@ class DataSimulator:
                 return np.array(values).astype(int)
             elif distribution == "normal":
                 mean = params.get("mean", 100)
-                std = params.get("std", 20)
+                # Std scales with the mean when unspecified (fixed 20 made
+                # large-mean int columns visually constant).
+                if "std" in params:
+                    std = params["std"]
+                elif isinstance(mean, (int, float)) and abs(float(mean)) > 80:
+                    std = abs(float(mean)) * 0.25
+                else:
+                    std = 20
                 values = self.rng.normal(mean, std, size=size).astype(int)
             elif distribution in ("lognormal", "log_normal"):
                 # mu/sigma are in log-space; alternatively accept mean/std and convert
@@ -956,16 +985,33 @@ class DataSimulator:
             # to a constant (min 0, max 5 → every value 5.0), and the clip
             # ties silently wrecked declared correlations.
             _lo, _hi = params.get("min"), params.get("max")
-            if (
-                distribution == "normal"
-                and "mean" not in params
-                and "std" not in params
-                and isinstance(_lo, (int, float))
+            _has_bounds = (
+                isinstance(_lo, (int, float))
                 and isinstance(_hi, (int, float))
                 and float(_hi) > float(_lo)
+            )
+            _raw_mean = params.get("mean")
+            if (
+                distribution == "normal"
+                and _raw_mean is None
+                and "std" not in params
+                and _has_bounds
             ):
                 _default_mean = (float(_lo) + float(_hi)) / 2.0
                 _default_std = (float(_hi) - float(_lo)) / 6.0
+            elif (
+                distribution == "normal"
+                and isinstance(_raw_mean, (int, float))
+                and "std" not in params
+            ):
+                # Std must scale with the declared mean. A fixed default of 20
+                # made mean=80000 columns visually constant (±0.06% spread) and
+                # correlation-dead. Bounds, when present, cap the spread.
+                _default_mean = float(_raw_mean)
+                if _has_bounds:
+                    _default_std = (float(_hi) - float(_lo)) / 6.0
+                else:
+                    _default_std = max(abs(_default_mean) * 0.25, 1e-9) or 20.0
             else:
                 _default_mean, _default_std = 100.0, 20.0
             mean_param = _resolve_dist_param(params.get("mean"), _default_mean)

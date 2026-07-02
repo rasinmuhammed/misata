@@ -550,15 +550,30 @@ When columns are logically related to other columns (even via foreign keys!), us
 - description, notes, comment → `{"text_type": "sentence"}`
 
 ### 4. CATEGORICAL COLUMNS (infer from domain)
-- status columns → `{"choices": ["active", "inactive", "pending"], "probabilities": [0.7, 0.2, 0.1]}`
+- status columns → choices SPECIFIC to the entity, never a generic trio:
+  listing status → `["active", "pending", "sold", "under_offer", "withdrawn", "expired"]`,
+  order status → `["pending", "confirmed", "shipped", "delivered", "cancelled", "returned"]`,
+  invoice status → `["draft", "sent", "paid", "overdue", "disputed"]`
 - priority → `{"choices": ["low", "medium", "high", "critical"], "probabilities": [0.2, 0.4, 0.3, 0.1]}`
 - type/category → domain-specific choices with realistic probabilities
+  (property types → House/Apartment/Condo/Townhouse/Villa — NOT tier words like Premium/Basic)
 
 ### 5. REFERENCE TABLES (small lookup tables)
 If a table looks like a lookup (few expected rows, referenced by others via FK), convert it:
 - Set `is_reference: true`
 - Generate `inline_data` with realistic rows (5-20 rows)
 - Include an `id` column with sequential integers
+- Label values must be domain-appropriate for the table's noun and ALL DISTINCT
+  (a `property_types` table lists House/Apartment/Condo…, never Premium/Basic;
+  a 5-row statuses table needs 5 different statuses)
+
+### 5b. MONETARY SCALE (sanity-check every money column)
+Amounts must match the business context, and when a plan/tier/category exists
+they MUST use `depends_on` + `mapping` rather than one global distribution:
+- SaaS invoice/MRR → plan-priced: Free = 0, Pro ≈ 29–99/mo, Enterprise ≈ 500–5000/mo
+  → `{"depends_on": "plan_tier_id", "mapping": {"Free": 0, "Pro": {"mean": 49, "std": 15}, "Enterprise": {"mean": 1500, "std": 600}}}`
+- Real-estate listing price → 50k–5M; coffee/food order → 3–80; salary → locale-scaled
+- NEVER give a mean without a std for money: std should be roughly 20–40% of the mean
 
 ### 6. BUSINESS RULE CONSTRAINTS
 Infer constraints from column names:

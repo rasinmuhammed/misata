@@ -705,6 +705,76 @@ PLOT_STAKES = [
     "as old loyalties unravel", "before the secret destroys them",
 ]
 
+# ---------------------------------------------------------------------------
+# Reference-table label pools (0.8.1.16)
+# A `<head>_types` / `<head>_statuses` lookup table's label column should hold
+# labels for THAT head noun, not generic tier words.
+# ---------------------------------------------------------------------------
+
+REFERENCE_TYPE_POOLS: Dict[str, List[str]] = {
+    "property": ["House", "Apartment", "Condo", "Townhouse", "Villa",
+                 "Studio", "Duplex", "Penthouse", "Cottage", "Land"],
+    "listing": ["Standard", "Featured", "Premium", "Open House", "Auction",
+                "Short Sale", "Foreclosure", "New Construction"],
+    "room": ["Single", "Double", "Twin", "Suite", "Deluxe", "Studio",
+             "Family", "Penthouse", "Accessible", "Connecting"],
+    "vehicle": ["Sedan", "SUV", "Hatchback", "Pickup Truck", "Coupe",
+                "Minivan", "Convertible", "Wagon", "Crossover", "Van"],
+    "employment": ["Full-time", "Part-time", "Contract", "Temporary",
+                   "Internship", "Freelance", "Seasonal", "Apprenticeship"],
+    "payment": ["Credit Card", "Debit Card", "Bank Transfer", "PayPal",
+                "Cash", "Check", "Wire Transfer", "Digital Wallet"],
+    "account": ["Checking", "Savings", "Business", "Joint", "Student",
+                "Money Market", "Trust", "Retirement"],
+    "subscription": ["Free", "Basic", "Standard", "Premium", "Enterprise",
+                     "Trial", "Student", "Family"],
+    "membership": ["Basic", "Silver", "Gold", "Platinum", "Student",
+                   "Corporate", "Family", "Lifetime"],
+    "contract": ["Fixed-term", "Permanent", "Zero-hours", "Freelance",
+                 "Retainer", "Project-based", "Consulting"],
+    "event": ["Conference", "Workshop", "Webinar", "Meetup", "Seminar",
+              "Launch", "Networking", "Training", "Hackathon"],
+    "ticket": ["General Admission", "VIP", "Early Bird", "Student",
+               "Group", "Season Pass", "Day Pass", "Backstage"],
+    "insurance": ["Auto", "Home", "Life", "Health", "Travel", "Renters",
+                  "Pet", "Disability", "Umbrella"],
+    "policy": ["Auto", "Home", "Life", "Health", "Travel", "Renters",
+               "Commercial", "Liability"],
+    "loan": ["Personal", "Mortgage", "Auto", "Student", "Business",
+             "Home Equity", "Payday", "Consolidation"],
+    "shipping": ["Standard", "Express", "Overnight", "Two-Day",
+                 "International", "Freight", "Same-Day", "Economy"],
+    "product": ["Electronics", "Clothing", "Home & Garden", "Books",
+                "Sports", "Beauty", "Toys", "Groceries", "Automotive"],
+}
+
+# Lifecycle labels for `<head>_statuses` lookup tables. Domain-specific pools
+# first; the generic pool covers everything else. All are sampled distinct.
+REFERENCE_STATUS_POOLS: Dict[str, List[str]] = {
+    "listing": ["Active", "Pending", "Sold", "Under Offer", "Withdrawn",
+                "Expired", "Coming Soon", "Off Market"],
+    "order": ["Pending", "Confirmed", "Processing", "Shipped", "Delivered",
+              "Cancelled", "Returned", "Refunded"],
+    "payment": ["Pending", "Authorized", "Paid", "Failed", "Refunded",
+                "Disputed", "Cancelled", "Expired"],
+    "invoice": ["Draft", "Sent", "Viewed", "Paid", "Overdue", "Disputed",
+                "Cancelled", "Written Off"],
+    "application": ["Submitted", "Under Review", "Interview", "Offer",
+                    "Accepted", "Rejected", "Withdrawn", "On Hold"],
+    "ticket": ["Open", "In Progress", "Waiting on Customer", "Escalated",
+               "Resolved", "Closed", "Reopened"],
+    "shipment": ["Label Created", "Picked Up", "In Transit",
+                 "Out for Delivery", "Delivered", "Delayed", "Returned"],
+    "subscription": ["Trial", "Active", "Past Due", "Paused", "Cancelled",
+                     "Expired", "Churned"],
+}
+
+GENERIC_STATUSES = [
+    "Active", "Pending", "Completed", "Cancelled", "Expired", "Draft",
+    "Archived", "On Hold", "Suspended", "Closed", "Failed", "Approved",
+]
+
+
 # Departments beyond the generic list — used when a column asks for one.
 OFFICE_DEPARTMENTS = [
     "Engineering", "Sales", "Marketing", "Finance", "Human Resources",
