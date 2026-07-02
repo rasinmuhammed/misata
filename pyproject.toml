@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.8.1.14"
+version = "0.8.1.15"
 description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare — exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
@@ -85,6 +85,7 @@ dev = [
     "simpleeval>=0.9.0",   # formula columns used in HR domain tests
     "jsonschema>=4.0.0",   # YAML validation tests
     "scikit-learn>=1.0.0", # ML-efficacy (TSTR) path in fidelity_report
+    "hypothesis>=6.100",   # property-based fuzzing of the dict-schema contract
 ]
 db = [
     "psycopg[binary]>=3.1.0",

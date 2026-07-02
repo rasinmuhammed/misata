@@ -6,12 +6,12 @@
     "url": "https://github.com/rasinmuhammed/misata",
     "source": "github"
   },
-  "version": "0.8.1.6",
+  "version": "0.8.1.15",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "misata",
-      "version": "0.8.1.6",
+      "version": "0.8.1.15",
       "installInstructions": "pip install \"misata[mcp]\"",
       "transport": {
         "type": "stdio"
