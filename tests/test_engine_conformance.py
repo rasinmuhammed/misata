@@ -103,9 +103,10 @@ def test_categorical_rate_curve_conforms():
     assert set(d["status"].unique()) == {"ok", "refunded", "pending"}, "other labels dropped"
 
 
-def test_correlation_and_curve_on_same_column_warns():
-    """Declaring a correlation and an outcome curve on the SAME column can't honour
-    both; the engine must warn rather than silently dropping the correlation."""
+def test_correlation_and_curve_on_same_column_compose():
+    """A correlation and an outcome curve on the SAME column now compose:
+    blockwise (within-period) Iman-Conover preserves the exact per-period sums
+    while delivering the declared correlation approximately."""
     s = {"sales": {"__rows__": 2000, "id": {"type": "integer", "primary_key": True},
             "dt": {"type": "date", "start": "2024-01-01", "end": "2024-12-31"},
             "amount": {"type": "float", "min": 10, "max": 100},
@@ -114,11 +115,13 @@ def test_correlation_and_curve_on_same_column_warns():
         "__outcome_curves__": [{"table": "sales", "column": "amount", "time_column": "dt",
             "time_unit": "month", "value_mode": "absolute",
             "curve_points": [{"month": 1, "target_value": 50000}]}]}
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        misata.generate_from_schema(from_dict_schema(s, seed=1))
-    assert any("correlation" in str(x.message) and "outcome curve" in str(x.message) for x in w), \
-        "expected a clash warning for correlation+curve on the same column"
+    d = misata.generate_from_schema(from_dict_schema(s, seed=1))["sales"]
+    d["m"] = pd.to_datetime(d["dt"]).dt.month
+    # Curve stays exact (hard guarantee)…
+    assert abs(d[d.m == 1]["amount"].sum() - 50000) < 0.01
+    # …while a substantial share of the declared correlation is delivered.
+    r = d[["amount", "cost"]].corr().iloc[0, 1]
+    assert r > 0.3, f"correlation on curve column should survive blockwise reorder, got {r:.3f}"
 
 
 @pytest.mark.parametrize("target_r", [0.7, -0.6])

@@ -155,10 +155,18 @@ class FactEngine:
 
         for curve in plan.curves:
             decimals = self._column_decimals(column_map.get(curve.column))
+            tolerance = 10.0 ** (-decimals) if isinstance(decimals, int) and decimals > 0 else 1e-9
             for bucket_index, target in enumerate(curve.targets):
                 mask = df[PERIOD_INDEX_COLUMN] == bucket_index
                 bucket_rows = int(mask.sum())
                 if bucket_rows <= 0:
+                    continue
+                # If the bucket already sums to the target, leave the values
+                # alone — regenerating would scramble sum-preserving work done
+                # since generation (blockwise Iman-Conover correlation on this
+                # column permutes values within the bucket without moving the sum).
+                current = float(pd.to_numeric(df.loc[mask, curve.column], errors="coerce").fillna(0).sum())
+                if abs(current - float(target)) <= tolerance:
                     continue
                 df.loc[mask, curve.column] = self._generate_exact_values(
                     target=target,

@@ -9,6 +9,7 @@ Post-generation: DataValidator / StreamingDataValidator check referential integr
 distribution plausibility, and exact outcome-curve targets after data is produced.
 """
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -216,6 +217,121 @@ def validate_schema(schema: Any) -> None:
                     f"the tables to a reference table (is_reference=True)"
                 )
                 break  # one message is enough
+
+    # 8. Rate curves must declare rates in [0, 1] — a rate of 1.7 is not a
+    # probability, and silently clamping it would test the pipeline against a
+    # ground truth the user never declared.
+    for curve in getattr(schema, "rate_curves", []) or []:
+        for point in getattr(curve, "rate_points", []) or []:
+            try:
+                rate = float(point.get("rate"))
+            except (TypeError, ValueError):
+                issues.append(
+                    f"Rate curve on '{curve.table}.{curve.column}': rate_point "
+                    f"{point!r} has a non-numeric rate"
+                )
+                continue
+            if not 0.0 <= rate <= 1.0:
+                issues.append(
+                    f"Rate curve on '{curve.table}.{curve.column}': rate {rate} is "
+                    f"outside [0, 1]. Declared rates are probabilities.\n      "
+                    f"Fix: use a value between 0 and 1 (e.g. 0.05 for 5%)"
+                )
+
+    # 9. Outcome-curve targets must be reachable within the column's declared
+    # bounds. The engine plans rows ≈ target / avg_transaction_value; if the
+    # per-row mean needed to hit the target exceeds the declared max (or falls
+    # below the min), the engine would have to break the bounds to honour the
+    # curve — fail loudly instead of silently violating one of the two.
+    for curve in getattr(schema, "outcome_curves", []) or []:
+        cols = {c.name: c for c in schema.get_columns(curve.table)} if curve.table in table_names else {}
+        col = cols.get(getattr(curve, "column", None))
+        if col is None:
+            continue
+        params = getattr(col, "distribution_params", {}) or {}
+        lo, hi = params.get("min"), params.get("max")
+        if not isinstance(hi, (int, float)) and not isinstance(lo, (int, float)):
+            continue
+        max_txn = int(getattr(curve, "max_transactions_per_period", 10000) or 10000)
+        min_txn = max(1, int(getattr(curve, "min_transactions_per_period", 1) or 1))
+        for point in getattr(curve, "curve_points", []) or []:
+            target = None
+            for key in ("target_value", "value", "target", "amount"):
+                if isinstance(point, dict) and key in point:
+                    try:
+                        target = float(point[key])
+                    except (TypeError, ValueError):
+                        target = None
+                    break
+            if target is None or target <= 0:
+                continue
+            # Existence check: the target is reachable iff SOME row count n in
+            # [min_txn, max_txn] admits a per-row mean within [lo, hi]:
+            #   lo·n ≤ target ≤ hi·n  ⇔  target/hi ≤ n ≤ target/lo
+            n_floor = min_txn
+            n_ceil = max_txn
+            if isinstance(hi, (int, float)) and float(hi) > 0:
+                n_floor = max(n_floor, math.ceil(target / float(hi) - 1e-9))
+            if isinstance(lo, (int, float)) and float(lo) > 0:
+                n_ceil = min(n_ceil, math.floor(target / float(lo) + 1e-9))
+            if n_floor > n_ceil:
+                bound_desc = []
+                if isinstance(lo, (int, float)):
+                    bound_desc.append(f"min={lo:g}")
+                if isinstance(hi, (int, float)):
+                    bound_desc.append(f"max={hi:g}")
+                issues.append(
+                    f"Outcome curve on '{curve.table}.{curve.column}': target {target:g} "
+                    f"per period is unreachable with the column bounds "
+                    f"({', '.join(bound_desc)}) and {min_txn}–{max_txn} rows per period: "
+                    f"no row count n satisfies {lo if isinstance(lo,(int,float)) else 0:g}·n ≤ "
+                    f"{target:g} ≤ {hi if isinstance(hi,(int,float)) else float('inf'):g}·n.\n      "
+                    f"Fix: widen the bounds, adjust the target, or change "
+                    f"min/max_transactions_per_period"
+                )
+
+    # 10. Contradictory strict-inequality constraints (a > b and b > a form a
+    # cycle that forces the pair equal — the opposite of both declarations).
+    for t in schema.tables:
+        edges: Dict[str, set] = {}
+        for c in getattr(t, "constraints", []) or []:
+            if getattr(c, "type", "") != "inequality":
+                continue
+            op = str(getattr(c, "operator", "") or "")
+            a, b = getattr(c, "column_a", None), getattr(c, "column_b", None)
+            if not a or not b:
+                continue
+            if op in (">", ">="):
+                edges.setdefault(a, set()).add(b)
+            elif op in ("<", "<="):
+                edges.setdefault(b, set()).add(a)
+        # DFS for a cycle in the "greater-than" graph.
+        state: Dict[str, int] = {}
+
+        def _cyc(node: str, path: List[str]) -> Optional[List[str]]:
+            state[node] = 1
+            path.append(node)
+            for nxt in edges.get(node, ()):
+                if state.get(nxt) == 1:
+                    return path[path.index(nxt):] + [nxt]
+                if state.get(nxt, 0) == 0:
+                    found = _cyc(nxt, path)
+                    if found:
+                        return found
+            path.pop()
+            state[node] = 2
+            return None
+
+        for start in list(edges):
+            if state.get(start, 0) == 0:
+                cyc = _cyc(start, [])
+                if cyc:
+                    issues.append(
+                        f"Table '{t.name}': contradictory inequality constraints form a "
+                        f"cycle: {' > '.join(cyc)}. No data can satisfy all of them.\n      "
+                        f"Fix: remove one of the conflicting constraints"
+                    )
+                    break
 
     if issues:
         raise SchemaValidationError(issues)

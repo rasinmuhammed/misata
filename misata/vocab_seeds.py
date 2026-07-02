@@ -601,6 +601,120 @@ FEATURE_NAMES: List[str] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Media, food, and creative-work vocabularies (0.8.1.15)
+# ---------------------------------------------------------------------------
+
+FILM_GENRES = [
+    "Drama", "Comedy", "Thriller", "Action", "Horror", "Romance",
+    "Science Fiction", "Documentary", "Animation", "Crime", "Mystery",
+    "Fantasy", "Adventure", "Biography", "Family", "War", "Western",
+    "Musical", "Film Noir", "Romantic Comedy",
+]
+
+MUSIC_GENRES = [
+    "Pop", "Rock", "Hip Hop", "R&B", "Jazz", "Classical", "Electronic",
+    "Country", "Folk", "Indie Rock", "Metal", "Blues", "Reggae", "Soul",
+    "Punk", "Ambient", "House", "Techno", "Latin", "Gospel", "K-Pop",
+    "Afrobeats", "Lo-fi",
+]
+
+BOOK_GENRES = [
+    "Literary Fiction", "Mystery", "Thriller", "Romance", "Science Fiction",
+    "Fantasy", "Historical Fiction", "Biography", "Memoir", "Self-Help",
+    "Young Adult", "Horror", "Poetry", "True Crime", "Business",
+]
+
+CUISINES = [
+    "Italian", "Mexican", "Chinese", "Japanese", "Indian", "Thai", "French",
+    "Greek", "Spanish", "Korean", "Vietnamese", "Turkish", "Lebanese",
+    "Moroccan", "Ethiopian", "Brazilian", "Peruvian", "American",
+    "Mediterranean", "Middle Eastern", "Caribbean", "German", "British",
+    "Filipino", "Malaysian", "Indonesian", "Portuguese", "Polish",
+    "Argentinian", "Cajun",
+]
+
+INGREDIENTS = [
+    "olive oil", "garlic", "onion", "tomato", "basil", "chicken breast",
+    "ground beef", "salmon", "shrimp", "tofu", "rice", "pasta", "flour",
+    "butter", "eggs", "milk", "parmesan", "mozzarella", "cheddar", "lemon",
+    "lime", "ginger", "soy sauce", "chili flakes", "black pepper", "sea salt",
+    "cumin", "paprika", "oregano", "thyme", "rosemary", "cilantro", "parsley",
+    "spinach", "mushrooms", "bell pepper", "zucchini", "eggplant", "potatoes",
+    "carrots", "celery", "avocado", "black beans", "chickpeas", "lentils",
+    "coconut milk", "honey", "brown sugar", "cinnamon", "vanilla extract",
+]
+
+# Compositional creative-work titles: patterns x nouns x adjectives gives
+# thousands of distinct, plausible titles without an LLM.
+WORK_TITLE_NOUNS = [
+    "Garden", "River", "Shadow", "Horizon", "Echo", "Winter", "Summer",
+    "Harbor", "Mountain", "Letter", "Promise", "Silence", "Storm", "Mirror",
+    "Journey", "Kingdom", "Daughter", "Son", "Stranger", "House", "City",
+    "Ocean", "Night", "Morning", "Memory", "Secret", "Bridge", "Fire",
+    "Crown", "Compass", "Lighthouse", "Orchard", "Sparrow", "Wolf", "Tide",
+]
+
+WORK_TITLE_ADJECTIVES = [
+    "Last", "Silent", "Hidden", "Broken", "Golden", "Distant", "Forgotten",
+    "Endless", "Quiet", "Burning", "Lost", "Crimson", "Hollow", "Bright",
+    "Restless", "Wandering", "Frozen", "Midnight", "Paper", "Glass",
+]
+
+WORK_TITLE_PATTERNS = [
+    "The {adj} {noun}",
+    "{adj} {noun}",
+    "The {noun} of {noun2}",
+    "A {noun} in the {noun2}",
+    "{noun} and {noun2}",
+    "The {noun}'s {noun2}",
+    "Beyond the {noun}",
+    "After the {noun}",
+    "{adj} {noun}s",
+]
+
+# Plot-summary grammar: sentence frames x pools ≈ 10^4 combinations.
+PLOT_PROTAGONISTS = [
+    "a retired detective", "a young cartographer", "an ambitious chef",
+    "a grieving architect", "a small-town librarian", "a fading pop star",
+    "a war photographer", "an exiled prince", "a marine biologist",
+    "a reluctant heir", "a night-shift nurse", "a chess prodigy",
+    "a lighthouse keeper", "an undercover journalist", "a jazz pianist",
+]
+
+PLOT_INCIDENTS = [
+    "a letter from a stranger arrives", "an old friend disappears",
+    "a storm cuts the town off", "a family secret surfaces",
+    "a rival returns home", "an inheritance comes with conditions",
+    "a wrongful conviction is reopened", "a mysterious map is found",
+    "the family business collapses", "a decades-old photograph resurfaces",
+]
+
+PLOT_GOALS = [
+    "uncover the truth", "win back what was lost", "clear an innocent name",
+    "finish what their mentor started", "protect the only home they know",
+    "outrun their past", "solve a case everyone abandoned",
+    "reunite a scattered family", "expose a quiet conspiracy",
+    "keep an impossible promise",
+]
+
+PLOT_STAKES = [
+    "before the past catches up", "before the town votes to sell",
+    "as winter closes in", "while everyone watches",
+    "at the cost of everything familiar", "before the trial ends",
+    "with time running out", "against their own family",
+    "as old loyalties unravel", "before the secret destroys them",
+]
+
+# Departments beyond the generic list — used when a column asks for one.
+OFFICE_DEPARTMENTS = [
+    "Engineering", "Sales", "Marketing", "Finance", "Human Resources",
+    "Operations", "Customer Success", "Legal", "Product", "Design",
+    "Data & Analytics", "IT", "Procurement", "Research & Development",
+    "Quality Assurance", "Facilities", "Communications", "Security",
+]
+
+
+# ---------------------------------------------------------------------------
 # Conditional sampling helpers
 # ---------------------------------------------------------------------------
 

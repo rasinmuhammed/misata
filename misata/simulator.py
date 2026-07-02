@@ -950,8 +950,26 @@ class DataSimulator:
                 per_row = parent_map.reindex(fk_vals).values.astype(float)
                 return per_row
 
-            mean_param = _resolve_dist_param(params.get("mean"), 100.0)
-            std_param  = _resolve_dist_param(params.get("std"),  20.0)
+            # Default mean/std must respect declared bounds. A normal with no
+            # explicit mean/std used to fall back to N(100, 20) regardless of
+            # min/max; with max below ~40 the post-clip collapsed the column
+            # to a constant (min 0, max 5 → every value 5.0), and the clip
+            # ties silently wrecked declared correlations.
+            _lo, _hi = params.get("min"), params.get("max")
+            if (
+                distribution == "normal"
+                and "mean" not in params
+                and "std" not in params
+                and isinstance(_lo, (int, float))
+                and isinstance(_hi, (int, float))
+                and float(_hi) > float(_lo)
+            ):
+                _default_mean = (float(_lo) + float(_hi)) / 2.0
+                _default_std = (float(_hi) - float(_lo)) / 6.0
+            else:
+                _default_mean, _default_std = 100.0, 20.0
+            mean_param = _resolve_dist_param(params.get("mean"), _default_mean)
+            std_param  = _resolve_dist_param(params.get("std"),  _default_std)
             # ------ end @parent resolution ------
 
             if distribution == "categorical" or "choices" in params:
@@ -2855,21 +2873,19 @@ class DataSimulator:
         if len(involved) < 2:
             return df
 
-        # A column that is BOTH correlated and an outcome-curve target cannot honour
-        # both: the curve reorders/rescales the column per period to hit its sums,
-        # which scrambles the rank-correlation. Warn rather than silently dropping it.
-        curve_targets = {
-            oc.column for oc in (getattr(self.config, "outcome_curves", None) or [])
+        # A column that is BOTH correlated and an outcome-curve target gets
+        # blockwise Iman-Conover: values are re-ranked only WITHIN each time
+        # period bucket, a sum-preserving permutation, so the exact per-period
+        # curve targets survive while the declared correlation is approximated
+        # globally (slightly attenuated by the between-period structure).
+        curve_col_meta: Dict[str, tuple] = {
+            oc.column: (
+                getattr(oc, "time_column", "date"),
+                getattr(oc, "time_unit", "month"),
+            )
+            for oc in (getattr(self.config, "outcome_curves", None) or [])
             if getattr(oc, "table", None) == table_name
         }
-        clash = involved & curve_targets
-        if clash:
-            warnings.warn(
-                f"Column(s) {sorted(clash)} in '{table_name}' have both a correlation "
-                "and an outcome curve. The outcome curve takes precedence; the declared "
-                "correlation on these columns will not hold. Put the curve on a different "
-                "column, or drop the correlation."
-            )
 
         cols = sorted(involved)
         n = len(df)
@@ -2920,6 +2936,27 @@ class DataSimulator:
 
         # Iman-Conover: re-order each column's values to match the rank of the correlated normals
         for i, col in enumerate(cols):
+            # Curve-governed column: sum-preserving blockwise re-rank.
+            meta = curve_col_meta.get(col)
+            if meta is not None:
+                time_col, time_unit = meta
+                if time_col in df.columns:
+                    freq = {"day": "D", "week": "W", "month": "M",
+                            "quarter": "Q", "year": "Y"}.get(str(time_unit), "M")
+                    try:
+                        buckets = pd.to_datetime(df[time_col], errors="coerce").dt.to_period(freq)
+                    except Exception:
+                        buckets = None
+                    if buckets is not None and buckets.notna().any():
+                        col_vals = df[col].values.copy()
+                        for _, bucket_idx in df.groupby(buckets, dropna=False).indices.items():
+                            if len(bucket_idx) < 2:
+                                continue
+                            block_sorted = np.sort(col_vals[bucket_idx])
+                            block_ranks = np.argsort(np.argsort(correlated[bucket_idx, i]))
+                            col_vals[bucket_idx] = block_sorted[block_ranks]
+                        df[col] = col_vals
+                        continue
             original = df[col].values.copy()
             target_ranks = np.argsort(np.argsort(correlated[:, i]))
             sorted_original = np.sort(original)

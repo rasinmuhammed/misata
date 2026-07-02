@@ -61,6 +61,21 @@ _PERSON_TABLE_HINTS = (
     "player", "instructor", "teacher", "manager", "candidate", "lead",
 )
 
+# Column names that hold a person's NAME by convention (movies.director,
+# albums.artist, books.author) — routed to person_name, never job_title.
+_PERSON_ROLE_COLUMNS = {
+    "director", "author", "artist", "composer", "actor", "actress",
+    "singer", "performer", "producer", "writer", "editor", "chef",
+    "photographer", "illustrator", "narrator", "host", "speaker",
+}
+
+# Table names whose "title" column is a creative work, not a job.
+_MEDIA_TABLE_HINTS = (
+    "movie", "film", "show", "series", "episode", "book", "novel",
+    "song", "track", "album", "podcast", "game", "course", "lesson",
+    "article", "story", "poem", "play", "musical", "documentary", "video",
+)
+
 # Table names that strongly imply the "name" column is an organisation name.
 # Checked against table_name.lower() with substring matching.
 _COMPANY_TABLE_HINTS = (
@@ -441,11 +456,89 @@ class RealisticTextGenerator:
             return self._generate_support_ticket(size=size)
         if semantic == "email_body":
             return self._generate_email_body(size=size)
+        if semantic == "genre":
+            return self._generate_genre(table_name, size)
+        if semantic == "cuisine":
+            from misata.vocab_seeds import CUISINES
+            return self._labels("cuisine", CUISINES, size)
+        if semantic == "ingredient_list":
+            return self._generate_ingredient_list(size=size)
+        if semantic == "work_title":
+            return self._generate_work_title(size=size)
+        if semantic == "plot_summary":
+            return self._generate_plot_summary(size=size)
+        if semantic == "office_department":
+            from misata.vocab_seeds import OFFICE_DEPARTMENTS
+            return self._labels("department", OFFICE_DEPARTMENTS, size)
 
         return np.array([
             self.rng.choice(self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES))
             for _ in range(size)
         ])
+
+    # ── Media / food / creative-work generators (0.8.1.15) ──────────────────
+
+    _MUSIC_TABLE_HINTS = ("song", "track", "album", "artist", "band",
+                          "playlist", "music", "record")
+    _BOOK_TABLE_HINTS = ("book", "novel", "publication", "library", "author")
+
+    def _generate_genre(self, table_name: str, size: int) -> np.ndarray:
+        """Genre pool chosen by table context: music, book, or film."""
+        from misata.vocab_seeds import BOOK_GENRES, FILM_GENRES, MUSIC_GENRES
+        tbl = table_name.lower()
+        if any(h in tbl for h in self._MUSIC_TABLE_HINTS):
+            return self._labels("genre", MUSIC_GENRES, size)
+        if any(h in tbl for h in self._BOOK_TABLE_HINTS):
+            return self._labels("genre", BOOK_GENRES, size)
+        return self._labels("genre", FILM_GENRES, size)
+
+    def _generate_ingredient_list(self, *, size: int) -> np.ndarray:
+        """3–6 distinct ingredients joined as a comma list per row."""
+        from misata.vocab_seeds import INGREDIENTS
+        pool = list(self._vocabulary("ingredient", INGREDIENTS))
+        out = []
+        for _ in range(size):
+            n = int(self.rng.integers(3, 7))
+            picks = self.rng.choice(pool, size=min(n, len(pool)), replace=False)
+            out.append(", ".join(picks))
+        return np.array(out)
+
+    def _generate_work_title(self, *, size: int) -> np.ndarray:
+        """Compositional creative-work titles (film/book/song/course)."""
+        from misata.vocab_seeds import (
+            WORK_TITLE_ADJECTIVES, WORK_TITLE_NOUNS, WORK_TITLE_PATTERNS,
+        )
+        out = []
+        for _ in range(size):
+            pattern = self.rng.choice(WORK_TITLE_PATTERNS)
+            noun = self.rng.choice(WORK_TITLE_NOUNS)
+            noun2 = self.rng.choice([n for n in WORK_TITLE_NOUNS if n != noun])
+            adj = self.rng.choice(WORK_TITLE_ADJECTIVES)
+            out.append(pattern.format(adj=adj, noun=noun, noun2=noun2))
+        return np.array(out)
+
+    def _generate_plot_summary(self, *, size: int) -> np.ndarray:
+        """Grammar-composed one-line plot synopses."""
+        from misata.vocab_seeds import (
+            PLOT_GOALS, PLOT_INCIDENTS, PLOT_PROTAGONISTS, PLOT_STAKES,
+        )
+        frames = (
+            "When {incident}, {protagonist} must {goal} {stakes}.",
+            "{protagonist_cap} sets out to {goal} {stakes}.",
+            "After {incident}, {protagonist} has one chance to {goal}.",
+        )
+        out = []
+        for _ in range(size):
+            frame = self.rng.choice(frames)
+            protagonist = str(self.rng.choice(PLOT_PROTAGONISTS))
+            out.append(frame.format(
+                incident=self.rng.choice(PLOT_INCIDENTS),
+                protagonist=protagonist,
+                protagonist_cap=protagonist[0].upper() + protagonist[1:],
+                goal=self.rng.choice(PLOT_GOALS),
+                stakes=self.rng.choice(PLOT_STAKES),
+            ))
+        return np.array(out)
 
     def _infer_semantic(self, column_name: str, table_name: str) -> str:
         name = column_name.lower()
@@ -460,6 +553,29 @@ class RealisticTextGenerator:
             return "company_name"
         if "username" in name:
             return "username"
+        # Person-role columns hold the person's NAME, not a job title.
+        if name in _PERSON_ROLE_COLUMNS or any(
+            name.endswith("_" + role) for role in _PERSON_ROLE_COLUMNS
+        ):
+            return "person_name"
+        # "title" in a creative-work table is the work's title, not a job.
+        _is_media_table = any(h in table for h in _MEDIA_TABLE_HINTS)
+        if name in ("title", "work_title") and _is_media_table:
+            return "work_title"
+        if "genre" in name:
+            return "genre"
+        if "cuisine" in name:
+            return "cuisine"
+        if name in ("ingredient", "ingredients", "ingredient_list"):
+            return "ingredient_list"
+        if name in ("plot", "plot_summary", "synopsis", "storyline", "logline") or (
+            name in ("summary", "overview") and _is_media_table
+        ):
+            return "plot_summary"
+        if name in ("department", "dept", "division", "business_unit") or name.endswith("_department"):
+            return "office_department"
+        if name in ("location", "office_location", "branch_location", "site_location"):
+            return "city"
         if "job" in name or "role" in name or "title" in name:
             return "job_title"
         if "country" in name:
@@ -819,6 +935,15 @@ class RealisticTextGenerator:
             if pattern.startswith(r"\d", i):
                 char_type = "digit"
                 i += 2
+            elif token == "#":
+                # Spreadsheet/Faker-style digit placeholder ("AB-####"), the
+                # syntax no-code and studio users reach for first.
+                char_type = "digit"
+                i += 1
+            elif token == "?" :
+                # Faker-style uppercase-letter placeholder ("??-1234").
+                char_type = "letter"
+                i += 1
             elif token == "[":
                 end = pattern.find("]", i)
                 body = pattern[i + 1:end] if end != -1 else "A-Z"
