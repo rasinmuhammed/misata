@@ -303,7 +303,8 @@ class DataQualityChecker:
                 # Linear fit
                 x = np.arange(len(series))
                 # Handle NaNs replacement for trend check
-                s_filled = pd.Series(series).fillna(method='ffill').fillna(0).values
+                # .ffill(): fillna(method=...) was removed in pandas 3.0
+                s_filled = pd.Series(series).ffill().fillna(0).values
                 
                 slope, _ = np.polyfit(x, s_filled, 1)
                 
