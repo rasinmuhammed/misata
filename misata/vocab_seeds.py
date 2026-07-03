@@ -746,7 +746,21 @@ REFERENCE_TYPE_POOLS: Dict[str, List[str]] = {
                  "International", "Freight", "Same-Day", "Economy"],
     "product": ["Electronics", "Clothing", "Home & Garden", "Books",
                 "Sports", "Beauty", "Toys", "Groceries", "Automotive"],
+    "surge_event": ["High Demand", "Concert", "Sporting Event", "Bad Weather",
+                    "Rush Hour", "Airport Peak", "Holiday", "Festival"],
+    "event": ["Conference", "Concert", "Festival", "Sporting Event",
+              "Workshop", "Meetup", "Launch", "Holiday"],
 }
+
+SURGE_REASONS = [
+    "High demand", "Bad weather", "Rush hour", "Concert nearby",
+    "Sporting event", "Airport peak", "Holiday traffic", "Driver shortage",
+]
+
+CANCELLATION_REASONS = [
+    "Changed plans", "Wait too long", "Booked by mistake", "Found alternative",
+    "Driver too far", "Price too high", "Emergency", "No longer needed",
+]
 
 # Lifecycle labels for `<head>_statuses` lookup tables. Domain-specific pools
 # first; the generic pool covers everything else. All are sampled distinct.
@@ -769,6 +783,10 @@ REFERENCE_STATUS_POOLS: Dict[str, List[str]] = {
                      "Expired", "Churned"],
     "supplier": ["Verified", "Active", "Pending Review", "Onboarding",
                  "Suspended", "Inactive", "Churned"],
+    "trip": ["Requested", "Accepted", "Driver En Route", "In Progress",
+             "Completed", "Cancelled", "No Show"],
+    "ride": ["Requested", "Accepted", "Driver En Route", "In Progress",
+             "Completed", "Cancelled", "No Show"],
     "vendor": ["Verified", "Active", "Pending Review", "Onboarding",
                "Suspended", "Inactive"],
 }

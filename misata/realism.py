@@ -79,7 +79,10 @@ _REF_TABLE_KIND_RE = re.compile(
     re.IGNORECASE,
 )
 _REF_LABEL_COLUMNS = {"name", "label", "title", "status", "value", "state",
-                      "type", "category", "kind", "description"}
+                      "type", "category", "kind", "description", "reason",
+                      "method", "tier", "level", "segment"}
+_REF_LABEL_SUFFIXES = ("_type", "_status", "_name", "_label", "_reason",
+                       "_category", "_kind", "_method")
 
 # Table names whose "title" column is a creative work, not a job.
 _MEDIA_TABLE_HINTS = (
@@ -228,7 +231,11 @@ class RealisticTextGenerator:
         status`` → Active/Pending/Sold… Generic pools cover unknown heads.
         Only fires for label-ish columns in small reference tables.
         """
-        if size > 50 or column_name.lower() not in _REF_LABEL_COLUMNS:
+        col_l = column_name.lower()
+        if size > 50 or (
+            col_l not in _REF_LABEL_COLUMNS
+            and not col_l.endswith(_REF_LABEL_SUFFIXES)
+        ):
             return None
         m = _REF_TABLE_KIND_RE.match(table_name.lower().strip())
         if not m:
@@ -600,6 +607,12 @@ class RealisticTextGenerator:
         if semantic == "lab_unit":
             from misata.vocab_seeds import LAB_UNITS
             return self.rng.choice(LAB_UNITS, size=size)
+        if semantic == "surge_reason":
+            from misata.vocab_seeds import SURGE_REASONS
+            return self.rng.choice(SURGE_REASONS, size=size)
+        if semantic == "cancellation_reason":
+            from misata.vocab_seeds import CANCELLATION_REASONS
+            return self.rng.choice(CANCELLATION_REASONS, size=size)
         if semantic == "med_frequency":
             from misata.vocab_seeds import MED_FREQUENCIES
             return self.rng.choice(MED_FREQUENCIES, size=size)
@@ -727,6 +740,11 @@ class RealisticTextGenerator:
             return "lab_unit"
         if name == "frequency" and any(h in table for h in ("prescription", "medication", "dosage", "rx")):
             return "med_frequency"
+        if "reason" in name:
+            if "surge" in name or "surge" in table:
+                return "surge_reason"
+            if "cancel" in name or "cancel" in table:
+                return "cancellation_reason"
         if name in ("department", "dept", "division", "business_unit") or name.endswith("_department"):
             return "department"
         if name == "name" and table in ("departments", "department", "wards") and self._is_medical_domain():
@@ -1402,6 +1420,39 @@ class EntityCoherenceEngine:
         df.loc[mismatch_array, "name"] = desired_series[mismatch_array]
 
 
+_TIME_CHAIN_ORDER = ("created", "requested", "request", "signup", "start",
+                     "begin", "pickup", "departure", "sent", "updated",
+                     "end", "dropoff", "arrival", "delivered", "completed",
+                     "complete", "finish", "closed", "resolved")
+
+
+def _fix_time_chains(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+    """Order event-sequence timestamps per row (request ≤ pickup ≤ dropoff,
+    start ≤ end). Values across the chain are sorted per row, so marginals
+    are preserved while impossible orderings (dropoff before pickup) vanish."""
+    def _rank(col: str) -> int:
+        c = col.lower()
+        for i, tok in enumerate(_TIME_CHAIN_ORDER):
+            if tok in c:
+                return i
+        return -1
+
+    chain = [(c, _rank(c)) for c in df.columns
+             if _rank(c) >= 0 and ("time" in c.lower() or "date" in c.lower() or c.lower().endswith("_at"))]
+    chain = [c for c, _ in sorted(chain, key=lambda x: x[1])]
+    if len(chain) < 2:
+        return
+    try:
+        vals = df[chain].apply(pd.to_datetime, errors="coerce")
+    except Exception:
+        return
+    if vals.isna().all().any():
+        return
+    ordered = np.sort(vals.values.astype("datetime64[ns]"), axis=1)
+    for i, col in enumerate(chain):
+        df[col] = pd.Series(ordered[:, i]).dt.strftime("%Y-%m-%d %H:%M:%S")             if df[col].dtype == object else ordered[:, i]
+
+
 def _fix_city_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
     """Re-map city values so each row's city belongs to its country.
 
@@ -1461,6 +1512,7 @@ def apply_realism_rules(
     # (column generation order means the city may have been sampled before
     # the country existed; this pass runs after the full table is built).
     _fix_city_country(df, columns, _rng)
+    _fix_time_chains(df, columns, _rng)
 
     # ── Temporal consistency ──
     _fix_created_updated(df, columns, _rng)

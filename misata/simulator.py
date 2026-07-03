@@ -986,6 +986,18 @@ class DataSimulator:
             # to a constant (min 0, max 5 → every value 5.0), and the clip
             # ties silently wrecked declared correlations.
             _lo, _hi = params.get("min"), params.get("max")
+            # Suffix scale priors: a *_multiplier defaults near 1.5, never the
+            # generic N(100, 20) (ride-share field report: base_fare_multiplier
+            # of 73–102). Applied only when nothing explicit was declared.
+            _cname = column.name.lower()
+            if not any(k in params for k in ("mean", "std", "min", "max", "mu", "sigma", "choices")):
+                if _cname.endswith(("_multiplier", "_factor", "_coefficient")) or _cname == "multiplier":
+                    params = {**params, "min": 0.8, "max": 3.5}
+                elif _cname.endswith(("_rate", "_ratio", "_pct", "_percentage", "_share", "_probability")):
+                    params = {**params, "min": 0.0, "max": 1.0}
+                elif _cname.endswith("_rating") or _cname == "rating":
+                    params = {**params, "min": 1.0, "max": 5.0}
+                _lo, _hi = params.get("min"), params.get("max")
             _has_bounds = (
                 isinstance(_lo, (int, float))
                 and isinstance(_hi, (int, float))
@@ -1258,6 +1270,15 @@ class DataSimulator:
         # TEXT
         elif column.type == "text":
             text_type = params.get("text_type", "sentence")
+            # Lookup-table label columns resolve against reference pools FIRST,
+            # unconditionally — no downstream path may fill surge_event_types.
+            # event_type with business sentences.
+            if "text_type" not in params:
+                _ref_vals = self.realistic_text._reference_table_labels(
+                    column.name, table_name, size
+                )
+                if _ref_vals is not None:
+                    return _ref_vals
             # User capsule vocabularies keyed by this column's name take top
             # priority: a capsule that defines "species" drives any species
             # column. Built-in fallback vocab (misata-defaults) never
@@ -1297,6 +1318,14 @@ class DataSimulator:
             # Smart value generation - check for domain-specific content
             smart_generate = params.get("smart_generate", False) or self.smart_mode
             if smart_generate:
+                # Lookup-table label columns resolve against the reference
+                # pools FIRST — the legacy text path must never fill a
+                # surge_event_types.event_type with business sentences.
+                _ref_vals = self.realistic_text._reference_table_labels(
+                    column.name, table_name, size
+                )
+                if _ref_vals is not None:
+                    return _ref_vals
                 smart_gen = self._get_smart_gen()
                 # Specific semantic routes (blood_type, lab_test, department,
                 # medication, …) must beat the generic smart-pool layer — a
