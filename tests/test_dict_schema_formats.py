@@ -302,3 +302,43 @@ class TestB2BMarketplaceFieldReport:
             and str(r["hq_city"]) not in COUNTRY_CITIES[str(r["hq_country"])]
         )
         assert bad == 0, f"{bad} rows have a city outside their country"
+
+
+class TestHospitalFieldReport:
+    """0.8.1.18: clinical columns must never hold business filler, and a
+    hospital's departments are clinical (studio field report)."""
+
+    def test_clinical_columns_get_medical_values(self):
+        from misata.vocab_seeds import (
+            BLOOD_TYPES, COMMON_DIAGNOSES, LAB_TESTS, MEDICATIONS,
+            MEDICAL_DEPARTMENTS, MEDICAL_SPECIALTIES,
+        )
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "__domain__": "healthcare",
+            "departments": {"__rows__": 6,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string"}},
+            "doctors": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "specialty": {"type": "string"}},
+            "patients": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "blood_type": {"type": "string"}},
+            "admissions": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "diagnosis": {"type": "string"}},
+            "lab_results": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "test_name": {"type": "string"}},
+            "prescriptions": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "medication_name": {"type": "string"},
+                "dosage": {"type": "string"}},
+        }, seed=5))
+        assert set(t["departments"]["name"]) <= set(MEDICAL_DEPARTMENTS)
+        assert set(t["doctors"]["specialty"]) <= set(MEDICAL_SPECIALTIES)
+        assert set(t["patients"]["blood_type"]) <= set(BLOOD_TYPES)
+        assert set(t["admissions"]["diagnosis"]) <= set(COMMON_DIAGNOSES)
+        assert set(t["lab_results"]["test_name"]) <= set(LAB_TESTS)
+        assert set(t["prescriptions"]["medication_name"]) <= set(MEDICATIONS)
+        assert all(" mg" in d for d in t["prescriptions"]["dosage"])

@@ -153,7 +153,7 @@ class DataSimulator:
             self.domain_capsule = merge_into(self.domain_capsule, load_capsule(capsule_file))
         # Resolve locale: schema.realism.locale → schema.domain hint → default en_US
         self.locale = getattr(realism, "locale", None) or "en_US"
-        self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule, locale=self.locale)
+        self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule, locale=self.locale, domain=getattr(config, 'domain', None))
         self.coherence_engine = EntityCoherenceEngine(self.rng, capsule=self.domain_capsule)
         # Locale-aware Faker for address/phone (legacy path)
         try:
@@ -1298,6 +1298,13 @@ class DataSimulator:
             smart_generate = params.get("smart_generate", False) or self.smart_mode
             if smart_generate:
                 smart_gen = self._get_smart_gen()
+                # Specific semantic routes (blood_type, lab_test, department,
+                # medication, …) must beat the generic smart-pool layer — a
+                # hospital's departments are Cardiology/Oncology, not the
+                # office pool the generic layer serves.
+                _specific = self.realistic_text._infer_semantic(column.name, table_name)
+                if _specific not in (None, "", "name", "category_label", "sentence"):
+                    smart_gen = None
                 if smart_gen:
                     # Check for explicit domain hint or auto-detect
                     domain_hint = params.get("domain_hint")

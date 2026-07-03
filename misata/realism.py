@@ -186,9 +186,11 @@ class RealisticTextGenerator:
         rng: Optional[np.random.Generator] = None,
         capsule: Optional[DomainCapsule] = None,
         locale: Optional[str] = None,
+        domain: Optional[str] = None,
     ):
         self.rng = rng or np.random.default_rng(42)
         self.capsule = capsule
+        self.domain = (domain or "").lower()
         self.locale = locale or "en_US"
         self._faker = None  # lazy
         # Per-(table, size) joint person frames so first_name, last_name and
@@ -211,6 +213,11 @@ class RealisticTextGenerator:
                 except Exception:
                     self._faker = None
         return self._faker
+
+    _MEDICAL_DOMAINS = ("health", "hospital", "medical", "clinic", "pharma", "care")
+
+    def _is_medical_domain(self) -> bool:
+        return any(h in self.domain for h in self._MEDICAL_DOMAINS)
 
     def _reference_table_labels(
         self, column_name: str, table_name: str, size: int
@@ -266,7 +273,13 @@ class RealisticTextGenerator:
         if ref_labels is not None:
             return ref_labels
 
-        semantic = semantic_type or self._infer_semantic(column_name, table_name)
+        # A specific inference (blood_type, lab_test, department, …) beats a
+        # GENERIC semantic passed by the caller ("name"/"text"): the simulator's
+        # fallback routing must not shadow clinical/reference columns.
+        if semantic_type in (None, "", "name", "sentence", "text", "word"):
+            semantic = self._infer_semantic(column_name, table_name) or semantic_type or "name"
+        else:
+            semantic = semantic_type
 
         # When a non-default locale is active, prefer Faker for person/address data
         # so names, cities, and phones match the target locale.
@@ -355,6 +368,13 @@ class RealisticTextGenerator:
         if semantic == "channel":
             return self._labels("channel", _CHANNEL_LABELS, size)
         if semantic == "department":
+            if self._is_medical_domain():
+                # A hospital's departments are clinical (capsule vocab bypassed).
+                from misata.vocab_seeds import MEDICAL_DEPARTMENTS
+                pool = list(MEDICAL_DEPARTMENTS)
+                if 0 < size <= len(pool):
+                    return self.rng.choice(pool, size=size, replace=False)
+                return self.rng.choice(pool, size=size)
             return self._labels("department", _DEPARTMENT_LABELS, size)
         if semantic == "region":
             return self._labels("region", _REGION_LABELS, size)
@@ -544,9 +564,45 @@ class RealisticTextGenerator:
             return self._generate_work_title(size=size)
         if semantic == "plot_summary":
             return self._generate_plot_summary(size=size)
-        if semantic == "office_department":
-            from misata.vocab_seeds import OFFICE_DEPARTMENTS
+        if semantic in ("office_department", "department"):
+            from misata.vocab_seeds import MEDICAL_DEPARTMENTS, OFFICE_DEPARTMENTS
+            if self._is_medical_domain():
+                # Bypass capsule vocab: a hospital's departments are clinical.
+                pool = list(MEDICAL_DEPARTMENTS)
+                if 0 < size <= len(pool):
+                    return self.rng.choice(pool, size=size, replace=False)
+                return self.rng.choice(pool, size=size)
             return self._labels("department", OFFICE_DEPARTMENTS, size)
+        if semantic == "blood_type":
+            from misata.vocab_seeds import BLOOD_TYPES, BLOOD_TYPE_WEIGHTS
+            return self.rng.choice(BLOOD_TYPES, size=size, p=BLOOD_TYPE_WEIGHTS)
+        if semantic == "medication":
+            from misata.vocab_seeds import MEDICATIONS
+            return self._labels("medication", MEDICATIONS, size)
+        if semantic == "dosage":
+            from misata.vocab_seeds import DOSAGE_AMOUNTS
+            return self.rng.choice(DOSAGE_AMOUNTS, size=size)
+        if semantic == "admission_type":
+            from misata.vocab_seeds import ADMISSION_TYPES
+            return self._labels("admission_type", ADMISSION_TYPES, size)
+        if semantic == "diagnosis":
+            from misata.vocab_seeds import COMMON_DIAGNOSES
+            return self._labels("diagnosis", COMMON_DIAGNOSES, size)
+        if semantic == "discharge_status":
+            from misata.vocab_seeds import DISCHARGE_STATUSES
+            return self._labels("discharge_status", DISCHARGE_STATUSES, size)
+        if semantic == "medical_specialty":
+            from misata.vocab_seeds import MEDICAL_SPECIALTIES
+            return self._labels("medical_specialty", MEDICAL_SPECIALTIES, size)
+        if semantic == "lab_test":
+            from misata.vocab_seeds import LAB_TESTS
+            return self._labels("lab_test", LAB_TESTS, size)
+        if semantic == "lab_unit":
+            from misata.vocab_seeds import LAB_UNITS
+            return self.rng.choice(LAB_UNITS, size=size)
+        if semantic == "med_frequency":
+            from misata.vocab_seeds import MED_FREQUENCIES
+            return self.rng.choice(MED_FREQUENCIES, size=size)
 
         return np.array([
             self.rng.choice(self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES))
@@ -649,8 +705,32 @@ class RealisticTextGenerator:
             name in ("summary", "overview") and _is_media_table
         ):
             return "plot_summary"
+        # Clinical columns are unambiguous regardless of domain.
+        if name in ("blood_type", "blood_group"):
+            return "blood_type"
+        if name in ("medication", "medication_name", "drug", "drug_name"):
+            return "medication"
+        if name in ("dosage", "dose"):
+            return "dosage"
+        if name in ("admission_type", "admission_reason"):
+            return "admission_type"
+        if name in ("diagnosis", "primary_diagnosis", "condition", "medical_condition"):
+            return "diagnosis"
+        if name in ("discharge_status", "discharge_disposition"):
+            return "discharge_status"
+        if name in ("specialty", "specialization", "speciality"):
+            return "medical_specialty"
+        _is_lab_table = any(h in table for h in ("lab", "test", "result", "panel"))
+        if name in ("test_name", "lab_test", "panel_name") or (name == "name" and _is_lab_table):
+            return "lab_test"
+        if name in ("unit", "units", "result_unit") and _is_lab_table:
+            return "lab_unit"
+        if name == "frequency" and any(h in table for h in ("prescription", "medication", "dosage", "rx")):
+            return "med_frequency"
         if name in ("department", "dept", "division", "business_unit") or name.endswith("_department"):
-            return "office_department"
+            return "department"
+        if name == "name" and table in ("departments", "department", "wards") and self._is_medical_domain():
+            return "department"
         if name in ("location", "office_location", "branch_location", "site_location"):
             return "city"
         if "job" in name or "role" in name or "title" in name:
@@ -695,6 +775,8 @@ class RealisticTextGenerator:
             return "comment_body"
         if "product" in table or "item" in table or "listing" in table:
             return "product_name"
+        if name in ("name", "label") and table in ("departments", "department", "wards"):
+            return "department"
         if name in ("name", "full_name", "display_name"):
             # Context-dependent: person table → person name, company/org table →
             # company name, product table → product name, else → tier label.

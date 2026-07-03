@@ -869,3 +869,78 @@ def sample_conditional(
         )
         result.append(rng.choice(pool))
     return result
+
+
+# ---------------------------------------------------------------------------
+# Medical vocabularies (0.8.1.18) — clinical columns must never fall through
+# to business filler (hospital field report: blood_type held sentences).
+# ---------------------------------------------------------------------------
+
+MEDICAL_DEPARTMENTS = [
+    "Cardiology", "Oncology", "Neurology", "Pediatrics", "Orthopedics",
+    "Emergency Medicine", "Radiology", "Obstetrics & Gynecology",
+    "Internal Medicine", "Surgery", "Psychiatry", "Dermatology",
+    "Urology", "Gastroenterology", "Pulmonology", "Nephrology",
+    "Anesthesiology", "Intensive Care", "Pathology", "Ophthalmology",
+]
+
+MEDICAL_SPECIALTIES = [
+    "Cardiologist", "Oncologist", "Neurologist", "Pediatrician",
+    "Orthopedic Surgeon", "Emergency Physician", "Radiologist",
+    "General Surgeon", "Psychiatrist", "Dermatologist", "Anesthesiologist",
+    "Internist", "Family Medicine", "Gastroenterologist", "Pulmonologist",
+    "Nephrologist", "Endocrinologist", "Urologist", "Obstetrician",
+]
+
+BLOOD_TYPES = ["O+", "A+", "B+", "AB+", "O-", "A-", "B-", "AB-"]
+# Real-world US distribution (Stanford Blood Center).
+BLOOD_TYPE_WEIGHTS = [0.374, 0.357, 0.085, 0.034, 0.066, 0.063, 0.015, 0.006]
+
+ADMISSION_TYPES = [
+    "Emergency", "Elective", "Urgent", "Transfer", "Observation",
+    "Newborn", "Trauma", "Readmission",
+]
+
+DISCHARGE_STATUSES = [
+    "Discharged Home", "Transferred", "Discharged to Rehab",
+    "Left Against Medical Advice", "Deceased", "Still Admitted",
+    "Discharged to Skilled Nursing",
+]
+
+COMMON_DIAGNOSES = [
+    "Hypertension", "Type 2 Diabetes", "Pneumonia", "Acute Appendicitis",
+    "Congestive Heart Failure", "COPD Exacerbation", "Urinary Tract Infection",
+    "Atrial Fibrillation", "Acute Myocardial Infarction", "Sepsis",
+    "Cellulitis", "Gastroenteritis", "Asthma Exacerbation", "Stroke",
+    "Fracture of Femur", "Deep Vein Thrombosis", "Chronic Kidney Disease",
+    "Migraine", "Anemia", "Hyperlipidemia",
+]
+
+LAB_TESTS = [
+    "Complete Blood Count", "Basic Metabolic Panel", "Lipid Panel",
+    "Hemoglobin A1c", "Thyroid Stimulating Hormone", "Liver Function Panel",
+    "Urinalysis", "C-Reactive Protein", "Troponin I", "D-Dimer",
+    "Blood Glucose", "Creatinine", "Potassium", "Vitamin D", "PT/INR",
+]
+
+LAB_UNITS = [
+    "mg/dL", "mmol/L", "g/dL", "IU/L", "ng/mL", "mcg/dL", "mEq/L",
+    "cells/mcL", "%", "U/L",
+]
+
+MEDICATIONS = [
+    "Lisinopril", "Metformin", "Atorvastatin", "Amlodipine", "Omeprazole",
+    "Levothyroxine", "Amoxicillin", "Azithromycin", "Metoprolol",
+    "Losartan", "Gabapentin", "Hydrochlorothiazide", "Sertraline",
+    "Albuterol", "Prednisone", "Insulin Glargine", "Warfarin",
+    "Furosemide", "Pantoprazole", "Ceftriaxone",
+]
+
+DOSAGE_AMOUNTS = ["5 mg", "10 mg", "20 mg", "25 mg", "40 mg", "50 mg",
+                  "100 mg", "250 mg", "500 mg", "850 mg", "1000 mg", "2.5 mg"]
+
+MED_FREQUENCIES = [
+    "Once daily", "Twice daily", "Three times daily", "Every 6 hours",
+    "Every 8 hours", "Every 12 hours", "As needed", "At bedtime",
+    "With meals", "Weekly",
+]

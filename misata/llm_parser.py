@@ -1676,6 +1676,9 @@ Include reference tables with inline_data for lookup values and transactional ta
             outcome_curves=outcome_curves,
             rate_curves=rate_curves,
             noise_config=schema_dict.get("noise_config"),
+            # Domain drives value realism (hospital departments are clinical);
+            # fall back to inferring it from the schema's table names.
+            domain=schema_dict.get("domain") or _infer_domain_from_tables(tables),
             seed=schema_dict.get("seed", 42)
         )
         self._enforce_vocabulary(schema)
@@ -2203,6 +2206,26 @@ Return valid JSON with enriched columns, reference_tables, and constraints. Be d
 
 
 # Convenience functions
+_DOMAIN_TABLE_HINTS = {
+    "healthcare": ("patient", "doctor", "admission", "prescription", "diagnos",
+                   "lab_result", "clinic", "hospital", "ward", "treatment"),
+    "fintech": ("transaction", "account", "payment", "loan", "fraud"),
+    "ecommerce": ("order", "cart", "product", "shipment", "sku"),
+    "saas": ("subscription", "plan_tier", "mrr", "churn", "tenant"),
+}
+
+
+def _infer_domain_from_tables(tables) -> "Optional[str]":
+    """Best-effort domain from table names — 2+ hits wins."""
+    names = " ".join(getattr(t, "name", "") for t in tables).lower()
+    best, best_hits = None, 1
+    for domain, hints in _DOMAIN_TABLE_HINTS.items():
+        hits = sum(1 for h in hints if h in names)
+        if hits > best_hits:
+            best, best_hits = domain, hits
+    return best
+
+
 def generate_schema(story: str, api_key: Optional[str] = None, use_research: bool = False) -> SchemaConfig:
     """Quick helper to generate schema from story."""
     generator = LLMSchemaGenerator(api_key=api_key)
