@@ -23,7 +23,8 @@ import pandas as pd
 # their label columns must be distinct and domain-appropriate.
 _REFERENCE_TABLE_RE = re.compile(
     r"(?:^|_)(?:types?|status(?:es)?|categor(?:y|ies)|tiers?|levels?|"
-    r"methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?|classes)$",
+    r"methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?|classes|"
+    r"segments?|sizes?|grades?|ranks?|bands?|brackets?)$",
     re.IGNORECASE,
 )
 

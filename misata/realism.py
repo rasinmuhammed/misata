@@ -74,7 +74,8 @@ _PERSON_ROLE_COLUMNS = {
 # never generic tier words, and must be distinct.
 _REF_TABLE_KIND_RE = re.compile(
     r"^(?:(?P<head>.+?)_)?(?P<kind>types?|status(?:es)?|categor(?:y|ies)|"
-    r"tiers?|levels?|methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?)$",
+    r"tiers?|levels?|methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?|"
+    r"segments?|sizes?|grades?|ranks?|bands?|brackets?|classes)$",
     re.IGNORECASE,
 )
 _REF_LABEL_COLUMNS = {"name", "label", "title", "status", "value", "state",
@@ -226,12 +227,20 @@ class RealisticTextGenerator:
         if not m:
             return None
         from misata.vocab_seeds import (
-            GENERIC_STATUSES, REFERENCE_STATUS_POOLS, REFERENCE_TYPE_POOLS,
+            GENERIC_SEGMENTS, GENERIC_SIZES, GENERIC_STATUSES, GENERIC_TIERS,
+            REFERENCE_SEGMENT_POOLS, REFERENCE_SIZE_POOLS,
+            REFERENCE_STATUS_POOLS, REFERENCE_TIER_POOLS, REFERENCE_TYPE_POOLS,
         )
         head = (m.group("head") or "").rstrip("s")
         kind = m.group("kind").lower()
         if kind.startswith("status") or kind.startswith("stage"):
             pool = REFERENCE_STATUS_POOLS.get(head, GENERIC_STATUSES)
+        elif kind.startswith("segment"):
+            pool = REFERENCE_SEGMENT_POOLS.get(head, GENERIC_SEGMENTS)
+        elif kind.startswith("size"):
+            pool = REFERENCE_SIZE_POOLS.get(head, GENERIC_SIZES)
+        elif kind.startswith(("tier", "level", "grade", "rank", "band", "bracket")):
+            pool = REFERENCE_TIER_POOLS.get(head, GENERIC_TIERS)
         else:
             pool = REFERENCE_TYPE_POOLS.get(head)
             if pool is None:
@@ -432,6 +441,25 @@ class RealisticTextGenerator:
                 for country in countries
             ])
         if semantic == "city":
+            # Cross-column coherence FIRST: when the same table carries a
+            # country column, each row's city must belong to that row's
+            # country (Philadelphia cannot sit in Canada). The locale pack
+            # only decides for tables with no country context.
+            if table_data is not None:
+                _country_col = next(
+                    (c for c in table_data.columns
+                     if c.lower() == "country" or c.lower().endswith("_country")),
+                    None,
+                )
+                if _country_col is not None:
+                    _row_countries = table_data[_country_col].astype(str).values
+                    _known = [c for c in set(_row_countries) if c in COUNTRY_CITIES]
+                    if _known:
+                        return np.array([
+                            self.rng.choice(COUNTRY_CITIES.get(
+                                country, COUNTRY_CITIES["United States"]))
+                            for country in _row_countries
+                        ])
             # Use locale pack top_cities list when available (real, population-ranked)
             try:
                 from misata.locales.registry import LocaleRegistry
@@ -1292,6 +1320,42 @@ class EntityCoherenceEngine:
         df.loc[mismatch_array, "name"] = desired_series[mismatch_array]
 
 
+def _fix_city_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+    """Re-map city values so each row's city belongs to its country.
+
+    Fires when a table carries both a city-ish and a country-ish column and
+    at least one row's pair is incoherent. Cities are resampled from the
+    row's country pool; unknown countries keep their original city.
+    """
+    city_col = next(
+        (c for c in df.columns
+         if c.lower() == "city" or c.lower().endswith("_city")),
+        None,
+    )
+    country_col = next(
+        (c for c in df.columns
+         if c.lower() == "country" or c.lower().endswith("_country")),
+        None,
+    )
+    if city_col is None or country_col is None:
+        return
+    countries = df[country_col].astype(str)
+    known_mask = countries.isin(COUNTRY_CITIES.keys())
+    if not known_mask.any():
+        return
+    # Only rewrite rows whose current pair is incoherent.
+    incoherent = known_mask & ~df.apply(
+        lambda r: str(r[city_col]) in COUNTRY_CITIES.get(str(r[country_col]), ()),
+        axis=1,
+    )
+    if not incoherent.any():
+        return
+    df.loc[incoherent, city_col] = [
+        rng.choice(COUNTRY_CITIES[str(c)])
+        for c in countries[incoherent]
+    ]
+
+
 def apply_realism_rules(
     df: pd.DataFrame,
     table_name: str = "",
@@ -1310,6 +1374,11 @@ def apply_realism_rules(
 
     df = df.copy()
     columns = set(df.columns)
+
+    # ── Geographic coherence: a row's city must belong to its country ──
+    # (column generation order means the city may have been sampled before
+    # the country existed; this pass runs after the full table is built).
+    _fix_city_country(df, columns, _rng)
 
     # ── Temporal consistency ──
     _fix_created_updated(df, columns, _rng)

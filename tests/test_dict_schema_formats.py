@@ -241,3 +241,64 @@ class TestRelativeDefaultStd:
                 "v": {"type": "float", "mean": 1000, "std": 10}},
         }, seed=4))["x"]
         assert 8 < t["v"].std() < 12
+
+
+class TestB2BMarketplaceFieldReport:
+    """0.8.1.17: fixes from the B2B-marketplace studio field report —
+    buyer_segments got person names, supplier_sizes got company names,
+    annual_gmv was constant 50000, and hq_city sat in the wrong hq_country."""
+
+    def test_segments_and_sizes_get_labels_not_names(self):
+        tables = misata.generate_from_schema(misata.from_dict_schema({
+            "buyer_segments": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string"}},
+            "supplier_sizes": {"__rows__": 3,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string"}},
+            "plan_tiers": {"__rows__": 4,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string"}},
+        }, seed=11))
+        segs = set(tables["buyer_segments"]["name"])
+        assert segs <= {"Enterprise", "Mid-Market", "SMB", "Startup",
+                        "Individual", "Government", "Non-Profit", "Education"}, segs
+        sizes = set(tables["supplier_sizes"]["name"])
+        assert sizes <= {"Micro", "Small", "Medium", "Large", "Enterprise"}, sizes
+        tiers = set(tables["plan_tiers"]["name"])
+        assert tiers <= {"Free", "Basic", "Pro", "Business", "Enterprise"}, tiers
+        for tname in ("buyer_segments", "supplier_sizes", "plan_tiers"):
+            vals = list(tables[tname].iloc[:, 1])
+            assert len(set(vals)) == len(vals), f"{tname} labels must be distinct"
+
+    def test_llm_spread_sanitizer(self):
+        from misata.llm_parser import _sanitize_numeric_spread
+        # min == max money column widens
+        p = _sanitize_numeric_spread("annual_gmv", "float", {"min": 50000, "max": 50000})
+        assert p["min"] < 50000 < p["max"]
+        # degenerate std gets rescaled
+        p = _sanitize_numeric_spread("annual_gmv", "float", {"mean": 50000, "std": 5})
+        assert p["std"] == 12500.0
+        # missing std gets mean-scaled default
+        p = _sanitize_numeric_spread("order_value", "float", {"mean": 1200})
+        assert p["std"] == 300.0
+        # non-money and legit specs untouched
+        assert _sanitize_numeric_spread("year_built", "int", {"mean": 1985, "std": 20}) \
+            == {"mean": 1985, "std": 20}
+        assert _sanitize_numeric_spread("price", "float", {"mean": 100, "std": 30}) \
+            == {"mean": 100, "std": 30}
+
+    def test_city_belongs_to_row_country(self):
+        from misata.realism import COUNTRY_CITIES
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "suppliers": {"__rows__": 200,
+                "id": {"type": "integer", "primary_key": True},
+                "hq_city": {"type": "string"},
+                "hq_country": {"type": "string"}},
+        }, seed=12))["suppliers"]
+        bad = sum(
+            1 for _, r in t.iterrows()
+            if str(r["hq_country"]) in COUNTRY_CITIES
+            and str(r["hq_city"]) not in COUNTRY_CITIES[str(r["hq_country"])]
+        )
+        assert bad == 0, f"{bad} rows have a city outside their country"

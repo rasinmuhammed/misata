@@ -767,11 +767,62 @@ REFERENCE_STATUS_POOLS: Dict[str, List[str]] = {
                  "Out for Delivery", "Delivered", "Delayed", "Returned"],
     "subscription": ["Trial", "Active", "Past Due", "Paused", "Cancelled",
                      "Expired", "Churned"],
+    "supplier": ["Verified", "Active", "Pending Review", "Onboarding",
+                 "Suspended", "Inactive", "Churned"],
+    "vendor": ["Verified", "Active", "Pending Review", "Onboarding",
+               "Suspended", "Inactive"],
 }
 
 GENERIC_STATUSES = [
     "Active", "Pending", "Completed", "Cancelled", "Expired", "Draft",
     "Archived", "On Hold", "Suspended", "Closed", "Failed", "Approved",
+]
+
+# `<head>_segments` lookup tables (buyer_segments must never hold person names).
+REFERENCE_SEGMENT_POOLS: Dict[str, List[str]] = {
+    "buyer": ["Enterprise", "Mid-Market", "SMB", "Startup", "Individual",
+              "Government", "Non-Profit", "Education"],
+    "customer": ["Enterprise", "Mid-Market", "SMB", "Startup", "Individual",
+                 "VIP", "At-Risk", "New"],
+    "market": ["Enterprise", "Mid-Market", "Small Business", "Consumer",
+               "Public Sector", "Education", "Healthcare"],
+    "user": ["Power User", "Regular", "Casual", "Trial", "Dormant",
+             "Champion", "New"],
+}
+
+GENERIC_SEGMENTS = [
+    "Enterprise", "Mid-Market", "SMB", "Startup", "Individual",
+    "Premium", "Standard", "Budget",
+]
+
+# `<head>_sizes` lookup tables (supplier_sizes must never hold company names).
+REFERENCE_SIZE_POOLS: Dict[str, List[str]] = {
+    "supplier": ["Micro", "Small", "Medium", "Large", "Enterprise"],
+    "company": ["Micro (1-9)", "Small (10-49)", "Medium (50-249)",
+                "Large (250-999)", "Enterprise (1000+)"],
+    "business": ["Micro", "Small", "Medium", "Large", "Enterprise"],
+    "team": ["Solo", "Small (2-5)", "Medium (6-15)", "Large (16-50)",
+             "Department (50+)"],
+}
+
+GENERIC_SIZES = [
+    "Extra Small", "Small", "Medium", "Large", "Extra Large",
+]
+
+# `<head>_tiers` / `<head>_levels` / grades / bands / brackets.
+REFERENCE_TIER_POOLS: Dict[str, List[str]] = {
+    "plan": ["Free", "Basic", "Pro", "Business", "Enterprise"],
+    "subscription": ["Free", "Basic", "Standard", "Premium", "Enterprise"],
+    "pricing": ["Free", "Starter", "Growth", "Scale", "Enterprise"],
+    "membership": ["Basic", "Silver", "Gold", "Platinum", "Diamond"],
+    "loyalty": ["Bronze", "Silver", "Gold", "Platinum", "Diamond"],
+    "risk": ["Very Low", "Low", "Moderate", "High", "Very High"],
+    "income": ["Low", "Lower-Middle", "Middle", "Upper-Middle", "High"],
+    "seniority": ["Junior", "Mid-Level", "Senior", "Staff", "Principal"],
+}
+
+GENERIC_TIERS = [
+    "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Elite",
 ]
 
 

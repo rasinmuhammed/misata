@@ -60,6 +60,69 @@ def _load_env():
 _load_env()
 
 # ---------------------------------------------------------------------------
+# Numeric spread sanitizer — prompt rules don't bind a model, code does.
+# An LLM that emits mean=50000 with a missing/degenerate std (or min==max)
+# produces a visually constant money column (the annual_gmv=50000 field
+# report). Deterministic post-processing repairs the spread.
+# ---------------------------------------------------------------------------
+
+_MONEY_COLUMN_RE = re.compile(
+    r"(gmv|revenue|price|amount|value|spend|spent|cost|income|salary|wage|"
+    r"budget|mrr|arr|fee|balance|total|payment|invoice|earning|profit)",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_numeric_spread(
+    col_name: str, col_type: str, params: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Repair degenerate spreads on LLM-authored money columns.
+
+    Applies only to money-named numeric columns (safe scope):
+      - ``min == max``      → widen to ±25% around the value
+      - ``std`` missing     → 25% of ``mean``
+      - ``std``/mean < 0.1% → 25% of ``mean`` (an effectively constant spec
+        no real dataset exhibits; year-like tight-but-real stds stay)
+    """
+    if col_type not in ("int", "float") or not isinstance(params, dict):
+        return params
+    if not _MONEY_COLUMN_RE.search(col_name or ""):
+        return params
+    if params.get("distribution") == "categorical" or "choices" in params:
+        return params
+    out = dict(params)
+
+    lo, hi = out.get("min"), out.get("max")
+    if (
+        isinstance(lo, (int, float)) and isinstance(hi, (int, float))
+        and lo == hi and lo != 0
+    ):
+        center = float(lo)
+        out["min"] = round(center * 0.75, 2)
+        out["max"] = round(center * 1.25, 2)
+        warnings.warn(
+            f"Column '{col_name}': LLM declared min == max == {center:g}; "
+            f"widened to ±25% so the column is not constant."
+        )
+
+    mean = out.get("mean")
+    if isinstance(mean, (int, float)) and mean != 0:
+        std = out.get("std")
+        degenerate = (
+            std is None
+            or (isinstance(std, (int, float)) and abs(float(std)) < abs(float(mean)) * 0.001)
+        )
+        if degenerate:
+            out["std"] = round(abs(float(mean)) * 0.25, 4)
+            if std is not None:
+                warnings.warn(
+                    f"Column '{col_name}': std {std:g} is <0.1% of mean "
+                    f"{mean:g} (effectively constant); raised to 25% of mean."
+                )
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Domain vocabulary — deterministic post-processing enforces these values
 # instead of relying on the LLM to remember the right words.
 # ---------------------------------------------------------------------------
@@ -1389,6 +1452,9 @@ Include reference tables with inline_data for lookup values and transactional ta
                             }
 
                 normalized_params = self._normalize_distribution_params(col_type, raw_params)
+                normalized_params = _sanitize_numeric_spread(
+                    c.get("name", ""), col_type, normalized_params
+                )
 
                 columns[table_name].append(Column(
                     name=c["name"],
