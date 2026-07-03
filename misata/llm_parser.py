@@ -1548,6 +1548,36 @@ Include reference tables with inline_data for lookup values and transactional ta
                     f"{c.get('table')}.{c.get('column')} (id/key columns can't carry a curve)"
                 )
                 continue
+            # Multiplier-shaped targets (all within ~[0.1, 10]) on an absolute
+            # curve are a unit confusion — the LLM emitted surge/demand FACTORS
+            # as dollar totals per period (ride-share field report: fare_amount
+            # targets of 0.92–1.15 with min fare 3.5 → 12 infeasibility errors).
+            _targets = [
+                float(pt[k])
+                for pt in (c.get("curve_points") or []) if isinstance(pt, dict)
+                for k in ("target_value", "value", "target", "amount") if k in pt
+                and isinstance(pt[k], (int, float))
+            ]
+            _col_min = None
+            for _t in schema_dict.get("tables", []):
+                if _t.get("name") == c.get("table"):
+                    for _cc in schema_dict.get("columns", {}).get(_t.get("name"), []):
+                        if _cc.get("name") == c.get("column"):
+                            _p = _cc.get("distribution_params") or {}
+                            _col_min = _p.get("min")
+            if (
+                _targets
+                and str(c.get("value_mode", "absolute")).lower() == "absolute"
+                and all(0.05 <= t <= 10.0 for t in _targets)
+                and isinstance(_col_min, (int, float))
+                and float(_col_min) > max(_targets)
+            ):
+                warnings.warn(
+                    f"Dropping outcome_curve on {c.get('table')}.{c.get('column')}: "
+                    f"targets {sorted(set(_targets))[:4]}… look like multipliers, "
+                    f"not per-period totals (unit confusion)"
+                )
+                continue
             try:
                 outcome_curves.append(OutcomeCurve(
                     table=c["table"],

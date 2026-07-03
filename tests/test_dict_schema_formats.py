@@ -342,3 +342,40 @@ class TestHospitalFieldReport:
         assert set(t["lab_results"]["test_name"]) <= set(LAB_TESTS)
         assert set(t["prescriptions"]["medication_name"]) <= set(MEDICATIONS)
         assert all(" mg" in d for d in t["prescriptions"]["dosage"])
+
+
+class TestMultiplierCurveDropped:
+    """0.8.1.19: an LLM emitting surge multipliers (0.92–1.15) as absolute
+    fare totals must have the curve dropped, not fail generation with 12
+    infeasibility errors (ride-share field report)."""
+
+    def test_multiplier_shaped_curve_is_dropped(self):
+        import warnings as w
+        from misata.llm_parser import LLMSchemaGenerator
+        gen = LLMSchemaGenerator.__new__(LLMSchemaGenerator)  # skip API init
+        schema_dict = {
+            "name": "rides",
+            "tables": [{"name": "trips", "row_count": 100}],
+            "columns": {"trips": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "fare_amount", "type": "float",
+                 "distribution_params": {"min": 3.5, "max": 80}},
+                {"name": "trip_date", "type": "date"},
+            ]},
+            "outcome_curves": [{
+                "table": "trips", "column": "fare_amount",
+                "time_column": "trip_date", "time_unit": "month",
+                "value_mode": "absolute",
+                "curve_points": [{"month": i + 1, "target_value": v}
+                                 for i, v in enumerate(
+                                     [0.92, 0.88, 0.95, 0.98, 1.02, 1.06])],
+            }],
+        }
+        with w.catch_warnings(record=True) as caught:
+            w.simplefilter("always")
+            config = gen._parse_schema(schema_dict)
+        assert config.outcome_curves == []
+        assert any("multiplier" in str(x.message) for x in caught)
+        # And generation now succeeds instead of raising 12 issues.
+        tables = misata.generate_from_schema(config)
+        assert len(tables["trips"]) > 0
