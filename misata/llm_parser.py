@@ -1696,6 +1696,29 @@ Include reference tables with inline_data for lookup values and transactional ta
         domain_for_repair = self._detect_domain([t.name for t in tables], col_names_for_domain)
         self._repair_reference_inline_data(tables, columns, domain_for_repair)
 
+        # Cardinality realism (domain-agnostic): when the LLM gives every
+        # non-reference table the SAME row count (10k drivers, 10k riders,
+        # 10k trips — ride-share field report), fact/event tables (2+ FKs
+        # into non-reference parents) must dwarf their parents. Structural
+        # signal only, so it holds for unexpected domains too.
+        _non_ref = [t for t in tables if not getattr(t, "is_reference", False)
+                    and not getattr(t, "inline_data", None)]
+        _counts = {t.row_count for t in _non_ref}
+        if len(_non_ref) >= 3 and len(_counts) == 1:
+            _ref_names = {t.name for t in tables if t not in _non_ref}
+            for t in _non_ref:
+                _fk_parents = {
+                    r.parent_table for r in relationships
+                    if r.child_table == t.name and r.parent_table not in _ref_names
+                }
+                if len(_fk_parents) >= 2:
+                    t.row_count = int(t.row_count * 10)
+                    warnings.warn(
+                        f"Table '{t.name}' looks like a fact/event table but had "
+                        f"the same row count as its parents; scaled to "
+                        f"{t.row_count} rows for realistic cardinality."
+                    )
+
         schema = SchemaConfig(
             name=schema_dict.get("name", "Generated Dataset"),
             description=schema_dict.get("description"),

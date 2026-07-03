@@ -379,3 +379,40 @@ class TestMultiplierCurveDropped:
         # And generation now succeeds instead of raising 12 issues.
         tables = misata.generate_from_schema(config)
         assert len(tables["trips"]) > 0
+
+
+class TestCardinalityRealism:
+    """0.8.1.21: fact tables (2+ FKs) must not share their parents' row count
+    (10k drivers / 10k riders / 10k trips field report)."""
+
+    def test_uniform_rows_scale_fact_table(self):
+        import warnings as w
+        from misata.llm_parser import LLMSchemaGenerator
+        gen = LLMSchemaGenerator.__new__(LLMSchemaGenerator)
+        sd = {
+            "name": "rides",
+            "tables": [{"name": "drivers", "row_count": 1000},
+                       {"name": "riders", "row_count": 1000},
+                       {"name": "trips", "row_count": 1000}],
+            "columns": {
+                "drivers": [{"name": "id", "type": "int", "unique": True}],
+                "riders": [{"name": "id", "type": "int", "unique": True}],
+                "trips": [
+                    {"name": "id", "type": "int", "unique": True},
+                    {"name": "driver_id", "type": "foreign_key"},
+                    {"name": "rider_id", "type": "foreign_key"},
+                ],
+            },
+            "relationships": [
+                {"parent_table": "drivers", "child_table": "trips",
+                 "parent_key": "id", "child_key": "driver_id"},
+                {"parent_table": "riders", "child_table": "trips",
+                 "parent_key": "id", "child_key": "rider_id"},
+            ],
+        }
+        with w.catch_warnings():
+            w.simplefilter("ignore")
+            config = gen._parse_schema(sd)
+        rows = {t.name: t.row_count for t in config.tables}
+        assert rows["trips"] == 10000, rows
+        assert rows["drivers"] == 1000 and rows["riders"] == 1000
