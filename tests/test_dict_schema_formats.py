@@ -416,3 +416,123 @@ class TestCardinalityRealism:
         rows = {t.name: t.row_count for t in config.tables}
         assert rows["trips"] == 10000, rows
         assert rows["drivers"] == 1000 and rows["riders"] == 1000
+
+
+class TestRideShareFieldReportV3:
+    """0.8.1.22: fuzzy head matching for reference pools + vehicle coherence
+    (ride-share field report v3: surge_pricing_event_types got Team/Advanced,
+    vehicles.model and license_plate got marketing sentences)."""
+
+    def _gen(self, schema_dict, seed=11):
+        return misata.generate_from_schema(misata.from_dict_schema(schema_dict, seed=seed))
+
+    def test_surge_pricing_event_types_use_surge_pool(self):
+        t = self._gen({
+            "surge_pricing_event_types": {"__rows__": 6,
+                "id": {"type": "integer", "primary_key": True},
+                "event_type": {"type": "string"}},
+        })["surge_pricing_event_types"]
+        vals = set(t["event_type"])
+        assert vals <= {"High Demand", "Concert", "Sporting Event", "Bad Weather",
+                        "Rush Hour", "Airport Peak", "Holiday", "Festival"}, vals
+
+    def test_driver_statuses_use_driver_pool(self):
+        t = self._gen({
+            "driver_statuses": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "status": {"type": "string"}},
+        })["driver_statuses"]
+        vals = set(t["status"])
+        assert vals <= {"Online", "Offline", "On Trip", "Available", "On Break",
+                        "Pending Approval", "Suspended", "Deactivated"}, vals
+
+    def test_vehicle_model_coheres_with_make_and_plate_is_code(self):
+        import re as _re
+        t = self._gen({
+            "vehicles": {"__rows__": 200,
+                "id": {"type": "integer", "primary_key": True},
+                "make": {"type": "categorical",
+                         "choices": ["Toyota", "Honda", "Tesla"]},
+                "model": {"type": "string"},
+                "license_plate": {"type": "string"}},
+        })["vehicles"]
+        from misata.vocab_seeds import VEHICLE_MODELS_BY_MAKE
+        ok = sum(
+            str(m) in VEHICLE_MODELS_BY_MAKE.get(str(mk).lower(), [])
+            for mk, m in zip(t["make"], t["model"])
+        )
+        assert ok / len(t) > 0.9, f"only {ok}/{len(t)} models match their make"
+        assert all(_re.fullmatch(r"[A-Z]{3}[- ]?\d{4}|\d[A-Z]{3}-\d{3}|\d{3}-[A-Z]{4}", str(p))
+                   for p in t["license_plate"]), list(t["license_plate"][:5])
+
+    def test_tier_fees_monotonic_with_rank(self):
+        t = self._gen({
+            "rider_membership_tiers": {"__rows__": 4,
+                "id": {"type": "integer", "primary_key": True},
+                "tier": {"type": "string"},
+                "monthly_fee": {"type": "float", "min": 0, "max": 200}},
+        })["rider_membership_tiers"]
+        order = ["Free", "Basic", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Elite"]
+        ranked = sorted(zip(t["tier"], t["monthly_fee"]), key=lambda p: order.index(p[0]))
+        fees = [f for _, f in ranked]
+        assert fees == sorted(fees), ranked
+
+    def test_plan_price_and_limit_monotonic(self):
+        t = self._gen({
+            "subscription_plans": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "categorical",
+                         "choices": ["Free", "Basic", "Pro", "Business", "Enterprise"]},
+                "price": {"type": "float", "min": 0, "max": 100},
+                "api_limit": {"type": "integer", "min": 100, "max": 100000}},
+        })["subscription_plans"]
+        order = ["Free", "Basic", "Pro", "Business", "Enterprise"]
+        ranked = sorted(zip(t["name"], t["price"], t["api_limit"]),
+                        key=lambda p: order.index(p[0]))
+        assert [p for _, p, _ in ranked] == sorted(p for _, p, _ in ranked), ranked
+        assert [l for _, _, l in ranked] == sorted(l for _, _, l in ranked), ranked
+
+    def test_temporal_gaps_compressed_and_duration_reconciled(self):
+        import pandas as pd
+        t = self._gen({
+            "trips": {"__rows__": 800,
+                "id": {"type": "integer", "primary_key": True},
+                "request_time": {"type": "datetime", "min": "2025-01-01", "max": "2025-12-31"},
+                "pickup_time": {"type": "datetime", "min": "2025-01-01", "max": "2025-12-31"},
+                "dropoff_time": {"type": "datetime", "min": "2025-01-01", "max": "2025-12-31"},
+                "trip_duration_minutes": {"type": "integer", "min": 5, "max": 55}},
+        })["trips"]
+        req = pd.to_datetime(t["request_time"])
+        pu = pd.to_datetime(t["pickup_time"])
+        do = pd.to_datetime(t["dropoff_time"])
+        assert ((req <= pu) & (pu <= do)).all()
+        wait_min = (pu - req).dt.total_seconds() / 60
+        assert wait_min.max() <= 181, wait_min.max()
+        ride_min = (do - pu).dt.total_seconds() / 60
+        assert (abs(ride_min - t["trip_duration_minutes"]) < 0.02).all()
+
+    def test_date_scale_spans_not_compressed(self):
+        import pandas as pd
+        t = self._gen({
+            "leases": {"__rows__": 400,
+                "id": {"type": "integer", "primary_key": True},
+                "start_date": {"type": "date", "min": "2023-01-01", "max": "2024-12-31"},
+                "end_date": {"type": "date", "min": "2023-06-01", "max": "2026-12-31"}},
+        })["leases"]
+        days = (pd.to_datetime(t["end_date"]) - pd.to_datetime(t["start_date"])).dt.days
+        assert days.median() > 90, "lease spans must not be event-compressed"
+
+    def test_fare_amount_derived_from_base_and_multiplier(self):
+        import numpy as np
+        t = self._gen({
+            "trips": {"__rows__": 500,
+                "id": {"type": "integer", "primary_key": True},
+                "base_fare": {"type": "float", "min": 2.5, "max": 25},
+                "surge_multiplier": {"type": "categorical",
+                                     "choices": [1.0, 1.2, 1.5, 2.0, 3.0]},
+                "fare_amount": {"type": "float", "min": 2, "max": 80},
+                "tip_amount": {"type": "float", "min": 0, "max": 15}},
+        })["trips"]
+        calc = np.round(t["base_fare"].astype(float) * t["surge_multiplier"].astype(float), 2)
+        assert (abs(t["fare_amount"] - calc) < 0.011).all()
+        assert t["tip_amount"].std() > 1, "unrelated money columns must not be rewritten"

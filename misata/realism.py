@@ -11,6 +11,7 @@ Rules are applied conservatively — only when relevant columns exist.
 from __future__ import annotations
 
 import re
+import zlib
 from typing import Iterable, Optional
 
 import numpy as np
@@ -78,6 +79,40 @@ _REF_TABLE_KIND_RE = re.compile(
     r"segments?|sizes?|grades?|ranks?|bands?|brackets?|classes)$",
     re.IGNORECASE,
 )
+def _fuzzy_pool(pools: dict, head: str):
+    """Resolve a lookup-table head noun against a pool dict, tolerating
+    qualifier tokens: surge_pricing_event → surge_event pool.
+
+    Order of attempts: exact key; pool key whose tokens all appear in the
+    head IN ORDER (most tokens wins, then longest key); trailing-token
+    suffixes of the head (pricing_event → event). Tokens compare with a
+    trailing "s" stripped so plural qualifiers still match.
+    """
+    if not head:
+        return None
+    if head in pools:
+        return pools[head]
+    toks = [t.rstrip("s") for t in head.split("_") if t]
+    best_key, best_score = None, (-1, 0, 0)
+    for key in pools:
+        ktoks = [t.rstrip("s") for t in key.split("_") if t]
+        it = iter(toks)
+        if all(kt in it for kt in ktoks):
+            # English compounds are head-final: a delivery_driver is a
+            # driver, so a key ending on the head's last token outranks one
+            # matching earlier qualifiers; then most tokens, then longest.
+            score = (int(ktoks[-1] == toks[-1]), len(ktoks), len(key))
+            if score > best_score:
+                best_key, best_score = key, score
+    if best_key is not None:
+        return pools[best_key]
+    for i in range(1, len(toks)):
+        cand = "_".join(toks[i:])
+        if cand in pools:
+            return pools[cand]
+    return None
+
+
 _REF_LABEL_COLUMNS = {"name", "label", "title", "status", "value", "state",
                       "type", "category", "kind", "description", "reason",
                       "method", "tier", "level", "segment"}
@@ -248,15 +283,15 @@ class RealisticTextGenerator:
         head = (m.group("head") or "").rstrip("s")
         kind = m.group("kind").lower()
         if kind.startswith("status") or kind.startswith("stage"):
-            pool = REFERENCE_STATUS_POOLS.get(head, GENERIC_STATUSES)
+            pool = _fuzzy_pool(REFERENCE_STATUS_POOLS, head) or GENERIC_STATUSES
         elif kind.startswith("segment"):
-            pool = REFERENCE_SEGMENT_POOLS.get(head, GENERIC_SEGMENTS)
+            pool = _fuzzy_pool(REFERENCE_SEGMENT_POOLS, head) or GENERIC_SEGMENTS
         elif kind.startswith("size"):
-            pool = REFERENCE_SIZE_POOLS.get(head, GENERIC_SIZES)
+            pool = _fuzzy_pool(REFERENCE_SIZE_POOLS, head) or GENERIC_SIZES
         elif kind.startswith(("tier", "level", "grade", "rank", "band", "bracket")):
-            pool = REFERENCE_TIER_POOLS.get(head, GENERIC_TIERS)
+            pool = _fuzzy_pool(REFERENCE_TIER_POOLS, head) or GENERIC_TIERS
         else:
-            pool = REFERENCE_TYPE_POOLS.get(head)
+            pool = _fuzzy_pool(REFERENCE_TYPE_POOLS, head)
             if pool is None:
                 pool = self._vocabulary("category_label", CATEGORY_LABELS)
         pool = list(pool)
@@ -387,6 +422,49 @@ class RealisticTextGenerator:
             return self._labels("region", _REGION_LABELS, size)
         if semantic == "currency":
             return self._labels("currency", _CURRENCY_CODES, size)
+        if semantic == "vehicle_make":
+            from misata.vocab_seeds import VEHICLE_MODELS_BY_MAKE
+            makes = [m.title() if m != "bmw" and m != "gmc" else m.upper()
+                     for m in VEHICLE_MODELS_BY_MAKE]
+            return self.rng.choice(makes, size=size)
+        if semantic == "vehicle_model":
+            from misata.vocab_seeds import VEHICLE_MODELS_BY_MAKE
+            # Coherence first: when the row already has a make, the model
+            # must belong to it (Toyota rows get Camry, never an F-150).
+            if table_data is not None:
+                _make_col = next(
+                    (c for c in table_data.columns if c.lower() in ("make", "manufacturer", "brand", "vehicle_make")),
+                    None,
+                )
+                if _make_col is not None:
+                    row_makes = table_data[_make_col].astype(str).values[:size]
+                    out = []
+                    for mk in row_makes:
+                        pool = VEHICLE_MODELS_BY_MAKE.get(mk.strip().lower())
+                        if pool is None:
+                            pool = [p for models in VEHICLE_MODELS_BY_MAKE.values() for p in models]
+                        out.append(self.rng.choice(pool))
+                    result = np.array(out)
+                    if len(result) < size:
+                        pad = self.rng.choice(result, size=size - len(result))
+                        result = np.concatenate([result, pad])
+                    return result
+            all_models = [p for models in VEHICLE_MODELS_BY_MAKE.values() for p in models]
+            return self.rng.choice(all_models, size=size)
+        if semantic == "license_plate":
+            # US-style plate shapes; one shape per column keeps a table uniform.
+            _shapes = ["LLL-DDDD", "DLLL-DDD", "LLL DDDD", "DDD-LLLL"]
+            shape = _shapes[zlib.crc32(f"{table_name}.{column_name}".encode()) % len(_shapes)]
+            letters = np.array(list("ABCDEFGHJKLMNPRSTUVWXYZ"))
+            out = []
+            for _ in range(size):
+                out.append("".join(
+                    self.rng.choice(letters) if ch == "L"
+                    else str(self.rng.integers(0, 10)) if ch == "D"
+                    else ch
+                    for ch in shape
+                ))
+            return np.array(out)
         if semantic == "email":
             # Use names already generated in this row when available
             _PROVIDERS = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "protonmail.com", "hotmail.com"]
@@ -740,6 +818,18 @@ class RealisticTextGenerator:
             return "lab_unit"
         if name == "frequency" and any(h in table for h in ("prescription", "medication", "dosage", "rx")):
             return "med_frequency"
+        # Vehicle columns: model must be a real model (coherent with make),
+        # plates must be plate codes — neither may fall to sentence filler.
+        _is_vehicle_table = any(h in table for h in ("vehicle", "car", "fleet", "truck", "automobile"))
+        if name in ("license_plate", "plate_number", "number_plate", "plate",
+                    "registration_plate", "reg_plate", "vehicle_plate"):
+            return "license_plate"
+        if name in ("model", "vehicle_model", "car_model", "make_model") and (
+            _is_vehicle_table or name != "model"
+        ):
+            return "vehicle_model"
+        if name == "make" and _is_vehicle_table:
+            return "vehicle_make"
         if "reason" in name:
             if "surge" in name or "surge" in table:
                 return "surge_reason"
@@ -1426,10 +1516,62 @@ _TIME_CHAIN_ORDER = ("created", "requested", "request", "signup", "start",
                      "complete", "finish", "closed", "resolved")
 
 
+# Chain steps that happen within ONE sitting (a trip, a session, a surge
+# window) — consecutive gaps here are minutes-to-hours, never weeks.
+_EVENT_SCALE_TOKENS = ("request", "pickup", "dropoff", "departure", "arrival",
+                       "begin", "board", "checkin", "checkout")
+
+_DURATION_UNIT_NS = {
+    "second": 1e9, "sec": 1e9,
+    "minute": 60e9, "min": 60e9,
+    "hour": 3600e9, "hr": 3600e9,
+    "day": 86400e9,
+}
+
+# (start, end) column-token pairs a duration column describes, most specific
+# first. trip_duration_minutes reconciles pickup→dropoff, not request→dropoff.
+_DURATION_SPAN_PAIRS = (
+    ("pickup", "dropoff"), ("departure", "arrival"),
+    ("start", "end"), ("begin", "end"), ("checkin", "checkout"),
+)
+
+
+def _is_event_scale_col(col: str) -> bool:
+    c = col.lower()
+    if any(t in c for t in _EVENT_SCALE_TOKENS):
+        return True
+    # start_time/end_time (a session, a surge window) is event scale;
+    # start_date/end_date (a lease, an employment) is not.
+    return ("start" in c or "end" in c) and ("time" in c or c.endswith("_at"))
+
+
+def _find_duration_column(df: pd.DataFrame):
+    """(column, ns_per_unit) for a `*duration*` column, or (None, None)."""
+    for col in df.columns:
+        c = col.lower()
+        if "duration" not in c:
+            continue
+        if df[col].dtype.kind not in "iuf":
+            continue
+        unit_ns = 60e9  # bare "duration" defaults to minutes
+        for unit, ns in _DURATION_UNIT_NS.items():
+            if unit in c.replace("duration", ""):
+                unit_ns = ns
+                break
+        return col, unit_ns
+    return None, None
+
+
 def _fix_time_chains(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
-    """Order event-sequence timestamps per row (request ≤ pickup ≤ dropoff,
-    start ≤ end). Values across the chain are sorted per row, so marginals
-    are preserved while impossible orderings (dropoff before pickup) vanish."""
+    """Order event-sequence timestamps per row AND keep the gaps plausible.
+
+    Three passes: (1) per-row sort so impossible orderings (dropoff before
+    pickup) vanish while marginals survive; (2) gap compression — consecutive
+    event-scale steps (request→pickup→dropoff) months apart collapse to a
+    lognormal minutes-scale delta; (3) duration reconciliation — when the
+    table declares `*_duration_minutes`, the matching span pair is rebuilt
+    so end = start + duration exactly.
+    """
     def _rank(col: str) -> int:
         c = col.lower()
         for i, tok in enumerate(_TIME_CHAIN_ORDER):
@@ -1449,8 +1591,47 @@ def _fix_time_chains(df: pd.DataFrame, columns: set, rng: np.random.Generator) -
     if vals.isna().all().any():
         return
     ordered = np.sort(vals.values.astype("datetime64[ns]"), axis=1)
+    ns = ordered.astype("int64")  # (n_rows, n_chain) epoch nanoseconds
+    valid = ~np.isnan(vals.values.astype("datetime64[ns]")).any(axis=1)
+
+    # ── Pass 2: compress implausible gaps between event-scale steps.
+    # Shifting column j AND everything after it preserves all later gaps.
+    _CAP_NS = int(3 * 3600e9)
+    for j in range(1, len(chain)):
+        if not (_is_event_scale_col(chain[j - 1]) and _is_event_scale_col(chain[j])):
+            continue
+        gap = ns[:, j] - ns[:, j - 1]
+        too_big = valid & (gap > _CAP_NS)
+        if too_big.any():
+            new_gap = (rng.lognormal(np.log(15 * 60), 0.9, size=int(too_big.sum()))
+                       * 1e9).astype("int64")
+            np.minimum(new_gap, _CAP_NS, out=new_gap)
+            shift = gap[too_big] - new_gap
+            ns[np.ix_(too_big, range(j, len(chain)))] -= shift[:, None]
+
+    # ── Pass 3: a declared duration column is the truth for its span pair.
+    dur_col, unit_ns = _find_duration_column(df)
+    if dur_col is not None:
+        span = next(
+            ((s, e) for s, e in _DURATION_SPAN_PAIRS
+             if any(s in c.lower() for c in chain) and any(e in c.lower() for c in chain)),
+            None,
+        )
+        if span is not None:
+            i0 = next(i for i, c in enumerate(chain) if span[0] in c.lower())
+            i1 = next(i for i, c in enumerate(chain) if span[1] in c.lower())
+            if i0 < i1:
+                dur = pd.to_numeric(df[dur_col], errors="coerce").values
+                ok = valid & ~np.isnan(dur) & (dur > 0)
+                if ok.any():
+                    target = ns[ok, i0] + (dur[ok] * unit_ns).astype("int64")
+                    delta = target - ns[ok, i1]
+                    ns[np.ix_(ok, range(i1, len(chain)))] += delta[:, None]
+
+    ordered = ns.astype("datetime64[ns]")
     for i, col in enumerate(chain):
-        df[col] = pd.Series(ordered[:, i]).dt.strftime("%Y-%m-%d %H:%M:%S")             if df[col].dtype == object else ordered[:, i]
+        out = pd.Series(ordered[:, i]).where(pd.Series(valid), vals[col])
+        df[col] = out.dt.strftime("%Y-%m-%d %H:%M:%S") if df[col].dtype == object else out.values
 
 
 def _fix_city_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
@@ -1525,7 +1706,9 @@ def apply_realism_rules(
     _fix_discount_cap(df, columns)
     _fix_line_total(df, columns)
     _fix_order_total(df, columns)
+    _fix_amount_from_base_and_multiplier(df, columns)
     _apply_plan_price_mapping(df, columns)
+    _fix_rankable_lookup_monotonicity(df, columns, table_name)
 
     # ── Identity consistency ──
     _fix_gender_name_coherence(df, columns, _rng)   # before email: email derives from the fixed name
@@ -1746,6 +1929,109 @@ def _fix_order_total(df: pd.DataFrame, columns: set[str]) -> None:
         unit_price = pd.to_numeric(df["unit_price"], errors="coerce").fillna(0)
         discount = pd.to_numeric(df.get("discount", 0), errors="coerce").fillna(0) if "discount" in columns else 0
         df["total"] = np.round(qty * unit_price - discount, 2).clip(lower=0)
+
+
+def _fix_amount_from_base_and_multiplier(df: pd.DataFrame, columns: set[str]) -> None:
+    """Derived money math: fare_amount = base_fare × surge_multiplier.
+
+    Fires when a table carries base_<stem>, a *_multiplier column, and a
+    <stem>_amount / <stem>_total / total_<stem> / <stem> target. The target
+    is recomputed so the arithmetic audits clean; an independently sampled
+    fare next to its own factors is the fastest tell in generated data.
+    """
+    lower = {c.lower(): c for c in df.columns}
+    mult_col = next(
+        (lower[c] for c in lower if c.endswith("_multiplier") or c == "multiplier"),
+        None,
+    )
+    if mult_col is None:
+        return
+    for c in list(lower):
+        if not c.startswith("base_"):
+            continue
+        stem = c[5:]
+        target = next(
+            (lower[t] for t in (f"{stem}_amount", f"{stem}_total",
+                                f"total_{stem}", stem) if t in lower),
+            None,
+        )
+        if target is None or target == mult_col:
+            continue
+        base = pd.to_numeric(df[lower[c]], errors="coerce")
+        mult = pd.to_numeric(df[mult_col], errors="coerce")
+        ok = base.notna() & mult.notna()
+        if not ok.any():
+            continue
+        df.loc[ok, target] = np.round(base[ok] * mult[ok], 2)
+
+
+# Rank families for lookup-table labels. Within a family, position = rank;
+# a tier table's numeric columns (fees, limits, credits) must ascend with it.
+_RANK_FAMILIES = [
+    ["bronze", "silver", "gold", "platinum", "diamond", "elite"],
+    # the membership REFERENCE_TIER_POOL mixes a plan word into the metals
+    ["free", "basic", "bronze", "silver", "gold", "platinum", "diamond", "elite"],
+    ["free", "trial", "lite", "basic", "starter", "standard", "plus",
+     "growth", "pro", "premium", "advanced", "business", "scale",
+     "enterprise", "ultimate"],
+    ["extra small", "small", "medium", "large", "extra large"],
+    ["micro", "small", "medium", "large", "enterprise"],
+    ["very low", "low", "moderate", "medium", "high", "very high"],
+    ["junior", "mid-level", "senior", "staff", "principal"],
+    ["economy", "comfort", "premium", "luxury"],
+    ["student", "individual", "family", "corporate", "lifetime"],
+]
+
+_RANK_LABEL_COLS = ("tier", "level", "plan", "grade", "rank", "band",
+                    "name", "label", "membership", "class", "size", "segment")
+
+_RANKABLE_TABLE_RE = re.compile(
+    r"(tiers?|levels?|plans?|grades?|ranks?|bands?|brackets?|memberships?|sizes?)$",
+    re.IGNORECASE,
+)
+
+
+def _fix_rankable_lookup_monotonicity(df: pd.DataFrame, columns: set[str], table_name: str = "") -> None:
+    """Numeric columns of a rankable lookup table ascend with the tier rank.
+
+    A membership_tiers table where Silver costs 130 and Platinum costs 96 is
+    instantly fake. The fix keeps the generated VALUES (spec-shaped) and
+    reassigns them so rank order and numeric order agree.
+    """
+    if len(df) > 50 or len(df) < 2:
+        return
+    if not _RANKABLE_TABLE_RE.search(str(table_name or "")):
+        return
+    label_col = next(
+        (c for c in df.columns
+         if c.lower() in _RANK_LABEL_COLS and df[c].dtype == object),
+        None,
+    )
+    if label_col is None:
+        return
+    labels = df[label_col].astype(str).str.strip().str.lower()
+    ranks = None
+    for family in _RANK_FAMILIES:
+        pos = {name: i for i, name in enumerate(family)}
+        cand = labels.map(pos)
+        if cand.notna().all() and cand.nunique() == len(df):
+            ranks = cand.astype(int)
+            break
+    if ranks is None:
+        return
+    order = np.argsort(ranks.values)  # row indices from lowest to highest tier
+    for col in df.columns:
+        if col == label_col or col.lower() == "id" or col.lower().endswith("_id"):
+            continue
+        if df[col].dtype.kind == "b" or df[col].dtype == object:
+            continue
+        vals = pd.to_numeric(df[col], errors="coerce")
+        if vals.isna().any() or vals.nunique() <= 1:
+            continue
+        sorted_vals = np.sort(vals.values)
+        out = np.empty(len(df), dtype=float)
+        out[order] = sorted_vals
+        df[col] = out.astype(df[col].dtype) if df[col].dtype.kind in "iu" else out
 
 
 def _apply_plan_price_mapping(df: pd.DataFrame, columns: set[str]) -> None:

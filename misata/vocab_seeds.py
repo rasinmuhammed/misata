@@ -732,8 +732,8 @@ REFERENCE_TYPE_POOLS: Dict[str, List[str]] = {
                    "Corporate", "Family", "Lifetime"],
     "contract": ["Fixed-term", "Permanent", "Zero-hours", "Freelance",
                  "Retainer", "Project-based", "Consulting"],
-    "event": ["Conference", "Workshop", "Webinar", "Meetup", "Seminar",
-              "Launch", "Networking", "Training", "Hackathon"],
+    "event": ["Conference", "Concert", "Festival", "Sporting Event",
+              "Workshop", "Meetup", "Launch", "Networking", "Training"],
     "ticket": ["General Admission", "VIP", "Early Bird", "Student",
                "Group", "Season Pass", "Day Pass", "Backstage"],
     "insurance": ["Auto", "Home", "Life", "Health", "Travel", "Renters",
@@ -748,8 +748,17 @@ REFERENCE_TYPE_POOLS: Dict[str, List[str]] = {
                 "Sports", "Beauty", "Toys", "Groceries", "Automotive"],
     "surge_event": ["High Demand", "Concert", "Sporting Event", "Bad Weather",
                     "Rush Hour", "Airport Peak", "Holiday", "Festival"],
-    "event": ["Conference", "Concert", "Festival", "Sporting Event",
-              "Workshop", "Meetup", "Launch", "Holiday"],
+    "surge_pricing_event": ["High Demand", "Concert", "Sporting Event",
+                            "Bad Weather", "Rush Hour", "Airport Peak",
+                            "Holiday", "Festival"],
+    "ride": ["Economy", "Comfort", "XL", "Premium", "Shared", "Luxury",
+             "Pet-Friendly", "Wheelchair Accessible"],
+    "trip": ["Economy", "Comfort", "XL", "Premium", "Shared", "Luxury",
+             "Airport", "Scheduled"],
+    "delivery": ["Standard", "Express", "Same-Day", "Scheduled",
+                 "Contactless", "Grocery", "Pharmacy", "Oversized"],
+    "driver": ["Full-time", "Part-time", "Weekend", "Night Shift",
+               "Fleet", "Owner-Operator", "Courier", "Chauffeur"],
 }
 
 SURGE_REASONS = [
@@ -789,6 +798,13 @@ REFERENCE_STATUS_POOLS: Dict[str, List[str]] = {
              "Completed", "Cancelled", "No Show"],
     "vendor": ["Verified", "Active", "Pending Review", "Onboarding",
                "Suspended", "Inactive"],
+    "driver": ["Online", "Offline", "On Trip", "Available", "On Break",
+               "Pending Approval", "Suspended", "Deactivated"],
+    "delivery": ["Order Placed", "Preparing", "Ready for Pickup",
+                 "Courier Assigned", "Picked Up", "In Transit",
+                 "Delivered", "Cancelled"],
+    "vehicle": ["Active", "In Maintenance", "Pending Inspection",
+                "Approved", "Retired", "Deactivated"],
 }
 
 GENERIC_STATUSES = [
@@ -842,6 +858,30 @@ REFERENCE_TIER_POOLS: Dict[str, List[str]] = {
 GENERIC_TIERS = [
     "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Elite",
 ]
+
+
+# Vehicle make → real model names, so a vehicles table never pairs
+# "Toyota" with a marketing sentence. Keys are lowercase makes.
+VEHICLE_MODELS_BY_MAKE: Dict[str, List[str]] = {
+    "toyota": ["Camry", "Corolla", "RAV4", "Highlander", "Prius", "Tacoma", "Sienna"],
+    "honda": ["Civic", "Accord", "CR-V", "Pilot", "Odyssey", "HR-V", "Fit"],
+    "ford": ["F-150", "Escape", "Explorer", "Fusion", "Mustang", "Edge", "Transit"],
+    "chevrolet": ["Silverado", "Equinox", "Malibu", "Tahoe", "Traverse", "Bolt", "Impala"],
+    "nissan": ["Altima", "Sentra", "Rogue", "Pathfinder", "Versa", "Murano", "Leaf"],
+    "hyundai": ["Elantra", "Sonata", "Tucson", "Santa Fe", "Kona", "Palisade", "Ioniq 5"],
+    "kia": ["K5", "Sorento", "Sportage", "Soul", "Telluride", "Forte", "Niro"],
+    "volkswagen": ["Jetta", "Passat", "Tiguan", "Atlas", "Golf", "Taos", "ID.4"],
+    "bmw": ["3 Series", "5 Series", "X3", "X5", "X1", "4 Series", "i4"],
+    "mercedes-benz": ["C-Class", "E-Class", "GLC", "GLE", "A-Class", "S-Class", "EQE"],
+    "audi": ["A4", "A6", "Q5", "Q7", "Q3", "A3", "e-tron"],
+    "tesla": ["Model 3", "Model Y", "Model S", "Model X"],
+    "subaru": ["Outback", "Forester", "Crosstrek", "Impreza", "Ascent", "Legacy"],
+    "mazda": ["CX-5", "Mazda3", "CX-30", "CX-9", "Mazda6", "MX-5 Miata"],
+    "jeep": ["Grand Cherokee", "Wrangler", "Cherokee", "Compass", "Renegade", "Gladiator"],
+    "lexus": ["RX", "ES", "NX", "GX", "IS", "UX"],
+    "dodge": ["Charger", "Challenger", "Durango", "Journey"],
+    "gmc": ["Sierra", "Terrain", "Acadia", "Yukon", "Canyon"],
+}
 
 
 # Departments beyond the generic list — used when a column asks for one.
