@@ -44,6 +44,30 @@ from misata.vocabulary import SemanticVocabularyGenerator
 from misata.workflows import WorkflowEngine
 
 
+def _lognormal_mu_sigma(mean: float, std: float, minimum=None) -> "tuple[float, float]":
+    """Resolve lognormal (mu, sigma) from `mean`/`std`, disambiguating the
+    log-space-vs-arithmetic convention.
+
+    The arithmetic reading is `sigma = sqrt(ln(1+(std/mean)^2))`,
+    `mu = ln(mean) - sigma^2/2`. But a small `mean` (≤ 20) paired with a large
+    `min` (≥ 1000) can't be an arithmetic mean — the whole column would clip
+    onto `min` (the canonical real-estate example: mean 12.5, min 80000 made
+    every price 80000). There, `mean` is the log-space mu and `std` the sigma.
+    """
+    if mean <= 0:
+        return (0.0, max(0.01, std))
+    try:
+        _min = float(minimum) if minimum is not None else None
+    except (TypeError, ValueError):
+        _min = None
+    if mean <= 20 and _min is not None and _min >= 1000:
+        sigma = std if 0 < std < 3 else 0.5
+        return (mean, sigma)
+    sigma = float(np.sqrt(np.log(1 + (std / mean) ** 2)))
+    mu = float(np.log(mean) - 0.5 * sigma ** 2)
+    return (mu, sigma)
+
+
 def _null_column(df: pd.DataFrame, col_name: str, mask: "pd.Series") -> None:
     """Assign null to rows matching *mask* while preserving integer dtype fidelity.
 
@@ -908,8 +932,7 @@ class DataSimulator:
                 else:
                     mean = float(params.get("mean", 100))
                     std = float(params.get("std", 50))
-                    sigma = np.sqrt(np.log(1 + (std / mean) ** 2))
-                    mu = np.log(mean) - 0.5 * sigma ** 2
+                    mu, sigma = _lognormal_mu_sigma(mean, std, params.get("min"))
                 values = self.rng.lognormal(mu, sigma, size=size).astype(int)
             elif distribution in ("power_law", "pareto", "zipf"):
                 # "zipf" is accepted as an alias (its shape param is "a"); mapped
@@ -1085,8 +1108,7 @@ class DataSimulator:
                 else:
                     mean = float(params.get("mean", 100.0))
                     std = float(params.get("std", 50.0))
-                    sigma = np.sqrt(np.log(1 + (std / mean) ** 2))
-                    mu = np.log(mean) - 0.5 * sigma ** 2
+                    mu, sigma = _lognormal_mu_sigma(mean, std, params.get("min"))
                 values = self.rng.lognormal(mu, sigma, size=size)
             elif distribution in ("power_law", "pareto", "zipf"):
                 alpha = float(params.get("alpha", params.get("a", 1.5)))
@@ -3481,7 +3503,7 @@ class DataSimulator:
                 state = str(self.rng.choice(states, p=probs))
             return state
 
-        states = [_traverse(initial) for _ in range(len(df))]
+        states = [str(_traverse(initial)) for _ in range(len(df))]
 
         # LLMs regularly point a state machine at the FK column (state_column:
         # "status_id") while the transitions speak in LABELS. Writing labels

@@ -1518,9 +1518,10 @@ class EntityCoherenceEngine:
 
 
 _TIME_CHAIN_ORDER = ("created", "requested", "request", "signup", "start",
-                     "begin", "pickup", "departure", "sent", "updated",
-                     "end", "dropoff", "arrival", "delivered", "completed",
-                     "complete", "finish", "closed", "resolved")
+                     "begin", "dispatch", "pickup", "departure", "sent",
+                     "updated", "end", "arrival", "arrived", "dropoff",
+                     "delivered", "completed", "complete", "finish",
+                     "closed", "resolved")
 
 
 # Chain steps that happen within ONE sitting (a trip, a session, a surge

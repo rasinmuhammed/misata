@@ -654,3 +654,76 @@ class TestSchemaContractPhase2:
                     {"name": "repair_type", "type": "text"}]},
             })
         assert any("label column" in str(x.message) for x in ws)
+
+
+class TestReleaseGate0_8_1_22:
+    """0.8.1.22: engine hardening surfaced by the 5-domain release-gate audit —
+    lognormal log-space mean disambiguation, malformed-choice sanitizer,
+    dispatch temporal ordering."""
+
+    def _parse(self, sd):
+        import warnings as w
+        from misata.llm_parser import LLMSchemaGenerator
+        gen = LLMSchemaGenerator.__new__(LLMSchemaGenerator)
+        with w.catch_warnings():
+            w.simplefilter("ignore")
+            return gen._parse_schema(sd)
+
+    def test_lognormal_mu_sigma_helper(self):
+        from misata.simulator import _lognormal_mu_sigma
+        import math
+        mu, sigma = _lognormal_mu_sigma(12.5, 0.6, 80000)
+        assert mu == 12.5 and sigma == 0.6
+        assert math.exp(mu) > 80000
+        mu2, sigma2 = _lognormal_mu_sigma(100.0, 40.0, None)
+        assert abs(math.exp(mu2) - 100.0) < 20
+
+    def test_lognormal_small_mean_large_min_is_log_space(self):
+        # The canonical real-estate example: mean 12.5, min 80000 used to clip
+        # every row onto 80000. mean must be read as log-space mu.
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "listings": {"__rows__": 5000,
+                "id": {"type": "integer", "primary_key": True},
+                "price": {"type": "float", "distribution": "lognormal",
+                          "mean": 12.5, "std": 0.6, "min": 80000, "decimals": 0}},
+        }, seed=3))["listings"]
+        p = t["price"]
+        assert p.nunique() > 1000, "prices must vary, not clip to min"
+        assert 150_000 < p.median() < 500_000, f"median {p.median()}"
+
+    def test_arithmetic_lognormal_still_works(self):
+        # A normal arithmetic-mean lognormal (mean 100, no huge min) is untouched.
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "x": {"__rows__": 5000, "id": {"type": "integer", "primary_key": True},
+                  "v": {"type": "float", "distribution": "lognormal",
+                        "mean": 100, "std": 40}},
+        }, seed=4))["x"]
+        assert 70 < t["v"].median() < 130, t["v"].median()
+
+    def test_malformed_concatenated_choices_do_not_crash(self):
+        # LLMs sometimes emit choices/probabilities collapsed into one token.
+        cfg = self._parse({
+            "name": "x",
+            "tables": [{"name": "listings", "row_count": 500}],
+            "columns": {"listings": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "bedrooms", "type": "int", "distribution_params": {
+                    "distribution": "categorical", "choices": [123456],
+                    "probabilities": ["0.050.200.350.250.100.05"]}},
+                {"name": "bathrooms", "type": "float", "distribution_params": {
+                    "distribution": "categorical", "choices": ["1.01.52.02.53.0"],
+                    "probabilities": ["0.150.250.350.200.05"]}}]},
+        })
+        t = misata.generate_from_schema(cfg)["listings"]  # must not raise
+        assert t["bedrooms"].between(1, 6).all()
+        assert t["bathrooms"].between(1.0, 3.5).all()
+
+    def test_dispatch_arrival_chain_ordered(self):
+        import pandas as pd
+        t = misata.generate_from_schema(misata.from_dict_schema({
+            "missions": {"__rows__": 600,
+                "id": {"type": "integer", "primary_key": True},
+                "dispatch_date": {"type": "datetime", "min": "2024-01-01", "max": "2025-12-31"},
+                "arrival_date": {"type": "datetime", "min": "2024-01-01", "max": "2025-12-31"}},
+        }, seed=5))["missions"]
+        assert (pd.to_datetime(t["arrival_date"]) >= pd.to_datetime(t["dispatch_date"])).all()

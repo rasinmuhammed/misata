@@ -586,7 +586,7 @@ Story: "A real-estate dataset of 10,000 listings where price rises with square f
       {"name":"id","type":"int","distribution_params":{"distribution":"uniform","min":1,"max":10000},"unique":true},
       {"name":"property_type_id","type":"foreign_key","distribution_params":{}},
       {"name":"status_id","type":"foreign_key","distribution_params":{}},
-      {"name":"price","type":"float","distribution_params":{"distribution":"lognormal","mean":12.5,"std":0.6,"min":80000,"decimals":0}},
+      {"name":"price","type":"float","distribution_params":{"distribution":"lognormal","mu":12.5,"sigma":0.6,"min":80000,"decimals":0}},
       {"name":"square_footage","type":"int","distribution_params":{"distribution":"normal","mean":1800,"std":600,"min":400,"max":8000}},
       {"name":"bedrooms","type":"int","distribution_params":{"distribution":"categorical","choices":[1,2,3,4,5,6],"probabilities":[0.05,0.20,0.35,0.25,0.10,0.05]}},
       {"name":"bathrooms","type":"float","distribution_params":{"distribution":"categorical","choices":[1.0,1.5,2.0,2.5,3.0],"probabilities":[0.15,0.25,0.35,0.20,0.05]}},
@@ -1532,6 +1532,35 @@ Include reference tables with inline_data for lookup values and transactional ta
                     )
                     col_type = "text"
 
+                # Models occasionally emit a categorical whose `choices` /
+                # `probabilities` arrived as ONE concatenated token instead of a
+                # list — `choices: [123456]`, `probabilities: "0.050.200.35"`.
+                # Left alone the engine crashes casting "1.01.52.0" to float.
+                # Drop the malformed params so the fallback/default path takes
+                # over rather than aborting the whole generation.
+                _malformed_choices = False
+                if col_type in ("categorical", "int", "float"):
+                    _ch = raw_params.get("choices")
+                    _pr = raw_params.get("probabilities")
+                    if isinstance(_pr, str):
+                        raw_params.pop("probabilities", None)
+                        _malformed_choices = True
+                    if isinstance(_ch, list) and len(_ch) == 1 and isinstance(_ch[0], str) \
+                            and re.search(r"\d\D*\d.*\d", _ch[0]) and len(_ch[0]) > 4:
+                        # single element like "1.01.52.02.5" — not a real label
+                        raw_params.pop("choices", None)
+                        raw_params.pop("probabilities", None)
+                        _malformed_choices = True
+                    if isinstance(_ch, list) and len(_ch) == 1 and isinstance(_ch[0], int) \
+                            and _ch[0] > 9 and re.fullmatch(r"1234567?8?9?", str(_ch[0])):
+                        # [123456] — a "1,2,3,…" run collapsed into one int
+                        raw_params.pop("choices", None)
+                        raw_params.pop("probabilities", None)
+                        _malformed_choices = True
+                    if _malformed_choices and col_type == "categorical":
+                        # No usable choices left; let downstream defaults decide.
+                        raw_params.pop("distribution", None)
+
                 # Coerce known small-integer columns from categorical/enum to int.
                 # Models often emit bedrooms/bathrooms as enum or categorical; they
                 # must be int so they render and export as numbers, not labels.
@@ -1542,9 +1571,11 @@ Include reference tables with inline_data for lookup values and transactional ta
                     "floors", "stories", "num_floors", "num_stories",
                     "rooms", "num_rooms", "room_count",
                 }
-                if col_type == "categorical" and c.get("name", "").lower() in _INT_FORCE_NAMES:
+                if c.get("name", "").lower() in _INT_FORCE_NAMES and (
+                    col_type == "categorical" or _malformed_choices
+                ):
                     col_type = "int"
-                    if not raw_params.get("distribution"):
+                    if not raw_params.get("distribution") or _malformed_choices:
                         col_lc = c.get("name", "").lower()
                         if "bath" in col_lc:
                             raw_params = {
@@ -1853,12 +1884,12 @@ Include reference tables with inline_data for lookup values and transactional ta
             )
             if label_key is None:
                 continue
-            sm_states = set(sm.get("transitions", {}).keys())
+            sm_states = {str(k) for k in sm.get("transitions", {}).keys()}
             for nexts in sm.get("transitions", {}).values():
                 if isinstance(nexts, dict):
-                    sm_states.update(nexts.keys())
+                    sm_states.update(str(k) for k in nexts.keys())
             if sm.get("initial_state"):
-                sm_states.add(sm["initial_state"])
+                sm_states.add(str(sm["initial_state"]))
             existing = {str(r.get(label_key, "")).strip().lower() for r in parent.inline_data}
             missing = [s for s in sm_states if s.strip().lower() not in existing]
             if missing:
