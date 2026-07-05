@@ -887,6 +887,16 @@ def build_oracle_report(
     kpi_conformance = _kpi_conformance(tables, schema_config)
     locale_fit = _locale_domain_fit(tables, schema_config)
 
+    # Advisory coherence: reader-visible contradictions (near-constant numerics,
+    # filler labels, temporal disorder, scale absurdity, geo/tenure mismatch,
+    # broken derived math). Detection only here — never mutate what the caller
+    # already generated.
+    try:
+        from misata.coherence import coherence_audit as _coherence_audit
+        coherence = _coherence_audit(tables, repair=False).to_dict()
+    except Exception as exc:  # advisory must never break the Oracle
+        coherence = {"misata_report": "coherence", "error": str(exc)}
+
     hard_passed = (
         not getattr(validation, "has_errors", True)
         and bool(getattr(quality, "passed", False))
@@ -920,6 +930,7 @@ def build_oracle_report(
             "privacy": _json_safe(advisory_reports["privacy"]),
             "fidelity": _json_safe(advisory_reports["fidelity"]),
             "locale_domain_fit": locale_fit,
+            "coherence": coherence,
             "data_card": _json_safe(advisory_reports["data_card"]),
         },
         "reproducibility": {
