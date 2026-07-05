@@ -46,6 +46,11 @@ plugins:
   - search
   - meta
 
+# Cross-domain canonicalization: pages duplicated on misata.studio/docs point
+# their canonical there so ranking signals consolidate on the brand domain.
+hooks:
+  - docs_seo_hook.py
+
 markdown_extensions:
   - admonition
   - pymdownx.details
