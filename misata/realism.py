@@ -79,6 +79,17 @@ _REF_TABLE_KIND_RE = re.compile(
     r"segments?|sizes?|grades?|ranks?|bands?|brackets?|classes)$",
     re.IGNORECASE,
 )
+def _is_text_dtype(series: "pd.Series") -> bool:
+    """True for a string-holding column under any pandas config.
+
+    Newer pandas / numpy-2 string inference gives string columns a ``str`` /
+    ``string`` dtype rather than ``object``; a bare ``dtype == object`` check
+    then silently skips them (the tier-monotonicity and state-machine label
+    lookups both broke on CI this way). This accepts object and string dtypes.
+    """
+    return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+
+
 def _fuzzy_pool(pools: dict, head: str):
     """Resolve a lookup-table head noun against a pool dict, tolerating
     qualifier tokens: surge_pricing_event → surge_event pool.
@@ -1639,7 +1650,7 @@ def _fix_time_chains(df: pd.DataFrame, columns: set, rng: np.random.Generator) -
     ordered = ns.astype("datetime64[ns]")
     for i, col in enumerate(chain):
         out = pd.Series(ordered[:, i]).where(pd.Series(valid), vals[col])
-        df[col] = out.dt.strftime("%Y-%m-%d %H:%M:%S") if df[col].dtype == object else out.values
+        df[col] = out.dt.strftime("%Y-%m-%d %H:%M:%S") if _is_text_dtype(df[col]) else out.values
 
 
 def _fix_city_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
@@ -2012,7 +2023,7 @@ def _fix_rankable_lookup_monotonicity(df: pd.DataFrame, columns: set[str], table
         return
     label_col = next(
         (c for c in df.columns
-         if c.lower() in _RANK_LABEL_COLS and df[c].dtype == object),
+         if c.lower() in _RANK_LABEL_COLS and _is_text_dtype(df[c])),
         None,
     )
     if label_col is None:
@@ -2031,7 +2042,7 @@ def _fix_rankable_lookup_monotonicity(df: pd.DataFrame, columns: set[str], table
     for col in df.columns:
         if col == label_col or col.lower() == "id" or col.lower().endswith("_id"):
             continue
-        if df[col].dtype.kind == "b" or df[col].dtype == object:
+        if df[col].dtype.kind == "b" or _is_text_dtype(df[col]):
             continue
         vals = pd.to_numeric(df[col], errors="coerce")
         if vals.isna().any() or vals.nunique() <= 1:

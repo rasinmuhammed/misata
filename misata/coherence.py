@@ -175,6 +175,12 @@ def _numeric(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce")
 
 
+def _is_text_dtype(series: pd.Series) -> bool:
+    """String columns are ``str``/``string`` dtype (not ``object``) under
+    pandas string inference; accept both so detectors don't skip them."""
+    return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+
+
 # --------------------------------------------------------------------------- #
 # Detectors  (each returns findings; repair happens in the mutating helpers)
 # --------------------------------------------------------------------------- #
@@ -225,7 +231,7 @@ def _detect_near_constant(table: str, df: pd.DataFrame) -> List[CoherenceFinding
 def _detect_label_filler(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
     out: List[CoherenceFinding] = []
     for col in df.columns:
-        if df[col].dtype != object or not _is_label_column(col):
+        if not _is_text_dtype(df[col]) or not _is_label_column(col):
             continue
         s = df[col].dropna().astype(str)
         if s.empty:
@@ -299,7 +305,7 @@ def _detect_and_repair_temporal(
         valid = ~np.isnat(vals.values.astype("datetime64[ns]")).any(axis=1)
         for i, col in enumerate(chain):
             new = pd.Series(ordered[:, i], index=df.index)
-            if df[col].dtype == object:
+            if _is_text_dtype(df[col]):
                 new = new.dt.strftime("%Y-%m-%d %H:%M:%S")
             df.loc[valid, col] = new[valid]
     return out

@@ -3518,7 +3518,8 @@ class DataSimulator:
             parent_df = self.context[rel.parent_table]
             label_col = next(
                 (c for c in parent_df.columns if c != rel.parent_key
-                 and parent_df[c].dtype == object),
+                 and (pd.api.types.is_object_dtype(parent_df[c])
+                      or pd.api.types.is_string_dtype(parent_df[c]))),
                 None,
             )
             if label_col is not None:
