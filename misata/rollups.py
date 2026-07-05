@@ -102,6 +102,7 @@ _NAME_RULES = [
     (re.compile(r"^num_(.+)$"),           "count", 1),   # num_orders   -> count of orders
     (re.compile(r"^(.+)_count$"),         "count", 1),   # order_count  -> count of orders
     (re.compile(r"^avg_(.+)$"),           "mean",  1),   # avg_order... -> mean over orders
+    (re.compile(r"^lifetime_(.+)$"),      "count", 1),   # lifetime_rides -> count of rides
 ]
 
 
@@ -135,6 +136,10 @@ def infer_rollups(config: Any, tables_present: Optional[set] = None) -> List[Rol
             if match is None:
                 continue
             agg, noun = match
+            # An int-typed total_<child> ("total_missions") counts child rows;
+            # only float totals sum a child measure.
+            if agg == "sum" and getattr(col, "type", "") == "int":
+                agg = "count"
             child = _pick_child_for(noun, kids, config, agg)
             if child is None:
                 continue
@@ -252,6 +257,12 @@ def _pick_child_for(noun: Optional[str], kids: List[tuple], config: Any, agg: st
     for child_table, fk, pk in kids:
         ct = child_table.lower()
         if ct in forms or ct.rstrip("s") in forms:
+            return (child_table, fk, pk)
+    # Compound child tables still name the noun as their head token:
+    # lifetime_sessions -> training_sessions.
+    for child_table, fk, pk in kids:
+        ct = child_table.lower()
+        if any(ct.endswith("_" + f) for f in forms if f):
             return (child_table, fk, pk)
     return None
 

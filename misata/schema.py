@@ -432,6 +432,15 @@ class SchemaConfig(BaseModel):
     noise_config: Optional[NoiseConfig] = None
     realism: Optional[RealismConfig] = None
     seed: Optional[int] = None
+    vocabularies: Optional[Dict[str, List[str]]] = Field(
+        default=None,
+        description=(
+            "Mini-capsule: column-name → list of real domain values, spent once "
+            "at schema design time (typically by the LLM for niche domains). "
+            "Merged into the generation capsule so open-ended text columns draw "
+            "from real vocabulary instead of structural filler."
+        ),
+    )
 
     @field_validator("columns")
     @classmethod

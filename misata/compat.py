@@ -478,7 +478,9 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
         flat["__domain__"] = schemas["domain"]
     for env_key, dunder in (("outcome_curves", "__outcome_curves__"),
                             ("rate_curves", "__rate_curves__"),
-                            ("noise", "__noise__")):
+                            ("noise", "__noise__"),
+                            ("vocabulary", "__vocabulary__"),
+                            ("vocabularies", "__vocabulary__")):
         if schemas.get(env_key) is not None:
             flat[dunder] = schemas[env_key]
     # Preserve any dunder directives passed alongside the envelope.
@@ -626,6 +628,18 @@ def from_dict_schema(
     # __domain__ stores the domain name on the SchemaConfig for post-generation validation
     domain: Optional[str] = schemas.get("__domain__") or None
 
+    # __vocabulary__ is the schema-embedded mini-capsule: column name → real
+    # values, sampled by the engine for open-ended text columns.
+    vocabularies: Optional[Dict[str, List[str]]] = None
+    raw_vocab = schemas.get("__vocabulary__")
+    if isinstance(raw_vocab, dict):
+        cleaned = {
+            str(k).strip().lower(): [str(x).strip() for x in v if str(x).strip()]
+            for k, v in raw_vocab.items()
+            if isinstance(v, (list, tuple))
+        }
+        vocabularies = {k: v for k, v in cleaned.items() if len(v) >= 2} or None
+
     for table_name, table_def in schemas.items():
         if table_name.startswith("__"):
             continue
@@ -769,6 +783,7 @@ def from_dict_schema(
         noise_config=noise_config,
         seed=seed,
         domain=domain,
+        vocabularies=vocabularies,
     )
 
 

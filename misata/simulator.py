@@ -151,6 +151,23 @@ class DataSimulator:
         if capsule_file:
             from misata.capsules import load_capsule, merge_into
             self.domain_capsule = merge_into(self.domain_capsule, load_capsule(capsule_file))
+        # Schema-embedded mini-capsule (LLM spends its world knowledge once at
+        # design time): column-keyed vocabularies with non-default provenance,
+        # so `_capsule_vocab_for_column` lets them beat built-in pools.
+        schema_vocab = getattr(config, "vocabularies", None) or {}
+        for _vname, _vvalues in schema_vocab.items():
+            if not isinstance(_vvalues, (list, tuple)) or not _vvalues:
+                continue
+            from misata.domain_capsule import AssetProvenance, VocabularyAsset
+            self.domain_capsule.record_asset(VocabularyAsset(
+                name=str(_vname).lower(),
+                values=[str(v) for v in _vvalues],
+                provenance=AssetProvenance(
+                    source_type="schema",
+                    source_name="schema-vocabulary",
+                    license_name="user",
+                ),
+            ))
         # Resolve locale: schema.realism.locale → schema.domain hint → default en_US
         self.locale = getattr(realism, "locale", None) or "en_US"
         self.realistic_text = RealisticTextGenerator(self.rng, capsule=self.domain_capsule, locale=self.locale, domain=getattr(config, 'domain', None))
@@ -592,6 +609,17 @@ class DataSimulator:
                                     parent_values = np.array([id_to_name.get(safe_str(val), val) for val in parent_values])
                                     break
 
+                # Mapping keys arrive as JSON strings; parent values may be ints
+                # (FK ids). Compare in the parent's type or every mask is empty
+                # ("1" == 1 is False and the whole mapping silently no-ops).
+                def _coerce_key(key):
+                    if len(parent_values) > 0:
+                        try:
+                            return type(parent_values[0])(key)
+                        except (TypeError, ValueError):
+                            return key
+                    return key
+
                 if isinstance(first_val, dict) and any(k in first_val for k in ("mean", "mu", "value")):
                     # Numeric conditional distribution — supports three sub-types per key:
                     #   normal:    {"mean": 150, "std": 30}
@@ -673,7 +701,7 @@ class DataSimulator:
                     # mapping = {"USA": ["CA", "TX", "NY"], "UK": ["England", "Scotland"]}
                     values = np.empty(size, dtype=object)
                     for key, choices in mapping.items():
-                        mask = parent_values == key
+                        mask = parent_values == _coerce_key(key)
                         count = mask.sum()
                         if count > 0:
                             values[mask] = self.rng.choice(choices, count)
@@ -690,7 +718,7 @@ class DataSimulator:
                     # mapping = {"free": 0.3, "pro": 0.1, "enterprise": 0.05}
                     values = np.zeros(size, dtype=bool)
                     for key, prob in mapping.items():
-                        mask = parent_values == key
+                        mask = parent_values == _coerce_key(key)
                         count = mask.sum()
                         if count > 0:
                             values[mask] = self.rng.random(count) < prob
@@ -3453,7 +3481,42 @@ class DataSimulator:
                 state = str(self.rng.choice(states, p=probs))
             return state
 
-        df[state_col] = [_traverse(initial) for _ in range(len(df))]
+        states = [_traverse(initial) for _ in range(len(df))]
+
+        # LLMs regularly point a state machine at the FK column (state_column:
+        # "status_id") while the transitions speak in LABELS. Writing labels
+        # into an FK breaks referential integrity, so translate label → parent
+        # id via the statuses lookup table.
+        rel = next(
+            (r for r in self.config.relationships
+             if r.child_table == table_name and r.child_key == state_col),
+            None,
+        )
+        if rel is not None and rel.parent_table in self.context:
+            parent_df = self.context[rel.parent_table]
+            label_col = next(
+                (c for c in parent_df.columns if c != rel.parent_key
+                 and parent_df[c].dtype == object),
+                None,
+            )
+            if label_col is not None:
+                label_to_id = {
+                    str(lbl).strip().lower(): pid
+                    for pid, lbl in zip(parent_df[rel.parent_key], parent_df[label_col])
+                }
+                hits = sum(1 for s in states if s.strip().lower() in label_to_id)
+                if hits >= len(states) * 0.5:
+                    _fallback = next(iter(label_to_id.values()))
+                    unmatched = {s for s in states if s.strip().lower() not in label_to_id}
+                    if unmatched:
+                        warnings.warn(
+                            f"state_machine on {table_name}.{state_col}: states "
+                            f"{sorted(unmatched)} missing from {rel.parent_table}; "
+                            f"mapped to an existing id."
+                        )
+                    states = [label_to_id.get(s.strip().lower(), _fallback) for s in states]
+
+        df[state_col] = states
         return df
 
     def _apply_null_if(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:

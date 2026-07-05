@@ -536,3 +536,121 @@ class TestRideShareFieldReportV3:
         calc = np.round(t["base_fare"].astype(float) * t["surge_multiplier"].astype(float), 2)
         assert (abs(t["fare_amount"] - calc) < 0.011).all()
         assert t["tip_amount"].std() > 1, "unrelated money columns must not be rewritten"
+
+
+class TestSchemaContractPhase2:
+    """0.8.1.22: the LLM value contract — schema-embedded vocabulary block,
+    nested-columns hoist, state-machine FK label→id + inline_data extension,
+    depends_on FK-id key coercion, lifetime_* rollup inference."""
+
+    def _parse(self, sd):
+        import warnings as w
+        from misata.llm_parser import LLMSchemaGenerator
+        gen = LLMSchemaGenerator.__new__(LLMSchemaGenerator)
+        with w.catch_warnings():
+            w.simplefilter("ignore")
+            return gen._parse_schema(sd)
+
+    def test_schema_vocabulary_block_feeds_text_columns(self):
+        cfg = self._parse({
+            "name": "Falconry",
+            "vocabulary": {"species": ["Peregrine Falcon", "Harris Hawk",
+                                       "Gyrfalcon", "Saker Falcon", "Goshawk"]},
+            "tables": [{"name": "birds", "row_count": 200}],
+            "columns": {"birds": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "species", "type": "text"}]},
+        })
+        assert cfg.vocabularies and "species" in cfg.vocabularies
+        t = misata.generate_from_schema(cfg)["birds"]
+        assert set(t["species"].unique()) <= set(cfg.vocabularies["species"])
+
+    def test_nested_table_columns_are_hoisted(self):
+        cfg = self._parse({
+            "name": "x",
+            "tables": [{"name": "widgets", "row_count": 50, "columns": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "size_cm", "type": "float", "distribution_params": {"min": 1, "max": 9}}]}],
+        })
+        assert len(cfg.columns.get("widgets", [])) == 2
+
+    def test_state_machine_fk_label_resolves_and_extends_lookup(self):
+        cfg = self._parse({
+            "name": "rides",
+            "tables": [
+                {"name": "trip_statuses", "is_reference": True,
+                 "inline_data": [{"id": 1, "status": "Requested"},
+                                 {"id": 2, "status": "Completed"}]},
+                {"name": "trips", "row_count": 2000,
+                 "state_machine": {"state_column": "status_id",
+                    "initial_state": "Requested",
+                    "transitions": {"Requested": {"Completed": 0.9, "Cancelled": 0.1}}}},
+            ],
+            "columns": {"trips": [{"name": "id", "type": "int", "unique": True},
+                                  {"name": "status_id", "type": "foreign_key"}]},
+            "relationships": [{"parent_table": "trip_statuses", "child_table": "trips",
+                               "parent_key": "id", "child_key": "status_id"}],
+        })
+        t = misata.generate_from_schema(cfg)
+        trips, statuses = t["trips"], t["trip_statuses"]
+        assert "Cancelled" in set(statuses["status"]), "missing state must be added"
+        assert (~trips["status_id"].isin(statuses["id"])).sum() == 0, "no orphan FKs"
+        labels = trips["status_id"].map(dict(zip(statuses["id"], statuses["status"])))
+        assert {"Completed", "Cancelled"} <= set(labels.unique())
+
+    def test_depends_on_with_fk_id_keys_coerces(self):
+        cfg = self._parse({
+            "name": "x",
+            "tables": [
+                {"name": "techniques", "is_reference": True,
+                 "inline_data": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}]},
+                {"name": "sessions", "row_count": 4000},
+            ],
+            "columns": {"sessions": [
+                {"name": "id", "type": "int", "unique": True},
+                {"name": "technique_id", "type": "foreign_key"},
+                {"name": "success", "type": "boolean",
+                 "distribution_params": {"depends_on": "technique_id",
+                                         "mapping": {"1": 0.9, "2": 0.3}}}]},
+            "relationships": [{"parent_table": "techniques", "child_table": "sessions",
+                               "parent_key": "id", "child_key": "technique_id"}],
+        })
+        s = misata.generate_from_schema(cfg)["sessions"]
+        by = s.groupby("technique_id")["success"].mean()
+        assert by.loc[1] > 0.75 and by.loc[2] < 0.45, by.to_dict()
+
+    def test_lifetime_count_rollup_inferred(self):
+        cfg = self._parse({
+            "name": "x",
+            "tables": [
+                {"name": "riders", "row_count": 300},
+                {"name": "trips", "row_count": 3000},
+            ],
+            "columns": {
+                "riders": [{"name": "id", "type": "int", "unique": True},
+                           {"name": "lifetime_trips", "type": "int"}],
+                "trips": [{"name": "id", "type": "int", "unique": True},
+                          {"name": "rider_id", "type": "foreign_key"}]},
+            "relationships": [{"parent_table": "riders", "child_table": "trips",
+                               "parent_key": "id", "child_key": "rider_id"}],
+        })
+        t = misata.generate_from_schema(cfg)
+        real = t["trips"].groupby("rider_id").size()
+        merged = t["riders"].set_index("id")
+        err = (merged["lifetime_trips"] - real.reindex(merged.index).fillna(0)).abs().max()
+        assert err == 0, f"lifetime_trips must equal real trip count (max err {err})"
+
+    def test_label_column_without_choices_warns(self):
+        import warnings as w
+        from misata.llm_parser import LLMSchemaGenerator
+        gen = LLMSchemaGenerator.__new__(LLMSchemaGenerator)
+        with w.catch_warnings(record=True) as ws:
+            w.simplefilter("always")
+            gen._parse_schema({
+                "name": "x",
+                "tables": [{"name": "repairs", "row_count": 100}],
+                "columns": {"repairs": [
+                    {"name": "id", "type": "int", "unique": True},
+                    {"name": "repair_type", "type": "text"}]},
+            })
+        assert any("label column" in str(x.message) for x in ws)

@@ -695,6 +695,13 @@ class RealisticTextGenerator:
             from misata.vocab_seeds import MED_FREQUENCIES
             return self.rng.choice(MED_FREQUENCIES, size=size)
 
+        # Unknown semantic token from the caller (LLMs invent text_types like
+        # "make" or "model"): re-infer from the column name before falling
+        # back to filler sentences.
+        inferred = self._infer_semantic(column_name, table_name)
+        if inferred and inferred != semantic:
+            return self.generate(column_name, table_name, size, inferred, table_data)
+
         return np.array([
             self.rng.choice(self._vocabulary("product_description", PRODUCT_DESCRIPTION_TEMPLATES))
             for _ in range(size)
