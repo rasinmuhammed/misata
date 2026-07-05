@@ -1,7 +1,7 @@
 [project]
 name = "misata"
-version = "0.8.1.22"
-description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare — exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
+version = "0.8.1.23"
+description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare, exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
 ]
@@ -68,8 +68,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/rasinmuhammed/misata"
-Documentation = "https://github.com/rasinmuhammed/misata#readme"
+Homepage = "https://misata.studio"
+Studio = "https://misata.studio"
+Documentation = "https://misata.studio/docs"
 Repository = "https://github.com/rasinmuhammed/misata"
 Issues = "https://github.com/rasinmuhammed/misata/issues"
 Changelog = "https://github.com/rasinmuhammed/misata/blob/main/CHANGELOG.md"
@@ -99,7 +100,7 @@ llm = [
 ]
 bedrock = [
     # >=1.39 so the simple Bedrock API key (AWS_BEARER_TOKEN_BEDROCK) is honoured,
-    # not just IAM access keys. Converse API (Claude) — server-funded LLM path.
+    # not just IAM access keys. Converse API (Claude), server-funded LLM path.
     "boto3>=1.39.0",
 ]
 formulas = [
@@ -128,7 +129,7 @@ docs = [
     "mkdocs-material>=9.5.0",
 ]
 mcp = [
-    "mcp>=1.0.0",             # Model Context Protocol — exposes Misata to AI agents
+    "mcp>=1.0.0",             # Model Context Protocol, exposes Misata to AI agents
     "jsonschema>=4.0.0",      # YAML validation tool
 ]
 kaggle = [

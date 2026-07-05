@@ -15,6 +15,9 @@ Realistic, relational rows that hit exact revenue curves, fraud rates, referenti
 [![Open in Colab](https://img.shields.io/badge/Open%20in-Colab-F9AB00?style=flat-square&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/notebooks/quickstart.ipynb)
 [![Paper](https://img.shields.io/badge/arXiv-2606.08736-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2606.08736v1)
 [![smithery badge](https://smithery.ai/badge/misata/misata)](https://smithery.ai/servers/misata/misata)
+[![Misata Studio](https://img.shields.io/badge/Studio-no--code%20in%20your%20browser-E89030?style=flat-square)](https://misata.studio)
+
+**Prefer no code?** Try [**Misata Studio**](https://misata.studio), the no-code synthetic data generator: design a schema on a canvas or describe your dataset in plain English, then generate it in your browser. Same engine, same integrity proof.
 
 </div>
 
@@ -392,7 +395,7 @@ tables = misata.generate_from_schema(schema)
 
 Requires `pip install "misata[llm]"` plus one of `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`.
 
-> **Groq model tip:** `llama-3.3-70b-versatile` is the reliable free-tier default. Larger models (e.g. `openai/gpt-oss-120b`) can return `413 Request too large` on Groq's free tier — use them only on a paid tier. Whatever the model returns, generation never crashes on an imperfect schema: missing relationships, malformed probabilities, and out-of-range `time_unit`s are repaired automatically.
+> **Groq model tip:** `llama-3.3-70b-versatile` is the reliable free-tier default. Larger models (e.g. `openai/gpt-oss-120b`) can return `413 Request too large` on Groq's free tier, so use them only on a paid tier. Whatever the model returns, generation never crashes on an imperfect schema: missing relationships, malformed probabilities, and out-of-range `time_unit`s are repaired automatically.
 
 ### 6. Incremental generation, grow a dataset without re-seeding
 
@@ -1117,11 +1120,14 @@ feature," not "impossible."
 | Quality + privacy reports | No | No | No | Limited | **Yes** |
 | Pure Python, no external services | **Yes** | No | No | **Yes** | **Yes** |
 
-**Faker** generates individual fake values, not relational, no schema, no statistical accuracy.  
+[**Faker**](https://misata.studio/compare/misata-vs-faker) generates individual fake values, not relational, no schema, no statistical accuracy.  
 **Synth** excels at schema-as-code git workflows; limited distribution control.  
 **syda** uses an LLM for every row, semantically rich but expensive, slow, and requires an API key.  
-**SDV** learns from real data, a different problem (you need real data first).  
+[**SDV**](https://misata.studio/compare/misata-vs-sdv) learns from real data, a different problem (you need real data first).  
+[**Gretel**](https://misata.studio/compare/misata-vs-gretel) is a cloud service that needs an API key and sends data off-premise; Misata runs locally.  
 **Misata** generates from intent, offline by default, seeds databases directly, and now brings country-accurate statistics to every column automatically.
+
+Full head-to-head comparisons: [Misata vs Faker](https://misata.studio/compare/misata-vs-faker), [Misata vs SDV](https://misata.studio/compare/misata-vs-sdv), [Misata vs Gretel](https://misata.studio/compare/misata-vs-gretel).
 
 ---
 
