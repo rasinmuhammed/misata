@@ -1,0 +1,54 @@
+{
+  "misata_capsule": 1,
+  "domain": "houseplants",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "species": [
+      "Monstera deliciosa",
+      "Ficus lyrata",
+      "Epipremnum aureum",
+      "Sansevieria trifasciata",
+      "Calathea orbifolia",
+      "Philodendron hederaceum",
+      "Alocasia amazonica",
+      "Pilea peperomioides",
+      "Hoya carnosa",
+      "Zamioculcas zamiifolia",
+      "Anthurium andraeanum",
+      "Begonia maculata"
+    ],
+    "light_requirement": [
+      "Bright indirect",
+      "Low light",
+      "Direct sun",
+      "Medium indirect",
+      "Dappled shade"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "species": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "light_requirement": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

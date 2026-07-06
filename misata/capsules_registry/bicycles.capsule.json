@@ -1,0 +1,53 @@
+{
+  "misata_capsule": 1,
+  "domain": "bicycles",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "bike_type": [
+      "Road bike",
+      "Gravel bike",
+      "Mountain bike",
+      "Track bike",
+      "Touring bike",
+      "Cyclocross bike",
+      "Folding bike",
+      "Cargo bike"
+    ],
+    "groupset": [
+      "Shimano Dura-Ace",
+      "Shimano Ultegra",
+      "Shimano 105",
+      "SRAM Red eTap",
+      "SRAM Force",
+      "SRAM Rival",
+      "Campagnolo Super Record",
+      "Campagnolo Chorus"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "bike_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "groupset": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

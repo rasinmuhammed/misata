@@ -1,0 +1,230 @@
+{
+  "misata_capsule": 1,
+  "domain": "fountain-pens",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "nib_size": [
+      "Extra Fine",
+      "Fine",
+      "Medium",
+      "Broad",
+      "Stub",
+      "Italic"
+    ],
+    "filling_system": [
+      "Piston filler",
+      "Cartridge converter",
+      "Vacuum filler",
+      "Eyedropper",
+      "Lever filler"
+    ],
+    "brand": [
+      "Lamy",
+      "Montblanc",
+      "Parker",
+      "Pelikan",
+      "Pilot",
+      "Sailor",
+      "Waterman"
+    ],
+    "model": [
+      "Meisterstück 149",
+      "Meisterstück 146",
+      "StarWalker",
+      "Souverän M800",
+      "Souverän M400",
+      "Souverän M1000",
+      "Custom 823",
+      "Vanishing Point",
+      "Custom 74",
+      "Metropolitan",
+      "Lamy 2000",
+      "Safari",
+      "Studio",
+      "Aion",
+      "Pro Gear",
+      "1911 Large",
+      "King of Pens",
+      "Duofold",
+      "Sonnet",
+      "Parker 51",
+      "Expert",
+      "Carène",
+      "Hémisphère"
+    ],
+    "pen_model": [
+      "Meisterstück 149",
+      "Meisterstück 146",
+      "StarWalker",
+      "Souverän M800",
+      "Souverän M400",
+      "Souverän M1000",
+      "Custom 823",
+      "Vanishing Point",
+      "Custom 74",
+      "Metropolitan",
+      "Lamy 2000",
+      "Safari",
+      "Studio",
+      "Aion",
+      "Pro Gear",
+      "1911 Large",
+      "King of Pens",
+      "Duofold",
+      "Sonnet",
+      "Parker 51",
+      "Expert",
+      "Carène",
+      "Hémisphère"
+    ]
+  },
+  "conditional_vocabularies": {
+    "model": {
+      "parent": "brand",
+      "map": {
+        "Montblanc": [
+          "Meisterstück 149",
+          "Meisterstück 146",
+          "StarWalker"
+        ],
+        "Pelikan": [
+          "Souverän M800",
+          "Souverän M400",
+          "Souverän M1000"
+        ],
+        "Pilot": [
+          "Custom 823",
+          "Vanishing Point",
+          "Custom 74",
+          "Metropolitan"
+        ],
+        "Lamy": [
+          "Lamy 2000",
+          "Safari",
+          "Studio",
+          "Aion"
+        ],
+        "Sailor": [
+          "Pro Gear",
+          "1911 Large",
+          "King of Pens"
+        ],
+        "Parker": [
+          "Duofold",
+          "Sonnet",
+          "Parker 51"
+        ],
+        "Waterman": [
+          "Expert",
+          "Carène",
+          "Hémisphère"
+        ]
+      }
+    },
+    "pen_model": {
+      "parent": "brand",
+      "map": {
+        "Montblanc": [
+          "Meisterstück 149",
+          "Meisterstück 146",
+          "StarWalker"
+        ],
+        "Pelikan": [
+          "Souverän M800",
+          "Souverän M400",
+          "Souverän M1000"
+        ],
+        "Pilot": [
+          "Custom 823",
+          "Vanishing Point",
+          "Custom 74",
+          "Metropolitan"
+        ],
+        "Lamy": [
+          "Lamy 2000",
+          "Safari",
+          "Studio",
+          "Aion"
+        ],
+        "Sailor": [
+          "Pro Gear",
+          "1911 Large",
+          "King of Pens"
+        ],
+        "Parker": [
+          "Duofold",
+          "Sonnet",
+          "Parker 51"
+        ],
+        "Waterman": [
+          "Expert",
+          "Carène",
+          "Hémisphère"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "nib_size": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "filling_system": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "brand": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "pen_model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

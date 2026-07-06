@@ -1,0 +1,142 @@
+{
+  "misata_capsule": 1,
+  "domain": "classic-cars",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "body_style": [
+      "Coupe",
+      "Roadster",
+      "Convertible",
+      "Fastback",
+      "Sedan",
+      "Wagon",
+      "Targa"
+    ],
+    "make": [
+      "Alfa Romeo",
+      "Chevrolet",
+      "Ferrari",
+      "Ford",
+      "Jaguar",
+      "Mercedes-Benz",
+      "Porsche",
+      "Volkswagen"
+    ],
+    "model": [
+      "Mustang Fastback",
+      "Thunderbird",
+      "GT40",
+      "Model A",
+      "Corvette Stingray",
+      "Camaro SS",
+      "Bel Air",
+      "Impala SS",
+      "911 Carrera RS",
+      "356 Speedster",
+      "E-Type",
+      "XK120",
+      "Mark 2",
+      "XJ6",
+      "300SL Gullwing",
+      "280SL Pagoda",
+      "190SL",
+      "600 Grosser",
+      "250 GTO",
+      "Dino 246 GT",
+      "Testarossa",
+      "308 GTS",
+      "Giulia Sprint GT",
+      "Spider Duetto",
+      "Montreal",
+      "Beetle",
+      "Karmann Ghia",
+      "Type 2 Samba Bus"
+    ]
+  },
+  "conditional_vocabularies": {
+    "model": {
+      "parent": "make",
+      "map": {
+        "Ford": [
+          "Mustang Fastback",
+          "Thunderbird",
+          "GT40",
+          "Model A"
+        ],
+        "Chevrolet": [
+          "Corvette Stingray",
+          "Camaro SS",
+          "Bel Air",
+          "Impala SS"
+        ],
+        "Porsche": [
+          "911 Carrera RS",
+          "356 Speedster"
+        ],
+        "Jaguar": [
+          "E-Type",
+          "XK120",
+          "Mark 2",
+          "XJ6"
+        ],
+        "Mercedes-Benz": [
+          "300SL Gullwing",
+          "280SL Pagoda",
+          "190SL",
+          "600 Grosser"
+        ],
+        "Ferrari": [
+          "250 GTO",
+          "Dino 246 GT",
+          "Testarossa",
+          "308 GTS"
+        ],
+        "Alfa Romeo": [
+          "Giulia Sprint GT",
+          "Spider Duetto",
+          "Montreal"
+        ],
+        "Volkswagen": [
+          "Beetle",
+          "Karmann Ghia",
+          "Type 2 Samba Bus"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "body_style": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "make": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "misata_capsule": 1,
+  "domain": "coffee",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "coffee_variety": [
+      "Typica",
+      "Bourbon",
+      "Geisha",
+      "Caturra",
+      "SL28",
+      "SL34",
+      "Pacamara",
+      "Catuai",
+      "Maragogype",
+      "Yirgacheffe heirloom"
+    ],
+    "coffee_origin": [
+      "Ethiopia Yirgacheffe",
+      "Colombia Huila",
+      "Kenya Nyeri",
+      "Guatemala Antigua",
+      "Panama Boquete",
+      "Brazil Cerrado",
+      "Costa Rica Tarrazú",
+      "Rwanda Nyamasheke",
+      "Sumatra Mandheling"
+    ],
+    "roast_level": [
+      "Light",
+      "Medium-light",
+      "Medium",
+      "Medium-dark",
+      "Dark"
+    ],
+    "process_method": [
+      "Washed",
+      "Natural",
+      "Honey",
+      "Anaerobic",
+      "Wet-hulled",
+      "Carbonic maceration"
+    ],
+    "brew_method": [
+      "Pour-over V60",
+      "Espresso",
+      "AeroPress",
+      "French press",
+      "Chemex",
+      "Cold brew",
+      "Moka pot",
+      "Siphon"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "coffee_variety": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "coffee_origin": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "roast_level": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "process_method": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "brew_method": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

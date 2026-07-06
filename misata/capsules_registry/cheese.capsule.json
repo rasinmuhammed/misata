@@ -1,0 +1,76 @@
+{
+  "misata_capsule": 1,
+  "domain": "cheese",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "cheese_variety": [
+      "Comté",
+      "Roquefort",
+      "Parmigiano Reggiano",
+      "Manchego",
+      "Gruyère",
+      "Stilton",
+      "Brie de Meaux",
+      "Gorgonzola",
+      "Cheddar",
+      "Gouda",
+      "Époisses",
+      "Pecorino Romano",
+      "Camembert",
+      "Taleggio",
+      "Halloumi"
+    ],
+    "milk_type": [
+      "Cow",
+      "Goat",
+      "Sheep",
+      "Buffalo",
+      "Mixed milk"
+    ],
+    "cheese_style": [
+      "Hard aged",
+      "Soft-ripened",
+      "Blue",
+      "Washed rind",
+      "Fresh",
+      "Semi-soft",
+      "Brined"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "cheese_variety": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "milk_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "cheese_style": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

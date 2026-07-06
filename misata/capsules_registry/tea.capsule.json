@@ -1,0 +1,57 @@
+{
+  "misata_capsule": 1,
+  "domain": "tea",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "tea_variety": [
+      "Sencha",
+      "Gyokuro",
+      "Matcha",
+      "Dragon Well",
+      "Tieguanyin",
+      "Da Hong Pao",
+      "Darjeeling First Flush",
+      "Assam",
+      "Earl Grey",
+      "Silver Needle",
+      "Pu-erh Sheng",
+      "Genmaicha",
+      "Lapsang Souchong"
+    ],
+    "tea_type": [
+      "Green",
+      "Black",
+      "Oolong",
+      "White",
+      "Pu-erh",
+      "Yellow",
+      "Herbal tisane"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "tea_variety": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "tea_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

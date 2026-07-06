@@ -1,0 +1,60 @@
+{
+  "misata_capsule": 1,
+  "domain": "dog-breeds",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "breed": [
+      "Labrador Retriever",
+      "German Shepherd",
+      "Golden Retriever",
+      "French Bulldog",
+      "Border Collie",
+      "Beagle",
+      "Poodle",
+      "Dachshund",
+      "Siberian Husky",
+      "Great Dane",
+      "Shiba Inu",
+      "Bernese Mountain Dog",
+      "Australian Shepherd",
+      "Whippet",
+      "Basset Hound",
+      "Corgi"
+    ],
+    "breed_group": [
+      "Sporting",
+      "Hound",
+      "Working",
+      "Terrier",
+      "Toy",
+      "Non-sporting",
+      "Herding"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "breed": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "breed_group": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

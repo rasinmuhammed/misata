@@ -1,0 +1,243 @@
+{
+  "misata_capsule": 1,
+  "domain": "guitars",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "pickup_type": [
+      "Single-coil",
+      "Humbucker",
+      "P-90",
+      "Piezo",
+      "Filtertron"
+    ],
+    "guitar_type": [
+      "Solid body electric",
+      "Semi-hollow",
+      "Hollow body",
+      "Dreadnought acoustic",
+      "Classical",
+      "Twelve-string",
+      "Bass"
+    ],
+    "brand": [
+      "Fender",
+      "Gibson",
+      "Gretsch",
+      "Ibanez",
+      "Martin",
+      "PRS",
+      "Taylor"
+    ],
+    "model": [
+      "Stratocaster",
+      "Telecaster",
+      "Jazzmaster",
+      "Precision Bass",
+      "Jaguar",
+      "Les Paul Standard",
+      "SG Standard",
+      "ES-335",
+      "Flying V",
+      "J-45",
+      "D-28",
+      "D-18",
+      "OM-28",
+      "000-15M",
+      "814ce",
+      "GS Mini",
+      "314ce",
+      "RG550",
+      "JEM7V",
+      "AZ2402",
+      "Custom 24",
+      "Silver Sky",
+      "McCarty 594",
+      "White Falcon",
+      "Country Gentleman",
+      "Duo Jet"
+    ],
+    "guitar_model": [
+      "Stratocaster",
+      "Telecaster",
+      "Jazzmaster",
+      "Precision Bass",
+      "Jaguar",
+      "Les Paul Standard",
+      "SG Standard",
+      "ES-335",
+      "Flying V",
+      "J-45",
+      "D-28",
+      "D-18",
+      "OM-28",
+      "000-15M",
+      "814ce",
+      "GS Mini",
+      "314ce",
+      "RG550",
+      "JEM7V",
+      "AZ2402",
+      "Custom 24",
+      "Silver Sky",
+      "McCarty 594",
+      "White Falcon",
+      "Country Gentleman",
+      "Duo Jet"
+    ]
+  },
+  "conditional_vocabularies": {
+    "model": {
+      "parent": "brand",
+      "map": {
+        "Fender": [
+          "Stratocaster",
+          "Telecaster",
+          "Jazzmaster",
+          "Precision Bass",
+          "Jaguar"
+        ],
+        "Gibson": [
+          "Les Paul Standard",
+          "SG Standard",
+          "ES-335",
+          "Flying V",
+          "J-45"
+        ],
+        "Martin": [
+          "D-28",
+          "D-18",
+          "OM-28",
+          "000-15M"
+        ],
+        "Taylor": [
+          "814ce",
+          "GS Mini",
+          "314ce"
+        ],
+        "Ibanez": [
+          "RG550",
+          "JEM7V",
+          "AZ2402"
+        ],
+        "PRS": [
+          "Custom 24",
+          "Silver Sky",
+          "McCarty 594"
+        ],
+        "Gretsch": [
+          "White Falcon",
+          "Country Gentleman",
+          "Duo Jet"
+        ]
+      }
+    },
+    "guitar_model": {
+      "parent": "brand",
+      "map": {
+        "Fender": [
+          "Stratocaster",
+          "Telecaster",
+          "Jazzmaster",
+          "Precision Bass",
+          "Jaguar"
+        ],
+        "Gibson": [
+          "Les Paul Standard",
+          "SG Standard",
+          "ES-335",
+          "Flying V",
+          "J-45"
+        ],
+        "Martin": [
+          "D-28",
+          "D-18",
+          "OM-28",
+          "000-15M"
+        ],
+        "Taylor": [
+          "814ce",
+          "GS Mini",
+          "314ce"
+        ],
+        "Ibanez": [
+          "RG550",
+          "JEM7V",
+          "AZ2402"
+        ],
+        "PRS": [
+          "Custom 24",
+          "Silver Sky",
+          "McCarty 594"
+        ],
+        "Gretsch": [
+          "White Falcon",
+          "Country Gentleman",
+          "Duo Jet"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "pickup_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "guitar_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "brand": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "guitar_model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

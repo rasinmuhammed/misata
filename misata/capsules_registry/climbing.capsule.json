@@ -1,0 +1,75 @@
+{
+  "misata_capsule": 1,
+  "domain": "climbing",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "discipline": [
+      "Sport climbing",
+      "Trad climbing",
+      "Bouldering",
+      "Alpine climbing",
+      "Ice climbing",
+      "Top rope",
+      "Free solo",
+      "Aid climbing"
+    ],
+    "equipment": [
+      "Cam",
+      "Nut",
+      "Quickdraw",
+      "Belay device",
+      "Crash pad",
+      "Ice axe",
+      "Crampons",
+      "Chalk bag",
+      "Climbing rope",
+      "Harness"
+    ],
+    "grade": [
+      "5.10a",
+      "5.10d",
+      "5.11b",
+      "5.12a",
+      "5.13c",
+      "V4",
+      "V7",
+      "V10"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "discipline": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "equipment": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "grade": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "misata_capsule": 1,
+  "domain": "whiskey",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "whiskey_style": [
+      "Single malt Scotch",
+      "Blended Scotch",
+      "Bourbon",
+      "Rye whiskey",
+      "Irish single pot still",
+      "Japanese single malt",
+      "Tennessee whiskey",
+      "Single grain"
+    ],
+    "cask_type": [
+      "Ex-bourbon barrel",
+      "Oloroso sherry butt",
+      "PX sherry cask",
+      "Virgin oak",
+      "Port pipe",
+      "Madeira cask",
+      "Mizunara oak"
+    ],
+    "distillery": [
+      "Ardbeg",
+      "Buffalo Trace",
+      "Glenfiddich",
+      "Lagavulin",
+      "Macallan",
+      "Redbreast",
+      "Yamazaki"
+    ],
+    "expression": [
+      "Macallan 12 Sherry Oak",
+      "Macallan 18",
+      "Macallan Rare Cask",
+      "Glenfiddich 12",
+      "Glenfiddich 15 Solera",
+      "Glenfiddich 21",
+      "Lagavulin 16",
+      "Lagavulin 8",
+      "Distillers Edition",
+      "Ardbeg 10",
+      "Uigeadail",
+      "Corryvreckan",
+      "Yamazaki 12",
+      "Yamazaki 18",
+      "Eagle Rare 10",
+      "Buffalo Trace Bourbon",
+      "E.H. Taylor Small Batch",
+      "Redbreast 12",
+      "Redbreast 15",
+      "Redbreast Lustau"
+    ],
+    "bottling": [
+      "Macallan 12 Sherry Oak",
+      "Macallan 18",
+      "Macallan Rare Cask",
+      "Glenfiddich 12",
+      "Glenfiddich 15 Solera",
+      "Glenfiddich 21",
+      "Lagavulin 16",
+      "Lagavulin 8",
+      "Distillers Edition",
+      "Ardbeg 10",
+      "Uigeadail",
+      "Corryvreckan",
+      "Yamazaki 12",
+      "Yamazaki 18",
+      "Eagle Rare 10",
+      "Buffalo Trace Bourbon",
+      "E.H. Taylor Small Batch",
+      "Redbreast 12",
+      "Redbreast 15",
+      "Redbreast Lustau"
+    ]
+  },
+  "conditional_vocabularies": {
+    "expression": {
+      "parent": "distillery",
+      "map": {
+        "Macallan": [
+          "Macallan 12 Sherry Oak",
+          "Macallan 18",
+          "Macallan Rare Cask"
+        ],
+        "Glenfiddich": [
+          "Glenfiddich 12",
+          "Glenfiddich 15 Solera",
+          "Glenfiddich 21"
+        ],
+        "Lagavulin": [
+          "Lagavulin 16",
+          "Lagavulin 8",
+          "Distillers Edition"
+        ],
+        "Ardbeg": [
+          "Ardbeg 10",
+          "Uigeadail",
+          "Corryvreckan"
+        ],
+        "Yamazaki": [
+          "Yamazaki 12",
+          "Yamazaki 18"
+        ],
+        "Buffalo Trace": [
+          "Eagle Rare 10",
+          "Buffalo Trace Bourbon",
+          "E.H. Taylor Small Batch"
+        ],
+        "Redbreast": [
+          "Redbreast 12",
+          "Redbreast 15",
+          "Redbreast Lustau"
+        ]
+      }
+    },
+    "bottling": {
+      "parent": "distillery",
+      "map": {
+        "Macallan": [
+          "Macallan 12 Sherry Oak",
+          "Macallan 18",
+          "Macallan Rare Cask"
+        ],
+        "Glenfiddich": [
+          "Glenfiddich 12",
+          "Glenfiddich 15 Solera",
+          "Glenfiddich 21"
+        ],
+        "Lagavulin": [
+          "Lagavulin 16",
+          "Lagavulin 8",
+          "Distillers Edition"
+        ],
+        "Ardbeg": [
+          "Ardbeg 10",
+          "Uigeadail",
+          "Corryvreckan"
+        ],
+        "Yamazaki": [
+          "Yamazaki 12",
+          "Yamazaki 18"
+        ],
+        "Buffalo Trace": [
+          "Eagle Rare 10",
+          "Buffalo Trace Bourbon",
+          "E.H. Taylor Small Batch"
+        ],
+        "Redbreast": [
+          "Redbreast 12",
+          "Redbreast 15",
+          "Redbreast Lustau"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "whiskey_style": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "cask_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "distillery": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "expression": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "bottling": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "misata_capsule": 1,
+  "domain": "sailing",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "boat_type": [
+      "Sloop",
+      "Ketch",
+      "Yawl",
+      "Schooner",
+      "Catamaran",
+      "Trimaran",
+      "Cutter",
+      "Motor yacht",
+      "Trawler",
+      "Dinghy"
+    ],
+    "rig_type": [
+      "Bermuda rig",
+      "Gaff rig",
+      "Fractional rig",
+      "Masthead rig",
+      "Junk rig"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "boat_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "rig_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

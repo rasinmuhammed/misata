@@ -1,0 +1,203 @@
+{
+  "misata_capsule": 1,
+  "domain": "game-consoles",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "console_generation": [
+      "Fourth generation",
+      "Fifth generation",
+      "Sixth generation",
+      "Seventh generation",
+      "Eighth generation",
+      "Ninth generation"
+    ],
+    "manufacturer": [
+      "Atari",
+      "Microsoft",
+      "Nintendo",
+      "Sega",
+      "Sony"
+    ],
+    "console": [
+      "Switch",
+      "Switch OLED",
+      "Game Boy",
+      "GameCube",
+      "Wii",
+      "SNES",
+      "N64",
+      "PlayStation 5",
+      "PlayStation 4 Pro",
+      "PlayStation 2",
+      "PS Vita",
+      "PSP",
+      "Xbox Series X",
+      "Xbox Series S",
+      "Xbox One X",
+      "Xbox 360",
+      "Genesis",
+      "Dreamcast",
+      "Saturn",
+      "Game Gear",
+      "Atari 2600",
+      "Atari 7800",
+      "Atari Lynx"
+    ],
+    "console_model": [
+      "Switch",
+      "Switch OLED",
+      "Game Boy",
+      "GameCube",
+      "Wii",
+      "SNES",
+      "N64",
+      "PlayStation 5",
+      "PlayStation 4 Pro",
+      "PlayStation 2",
+      "PS Vita",
+      "PSP",
+      "Xbox Series X",
+      "Xbox Series S",
+      "Xbox One X",
+      "Xbox 360",
+      "Genesis",
+      "Dreamcast",
+      "Saturn",
+      "Game Gear",
+      "Atari 2600",
+      "Atari 7800",
+      "Atari Lynx"
+    ]
+  },
+  "conditional_vocabularies": {
+    "console": {
+      "parent": "manufacturer",
+      "map": {
+        "Nintendo": [
+          "Switch",
+          "Switch OLED",
+          "Game Boy",
+          "GameCube",
+          "Wii",
+          "SNES",
+          "N64"
+        ],
+        "Sony": [
+          "PlayStation 5",
+          "PlayStation 4 Pro",
+          "PlayStation 2",
+          "PS Vita",
+          "PSP"
+        ],
+        "Microsoft": [
+          "Xbox Series X",
+          "Xbox Series S",
+          "Xbox One X",
+          "Xbox 360"
+        ],
+        "Sega": [
+          "Genesis",
+          "Dreamcast",
+          "Saturn",
+          "Game Gear"
+        ],
+        "Atari": [
+          "Atari 2600",
+          "Atari 7800",
+          "Atari Lynx"
+        ]
+      }
+    },
+    "console_model": {
+      "parent": "manufacturer",
+      "map": {
+        "Nintendo": [
+          "Switch",
+          "Switch OLED",
+          "Game Boy",
+          "GameCube",
+          "Wii",
+          "SNES",
+          "N64"
+        ],
+        "Sony": [
+          "PlayStation 5",
+          "PlayStation 4 Pro",
+          "PlayStation 2",
+          "PS Vita",
+          "PSP"
+        ],
+        "Microsoft": [
+          "Xbox Series X",
+          "Xbox Series S",
+          "Xbox One X",
+          "Xbox 360"
+        ],
+        "Sega": [
+          "Genesis",
+          "Dreamcast",
+          "Saturn",
+          "Game Gear"
+        ],
+        "Atari": [
+          "Atari 2600",
+          "Atari 7800",
+          "Atari Lynx"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "console_generation": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "manufacturer": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "console": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "console_model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

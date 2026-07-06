@@ -1,0 +1,208 @@
+{
+  "misata_capsule": 1,
+  "domain": "aircraft",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "aircraft_type": [
+      "Narrow-body jet",
+      "Wide-body jet",
+      "Regional jet",
+      "Turboprop",
+      "Business jet",
+      "Cargo freighter"
+    ],
+    "manufacturer": [
+      "ATR",
+      "Airbus",
+      "Boeing",
+      "Bombardier",
+      "Cessna",
+      "Embraer"
+    ],
+    "aircraft_model": [
+      "Boeing 737",
+      "Boeing 747",
+      "Boeing 757",
+      "Boeing 767",
+      "Boeing 777",
+      "Boeing 787 Dreamliner",
+      "Airbus A320",
+      "Airbus A321neo",
+      "Airbus A330",
+      "Airbus A350",
+      "Airbus A380",
+      "Embraer E175",
+      "Embraer E190",
+      "Embraer E195-E2",
+      "CRJ700",
+      "CRJ900",
+      "Challenger 350",
+      "Global 7500",
+      "ATR 42",
+      "ATR 72",
+      "Cessna 172 Skyhawk",
+      "Cessna 208 Caravan",
+      "Citation X"
+    ],
+    "model": [
+      "Boeing 737",
+      "Boeing 747",
+      "Boeing 757",
+      "Boeing 767",
+      "Boeing 777",
+      "Boeing 787 Dreamliner",
+      "Airbus A320",
+      "Airbus A321neo",
+      "Airbus A330",
+      "Airbus A350",
+      "Airbus A380",
+      "Embraer E175",
+      "Embraer E190",
+      "Embraer E195-E2",
+      "CRJ700",
+      "CRJ900",
+      "Challenger 350",
+      "Global 7500",
+      "ATR 42",
+      "ATR 72",
+      "Cessna 172 Skyhawk",
+      "Cessna 208 Caravan",
+      "Citation X"
+    ]
+  },
+  "conditional_vocabularies": {
+    "aircraft_model": {
+      "parent": "manufacturer",
+      "map": {
+        "Boeing": [
+          "Boeing 737",
+          "Boeing 747",
+          "Boeing 757",
+          "Boeing 767",
+          "Boeing 777",
+          "Boeing 787 Dreamliner"
+        ],
+        "Airbus": [
+          "Airbus A320",
+          "Airbus A321neo",
+          "Airbus A330",
+          "Airbus A350",
+          "Airbus A380"
+        ],
+        "Embraer": [
+          "Embraer E175",
+          "Embraer E190",
+          "Embraer E195-E2"
+        ],
+        "Bombardier": [
+          "CRJ700",
+          "CRJ900",
+          "Challenger 350",
+          "Global 7500"
+        ],
+        "ATR": [
+          "ATR 42",
+          "ATR 72"
+        ],
+        "Cessna": [
+          "Cessna 172 Skyhawk",
+          "Cessna 208 Caravan",
+          "Citation X"
+        ]
+      }
+    },
+    "model": {
+      "parent": "manufacturer",
+      "map": {
+        "Boeing": [
+          "Boeing 737",
+          "Boeing 747",
+          "Boeing 757",
+          "Boeing 767",
+          "Boeing 777",
+          "Boeing 787 Dreamliner"
+        ],
+        "Airbus": [
+          "Airbus A320",
+          "Airbus A321neo",
+          "Airbus A330",
+          "Airbus A350",
+          "Airbus A380"
+        ],
+        "Embraer": [
+          "Embraer E175",
+          "Embraer E190",
+          "Embraer E195-E2"
+        ],
+        "Bombardier": [
+          "CRJ700",
+          "CRJ900",
+          "Challenger 350",
+          "Global 7500"
+        ],
+        "ATR": [
+          "ATR 42",
+          "ATR 72"
+        ],
+        "Cessna": [
+          "Cessna 172 Skyhawk",
+          "Cessna 208 Caravan",
+          "Citation X"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "aircraft_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "manufacturer": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "aircraft_model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

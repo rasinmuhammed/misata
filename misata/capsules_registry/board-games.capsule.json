@@ -1,0 +1,60 @@
+{
+  "misata_capsule": 1,
+  "domain": "board-games",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "title": [
+      "Catan",
+      "Ticket to Ride",
+      "Wingspan",
+      "Terraforming Mars",
+      "Gloomhaven",
+      "Azul",
+      "Pandemic",
+      "Carcassonne",
+      "Brass Birmingham",
+      "Spirit Island",
+      "Agricola",
+      "Root",
+      "Scythe",
+      "Dominion"
+    ],
+    "mechanism": [
+      "Worker placement",
+      "Deck building",
+      "Area control",
+      "Tile laying",
+      "Engine building",
+      "Cooperative",
+      "Set collection",
+      "Legacy",
+      "Drafting"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "title": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "mechanism": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

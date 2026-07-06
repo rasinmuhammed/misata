@@ -170,3 +170,88 @@ class TestTableLevelVocabulary:
                 "zone_name": {"type": "string"}},
         }, seed=2))
         assert set(tables["reefs"]["zone_name"]) <= {"Fore reef", "Back reef", "Reef crest"}
+
+
+class TestAutoDiscovery:
+    def _config(self, table="synthesizers", column="model"):
+        return misata.from_dict_schema({
+            "name": "vintage synth collection",
+            "tables": {table: {"__rows__": 20,
+                "id": {"type": "integer", "primary_key": True},
+                column: {"type": "string"}}},
+        }, seed=1)
+
+    def test_discovery_attaches_verified_vocabulary(self, monkeypatch, tmp_path):
+        import misata.vocab_discovery as vd
+        monkeypatch.setattr(vd, "_CACHE_PATH", tmp_path / "cache.json")
+        monkeypatch.setattr(vd, "_search_candidates", lambda term: [
+            {"qid": "Q163829", "label": "synthesizer", "description": "electronic instrument"}])
+        import misata.wikidata as wd
+        monkeypatch.setattr(wd, "fetch_class_members", lambda qid, limit=120: [
+            "Minimoog", "Roland Juno-106", "Yamaha DX7", "ARP 2600",
+            "Sequential Prophet-5", "Korg MS-20", "Oberheim OB-Xa",
+            "Roland TB-303", "Moog Voyager", "EMS VCS 3"])
+        cfg = self._config()
+        report = vd.enrich_schema_vocabulary(cfg, sparql_pause=0)
+        assert report and report[0].attached
+        assert report[0].qid == "Q163829"
+        assert "model" in cfg.vocabularies
+        assert "Yamaha DX7" in cfg.vocabularies["model"]
+
+    def test_wrong_kind_candidates_rejected_by_description(self, monkeypatch, tmp_path):
+        import misata.vocab_discovery as vd
+        monkeypatch.setattr(vd, "_CACHE_PATH", tmp_path / "cache.json")
+        raw_hits = [
+            {"id": "Q1", "label": "Falcon", "description": "family name"},
+            {"id": "Q2", "label": "Falcon", "description": "1978 studio album"},
+        ]
+        import urllib.request
+
+        class FakeResp:
+            def __init__(self, payload): self.payload = payload
+            def read(self): import json as j; return j.dumps(self.payload).encode()
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        monkeypatch.setattr(urllib.request, "urlopen",
+                            lambda req, timeout=30: FakeResp({"search": raw_hits}))
+        assert vd._search_candidates("falcon") == []
+
+    def test_insufficient_values_not_attached(self, monkeypatch, tmp_path):
+        import misata.vocab_discovery as vd
+        monkeypatch.setattr(vd, "_CACHE_PATH", tmp_path / "cache.json")
+        monkeypatch.setattr(vd, "_search_candidates", lambda term: [
+            {"qid": "Q9", "label": "thing", "description": "a class"}])
+        import misata.wikidata as wd
+        monkeypatch.setattr(wd, "fetch_class_members", lambda qid, limit=120: ["Q1", "Q2", "One"])
+        cfg = self._config()
+        report = vd.enrich_schema_vocabulary(cfg, sparql_pause=0)
+        assert report and not report[0].attached
+
+    def test_registry_covered_columns_skipped(self, monkeypatch, tmp_path):
+        import misata.vocab_discovery as vd
+        monkeypatch.setattr(vd, "_CACHE_PATH", tmp_path / "cache.json")
+        called = []
+        monkeypatch.setattr(vd, "discover_column",
+                            lambda *a, **k: called.append(a) or vd.Discovery("x", "y"))
+        cfg = misata.from_dict_schema({
+            "name": "falconry club",
+            "tables": {"birds": {"__rows__": 10,
+                "id": {"type": "integer", "primary_key": True},
+                "species": {"type": "string"}}},
+        }, seed=2)
+        vd.enrich_schema_vocabulary(cfg, sparql_pause=0)
+        assert called == [], "registry-covered species column must not trigger discovery"
+
+    def test_cache_hit_short_circuits_network(self, monkeypatch, tmp_path):
+        import misata.vocab_discovery as vd
+        import json as j
+        cache_file = tmp_path / "cache.json"
+        cache_file.write_text(j.dumps({"vintage synth model": {
+            "qid": "Q163829", "label": "synthesizer",
+            "values": ["Minimoog", "Yamaha DX7"]}}))
+        monkeypatch.setattr(vd, "_CACHE_PATH", cache_file)
+        monkeypatch.setattr(vd, "_search_candidates",
+                            lambda term: (_ for _ in ()).throw(AssertionError("network hit")))
+        d = vd.discover_column("synths", "model", domain_hint="vintage synths")
+        assert d.attached and d.values == ["Minimoog", "Yamaha DX7"]

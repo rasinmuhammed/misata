@@ -1,0 +1,73 @@
+{
+  "misata_capsule": 1,
+  "domain": "scuba-diving",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "dive_type": [
+      "Reef dive",
+      "Wreck dive",
+      "Drift dive",
+      "Night dive",
+      "Cave dive",
+      "Deep dive",
+      "Muck dive",
+      "Ice dive"
+    ],
+    "certification_level": [
+      "Open Water Diver",
+      "Advanced Open Water",
+      "Rescue Diver",
+      "Divemaster",
+      "Instructor",
+      "Technical Diver"
+    ],
+    "equipment": [
+      "Regulator",
+      "BCD",
+      "Dive computer",
+      "Wetsuit",
+      "Drysuit",
+      "Fins",
+      "Dive mask",
+      "Tank",
+      "Dive light",
+      "Surface marker buoy"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "dive_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "certification_level": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "equipment": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

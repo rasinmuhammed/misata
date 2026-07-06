@@ -1,0 +1,54 @@
+{
+  "misata_capsule": 1,
+  "domain": "meteorites",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "classification": [
+      "H5 ordinary chondrite",
+      "L6 ordinary chondrite",
+      "LL5 ordinary chondrite",
+      "Carbonaceous chondrite CM2",
+      "Carbonaceous chondrite CV3",
+      "Iron IAB",
+      "Iron IIIAB",
+      "Pallasite PMG",
+      "Mesosiderite",
+      "Eucrite",
+      "Diogenite",
+      "Howardite",
+      "Martian shergottite",
+      "Lunar feldspathic breccia"
+    ],
+    "find_type": [
+      "Observed fall",
+      "Find",
+      "Hammer fall"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "classification": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "find_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

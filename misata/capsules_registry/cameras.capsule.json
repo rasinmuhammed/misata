@@ -1,0 +1,251 @@
+{
+  "misata_capsule": 1,
+  "domain": "cameras",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "lens_mount": [
+      "Canon RF",
+      "Nikon Z",
+      "Sony E",
+      "Fujifilm X",
+      "Leica M",
+      "Micro Four Thirds"
+    ],
+    "camera_type": [
+      "Mirrorless",
+      "DSLR",
+      "Rangefinder",
+      "Medium format",
+      "Compact",
+      "Instant"
+    ],
+    "brand": [
+      "Canon",
+      "Fujifilm",
+      "Hasselblad",
+      "Leica",
+      "Nikon",
+      "Olympus",
+      "Sony"
+    ],
+    "model": [
+      "EOS R5",
+      "EOS 5D Mark IV",
+      "AE-1",
+      "EOS R6 Mark II",
+      "PowerShot G7 X",
+      "Z9",
+      "D850",
+      "F3",
+      "Z6 III",
+      "FM2",
+      "A7 IV",
+      "A7R V",
+      "A6700",
+      "RX100 VII",
+      "A9 III",
+      "X100VI",
+      "X-T5",
+      "GFX 100S",
+      "X-Pro3",
+      "M11",
+      "M6",
+      "SL3",
+      "X2D 100C",
+      "500C/M",
+      "907X",
+      "OM-1",
+      "PEN-F",
+      "Trip 35"
+    ],
+    "camera_model": [
+      "EOS R5",
+      "EOS 5D Mark IV",
+      "AE-1",
+      "EOS R6 Mark II",
+      "PowerShot G7 X",
+      "Z9",
+      "D850",
+      "F3",
+      "Z6 III",
+      "FM2",
+      "A7 IV",
+      "A7R V",
+      "A6700",
+      "RX100 VII",
+      "A9 III",
+      "X100VI",
+      "X-T5",
+      "GFX 100S",
+      "X-Pro3",
+      "M11",
+      "M6",
+      "SL3",
+      "X2D 100C",
+      "500C/M",
+      "907X",
+      "OM-1",
+      "PEN-F",
+      "Trip 35"
+    ]
+  },
+  "conditional_vocabularies": {
+    "model": {
+      "parent": "brand",
+      "map": {
+        "Canon": [
+          "EOS R5",
+          "EOS 5D Mark IV",
+          "AE-1",
+          "EOS R6 Mark II",
+          "PowerShot G7 X"
+        ],
+        "Nikon": [
+          "Z9",
+          "D850",
+          "F3",
+          "Z6 III",
+          "FM2"
+        ],
+        "Sony": [
+          "A7 IV",
+          "A7R V",
+          "A6700",
+          "RX100 VII",
+          "A9 III"
+        ],
+        "Fujifilm": [
+          "X100VI",
+          "X-T5",
+          "GFX 100S",
+          "X-Pro3"
+        ],
+        "Leica": [
+          "M11",
+          "M6",
+          "SL3"
+        ],
+        "Hasselblad": [
+          "X2D 100C",
+          "500C/M",
+          "907X"
+        ],
+        "Olympus": [
+          "OM-1",
+          "PEN-F",
+          "Trip 35"
+        ]
+      }
+    },
+    "camera_model": {
+      "parent": "brand",
+      "map": {
+        "Canon": [
+          "EOS R5",
+          "EOS 5D Mark IV",
+          "AE-1",
+          "EOS R6 Mark II",
+          "PowerShot G7 X"
+        ],
+        "Nikon": [
+          "Z9",
+          "D850",
+          "F3",
+          "Z6 III",
+          "FM2"
+        ],
+        "Sony": [
+          "A7 IV",
+          "A7R V",
+          "A6700",
+          "RX100 VII",
+          "A9 III"
+        ],
+        "Fujifilm": [
+          "X100VI",
+          "X-T5",
+          "GFX 100S",
+          "X-Pro3"
+        ],
+        "Leica": [
+          "M11",
+          "M6",
+          "SL3"
+        ],
+        "Hasselblad": [
+          "X2D 100C",
+          "500C/M",
+          "907X"
+        ],
+        "Olympus": [
+          "OM-1",
+          "PEN-F",
+          "Trip 35"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "lens_mount": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "camera_type": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "brand": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "camera_model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

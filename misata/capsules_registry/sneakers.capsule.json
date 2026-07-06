@@ -1,0 +1,220 @@
+{
+  "misata_capsule": 1,
+  "domain": "sneakers",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T06:21:47+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "condition_grade": [
+      "Deadstock",
+      "Very Near Deadstock",
+      "Excellent",
+      "Good",
+      "Beater"
+    ],
+    "brand": [
+      "Adidas",
+      "Asics",
+      "Converse",
+      "New Balance",
+      "Nike",
+      "Puma",
+      "Vans"
+    ],
+    "model": [
+      "Air Jordan 1",
+      "Air Force 1",
+      "Air Max 90",
+      "Dunk Low",
+      "Blazer Mid",
+      "Superstar",
+      "Stan Smith",
+      "Samba",
+      "Gazelle",
+      "Ultraboost",
+      "990v5",
+      "2002R",
+      "Chuck Taylor All Star",
+      "Chuck 70",
+      "One Star",
+      "Gel-Lyte III",
+      "Gel-Kayano 14",
+      "GT-2160",
+      "Suede Classic",
+      "Clyde",
+      "RS-X",
+      "Old Skool",
+      "Sk8-Hi",
+      "Authentic",
+      "Era"
+    ],
+    "sneaker_model": [
+      "Air Jordan 1",
+      "Air Force 1",
+      "Air Max 90",
+      "Dunk Low",
+      "Blazer Mid",
+      "Superstar",
+      "Stan Smith",
+      "Samba",
+      "Gazelle",
+      "Ultraboost",
+      "990v5",
+      "2002R",
+      "Chuck Taylor All Star",
+      "Chuck 70",
+      "One Star",
+      "Gel-Lyte III",
+      "Gel-Kayano 14",
+      "GT-2160",
+      "Suede Classic",
+      "Clyde",
+      "RS-X",
+      "Old Skool",
+      "Sk8-Hi",
+      "Authentic",
+      "Era"
+    ]
+  },
+  "conditional_vocabularies": {
+    "model": {
+      "parent": "brand",
+      "map": {
+        "Nike": [
+          "Air Jordan 1",
+          "Air Force 1",
+          "Air Max 90",
+          "Dunk Low",
+          "Blazer Mid"
+        ],
+        "Adidas": [
+          "Superstar",
+          "Stan Smith",
+          "Samba",
+          "Gazelle",
+          "Ultraboost"
+        ],
+        "New Balance": [
+          "990v5",
+          "2002R"
+        ],
+        "Converse": [
+          "Chuck Taylor All Star",
+          "Chuck 70",
+          "One Star"
+        ],
+        "Asics": [
+          "Gel-Lyte III",
+          "Gel-Kayano 14",
+          "GT-2160"
+        ],
+        "Puma": [
+          "Suede Classic",
+          "Clyde",
+          "RS-X"
+        ],
+        "Vans": [
+          "Old Skool",
+          "Sk8-Hi",
+          "Authentic",
+          "Era"
+        ]
+      }
+    },
+    "sneaker_model": {
+      "parent": "brand",
+      "map": {
+        "Nike": [
+          "Air Jordan 1",
+          "Air Force 1",
+          "Air Max 90",
+          "Dunk Low",
+          "Blazer Mid"
+        ],
+        "Adidas": [
+          "Superstar",
+          "Stan Smith",
+          "Samba",
+          "Gazelle",
+          "Ultraboost"
+        ],
+        "New Balance": [
+          "990v5",
+          "2002R"
+        ],
+        "Converse": [
+          "Chuck Taylor All Star",
+          "Chuck 70",
+          "One Star"
+        ],
+        "Asics": [
+          "Gel-Lyte III",
+          "Gel-Kayano 14",
+          "GT-2160"
+        ],
+        "Puma": [
+          "Suede Classic",
+          "Clyde",
+          "RS-X"
+        ],
+        "Vans": [
+          "Old Skool",
+          "Sk8-Hi",
+          "Authentic",
+          "Era"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "condition_grade": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "brand": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ],
+    "sneaker_model": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated real-world entity lists",
+        "collected_at": "2026-07-06T06:21:47Z",
+        "metadata": {}
+      }
+    ]
+  }
+}
