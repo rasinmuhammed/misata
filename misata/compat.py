@@ -639,6 +639,9 @@ def from_dict_schema(
             if isinstance(v, (list, tuple))
         }
         vocabularies = {k: v for k, v in cleaned.items() if len(v) >= 2} or None
+    # Per-table __vocabulary__ dunders (canvas round-trip) collect here and
+    # merge below; explicit top-level entries win on key collisions.
+    _table_vocabularies: Dict[str, List[str]] = {}
 
     for table_name, table_def in schemas.items():
         if table_name.startswith("__"):
@@ -762,6 +765,16 @@ def from_dict_schema(
         state_machine = table_def.get("__state_machine__") or None
         cluster_effect = table_def.get("__cluster_effect__") or None
 
+        # Table-level vocabulary rides the canvas round-trip as a dunder in
+        # the table def; merge it up into the schema-level mini-capsule.
+        table_vocab = table_def.get("__vocabulary__")
+        if isinstance(table_vocab, dict):
+            for k, v in table_vocab.items():
+                if isinstance(v, (list, tuple)):
+                    vals = [str(x).strip() for x in v if str(x).strip()]
+                    if len(vals) >= 2:
+                        _table_vocabularies[str(k).strip().lower()] = vals
+
         tables.append(Table(
             name=table_name,
             row_count=table_rows,
@@ -783,7 +796,7 @@ def from_dict_schema(
         noise_config=noise_config,
         seed=seed,
         domain=domain,
-        vocabularies=vocabularies,
+        vocabularies=({**_table_vocabularies, **(vocabularies or {})} or None),
     )
 
 

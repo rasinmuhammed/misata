@@ -170,6 +170,17 @@ class DataSimulator:
         realism = getattr(self.config, "realism", None)
         asset_store = AssetStore(getattr(realism, "asset_store_dir", None))
         self.domain_capsule = SemanticVocabularyGenerator(asset_store=asset_store).build_capsule(self.config)
+        # Bundled registry capsules: when the schema clearly belongs to a
+        # registry domain (keyword + column coverage), real curated vocabulary
+        # attaches automatically — offline, deterministic, no LLM. Merged
+        # BEFORE the user capsule so explicit capsules always win.
+        try:
+            from misata.capsule_registry import auto_attach_capsules
+            _attached = auto_attach_capsules(self.config, self.domain_capsule)
+            if _attached:
+                self.domain_capsule.metadata["registry_capsules"] = _attached
+        except Exception:
+            pass  # registry is an enhancement, never a failure mode
         # User-supplied capsule file: its vocabularies beat built-in pools.
         capsule_file = getattr(realism, "capsule_file", None)
         if capsule_file:
@@ -182,15 +193,15 @@ class DataSimulator:
         for _vname, _vvalues in schema_vocab.items():
             if not isinstance(_vvalues, (list, tuple)) or not _vvalues:
                 continue
-            from misata.domain_capsule import AssetProvenance, VocabularyAsset
-            self.domain_capsule.record_asset(VocabularyAsset(
-                name=str(_vname).lower(),
-                values=[str(v) for v in _vvalues],
-                provenance=AssetProvenance(
-                    source_type="schema",
-                    source_name="schema-vocabulary",
-                    license_name="user",
-                ),
+            from misata.domain_capsule import AssetProvenance
+            _key = str(_vname).lower()
+            # REPLACE, never append: the schema's explicit vocabulary is the
+            # most specific intent and must beat registry/built-in pools.
+            self.domain_capsule.vocabularies[_key] = [str(v) for v in _vvalues]
+            self.domain_capsule.provenance.setdefault(_key, []).append(AssetProvenance(
+                source_type="schema",
+                source_name="schema-vocabulary",
+                license_name="user",
             ))
         # Resolve locale: schema.realism.locale → schema.domain hint → default en_US
         self.locale = getattr(realism, "locale", None) or "en_US"
@@ -204,6 +215,40 @@ class DataSimulator:
             self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
     
+    def _capsule_conditional_for_column(self, column_name: str, table_data, size: int):
+        """Parent-conditioned capsule values for this column, else None.
+
+        A capsule's conditional map ({"model": {"parent": "brand", "map":
+        {"Rolex": ["Submariner", …]}}}) samples each row's value from the
+        pool belonging to that row's parent value, so brand→model pairs stay
+        coherent. Rows whose parent is unknown draw from the union pool.
+        """
+        capsule = self.domain_capsule
+        if capsule is None or table_data is None or table_data.empty:
+            return None
+        spec = getattr(capsule, "conditional_vocabularies", {}).get(column_name.lower())
+        if not spec or not isinstance(spec.get("map"), dict):
+            return None
+        parent_col = next(
+            (c for c in table_data.columns if c.lower() == str(spec.get("parent", "")).lower()),
+            None,
+        )
+        if parent_col is None:
+            return None
+        cmap = spec["map"]
+        lower_map = {str(k).strip().lower(): v for k, v in cmap.items() if v}
+        union = [v for vals in cmap.values() for v in vals]
+        if not union:
+            return None
+        parents = table_data[parent_col].astype(str).values[:size]
+        out = [
+            self.rng.choice(lower_map.get(p.strip().lower(), union))
+            for p in parents
+        ]
+        while len(out) < size:
+            out.append(self.rng.choice(union))
+        return np.array(out)
+
     def _capsule_vocab_for_column(self, column_name: str):
         """User-capsule vocabulary keyed by column name, else None.
 
@@ -1329,6 +1374,11 @@ class DataSimulator:
                 )
                 if _ref_vals is not None:
                     return _ref_vals
+            # Conditional capsule vocab first: a brand→model map beats the
+            # flat pool because it keeps each row's pair coherent.
+            _cond = self._capsule_conditional_for_column(column.name, table_data, size)
+            if _cond is not None:
+                return _cond
             # User capsule vocabularies keyed by this column's name take top
             # priority: a capsule that defines "species" drives any species
             # column. Built-in fallback vocab (misata-defaults) never

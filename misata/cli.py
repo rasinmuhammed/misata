@@ -1988,10 +1988,24 @@ def capsule_group() -> None:
               help="CSV file or directory of CSVs to mine vocabularies from (no LLM).")
 @click.option("--vocab", "vocab_names", multiple=True,
               help="Vocabulary names to generate via LLM/curated pools (repeatable).")
+@click.option("--from-wikidata", "wikidata_topic", default=None,
+              help="Fetch real entity names from Wikidata for --column (topic search, "
+                   "e.g. 'watch'). Network runs ONCE here; generation stays offline.")
+@click.option("--wikidata-class", "wikidata_qid", default=None,
+              help="Explicit Wikidata class QID (skips topic search), e.g. Q178794.")
+@click.option("--column", "wikidata_column", default=None,
+              help="Schema column the Wikidata values feed (e.g. model).")
+@click.option("--conditional-by", "conditional_pid", default=None,
+              help="Wikidata property PID to group by (P176 = manufacturer) → parent→child map.")
+@click.option("--parent-column", "parent_column", default=None,
+              help="Schema column the conditional parent feeds (e.g. brand).")
 @click.option("--output", "-o", type=click.Path(), default=None,
               help="Output path (default: <domain>.capsule.json).")
-def capsule_create(domain: str, csv_path: str, vocab_names: tuple, output: str) -> None:
-    """Create a capsule from example CSVs and/or named vocabularies."""
+def capsule_create(domain: str, csv_path: str, vocab_names: tuple,
+                   wikidata_topic: Optional[str], wikidata_qid: Optional[str],
+                   wikidata_column: Optional[str], conditional_pid: Optional[str],
+                   parent_column: Optional[str], output: str) -> None:
+    """Create a capsule from CSVs, named vocabularies, and/or Wikidata."""
     from misata.capsules import (
         capsule_from_dataframes,
         capsule_from_llm,
@@ -2001,6 +2015,21 @@ def capsule_create(domain: str, csv_path: str, vocab_names: tuple, output: str) 
     from misata.domain_capsule import DomainCapsule
 
     capsule = DomainCapsule(domain=domain)
+    if wikidata_topic or wikidata_qid:
+        if not wikidata_column:
+            console.print("[red]--from-wikidata needs --column (the schema column it feeds).[/red]")
+            sys.exit(1)
+        from misata.wikidata import capsule_from_wikidata
+        wd = capsule_from_wikidata(
+            domain=domain,
+            column=wikidata_column,
+            topic=wikidata_topic,
+            class_qid=wikidata_qid,
+            conditional_property=conditional_pid,
+            parent_column=parent_column,
+        )
+        capsule = merge_into(capsule, wd)
+        console.print(f"🌐 Wikidata vocabulary fetched for [cyan]{wikidata_column}[/cyan]")
     if csv_path:
         path = Path(csv_path)
         files = sorted(path.glob("*.csv")) if path.is_dir() else [path]
@@ -2032,6 +2061,36 @@ def capsule_show(capsule_path: str) -> None:
         source = provs[0].source_name if provs else "unknown"
         preview = ", ".join(map(str, values[:4]))
         console.print(f"  [bold]{name}[/bold] ({len(values)} values, from {source}): {preview}…")
+    for child, spec in sorted(capsule.conditional_vocabularies.items()):
+        n_parents = len(spec.get("map", {}))
+        console.print(
+            f"  [bold]{child}[/bold] conditioned on [bold]{spec.get('parent')}[/bold] "
+            f"({n_parents} parent groups)"
+        )
+
+
+@capsule_group.command("registry")
+def capsule_registry_list() -> None:
+    """List the curated capsules bundled with Misata."""
+    from misata.capsule_registry import REGISTRY_INDEX
+    for name, entry in sorted(REGISTRY_INDEX.items()):
+        console.print(f"  [bold cyan]{name}[/bold cyan]: {entry['description']}")
+    console.print("\nInstall one for editing with: [bold]misata capsule install <name>[/bold]")
+    console.print("Matching schemas attach these automatically at generation time.")
+
+
+@capsule_group.command("install")
+@click.argument("name")
+def capsule_install(name: str) -> None:
+    """Copy a bundled registry capsule to ~/.misata/capsules for editing."""
+    from misata.capsule_registry import install_capsule, registry_names
+    try:
+        dest = install_capsule(name)
+    except KeyError:
+        console.print(f"[red]Unknown capsule {name!r}. Available: {', '.join(registry_names())}[/red]")
+        sys.exit(1)
+    console.print(f"[green]✓[/green] Installed to [cyan]{dest}[/cyan]")
+    console.print(f"Use it with: [bold]misata generate --story ... --capsule {dest}[/bold]")
 
 
 if __name__ == "__main__":

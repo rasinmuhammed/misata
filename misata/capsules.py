@@ -54,6 +54,7 @@ def save_capsule(capsule: DomainCapsule, path: Union[str, Path]) -> Path:
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "metadata": capsule.metadata,
         "vocabularies": capsule.vocabularies,
+        "conditional_vocabularies": capsule.conditional_vocabularies,
         "provenance": {
             name: [
                 {
@@ -114,6 +115,17 @@ def load_capsule(path: Union[str, Path]) -> DomainCapsule:
                 locale=capsule.locale,
             )
         )
+    # Conditional maps (brand→model): keys normalized to lowercase column names.
+    for child, spec in (raw.get("conditional_vocabularies") or {}).items():
+        if isinstance(spec, dict) and isinstance(spec.get("map"), dict) and spec.get("parent"):
+            capsule.conditional_vocabularies[str(child).lower()] = {
+                "parent": str(spec["parent"]).lower(),
+                "map": {
+                    str(k): [str(v) for v in vals]
+                    for k, vals in spec["map"].items()
+                    if isinstance(vals, (list, tuple)) and vals
+                },
+            }
     return capsule
 
 
@@ -126,6 +138,8 @@ def merge_into(base: DomainCapsule, overlay: DomainCapsule) -> DomainCapsule:
     for name, values in overlay.vocabularies.items():
         base.vocabularies[name] = list(values)
         base.provenance[name] = list(overlay.provenance.get(name, []))
+    for child, spec in overlay.conditional_vocabularies.items():
+        base.conditional_vocabularies[child] = spec
     base.metadata.setdefault("capsule_overlays", []).append(overlay.domain)
     return base
 

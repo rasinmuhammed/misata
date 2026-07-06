@@ -1112,6 +1112,24 @@ Include reference tables with inline_data for lookup values and transactional ta
             except Exception as exc:
                 last_exc = exc
                 exc_str = str(exc).lower()
+                # Free-tier TPM ceilings (Groq): "Request too large ... Limit
+                # 8000, Requested 12114". The request = prompt + max_tokens,
+                # so shrink max_tokens to fit the org's budget and retry
+                # immediately instead of failing all the way to the composer
+                # fallback. Schemas rarely need more than ~3k output tokens.
+                _tpm = re.search(r"limit\s+(\d+),\s*requested\s+(\d+)", exc_str)
+                if _tpm and ("request too large" in exc_str or "tokens per minute" in exc_str):
+                    limit, requested = int(_tpm.group(1)), int(_tpm.group(2))
+                    prompt_tokens = max(0, requested - max_tokens)
+                    fitted = limit - prompt_tokens - 200  # safety margin
+                    if fitted >= 1200 and fitted < max_tokens:
+                        warnings.warn(
+                            f"LLM request exceeded the provider's token budget "
+                            f"(limit {limit}, requested {requested}); retrying "
+                            f"with max_tokens={fitted}."
+                        )
+                        max_tokens = fitted
+                        continue
                 if any(s in exc_str for s in ("rate_limit", "429", "timeout", "502", "503", "504", "connection", "overloaded", "throttl")):
                     wait = 2 ** attempt
                     warnings.warn(f"LLM API transient error (attempt {attempt + 1}/{max_retries}): {exc}. Retrying in {wait}s.")

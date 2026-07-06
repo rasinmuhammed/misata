@@ -1,0 +1,161 @@
+{
+  "misata_capsule": 1,
+  "domain": "falconry",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T03:42:32+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "species": [
+      "Peregrine Falcon",
+      "Gyrfalcon",
+      "Saker Falcon",
+      "Lanner Falcon",
+      "American Kestrel",
+      "Merlin",
+      "Harris's Hawk",
+      "Red-tailed Hawk",
+      "Northern Goshawk",
+      "Cooper's Hawk",
+      "Golden Eagle",
+      "Eurasian Sparrowhawk",
+      "Ferruginous Hawk",
+      "Aplomado Falcon",
+      "Barbary Falcon"
+    ],
+    "bird_species": [
+      "Peregrine Falcon",
+      "Gyrfalcon",
+      "Saker Falcon",
+      "Lanner Falcon",
+      "American Kestrel",
+      "Merlin",
+      "Harris's Hawk",
+      "Red-tailed Hawk",
+      "Northern Goshawk",
+      "Cooper's Hawk",
+      "Golden Eagle",
+      "Eurasian Sparrowhawk",
+      "Ferruginous Hawk",
+      "Aplomado Falcon",
+      "Barbary Falcon"
+    ],
+    "technique": [
+      "Creance flying",
+      "Lure swinging",
+      "Manning",
+      "Free flight",
+      "Hood training",
+      "Weight management",
+      "Ferret flushing",
+      "Waiting-on flight",
+      "Direct pursuit",
+      "Car hawking",
+      "Telemetry tracking"
+    ],
+    "training_technique": [
+      "Creance flying",
+      "Lure swinging",
+      "Manning",
+      "Free flight",
+      "Hood training",
+      "Weight management",
+      "Ferret flushing",
+      "Waiting-on flight",
+      "Direct pursuit",
+      "Car hawking",
+      "Telemetry tracking"
+    ],
+    "equipment": [
+      "Jesses",
+      "Falconry hood",
+      "Gauntlet",
+      "Creance line",
+      "Bewits",
+      "Telemetry transmitter",
+      "Swivel",
+      "Leash",
+      "Bal-chatri trap",
+      "Falconry scale",
+      "Mews",
+      "Bow perch"
+    ],
+    "equipment_name": [
+      "Jesses",
+      "Falconry hood",
+      "Gauntlet",
+      "Creance line",
+      "Bewits",
+      "Telemetry transmitter",
+      "Swivel",
+      "Leash",
+      "Bal-chatri trap",
+      "Falconry scale",
+      "Mews",
+      "Bow perch"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "species": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "bird_species": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "technique": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "training_technique": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "equipment": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "equipment_name": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

@@ -1,0 +1,785 @@
+{
+  "misata_capsule": 1,
+  "domain": "vintage-watches",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T03:41:40+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "brand": [
+      "A. Lange & Söhne",
+      "Audemars Piguet",
+      "Breitling",
+      "Cartier",
+      "Casio",
+      "IWC",
+      "Jaeger-LeCoultre",
+      "Longines",
+      "Omega",
+      "Patek Philippe",
+      "Rolex",
+      "Seiko",
+      "TAG Heuer",
+      "Tudor",
+      "Vacheron Constantin",
+      "Zenith"
+    ],
+    "brand_name": [
+      "A. Lange & Söhne",
+      "Audemars Piguet",
+      "Breitling",
+      "Cartier",
+      "Casio",
+      "IWC",
+      "Jaeger-LeCoultre",
+      "Longines",
+      "Omega",
+      "Patek Philippe",
+      "Rolex",
+      "Seiko",
+      "TAG Heuer",
+      "Tudor",
+      "Vacheron Constantin",
+      "Zenith"
+    ],
+    "watch_brand": [
+      "A. Lange & Söhne",
+      "Audemars Piguet",
+      "Breitling",
+      "Cartier",
+      "Casio",
+      "IWC",
+      "Jaeger-LeCoultre",
+      "Longines",
+      "Omega",
+      "Patek Philippe",
+      "Rolex",
+      "Seiko",
+      "TAG Heuer",
+      "Tudor",
+      "Vacheron Constantin",
+      "Zenith"
+    ],
+    "model": [
+      "Patek Philippe Nautilus",
+      "Patek Philippe Henry Graves Supercomplication",
+      "Patek Philippe Golden Ellipse",
+      "Patek Philippe Calatrava",
+      "Casio CA-53W",
+      "Casio Edifice",
+      "Casio F-91W",
+      "Casio AE-1000W",
+      "Casio Wave Ceptor",
+      "G-SHOCK MR-G MRG-B5000",
+      "Casio DW-6100",
+      "Casio Databank",
+      "Casio DW-5600E",
+      "Casio G-Shock Frogman",
+      "Casio Oceanus",
+      "Rolex Submariner",
+      "Rolex Datejust",
+      "Rolex Yacht-Master II",
+      "Rolex Land‑Dweller",
+      "Rolex Air-King",
+      "Rolex Oysterquartz",
+      "Seiko 5",
+      "Seiko SKX007",
+      "Omega Speedmaster",
+      "Omega Seamaster",
+      "Omega Constellation",
+      "Omega De Ville",
+      "Omega Railmaster",
+      "Royal Oak",
+      "Royal Oak Offshore",
+      "Code 11.59",
+      "Millenary",
+      "Jules Audemars",
+      "Overseas",
+      "Patrimony",
+      "Traditionnelle",
+      "Historiques 222",
+      "Fiftysix",
+      "Reverso",
+      "Master Control",
+      "Polaris",
+      "Memovox",
+      "Rendez-Vous",
+      "Tank",
+      "Santos",
+      "Ballon Bleu",
+      "Panthère",
+      "Pasha",
+      "Monaco",
+      "Carrera",
+      "Aquaracer",
+      "Autavia",
+      "Formula 1",
+      "Navitimer",
+      "Superocean",
+      "Chronomat",
+      "Avenger",
+      "Premier",
+      "Portugieser",
+      "Pilot's Watch Mark XX",
+      "Ingenieur",
+      "Portofino",
+      "Aquatimer",
+      "Master Collection",
+      "HydroConquest",
+      "Spirit",
+      "Legend Diver",
+      "Conquest",
+      "Black Bay",
+      "Pelagos",
+      "Royal",
+      "Ranger",
+      "Glamour",
+      "Lange 1",
+      "Saxonia",
+      "Zeitwerk",
+      "Datograph",
+      "Odysseus",
+      "El Primero",
+      "Defy",
+      "Pilot Type 20",
+      "Chronomaster"
+    ],
+    "model_name": [
+      "Patek Philippe Nautilus",
+      "Patek Philippe Henry Graves Supercomplication",
+      "Patek Philippe Golden Ellipse",
+      "Patek Philippe Calatrava",
+      "Casio CA-53W",
+      "Casio Edifice",
+      "Casio F-91W",
+      "Casio AE-1000W",
+      "Casio Wave Ceptor",
+      "G-SHOCK MR-G MRG-B5000",
+      "Casio DW-6100",
+      "Casio Databank",
+      "Casio DW-5600E",
+      "Casio G-Shock Frogman",
+      "Casio Oceanus",
+      "Rolex Submariner",
+      "Rolex Datejust",
+      "Rolex Yacht-Master II",
+      "Rolex Land‑Dweller",
+      "Rolex Air-King",
+      "Rolex Oysterquartz",
+      "Seiko 5",
+      "Seiko SKX007",
+      "Omega Speedmaster",
+      "Omega Seamaster",
+      "Omega Constellation",
+      "Omega De Ville",
+      "Omega Railmaster",
+      "Royal Oak",
+      "Royal Oak Offshore",
+      "Code 11.59",
+      "Millenary",
+      "Jules Audemars",
+      "Overseas",
+      "Patrimony",
+      "Traditionnelle",
+      "Historiques 222",
+      "Fiftysix",
+      "Reverso",
+      "Master Control",
+      "Polaris",
+      "Memovox",
+      "Rendez-Vous",
+      "Tank",
+      "Santos",
+      "Ballon Bleu",
+      "Panthère",
+      "Pasha",
+      "Monaco",
+      "Carrera",
+      "Aquaracer",
+      "Autavia",
+      "Formula 1",
+      "Navitimer",
+      "Superocean",
+      "Chronomat",
+      "Avenger",
+      "Premier",
+      "Portugieser",
+      "Pilot's Watch Mark XX",
+      "Ingenieur",
+      "Portofino",
+      "Aquatimer",
+      "Master Collection",
+      "HydroConquest",
+      "Spirit",
+      "Legend Diver",
+      "Conquest",
+      "Black Bay",
+      "Pelagos",
+      "Royal",
+      "Ranger",
+      "Glamour",
+      "Lange 1",
+      "Saxonia",
+      "Zeitwerk",
+      "Datograph",
+      "Odysseus",
+      "El Primero",
+      "Defy",
+      "Pilot Type 20",
+      "Chronomaster"
+    ],
+    "watch_model": [
+      "Patek Philippe Nautilus",
+      "Patek Philippe Henry Graves Supercomplication",
+      "Patek Philippe Golden Ellipse",
+      "Patek Philippe Calatrava",
+      "Casio CA-53W",
+      "Casio Edifice",
+      "Casio F-91W",
+      "Casio AE-1000W",
+      "Casio Wave Ceptor",
+      "G-SHOCK MR-G MRG-B5000",
+      "Casio DW-6100",
+      "Casio Databank",
+      "Casio DW-5600E",
+      "Casio G-Shock Frogman",
+      "Casio Oceanus",
+      "Rolex Submariner",
+      "Rolex Datejust",
+      "Rolex Yacht-Master II",
+      "Rolex Land‑Dweller",
+      "Rolex Air-King",
+      "Rolex Oysterquartz",
+      "Seiko 5",
+      "Seiko SKX007",
+      "Omega Speedmaster",
+      "Omega Seamaster",
+      "Omega Constellation",
+      "Omega De Ville",
+      "Omega Railmaster",
+      "Royal Oak",
+      "Royal Oak Offshore",
+      "Code 11.59",
+      "Millenary",
+      "Jules Audemars",
+      "Overseas",
+      "Patrimony",
+      "Traditionnelle",
+      "Historiques 222",
+      "Fiftysix",
+      "Reverso",
+      "Master Control",
+      "Polaris",
+      "Memovox",
+      "Rendez-Vous",
+      "Tank",
+      "Santos",
+      "Ballon Bleu",
+      "Panthère",
+      "Pasha",
+      "Monaco",
+      "Carrera",
+      "Aquaracer",
+      "Autavia",
+      "Formula 1",
+      "Navitimer",
+      "Superocean",
+      "Chronomat",
+      "Avenger",
+      "Premier",
+      "Portugieser",
+      "Pilot's Watch Mark XX",
+      "Ingenieur",
+      "Portofino",
+      "Aquatimer",
+      "Master Collection",
+      "HydroConquest",
+      "Spirit",
+      "Legend Diver",
+      "Conquest",
+      "Black Bay",
+      "Pelagos",
+      "Royal",
+      "Ranger",
+      "Glamour",
+      "Lange 1",
+      "Saxonia",
+      "Zeitwerk",
+      "Datograph",
+      "Odysseus",
+      "El Primero",
+      "Defy",
+      "Pilot Type 20",
+      "Chronomaster"
+    ]
+  },
+  "conditional_vocabularies": {
+    "model": {
+      "parent": "brand",
+      "map": {
+        "Patek Philippe": [
+          "Patek Philippe Nautilus",
+          "Patek Philippe Henry Graves Supercomplication",
+          "Patek Philippe Golden Ellipse",
+          "Patek Philippe Calatrava"
+        ],
+        "Casio": [
+          "Casio CA-53W",
+          "Casio Edifice",
+          "Casio F-91W",
+          "Casio AE-1000W",
+          "Casio Wave Ceptor",
+          "G-SHOCK MR-G MRG-B5000",
+          "Casio DW-6100",
+          "Casio Databank",
+          "Casio DW-5600E",
+          "Casio G-Shock Frogman",
+          "Casio Oceanus"
+        ],
+        "Rolex": [
+          "Rolex Submariner",
+          "Rolex Datejust",
+          "Rolex Yacht-Master II",
+          "Rolex Land‑Dweller",
+          "Rolex Air-King",
+          "Rolex Oysterquartz"
+        ],
+        "Seiko": [
+          "Seiko 5",
+          "Seiko SKX007"
+        ],
+        "Omega": [
+          "Omega Speedmaster",
+          "Omega Seamaster",
+          "Omega Constellation",
+          "Omega De Ville",
+          "Omega Railmaster"
+        ],
+        "Audemars Piguet": [
+          "Royal Oak",
+          "Royal Oak Offshore",
+          "Code 11.59",
+          "Millenary",
+          "Jules Audemars"
+        ],
+        "Vacheron Constantin": [
+          "Overseas",
+          "Patrimony",
+          "Traditionnelle",
+          "Historiques 222",
+          "Fiftysix"
+        ],
+        "Jaeger-LeCoultre": [
+          "Reverso",
+          "Master Control",
+          "Polaris",
+          "Memovox",
+          "Rendez-Vous"
+        ],
+        "Cartier": [
+          "Tank",
+          "Santos",
+          "Ballon Bleu",
+          "Panthère",
+          "Pasha"
+        ],
+        "TAG Heuer": [
+          "Monaco",
+          "Carrera",
+          "Aquaracer",
+          "Autavia",
+          "Formula 1"
+        ],
+        "Breitling": [
+          "Navitimer",
+          "Superocean",
+          "Chronomat",
+          "Avenger",
+          "Premier"
+        ],
+        "IWC": [
+          "Portugieser",
+          "Pilot's Watch Mark XX",
+          "Ingenieur",
+          "Portofino",
+          "Aquatimer"
+        ],
+        "Longines": [
+          "Master Collection",
+          "HydroConquest",
+          "Spirit",
+          "Legend Diver",
+          "Conquest"
+        ],
+        "Tudor": [
+          "Black Bay",
+          "Pelagos",
+          "Royal",
+          "Ranger",
+          "Glamour"
+        ],
+        "A. Lange & Söhne": [
+          "Lange 1",
+          "Saxonia",
+          "Zeitwerk",
+          "Datograph",
+          "Odysseus"
+        ],
+        "Zenith": [
+          "El Primero",
+          "Defy",
+          "Pilot Type 20",
+          "Chronomaster"
+        ]
+      }
+    },
+    "model_name": {
+      "parent": "brand",
+      "map": {
+        "Patek Philippe": [
+          "Patek Philippe Nautilus",
+          "Patek Philippe Henry Graves Supercomplication",
+          "Patek Philippe Golden Ellipse",
+          "Patek Philippe Calatrava"
+        ],
+        "Casio": [
+          "Casio CA-53W",
+          "Casio Edifice",
+          "Casio F-91W",
+          "Casio AE-1000W",
+          "Casio Wave Ceptor",
+          "G-SHOCK MR-G MRG-B5000",
+          "Casio DW-6100",
+          "Casio Databank",
+          "Casio DW-5600E",
+          "Casio G-Shock Frogman",
+          "Casio Oceanus"
+        ],
+        "Rolex": [
+          "Rolex Submariner",
+          "Rolex Datejust",
+          "Rolex Yacht-Master II",
+          "Rolex Land‑Dweller",
+          "Rolex Air-King",
+          "Rolex Oysterquartz"
+        ],
+        "Seiko": [
+          "Seiko 5",
+          "Seiko SKX007"
+        ],
+        "Omega": [
+          "Omega Speedmaster",
+          "Omega Seamaster",
+          "Omega Constellation",
+          "Omega De Ville",
+          "Omega Railmaster"
+        ],
+        "Audemars Piguet": [
+          "Royal Oak",
+          "Royal Oak Offshore",
+          "Code 11.59",
+          "Millenary",
+          "Jules Audemars"
+        ],
+        "Vacheron Constantin": [
+          "Overseas",
+          "Patrimony",
+          "Traditionnelle",
+          "Historiques 222",
+          "Fiftysix"
+        ],
+        "Jaeger-LeCoultre": [
+          "Reverso",
+          "Master Control",
+          "Polaris",
+          "Memovox",
+          "Rendez-Vous"
+        ],
+        "Cartier": [
+          "Tank",
+          "Santos",
+          "Ballon Bleu",
+          "Panthère",
+          "Pasha"
+        ],
+        "TAG Heuer": [
+          "Monaco",
+          "Carrera",
+          "Aquaracer",
+          "Autavia",
+          "Formula 1"
+        ],
+        "Breitling": [
+          "Navitimer",
+          "Superocean",
+          "Chronomat",
+          "Avenger",
+          "Premier"
+        ],
+        "IWC": [
+          "Portugieser",
+          "Pilot's Watch Mark XX",
+          "Ingenieur",
+          "Portofino",
+          "Aquatimer"
+        ],
+        "Longines": [
+          "Master Collection",
+          "HydroConquest",
+          "Spirit",
+          "Legend Diver",
+          "Conquest"
+        ],
+        "Tudor": [
+          "Black Bay",
+          "Pelagos",
+          "Royal",
+          "Ranger",
+          "Glamour"
+        ],
+        "A. Lange & Söhne": [
+          "Lange 1",
+          "Saxonia",
+          "Zeitwerk",
+          "Datograph",
+          "Odysseus"
+        ],
+        "Zenith": [
+          "El Primero",
+          "Defy",
+          "Pilot Type 20",
+          "Chronomaster"
+        ]
+      }
+    },
+    "watch_model": {
+      "parent": "brand",
+      "map": {
+        "Patek Philippe": [
+          "Patek Philippe Nautilus",
+          "Patek Philippe Henry Graves Supercomplication",
+          "Patek Philippe Golden Ellipse",
+          "Patek Philippe Calatrava"
+        ],
+        "Casio": [
+          "Casio CA-53W",
+          "Casio Edifice",
+          "Casio F-91W",
+          "Casio AE-1000W",
+          "Casio Wave Ceptor",
+          "G-SHOCK MR-G MRG-B5000",
+          "Casio DW-6100",
+          "Casio Databank",
+          "Casio DW-5600E",
+          "Casio G-Shock Frogman",
+          "Casio Oceanus"
+        ],
+        "Rolex": [
+          "Rolex Submariner",
+          "Rolex Datejust",
+          "Rolex Yacht-Master II",
+          "Rolex Land‑Dweller",
+          "Rolex Air-King",
+          "Rolex Oysterquartz"
+        ],
+        "Seiko": [
+          "Seiko 5",
+          "Seiko SKX007"
+        ],
+        "Omega": [
+          "Omega Speedmaster",
+          "Omega Seamaster",
+          "Omega Constellation",
+          "Omega De Ville",
+          "Omega Railmaster"
+        ],
+        "Audemars Piguet": [
+          "Royal Oak",
+          "Royal Oak Offshore",
+          "Code 11.59",
+          "Millenary",
+          "Jules Audemars"
+        ],
+        "Vacheron Constantin": [
+          "Overseas",
+          "Patrimony",
+          "Traditionnelle",
+          "Historiques 222",
+          "Fiftysix"
+        ],
+        "Jaeger-LeCoultre": [
+          "Reverso",
+          "Master Control",
+          "Polaris",
+          "Memovox",
+          "Rendez-Vous"
+        ],
+        "Cartier": [
+          "Tank",
+          "Santos",
+          "Ballon Bleu",
+          "Panthère",
+          "Pasha"
+        ],
+        "TAG Heuer": [
+          "Monaco",
+          "Carrera",
+          "Aquaracer",
+          "Autavia",
+          "Formula 1"
+        ],
+        "Breitling": [
+          "Navitimer",
+          "Superocean",
+          "Chronomat",
+          "Avenger",
+          "Premier"
+        ],
+        "IWC": [
+          "Portugieser",
+          "Pilot's Watch Mark XX",
+          "Ingenieur",
+          "Portofino",
+          "Aquatimer"
+        ],
+        "Longines": [
+          "Master Collection",
+          "HydroConquest",
+          "Spirit",
+          "Legend Diver",
+          "Conquest"
+        ],
+        "Tudor": [
+          "Black Bay",
+          "Pelagos",
+          "Royal",
+          "Ranger",
+          "Glamour"
+        ],
+        "A. Lange & Söhne": [
+          "Lange 1",
+          "Saxonia",
+          "Zeitwerk",
+          "Datograph",
+          "Odysseus"
+        ],
+        "Zenith": [
+          "El Primero",
+          "Defy",
+          "Pilot Type 20",
+          "Chronomaster"
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "brand": [
+      {
+        "source_type": "wikidata",
+        "source_name": "wikidata:Q178794",
+        "license_name": "CC0-1.0",
+        "attribution": "Wikidata: instances of watch (Q178794) grouped by manufacturer (P176)",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated well-known model lines",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      }
+    ],
+    "brand_name": [
+      {
+        "source_type": "wikidata",
+        "source_name": "wikidata:Q178794",
+        "license_name": "CC0-1.0",
+        "attribution": "Wikidata: instances of watch (Q178794) grouped by manufacturer (P176)",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated well-known model lines",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      }
+    ],
+    "watch_brand": [
+      {
+        "source_type": "wikidata",
+        "source_name": "wikidata:Q178794",
+        "license_name": "CC0-1.0",
+        "attribution": "Wikidata: instances of watch (Q178794) grouped by manufacturer (P176)",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated well-known model lines",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      }
+    ],
+    "model": [
+      {
+        "source_type": "wikidata",
+        "source_name": "wikidata:Q178794",
+        "license_name": "CC0-1.0",
+        "attribution": "Wikidata: instances of watch (Q178794) grouped by manufacturer (P176)",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated well-known model lines",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      }
+    ],
+    "model_name": [
+      {
+        "source_type": "wikidata",
+        "source_name": "wikidata:Q178794",
+        "license_name": "CC0-1.0",
+        "attribution": "Wikidata: instances of watch (Q178794) grouped by manufacturer (P176)",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated well-known model lines",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      }
+    ],
+    "watch_model": [
+      {
+        "source_type": "wikidata",
+        "source_name": "wikidata:Q178794",
+        "license_name": "CC0-1.0",
+        "attribution": "Wikidata: instances of watch (Q178794) grouped by manufacturer (P176)",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      },
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated well-known model lines",
+        "collected_at": "2026-07-06T03:41:40Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.1.23"
+__version__ = "0.8.1.24"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -615,6 +615,12 @@ from misata.noise import NoiseInjector, add_noise
 from misata.customization import Customizer, ColumnOverride
 from misata.quality import DataQualityChecker, check_quality
 from misata.coherence import coherence_audit, CoherenceReport, CoherenceFinding
+from misata.vocab_validator import validate_vocabulary, ValidationResult
+from misata.capsule_registry import (
+    install_capsule,
+    load_registry_capsule,
+    registry_names,
+)
 from misata.templates.library import load_template, list_templates
 from misata.db import seed_database, seed_database_sqlalchemy, seed_from_sqlalchemy_models, SeedReport
 from misata.db import load_tables_from_db
@@ -830,6 +836,11 @@ __all__ = [
     "coherence_audit",
     "CoherenceReport",
     "CoherenceFinding",
+    "validate_vocabulary",
+    "ValidationResult",
+    "install_capsule",
+    "load_registry_capsule",
+    "registry_names",
     # Templates
     "load_template",
     "list_templates",

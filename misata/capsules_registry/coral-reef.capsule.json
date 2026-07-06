@@ -1,0 +1,167 @@
+{
+  "misata_capsule": 1,
+  "domain": "coral-reef",
+  "locale": "global",
+  "era": null,
+  "created_at": "2026-07-06T03:42:32+00:00",
+  "metadata": {},
+  "vocabularies": {
+    "species": [
+      "Staghorn Coral",
+      "Elkhorn Coral",
+      "Brain Coral",
+      "Table Coral",
+      "Mushroom Coral",
+      "Pillar Coral",
+      "Star Coral",
+      "Fire Coral",
+      "Bubble Coral",
+      "Sea Fan",
+      "Plate Coral",
+      "Finger Coral",
+      "Cauliflower Coral",
+      "Lettuce Coral",
+      "Black Coral"
+    ],
+    "coral_species": [
+      "Staghorn Coral",
+      "Elkhorn Coral",
+      "Brain Coral",
+      "Table Coral",
+      "Mushroom Coral",
+      "Pillar Coral",
+      "Star Coral",
+      "Fire Coral",
+      "Bubble Coral",
+      "Sea Fan",
+      "Plate Coral",
+      "Finger Coral",
+      "Cauliflower Coral",
+      "Lettuce Coral",
+      "Black Coral"
+    ],
+    "site": [
+      "Fore reef",
+      "Back reef",
+      "Reef crest",
+      "Lagoon patch",
+      "Reef flat",
+      "Spur and groove zone",
+      "Drop-off wall",
+      "Outer bank"
+    ],
+    "survey_site": [
+      "Fore reef",
+      "Back reef",
+      "Reef crest",
+      "Lagoon patch",
+      "Reef flat",
+      "Spur and groove zone",
+      "Drop-off wall",
+      "Outer bank"
+    ],
+    "zone": [
+      "Fore reef",
+      "Back reef",
+      "Reef crest",
+      "Lagoon patch",
+      "Reef flat",
+      "Spur and groove zone",
+      "Drop-off wall",
+      "Outer bank"
+    ],
+    "method": [
+      "Line intercept transect",
+      "Photo quadrat survey",
+      "Coral fragment nursery",
+      "Larval seeding",
+      "Bleaching watch survey",
+      "Benthic video transect",
+      "Settlement tile monitoring",
+      "Water quality sampling"
+    ],
+    "survey_method": [
+      "Line intercept transect",
+      "Photo quadrat survey",
+      "Coral fragment nursery",
+      "Larval seeding",
+      "Bleaching watch survey",
+      "Benthic video transect",
+      "Settlement tile monitoring",
+      "Water quality sampling"
+    ]
+  },
+  "conditional_vocabularies": {},
+  "provenance": {
+    "species": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "coral_species": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "site": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "survey_site": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "zone": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "method": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ],
+    "survey_method": [
+      {
+        "source_type": "curated",
+        "source_name": "misata-registry",
+        "license_name": "CC0-1.0",
+        "attribution": "Curated species/technique lists",
+        "collected_at": "2026-07-06T03:42:32Z",
+        "metadata": {}
+      }
+    ]
+  }
+}

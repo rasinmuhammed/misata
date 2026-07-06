@@ -41,6 +41,10 @@ class DomainCapsule:
     vocabularies: Dict[str, List[str]] = field(default_factory=dict)
     provenance: Dict[str, List[AssetProvenance]] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # Conditional vocabulary: child column -> {"parent": parent_column,
+    # "map": {parent_value: [child_values]}}. Keeps brand→model pairs
+    # coherent (a Submariner is a Rolex, never a Patek Philippe).
+    conditional_vocabularies: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def get_values(self, name: str, fallback: Optional[List[str]] = None) -> List[str]:
         """Return a vocabulary list, falling back when absent or empty."""

@@ -101,3 +101,4 @@ research/11_adversarial_review_round6.md
 research/dbt_ecosystem_research.md
 research/dbt_integration_reality_check.md
 !tests/conftest.py
+!tests/test_vocab_architecture.py

@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.8.1.23"
+version = "0.8.1.24"
 description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare, exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
@@ -159,7 +159,7 @@ include = ["misata*"]
 exclude = ["web*", "tests*"]
 
 [tool.setuptools.package-data]
-misata = ["py.typed", "_schemas/*.json"]
+misata = ["py.typed", "_schemas/*.json", "capsules_registry/*.json"]
 
 [tool.black]
 line-length = 100
