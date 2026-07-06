@@ -120,3 +120,32 @@ class TestReportShape:
         oracle = build_oracle_report(t, cfg, seed=2)
         assert "coherence" in oracle["advisory"]
         assert oracle["advisory"]["coherence"]["misata_report"] == "coherence"
+
+
+class TestFraudFieldReport:
+    """0.8.1.26: defects from the credit-card fraud field report."""
+
+    def test_pattern_leak_detected(self):
+        t = {"merchants": pd.DataFrame({
+            "id": range(50),
+            "merchant_name": ["Et+( Sj+){1,2}"] * 50})}
+        r = coherence_audit(t)
+        assert any(f.kind == "pattern_leak" for f in r.findings)
+
+    def test_denormalized_mismatch_detected(self):
+        parent = pd.DataFrame({"id": [1, 2], "merchant_city": ["Tokyo", "Lille"]})
+        child = pd.DataFrame({
+            "id": range(100),
+            "merchant_id": [1, 2] * 50,
+            "merchant_city": ["Boston"] * 100})
+        r = coherence_audit({"merchants": parent, "transactions": child})
+        assert any(f.kind == "denormalized_mismatch" for f in r.findings)
+
+    def test_agreeing_denormalized_columns_pass(self):
+        parent = pd.DataFrame({"id": [1, 2], "merchant_city": ["Tokyo", "Lille"]})
+        child = pd.DataFrame({
+            "id": range(100),
+            "merchant_id": [1, 2] * 50,
+            "merchant_city": ["Tokyo", "Lille"] * 50})
+        r = coherence_audit({"merchants": parent, "transactions": child})
+        assert not any(f.kind == "denormalized_mismatch" for f in r.findings)

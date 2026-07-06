@@ -727,3 +727,85 @@ class TestReleaseGate0_8_1_22:
                 "arrival_date": {"type": "datetime", "min": "2024-01-01", "max": "2025-12-31"}},
         }, seed=5))["missions"]
         assert (pd.to_datetime(t["arrival_date"]) >= pd.to_datetime(t["dispatch_date"])).all()
+
+
+class TestFraudFieldReportEngine:
+    """0.8.1.26: engine-side fixes from the credit-card fraud field report —
+    unsupported regex patterns fall back to semantics, denormalized parent
+    attributes agree, merchant/transaction pools, real MCC codes."""
+
+    def _gen(self, sd, seed=9):
+        return misata.generate_from_schema(misata.from_dict_schema(sd, seed=seed))
+
+    def test_unsupported_pattern_falls_back_to_semantic(self):
+        t = self._gen({
+            "merchants": {"__rows__": 100,
+                "id": {"type": "integer", "primary_key": True},
+                "merchant_name": {"type": "text",
+                                  "pattern": "Et+( Sj+){1,2}"}},
+        })["merchants"]
+        import re as _re
+        leaked = t["merchant_name"].astype(str).apply(
+            lambda v: bool(_re.search(r"[+{}()\\]", v))).sum()
+        assert leaked == 0, list(t["merchant_name"][:3])
+
+    def test_supported_pattern_still_expands(self):
+        import re as _re
+        t = self._gen({
+            "orders": {"__rows__": 50,
+                "id": {"type": "integer", "primary_key": True},
+                "ref": {"type": "text", "pattern": "ORD-\\d{5}"}},
+        })["orders"]
+        assert all(_re.fullmatch(r"ORD-\d{5}", str(v)) for v in t["ref"])
+
+    def test_denormalized_parent_column_agrees(self):
+        tables = self._gen({
+            "merchants": {"__rows__": 40,
+                "id": {"type": "integer", "primary_key": True},
+                "merchant_city": {"type": "text", "text_type": "city"}},
+            "transactions": {"__rows__": 2000,
+                "id": {"type": "integer", "primary_key": True},
+                "merchant_id": {"type": "integer",
+                                "foreign_key": {"table": "merchants", "column": "id"}},
+                "merchant_city": {"type": "text", "text_type": "city"}},
+        })
+        tx, m = tables["transactions"], tables["merchants"]
+        j = tx.merge(m, left_on="merchant_id", right_on="id", suffixes=("", "_p"))
+        agree = (j["merchant_city"] == j["merchant_city_p"]).mean()
+        assert agree > 0.99, f"only {agree:.1%} agree"
+
+    def test_merchant_categories_and_transaction_lookups(self):
+        tables = self._gen({
+            "merchant_categories": {"__rows__": 8,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string"}},
+            "transaction_channels": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string"}},
+            "transaction_statuses": {"__rows__": 5,
+                "id": {"type": "integer", "primary_key": True},
+                "status": {"type": "string"}},
+        })
+        assert set(tables["merchant_categories"]["name"]) <= {
+            "Grocery", "Restaurants & Dining", "Fuel & Convenience",
+            "Travel & Airlines", "Electronics", "Pharmacy & Health",
+            "Entertainment", "Apparel & Accessories", "Utilities & Telecom",
+            "Digital Goods"}
+        assert set(tables["transaction_channels"]["name"]) <= {
+            "Online", "In-store", "Contactless", "Phone Order",
+            "Recurring", "ATM", "Mobile Wallet"}
+        assert set(tables["transaction_statuses"]["status"]) <= {
+            "Approved", "Declined", "Pending", "Settled",
+            "Reversed", "Refunded", "Flagged for Review"}
+
+    def test_mcc_codes_are_real(self):
+        t = self._gen({
+            "merchants": {"__rows__": 200,
+                "id": {"type": "integer", "primary_key": True},
+                "mcc_code": {"type": "string"}},
+        })["merchants"]
+        real = {"5411", "5812", "5814", "5541", "4111", "5912", "5999",
+                "5311", "7011", "5732", "4899", "5942", "5651", "5945",
+                "4121", "5813", "5921", "7832", "8011", "8062", "4816",
+                "5967", "6011", "4814", "5122"}
+        assert set(t["mcc_code"].astype(str)) <= real

@@ -759,6 +759,10 @@ REFERENCE_TYPE_POOLS: Dict[str, List[str]] = {
                  "Contactless", "Grocery", "Pharmacy", "Oversized"],
     "driver": ["Full-time", "Part-time", "Weekend", "Night Shift",
                "Fleet", "Owner-Operator", "Courier", "Chauffeur"],
+    "merchant": ["Grocery", "Restaurants & Dining", "Fuel & Convenience",
+                 "Travel & Airlines", "Electronics", "Pharmacy & Health",
+                 "Entertainment", "Apparel & Accessories",
+                 "Utilities & Telecom", "Digital Goods"],
 }
 
 SURGE_REASONS = [
@@ -805,7 +809,24 @@ REFERENCE_STATUS_POOLS: Dict[str, List[str]] = {
                  "Delivered", "Cancelled"],
     "vehicle": ["Active", "In Maintenance", "Pending Inspection",
                 "Approved", "Retired", "Deactivated"],
+    "transaction": ["Approved", "Declined", "Pending", "Settled",
+                    "Reversed", "Refunded", "Flagged for Review"],
 }
+
+# `<head>_channels` lookup tables. Transaction channels are payment rails;
+# the generic pool covers sales/marketing-ish channel tables.
+REFERENCE_CHANNEL_POOLS: Dict[str, List[str]] = {
+    "transaction": ["Online", "In-store", "Contactless", "Phone Order",
+                    "Recurring", "ATM", "Mobile Wallet"],
+    "payment": ["Online", "In-store", "Contactless", "Phone Order",
+                "Recurring", "ATM", "Mobile Wallet"],
+    "sales": ["Online", "Retail", "Partner", "Direct", "Wholesale",
+              "Marketplace", "Field Sales"],
+}
+
+GENERIC_CHANNELS = [
+    "Online", "In-store", "Mobile", "Phone", "Partner", "Direct", "Email",
+]
 
 GENERIC_STATUSES = [
     "Active", "Pending", "Completed", "Cancelled", "Expired", "Draft",

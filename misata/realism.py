@@ -287,13 +287,16 @@ class RealisticTextGenerator:
         if not m:
             return None
         from misata.vocab_seeds import (
-            GENERIC_SEGMENTS, GENERIC_SIZES, GENERIC_STATUSES, GENERIC_TIERS,
+            GENERIC_CHANNELS, GENERIC_SEGMENTS, GENERIC_SIZES,
+            GENERIC_STATUSES, GENERIC_TIERS, REFERENCE_CHANNEL_POOLS,
             REFERENCE_SEGMENT_POOLS, REFERENCE_SIZE_POOLS,
             REFERENCE_STATUS_POOLS, REFERENCE_TIER_POOLS, REFERENCE_TYPE_POOLS,
         )
         head = (m.group("head") or "").rstrip("s")
         kind = m.group("kind").lower()
-        if kind.startswith("status") or kind.startswith("stage"):
+        if kind.startswith("channel"):
+            pool = _fuzzy_pool(REFERENCE_CHANNEL_POOLS, head) or GENERIC_CHANNELS
+        elif kind.startswith("status") or kind.startswith("stage"):
             pool = _fuzzy_pool(REFERENCE_STATUS_POOLS, head) or GENERIC_STATUSES
         elif kind.startswith("segment"):
             pool = _fuzzy_pool(REFERENCE_SEGMENT_POOLS, head) or GENERIC_SEGMENTS
@@ -433,6 +436,14 @@ class RealisticTextGenerator:
             return self._labels("region", _REGION_LABELS, size)
         if semantic == "currency":
             return self._labels("currency", _CURRENCY_CODES, size)
+        if semantic == "mcc_code":
+            # Real ISO 18245 merchant category codes — random 4-digit numbers
+            # are instantly wrong to anyone in payments (5411 is grocery).
+            _MCC = ["5411", "5812", "5814", "5541", "4111", "5912", "5999",
+                    "5311", "7011", "5732", "4899", "5942", "5651", "5945",
+                    "4121", "5813", "5921", "7832", "8011", "8062", "4816",
+                    "5967", "6011", "4814", "5122"]
+            return self.rng.choice(_MCC, size=size)
         if semantic == "vehicle_make":
             from misata.vocab_seeds import VEHICLE_MODELS_BY_MAKE
             makes = [m.title() if m != "bmw" and m != "gmc" else m.upper()
@@ -879,6 +890,8 @@ class RealisticTextGenerator:
             return "url"
         if name in ("national_id", "ssn", "cpf", "aadhaar", "nid", "tax_id") or "national_id" in name:
             return "national_id"
+        if name in ("mcc", "mcc_code", "merchant_category_code"):
+            return "mcc_code"
         if name in ("review", "review_text", "review_body"):
             return "review"
         if name in ("ticket_body", "issue_body", "support_ticket", "description") and (

@@ -441,6 +441,83 @@ def _detect_and_repair_derived_math(
 # Public entry point
 # --------------------------------------------------------------------------- #
 
+_REGEXY_VALUE_RE = re.compile(r"[+*|\\]|\{\d+(,\d+)?\}|\(.*\)")
+
+
+def _detect_pattern_leak(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
+    """Values that look like unexpanded regex patterns ('Et+( Sj+){1,2}').
+
+    A pattern that leaks raw into rows is the loudest possible fake-data tell
+    (fraud field report: 1,500 merchants named like regexes)."""
+    out: List[CoherenceFinding] = []
+    for col in df.columns:
+        if not _is_text_dtype(df[col]):
+            continue
+        s = df[col].dropna().astype(str)
+        if s.empty:
+            continue
+        sample = s.head(200)
+        hits = int(sample.apply(lambda v: bool(_REGEXY_VALUE_RE.search(v))).sum())
+        if hits > 0.3 * len(sample):
+            out.append(CoherenceFinding(
+                "pattern_leak", "high", table, col,
+                f"'{col}' values look like unexpanded regex patterns "
+                f"(e.g. {sample.iloc[0]!r}); a pattern failed to expand.",
+                rows_affected=int(len(s) * hits / len(sample)),
+            ))
+    return out
+
+
+def _singular_head(table_name: str) -> str:
+    return table_name.lower().rstrip("s")
+
+
+def _detect_denormalized_mismatch(
+    tables: Dict[str, pd.DataFrame]
+) -> List[CoherenceFinding]:
+    """A child column duplicating a parent attribute must agree with it.
+
+    Convention-inferred: child has `<head>_id`, a table named `<head>s`
+    exists, and both share a non-key column starting with `<head>_`
+    (transactions.merchant_city ↔ merchants.merchant_city). Independent
+    generation makes them disagree, and the first JOIN exposes it."""
+    out: List[CoherenceFinding] = []
+    by_head = {_singular_head(name): name for name in tables}
+    for child_name, child in tables.items():
+        if not isinstance(child, pd.DataFrame) or child.empty:
+            continue
+        for fk in [c for c in child.columns if c.lower().endswith("_id")]:
+            head = fk.lower()[:-3]
+            parent_name = by_head.get(head)
+            if parent_name is None or parent_name == child_name:
+                continue
+            parent = tables[parent_name]
+            pk = "id" if "id" in parent.columns else None
+            if pk is None:
+                continue
+            shared = [
+                c for c in child.columns
+                if c in parent.columns and c != fk
+                and not c.lower().endswith("_id")
+                and c.lower().startswith(head + "_")
+            ]
+            for c in shared:
+                mapped = child[fk].map(parent.set_index(pk)[c])
+                both = mapped.notna() & child[c].notna()
+                if both.sum() < 10:
+                    continue
+                mism = int((child[c][both].astype(str) != mapped[both].astype(str)).sum())
+                if mism > 0.05 * both.sum():
+                    out.append(CoherenceFinding(
+                        "denormalized_mismatch", "high", child_name, c,
+                        f"'{c}' disagrees with {parent_name}.{c} on {mism} of "
+                        f"{int(both.sum())} rows; a denormalized parent "
+                        f"attribute must equal the parent's value.",
+                        rows_affected=mism,
+                    ))
+    return out
+
+
 def coherence_audit(
     tables: Dict[str, pd.DataFrame],
     *,
@@ -465,9 +542,11 @@ def coherence_audit(
     rng = np.random.default_rng(seed if seed is not None else 42)
     report = CoherenceReport(repaired=repair)
 
+    report.findings.extend(_detect_denormalized_mismatch(tables))
     for name, df in tables.items():
         if not isinstance(df, pd.DataFrame) or df.empty:
             continue
+        report.findings.extend(_detect_pattern_leak(name, df))
         report.findings.extend(_detect_near_constant(name, df))
         report.findings.extend(_detect_label_filler(name, df))
         report.findings.extend(_detect_and_repair_temporal(name, df, repair))

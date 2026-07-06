@@ -449,11 +449,24 @@ class DataSimulator:
 
         needed_cols = {"id"}
 
+        _head = table_name.lower().rstrip("s")
         for rel in self.config.relationships:
             if rel.parent_table == table_name:
                 needed_cols.add(rel.parent_key)
                 if rel.filters:
                     needed_cols.update(rel.filters.keys())
+                # Denormalized copies: a child column named like this parent's
+                # own head-prefixed attribute (transactions.merchant_city ↔
+                # merchants.merchant_city) is overwritten from the parent later,
+                # so the parent's value must survive context trimming.
+                for child_col in self.config.get_columns(rel.child_table):
+                    cl = child_col.name.lower()
+                    if (
+                        cl.startswith(_head + "_")
+                        and not cl.endswith("_id")
+                        and child_col.name in df.columns
+                    ):
+                        needed_cols.add(child_col.name)
 
         for child_table in self.config.tables:
             child_cols = self.config.get_columns(child_table.name)
@@ -1393,6 +1406,16 @@ class DataSimulator:
             # this is how mimic reproduces columns whose codes come in several
             # shapes (Titanic tickets: "A/5 21171" next to "349207").
             if "pattern" in params:
+                # Guard against unsupported regex syntax: the expander handles
+                # \d, #, ?, [..], {n} and literals. An LLM-emitted pattern like
+                # "Et+( Sj+){1,2}" would otherwise leak RAW into every row
+                # (1,500 merchants named like regexes — fraud field report).
+                # If a test expansion still looks like a regex, drop the
+                # pattern and fall through to the semantic path, which knows
+                # what a merchant_name should be.
+                def _leaks(expanded: str) -> bool:
+                    return bool(re.search(r"[+*|(){}\\]|\[|\]", expanded))
+
                 pats = params["pattern"]
                 if isinstance(pats, (list, tuple)):
                     pats = [str(p) for p in pats if str(p)] or [""]
@@ -1402,14 +1425,31 @@ class DataSimulator:
                         arr = np.asarray(weights, dtype=float)
                         if arr.sum() > 0:
                             w = arr / arr.sum()
-                    idx = self.rng.choice(len(pats), size=size, p=w)
-                    return np.array([
-                        self.realistic_text._expand_pattern(pats[i]) for i in idx
-                    ])
-                return np.array([
-                    self.realistic_text._expand_pattern(str(pats))
-                    for _ in range(size)
-                ])
+                    if any(_leaks(self.realistic_text._expand_pattern(p)) for p in pats):
+                        warnings.warn(
+                            f"Column '{column.name}': pattern uses unsupported "
+                            f"regex syntax; ignoring it and using semantic "
+                            f"generation instead."
+                        )
+                    else:
+                        idx = self.rng.choice(len(pats), size=size, p=w)
+                        return np.array([
+                            self.realistic_text._expand_pattern(pats[i]) for i in idx
+                        ])
+                else:
+                    _sample = self.realistic_text._expand_pattern(str(pats))
+                    if _leaks(_sample):
+                        warnings.warn(
+                            f"Column '{column.name}': pattern "
+                            f"{str(pats)[:40]!r} uses unsupported regex "
+                            f"syntax; ignoring it and using semantic "
+                            f"generation instead."
+                        )
+                    else:
+                        return np.array([
+                            self.realistic_text._expand_pattern(str(pats))
+                            for _ in range(size)
+                        ])
             # For unique text columns, generate exactly `size` distinct values.
             if column.unique:
                 return self._generate_unique_text(text_type, size)
@@ -2023,6 +2063,10 @@ class DataSimulator:
 
             # Apply hierarchical ICC cluster effects from parent tables
             df_batch = self._apply_cluster_effects(df_batch, table_name)
+
+            # Denormalized parent attributes must agree with the parent row
+            # (a transaction's merchant_city is the merchant's city)
+            df_batch = self._fix_denormalized_parent_columns(df_batch, table_name)
 
             # Apply column correlations (Iman-Conover)
             df_batch = self._apply_correlations(df_batch, table_name)
@@ -3503,6 +3547,46 @@ class DataSimulator:
     # State machine (#9)
     # ------------------------------------------------------------------
 
+    def _fix_denormalized_parent_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """A denormalized copy of a parent attribute must equal the parent's.
+
+        When a child table carries a column that ALSO exists on an FK parent
+        AND the column name carries the parent's head noun (transactions.
+        merchant_city ↔ merchants.merchant_city), the child value is the
+        parent's value for that row — generated independently, they disagree
+        on ~99% of rows and the first JOIN exposes it (fraud field report).
+        The head-noun requirement keeps generic names (status, created_at)
+        from being overwritten wrongly. Columns with their own declared
+        derivation (depends_on, formula, rollup) are left alone.
+        """
+        rels = [r for r in self.config.relationships if r.child_table == table_name]
+        if not rels:
+            return df
+        col_params = {
+            c.name: (c.distribution_params or {})
+            for c in self.config.columns.get(table_name, [])
+        }
+        for rel in rels:
+            parent_df = self.context.get(rel.parent_table)
+            if parent_df is None or rel.child_key not in df.columns:
+                continue
+            head = rel.parent_table.lower().rstrip("s")
+            shared = [
+                c for c in df.columns
+                if c in parent_df.columns
+                and c != rel.child_key
+                and not c.lower().endswith("_id")
+                and c.lower().startswith(head + "_")
+                and not any(k in col_params.get(c, {}) for k in ("depends_on", "formula", "rollup"))
+            ]
+            if not shared:
+                continue
+            parent_idx = parent_df.set_index(rel.parent_key)
+            for c in shared:
+                mapped = df[rel.child_key].map(parent_idx[c])
+                df[c] = mapped.where(mapped.notna(), df[c])
+        return df
+
     def _apply_state_machine(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Assign entity states via a Markov transition model.
 
@@ -3667,6 +3751,10 @@ class DataSimulator:
         """Post-process to fix common semantically correlated columns."""
         table = self.config.get_table(table_name)
         protected_columns = self._get_protected_generation_columns(table_name, table) if table else set()
+
+        # Runs here (the choke point every generation path passes through)
+        # so denormalized parent copies agree regardless of code path.
+        df = self._fix_denormalized_parent_columns(df, table_name)
 
         df = apply_realism_rules(df, table_name, rng=self.rng)
 
