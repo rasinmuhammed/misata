@@ -1,0 +1,117 @@
+{
+    "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+    "version": "v1.1.0",
+    "entity": {
+        "type": "individual",
+        "role": "maintainer",
+        "name": "Muhammed Rasin",
+        "email": "rasinbinabdulla@gmail.com",
+        "description": "I am an independent open source developer based in India. I built Misata as a side project to solve a real problem I kept running into: generating realistic, relationally intact test data without needing a copy of production. The project has grown into a research-backed library with a published arXiv paper formalising the core mechanism, a built-in MCP server for AI coding agents, and integrations with Databricks, Delta Lake, and dbt. I maintain it alone and am looking for funding to work on it more seriously.",
+        "webpageUrl": {
+            "url": "https://github.com/rasinmuhammed"
+        }
+    },
+    "projects": [
+        {
+            "guid": "misata",
+            "name": "Misata",
+            "description": "Misata generates realistic, multi-table synthetic data that conforms to the outcomes you declare — exact revenue curves, fraud rates, referential integrity, and statistical structure — from a sentence, a YAML schema, or an existing database schema. No ML model is required. No real data is needed.\n\nThe core mechanism is formalised in a peer-reviewed arXiv preprint (arXiv:2606.08736): a closed-form Gamma conditional-sum method that satisfies declared aggregates to exactly $0.00 error, where off-the-shelf imitation synthesisers trained on the same data miss by 74 to 86%. The paper also introduces SpecBench, the first benchmark measuring conformance to analytical outcomes for cold-start relational synthesis.\n\nMisata ships a Model Context Protocol (MCP) server so AI coding agents (Claude, Cursor, Windsurf) can call it directly. It integrates with Apache Spark, Delta Lake, and dbt. It is used for database seeding, integration test fixtures, BI demo data, and statistical method validation.",
+            "webpageUrl": {
+                "url": "https://misata.studio"
+            },
+            "repositoryUrl": {
+                "url": "https://github.com/rasinmuhammed/misata"
+            },
+            "licenses": ["spdx:MIT"],
+            "tags": [
+                "developer-tools",
+                "synthetic-data",
+                "data-generation",
+                "testing",
+                "database",
+                "python",
+                "machine-learning",
+                "mcp",
+                "data-engineering",
+                "ai"
+            ]
+        }
+    ],
+    "funding": {
+        "channels": [
+            {
+                "guid": "github-sponsors",
+                "type": "payment-provider",
+                "address": "https://github.com/sponsors/rasinmuhammed",
+                "description": "GitHub Sponsors — one-time or recurring support via credit card or PayPal."
+            },
+            {
+                "guid": "bank-transfer",
+                "type": "bank",
+                "address": "",
+                "description": "Direct bank transfer available for organisations and grant disbursements. Email rasinbinabdulla@gmail.com for details."
+            }
+        ],
+        "plans": [
+            {
+                "guid": "community-supporter",
+                "status": "active",
+                "name": "Community supporter",
+                "description": "Covers a fraction of monthly development time — helps keep the library maintained and issues answered.",
+                "amount": 10,
+                "currency": "USD",
+                "frequency": "monthly",
+                "channels": ["github-sponsors"]
+            },
+            {
+                "guid": "sustaining-sponsor",
+                "status": "active",
+                "name": "Sustaining sponsor",
+                "description": "Covers roughly one day per month of dedicated development. Sponsors at this tier are listed in the README.",
+                "amount": 50,
+                "currency": "USD",
+                "frequency": "monthly",
+                "channels": ["github-sponsors"]
+            },
+            {
+                "guid": "organisation-sponsor",
+                "status": "active",
+                "name": "Organisation sponsor",
+                "description": "For teams and companies using Misata in their stack. Covers ongoing maintenance, priority issue triage, and logo placement in the README.",
+                "amount": 200,
+                "currency": "USD",
+                "frequency": "monthly",
+                "channels": ["github-sponsors", "bank-transfer"]
+            },
+            {
+                "guid": "grant-development-year",
+                "status": "active",
+                "name": "Annual development grant",
+                "description": "Full grant to fund one year of part-time development: completing misata-studio (hosted GUI), adding enterprise schema import (SQLAlchemy introspection), improving MCP tooling, and publishing SpecBench results as a community benchmark.",
+                "amount": 6000,
+                "currency": "USD",
+                "frequency": "yearly",
+                "channels": ["bank-transfer"]
+            },
+            {
+                "guid": "one-time",
+                "status": "active",
+                "name": "One-time contribution",
+                "description": "Any amount, one time. Every bit helps.",
+                "amount": 0,
+                "currency": "USD",
+                "frequency": "one-time",
+                "channels": ["github-sponsors"]
+            }
+        ],
+        "history": [
+            {
+                "year": 2025,
+                "income": 0,
+                "expenses": 0,
+                "currency": "USD",
+                "description": "Project started as a side project. No external funding received. All development self-funded."
+            }
+        ]
+    }
+}

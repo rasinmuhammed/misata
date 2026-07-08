@@ -2,6 +2,15 @@
 server.json
 RELEASE_NOTES_v0.8.0.md
 RELEASE_NOTES_v0.8.1.0.md
+RELEASE_NOTES_v*.md
+
+# Ad hoc session scratch scripts/notebooks (not part of the package, tests, or docs build)
+/create_notebook.py
+/evaluate_data_realism.py
+/generate_deep_data.py
+/test_realism_eval.py
+/Misata_EDA_Report.ipynb
+/MISATA_VOICE.md
 
 # Environment files
 .env
