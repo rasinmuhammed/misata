@@ -809,3 +809,115 @@ class TestFraudFieldReportEngine:
                 "4121", "5813", "5921", "7832", "8011", "8062", "4816",
                 "5967", "6011", "4814", "5122"}
         assert set(t["mcc_code"].astype(str)) <= real
+
+
+class TestCurveBoundConflicts:
+    """An exact per-period target that is infeasible under the column's declared
+    min/max (target 100 for a month with hundreds of planned rows and min=50)
+    must warn loudly, flag conformance_preview, and flag the Oracle — never
+    violate the declared bound silently. Precedence: aggregate wins."""
+
+    def _schema(self, seed=7):
+        return misata.from_dict_schema({
+            "__outcome_curves__": [{
+                "table": "orders", "column": "amount",
+                "time_column": "order_date", "time_unit": "month",
+                "value_mode": "absolute", "start_date": "2024-01-01",
+                "curve_points": [{"month": 1, "target_value": 100.0},
+                                 {"month": 2, "target_value": 120.0}],
+            }],
+            "orders": {"__rows__": 2000,
+                       "order_id": {"type": "integer", "primary_key": True},
+                       "amount": {"type": "float", "min": 50, "max": 500},
+                       "order_date": {"type": "date"}},
+        }, seed=seed)
+
+    def test_infeasible_period_target_warns_and_names_the_sacrifice(self):
+        schema = self._schema()
+        with pytest.warns(UserWarning, match="infeasible under the declared min=50"):
+            tables = misata.generate_from_schema(schema)
+        # Precedence is documented behavior: the aggregate is hit exactly...
+        orders = tables["orders"]
+        ts = pd.to_datetime(orders["order_date"])
+        jan_sum = orders.loc[ts.dt.month == 1, "amount"].sum()
+        assert abs(jan_sum - 100.0) < 0.5
+        # ...at the cost of the declared min bound.
+        assert orders["amount"].min() < 50
+
+    def test_conformance_preview_flags_bound_conflict(self):
+        preview = misata.conformance_preview(self._schema())
+        assert preview.bounds_respected is False
+        assert preview.curves[0].bounds_respected is False
+        assert any("takes\nprecedence" in w or "takes precedence" in w
+                   for w in preview.warnings)
+        assert preview.to_dict()["bounds_respected"] is False
+        # AME itself is still achievable — only the marginal bound is lost.
+        assert preview.ame_achievable is True
+
+    def test_oracle_flags_bound_violation_without_failing_ame(self):
+        import warnings as w
+        schema = self._schema()
+        with w.catch_warnings():
+            w.simplefilter("ignore")
+            tables = misata.generate_from_schema(schema)
+        oracle = misata.build_oracle_report(tables, schema, seed=7)
+        kpi = oracle["guarantees"]["kpi_conformance"]
+        assert kpi["bounds_passed"] is False
+        curve = kpi["outcome_curves"][0]
+        assert curve["bounds_passed"] is False
+        flagged = [p for p in curve["periods"] if not p["bounds_respected"]]
+        assert flagged, "no period carries the bound-violation flag"
+        assert flagged[0]["bound_violation"]["rows_below_min"] > 0
+        # The aggregate target itself was still met (AME check unchanged).
+        assert curve["passed"] is True
+
+    def test_feasible_targets_keep_bounds_flag_clean(self):
+        schema = misata.from_dict_schema({
+            "__outcome_curves__": [{
+                "table": "orders", "column": "amount",
+                "time_column": "order_date", "time_unit": "month",
+                "value_mode": "absolute", "start_date": "2024-01-01",
+                "avg_transaction_value": 120.0,
+                "curve_points": [{"month": 1, "target_value": 50000.0},
+                                 {"month": 2, "target_value": 60000.0}],
+            }],
+            "orders": {"__rows__": 1000,
+                       "order_id": {"type": "integer", "primary_key": True},
+                       "amount": {"type": "float", "min": 5, "max": 500},
+                       "order_date": {"type": "date"}},
+        }, seed=7)
+        preview = misata.conformance_preview(schema)
+        assert preview.bounds_respected is True
+        assert preview.curves[0].bounds_respected is True
+
+
+class TestSelfReferentialFkExcludesSelf:
+    """employees.manager_id → employees.id must never assign a row as its own
+    manager, while keeping referential integrity (ids only from the table)."""
+
+    def _employees(self, rows, seed=11):
+        schema = misata.from_dict_schema({
+            "employees": {"__rows__": rows,
+                "id": {"type": "integer", "primary_key": True},
+                "manager_id": {"type": "integer",
+                               "foreign_key": {"table": "employees", "column": "id"}},
+            }}, seed=seed)
+        return misata.generate_from_schema(schema)["employees"]
+
+    def test_no_row_is_its_own_manager(self):
+        df = self._employees(500)
+        managed = df.dropna(subset=["manager_id"])
+        self_managed = (managed["manager_id"].astype("int64")
+                        == managed["id"].astype("int64")).sum()
+        assert self_managed == 0, f"{self_managed} rows are their own manager"
+
+    def test_self_fk_keeps_referential_integrity(self):
+        df = self._employees(300, seed=3)
+        managed = df.dropna(subset=["manager_id"])
+        assert set(managed["manager_id"].astype("int64")).issubset(
+            set(df["id"].astype("int64")))
+
+    def test_single_row_table_gets_null_manager(self):
+        df = self._employees(1)
+        assert len(df) == 1
+        assert pd.isna(df["manager_id"].iloc[0])

@@ -561,6 +561,7 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
             "time_unit": getattr(curve, "time_unit", "month"),
             "checked": False,
             "passed": True,
+            "bounds_passed": True,
             "periods": [],
         }
 
@@ -596,6 +597,22 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
         tolerance = _curve_tolerance(schema_config, table_name, column_name)
         period_results: List[Dict[str, Any]] = []
 
+        # Declared marginal bounds for the curve column. The engine gives the
+        # aggregate target precedence over these, so a violation here is a
+        # flagged (not AME-failing) check — but it must be visible.
+        col_params: Dict[str, Any] = {}
+        try:
+            col_params = dict(next(
+                col for col in schema_config.get_columns(table_name)
+                if getattr(col, "name", None) == column_name
+            ).distribution_params or {})
+        except Exception:
+            pass
+        declared_min = col_params.get("min")
+        declared_max = col_params.get("max")
+        declared_min = float(declared_min) if isinstance(declared_min, (int, float)) and not isinstance(declared_min, bool) else None
+        declared_max = float(declared_max) if isinstance(declared_max, (int, float)) and not isinstance(declared_max, bool) else None
+
         for resolved in plan.curves:
             if resolved.column != column_name:
                 continue
@@ -605,7 +622,7 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
                 target_float = float(target)
                 abs_error = abs(observed - target_float)
                 period_passed = abs_error <= tolerance
-                period_results.append({
+                period_result = {
                     "period": bucket.label,
                     "target": target_float,
                     "observed": observed,
@@ -614,11 +631,34 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
                     "tolerance": tolerance,
                     "rows": int(mask.sum()),
                     "passed": period_passed,
-                })
+                    "bounds_respected": True,
+                }
+                if (declared_min is not None or declared_max is not None) and mask.any():
+                    period_values = values.loc[mask]
+                    rows_below = int((period_values < declared_min).sum()) if declared_min is not None else 0
+                    rows_above = int((period_values > declared_max).sum()) if declared_max is not None else 0
+                    if rows_below or rows_above:
+                        period_result["bounds_respected"] = False
+                        period_result["bound_violation"] = {
+                            "declared_min": declared_min,
+                            "declared_max": declared_max,
+                            "rows_below_min": rows_below,
+                            "rows_above_max": rows_above,
+                            "observed_min": float(period_values.min()),
+                            "observed_max": float(period_values.max()),
+                            "note": (
+                                "Aggregate target took precedence over the declared "
+                                "column bounds for this period."
+                            ),
+                        }
+                period_results.append(period_result)
 
         result["checked"] = True
         result["periods"] = period_results
         result["passed"] = all(period["passed"] for period in period_results)
+        result["bounds_passed"] = all(
+            period.get("bounds_respected", True) for period in period_results
+        )
         results.append(result)
 
     return results
@@ -760,6 +800,10 @@ def _kpi_conformance(tables: Dict[str, pd.DataFrame], schema_config: Any) -> Dic
     ]
     return {
         "passed": all(result.get("passed", False) for result in checked_results) if checked_results else True,
+        # Flagged (not AME-failing): False when an aggregate target forced
+        # per-row values outside a column's declared min/max. Aggregate
+        # targets take precedence over marginal bounds by design.
+        "bounds_passed": all(result.get("bounds_passed", True) for result in checked_results),
         "checked": len(checked_results),
         "outcome_curves": outcome_results,
         "rate_curves": rate_results,

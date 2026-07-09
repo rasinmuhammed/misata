@@ -68,6 +68,10 @@ class CurvePreview:
     time_unit: str
     periods: List[PeriodPreview] = field(default_factory=list)
     ame_achievable: bool = True
+    bounds_respected: bool = True
+    """``False`` when a period target is infeasible under the column's declared
+    min/max — the aggregate target takes precedence and the bound will be
+    violated at generation time."""
     warnings: List[str] = field(default_factory=list)
 
     @property
@@ -85,6 +89,7 @@ class CurvePreview:
             "time_column": self.time_column,
             "time_unit": self.time_unit,
             "ame_achievable": self.ame_achievable,
+            "bounds_respected": self.bounds_respected,
             "total_target": self.total_target,
             "total_rows": self.total_rows,
             "periods": [
@@ -117,6 +122,11 @@ class ConformancePreview:
     def ame_achievable(self) -> bool:
         """``True`` if all curves can reach AME = 0 with current settings."""
         return all(c.ame_achievable for c in self.curves)
+
+    @property
+    def bounds_respected(self) -> bool:
+        """``True`` if no curve will need to violate a declared column min/max."""
+        return all(c.bounds_respected for c in self.curves)
 
     @property
     def warnings(self) -> List[str]:
@@ -161,6 +171,7 @@ class ConformancePreview:
         return {
             "schema_name": self.schema_name,
             "ame_achievable": self.ame_achievable,
+            "bounds_respected": self.bounds_respected,
             "warnings": self.warnings,
             "curves": [c.to_dict() for c in self.curves],
         }
@@ -280,6 +291,27 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
         period_previews: List[PeriodPreview] = []
         curve_warnings: List[str] = []
 
+        # Declared min/max feasibility: a period with n rows and target T can
+        # keep every value in [min, max] only when min·n ≤ T ≤ max·n. The
+        # engine gives the aggregate target precedence, so flag the sacrifice
+        # here — before any rows are generated.
+        column_map = {getattr(c, "name", None): c for c in columns}
+        bound_conflicts = engine.bound_conflicts(plan, column_map)
+        bounds_respected = not bound_conflicts
+        for conflict in bound_conflicts:
+            bound_value = (
+                conflict["declared_min"] if conflict["sacrificed"] == "min"
+                else conflict["declared_max"]
+            )
+            curve_warnings.append(
+                f"Period '{conflict['period']}': target={conflict['target']:,.2f} over "
+                f"{conflict['rows']} planned rows is infeasible under the declared "
+                f"{conflict['sacrificed']}={bound_value:g} — the aggregate target takes "
+                f"precedence and per-row values will violate the "
+                f"{conflict['sacrificed']} bound. Widen the bound, adjust the target, "
+                f"or tune min/max_transactions_per_period."
+            )
+
         for bucket, target, est_rows in zip(
             resolved.buckets, resolved.targets, row_counts
         ):
@@ -317,6 +349,7 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
             time_unit=curve.time_unit,
             periods=period_previews,
             ame_achievable=True,
+            bounds_respected=bounds_respected,
             warnings=curve_warnings,
         )
         preview.curves.append(curve_preview)

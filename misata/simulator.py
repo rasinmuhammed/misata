@@ -436,6 +436,56 @@ class DataSimulator:
 
         return valid_ids
 
+    def _generate_self_referential_fk(
+        self,
+        relationship: Relationship,
+        table_data: Optional[pd.DataFrame],
+        size: int,
+    ) -> np.ndarray:
+        """Generate a self-referential FK (employees.manager_id → employees.id).
+
+        Candidates are PKs that already exist: earlier batches (context) plus
+        PKs generated earlier in the current batch. A row is never allowed to
+        reference itself; when a row has no other candidate (e.g. a 1-row
+        table) it gets NULL — the natural root of the hierarchy.
+        """
+        pools: List[np.ndarray] = []
+
+        context_ids = self._get_parent_ids(relationship)
+        if len(context_ids):
+            pools.append(np.asarray(context_ids))
+
+        own_ids: Optional[np.ndarray] = None
+        if table_data is not None and relationship.parent_key in table_data.columns:
+            own_series = pd.Series(table_data[relationship.parent_key])
+            own_ids = own_series.to_numpy()
+            batch_ids = own_series.dropna().to_numpy()
+            if len(batch_ids):
+                pools.append(batch_ids)
+
+        if not pools:
+            warnings.warn(
+                f"Self-referential foreign key '{relationship.child_key}' in "
+                f"'{relationship.child_table}': no '{relationship.parent_key}' values "
+                f"available yet (declare '{relationship.parent_key}' before "
+                f"'{relationship.child_key}'). Emitting NULLs to preserve integrity."
+            )
+            return np.array([None] * size, dtype=object)
+
+        pool = pd.unique(np.concatenate(pools))
+        values = self.rng.choice(pool, size=size)
+
+        # Exclude self: a row must never be its own parent.
+        if own_ids is not None and len(own_ids) == size:
+            self_mask = np.asarray(values == own_ids)
+            if self_mask.any():
+                values = values.astype(object)
+                for idx in np.where(self_mask)[0]:
+                    alternatives = pool[pool != own_ids[idx]]
+                    values[idx] = self.rng.choice(alternatives) if len(alternatives) else None
+
+        return values
+
     def _collect_context_columns(self, table_name: str, df: pd.DataFrame) -> List[str]:
         """Return the columns that must be retained for future FK/date/depends_on lookups.
 
@@ -1319,6 +1369,13 @@ class DataSimulator:
                 values = self.rng.integers(1, max(size // 10, 100), size=size)
                 return values
 
+            # Self-referential FK (employees.manager_id → employees.id):
+            # sample from rows that actually exist — earlier batches via
+            # context plus PKs generated earlier in this batch — and never
+            # let a row reference itself.
+            if relationship.parent_table == table_name:
+                return self._generate_self_referential_fk(relationship, table_data, size)
+
             # Check context instead of data
             if relationship.parent_table not in self.context:
                 warnings.warn(
@@ -1755,6 +1812,30 @@ class DataSimulator:
             return None
 
         column_map = {column.name: column for column in columns}
+
+        # Precedence: an exact aggregate target always wins over the column's
+        # declared min/max. When a period's target is infeasible under those
+        # bounds (min·rows ≤ target ≤ max·rows fails), say so loudly instead
+        # of violating the bound silently.
+        for conflict in self.fact_engine.bound_conflicts(plan, column_map):
+            bound_value = (
+                conflict["declared_min"] if conflict["sacrificed"] == "min"
+                else conflict["declared_max"]
+            )
+            feasible = bound_value * conflict["rows"]
+            direction = "at least" if conflict["sacrificed"] == "min" else "at most"
+            warnings.warn(
+                f"Outcome curve on '{table_name}.{conflict['column']}', period "
+                f"'{conflict['period']}': exact target {conflict['target']:,.2f} across "
+                f"{conflict['rows']} rows is infeasible under the declared "
+                f"{conflict['sacrificed']}={bound_value:g} (the target would need to be "
+                f"{direction} {feasible:,.2f}). The aggregate target takes precedence: "
+                f"per-row values will violate the declared {conflict['sacrificed']} bound. "
+                f"Widen the bound, adjust the target, or tune "
+                f"min/max_transactions_per_period.",
+                UserWarning,
+            )
+
         df_batch = self.fact_engine.generate(plan, column_map)
 
         for column in columns:
@@ -2273,7 +2354,11 @@ class DataSimulator:
 
                 # Apply!
                 df[target_col] = df[target_col] * row_factors
-                
+
+                # Curve multipliers win over the column's declared min/max
+                # (same precedence as exact targets) — but never silently.
+                self._warn_curve_bound_violations(df, table_name, target_col)
+
             except Exception as e:
                 warnings.warn(f"Failed to apply outcome curve for {table_name}: {e}")
                 continue
@@ -2694,6 +2779,41 @@ class DataSimulator:
                 parent_map=parent_map,
             )
             return  # Use the first parent that has a map
+
+    def _warn_curve_bound_violations(self, df: pd.DataFrame, table_name: str, column_name: str) -> None:
+        """Warn when an outcome curve pushed values past the declared min/max.
+
+        Curve targets take precedence over marginal column bounds; this makes
+        the sacrifice visible instead of silent.
+        """
+        params = self._get_column_params(table_name, column_name)
+        lo = params.get("min")
+        hi = params.get("max")
+        lo = float(lo) if isinstance(lo, (int, float)) and not isinstance(lo, bool) else None
+        hi = float(hi) if isinstance(hi, (int, float)) and not isinstance(hi, bool) else None
+        if lo is None and hi is None:
+            return
+
+        values = pd.to_numeric(df[column_name], errors="coerce").dropna()
+        if values.empty:
+            return
+        below = int((values < lo).sum()) if lo is not None else 0
+        above = int((values > hi).sum()) if hi is not None else 0
+        if not below and not above:
+            return
+
+        parts = []
+        if below:
+            parts.append(f"{below} row(s) below declared min={lo:g}")
+        if above:
+            parts.append(f"{above} row(s) above declared max={hi:g}")
+        warnings.warn(
+            f"Outcome curve on '{table_name}.{column_name}' pushed values past the "
+            f"column's declared bounds: {'; '.join(parts)}. The curve takes "
+            f"precedence over the declared min/max. Widen the bounds or soften "
+            f"the curve to avoid this.",
+            UserWarning,
+        )
 
     def _get_column_params(self, table_name: str, column_name: str) -> Dict[str, Any]:
         """Return distribution params for a column if present."""

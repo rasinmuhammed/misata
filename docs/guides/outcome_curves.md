@@ -235,6 +235,7 @@ chart_data = preview.to_dict()
 | Field | Description |
 |-------|-------------|
 | `ame_achievable` | `True` if all curves can reach AME = 0 |
+| `bounds_respected` | `True` if no curve needs to violate a declared column min/max |
 | `curves` | List of `CurvePreview` per outcome curve |
 | `warnings` | Merged list of all warnings |
 | `.summary()` | Human-readable multi-line string |
@@ -248,7 +249,20 @@ chart_data = preview.to_dict()
 | `total_target` | Sum of all period targets |
 | `total_rows` | Estimated total rows across all periods |
 | `ame_achievable` | `True` for this specific curve |
-| `warnings` | Prop. 3 clamping warnings for this curve |
+| `bounds_respected` | `False` when a period target forces per-row values past the declared min/max |
+| `warnings` | Prop. 3 clamping and bound-conflict warnings for this curve |
+
+### Precedence: aggregate targets win over column bounds
+
+A period with `n` rows and target `T` can keep every row inside the column's declared `[min, max]` only when `min * n <= T <= max * n`. When a target breaks that condition (say `target_value: 100` for a month that gets 900 rows on a column with `min: 50`), the engine still hits the aggregate exactly. The exact target takes precedence, and per-row values in that period will violate the declared bound.
+
+This never happens silently. Three surfaces report the sacrifice:
+
+1. Generation emits a `UserWarning` naming the table, column, period, and the bound that was sacrificed.
+2. `conformance_preview()` sets `bounds_respected=False` on the affected curve and adds a per-period warning, before any rows exist.
+3. The Oracle report flags it under `guarantees.kpi_conformance`: `bounds_passed=False`, with per-period `bound_violation` details (rows below min, rows above max, observed extremes). The AME check itself still passes, since the aggregate was met.
+
+To resolve the conflict, widen the bound, adjust the target, or constrain the row count with `min/max_transactions_per_period` so the per-row mean lands inside the declared range.
 
 ---
 

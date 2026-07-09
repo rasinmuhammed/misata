@@ -107,6 +107,54 @@ class FactEngine:
             intra_period_pattern=primary.intra_period_pattern,
         )
 
+    def bound_conflicts(
+        self,
+        plan: FactGenerationPlan,
+        column_map: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Detect per-period targets infeasible under a column's declared min/max.
+
+        A period with ``n`` planned rows and aggregate target ``T`` can keep
+        every per-row value inside the declared ``[min, max]`` only when
+        ``min·n ≤ T ≤ max·n``. When that fails, the engine still hits the
+        aggregate exactly — the exact aggregate target takes precedence over
+        the column's marginal bounds — so per-row values will violate the
+        declared bound. Callers use the returned conflicts to warn loudly and
+        flag the run instead of sacrificing the bound silently.
+        """
+        conflicts: List[Dict[str, Any]] = []
+        for curve in plan.curves:
+            column = column_map.get(curve.column)
+            params = (getattr(column, "distribution_params", {}) or {}) if column is not None else {}
+            lo = params.get("min")
+            hi = params.get("max")
+            lo = float(lo) if isinstance(lo, (int, float)) and not isinstance(lo, bool) else None
+            hi = float(hi) if isinstance(hi, (int, float)) and not isinstance(hi, bool) else None
+            if lo is None and hi is None:
+                continue
+            for bucket, target, rows in zip(plan.buckets, curve.targets, plan.row_counts):
+                rows = int(rows)
+                if rows <= 0:
+                    continue
+                target = float(target)
+                sacrificed = None
+                if lo is not None and target < lo * rows - 1e-9:
+                    sacrificed = "min"
+                elif hi is not None and target > hi * rows + 1e-9:
+                    sacrificed = "max"
+                if sacrificed is None:
+                    continue
+                conflicts.append({
+                    "column": curve.column,
+                    "period": bucket.label,
+                    "target": target,
+                    "rows": rows,
+                    "declared_min": lo,
+                    "declared_max": hi,
+                    "sacrificed": sacrificed,
+                })
+        return conflicts
+
     def generate(self, plan: FactGenerationPlan, column_map: Dict[str, Any]) -> pd.DataFrame:
         """Build the base scaffold for a constrained fact table."""
         rows: List[pd.DataFrame] = []
