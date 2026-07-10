@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.1.27"
+__version__ = "0.8.1.28"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -621,6 +621,7 @@ from misata.capsule_registry import (
     load_registry_capsule,
     registry_names,
 )
+from misata.evalpack import build_evalpack, EvalPackResult, EvalQuestion
 from misata.templates.library import load_template, list_templates
 from misata.db import seed_database, seed_database_sqlalchemy, seed_from_sqlalchemy_models, SeedReport
 from misata.db import load_tables_from_db
@@ -726,6 +727,9 @@ __all__ = [
     "OutcomeCurveBuilder",
     "RateCurveBuilder",
     "conformance_preview",
+    "build_evalpack",
+    "EvalPackResult",
+    "EvalQuestion",
     "ConformancePreview",
     "CurvePreview",
     "PeriodPreview",

@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.8.1.27"
+version = "0.8.1.28"
 description = "Outcome-conformant synthetic data: realistic multi-table test data that hits the revenue curves, rates, and aggregates you declare, exactly. From a sentence, YAML, or your database. No ML model, no real data. MCP server for AI agents."
 authors = [
     {name = "Muhammed Rasin", email = "rasinbinabdulla@gmail.com"}
@@ -87,6 +87,7 @@ dev = [
     "jsonschema>=4.0.0",   # YAML validation tests
     "scikit-learn>=1.0.0", # ML-efficacy (TSTR) path in fidelity_report
     "hypothesis>=6.100",   # property-based fuzzing of the dict-schema contract
+    "duckdb>=0.9.0",       # evalpack verification tests
 ]
 db = [
     "psycopg[binary]>=3.1.0",
@@ -141,8 +142,11 @@ fidelity = [
 spark = [
     "pyspark>=3.3.0",         # Apache Spark + Delta Lake integration (write_delta, from_catalog_schema, etc.)
 ]
+evalpack = [
+    "duckdb>=0.9.0",          # Independent SQL verification of evalpack answer keys
+]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity,evalpack]",
 ]
 
 [project.scripts]

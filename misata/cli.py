@@ -2093,5 +2093,58 @@ def capsule_install(name: str) -> None:
     console.print(f"Use it with: [bold]misata generate --story ... --capsule {dest}[/bold]")
 
 
+@main.command("evalpack")
+@click.option("--config", "-c", type=click.Path(exists=True), required=True,
+              help="Schema file (misata.yaml format or serialised SchemaConfig JSON/YAML). "
+                   "Must declare outcome curves, rate curves, or relationships.")
+@click.option("--output-dir", "-o", type=click.Path(), default="./evalpack",
+              help="Directory to write the pack to (default: ./evalpack)")
+@click.option("--seed", type=int, default=None,
+              help="Generation seed (recorded in the manifest for reproducibility)")
+def evalpack_cmd(config: str, output_dir: str, seed: Optional[int]) -> None:
+    """Build a verified evaluation pack: database + question/answer pairs.
+
+    Every expected answer derives from the declared spec (outcome-curve
+    targets, allocation plan, rate anchors, FK relationships) and is then
+    verified by executing its gold SQL with DuckDB against the written CSVs.
+    Questions that fail exact verification are dropped and logged, never
+    shipped. Requires: pip install 'misata[evalpack]'
+
+    Example:
+
+        misata evalpack --config misata.yaml -o ./my_pack --seed 42
+    """
+    print_banner()
+    from misata.evalpack import build_evalpack
+
+    config_dict = _load_yaml_or_json(config)
+    if isinstance(config_dict.get("tables"), dict):
+        schema_config = load_yaml_schema(config, seed=seed)
+    else:
+        schema_config = SchemaConfig(**config_dict)
+    if seed is not None:
+        schema_config.seed = seed
+
+    console.print(f"Building evalpack from [cyan]{config}[/cyan] …")
+    result = build_evalpack(schema_config, output_dir)
+
+    console.print(result.summary())
+    if result.dropped:
+        console.print(
+            f"[yellow]{len(result.dropped)} candidate(s) failed exact verification "
+            f"and were dropped — see manifest.json → dropped_questions.[/yellow]"
+        )
+    if result.all_verified:
+        console.print(
+            f"[green]✓ {len(result.questions)} questions shipped, all verified "
+            f"independently with DuckDB.[/green]"
+        )
+        console.print(f"Re-verify any time with: [bold]python {output_dir}/verify.py[/bold]")
+    else:
+        console.print("[red]✗ Pack has no verified questions — check that the schema "
+                      "declares outcome curves, rate curves, or relationships.[/red]")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()

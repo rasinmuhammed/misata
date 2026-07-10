@@ -49,6 +49,7 @@ tests/*
 !tests/test_dict_schema_formats.py
 !tests/test_fuzz_dict_schema.py
 !tests/test_coherence.py
+!tests/test_evalpack.py
 jman_output/
 llm_test/
 ml_demo_output/
