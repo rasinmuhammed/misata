@@ -137,6 +137,16 @@ _MEDIA_TABLE_HINTS = (
     "article", "story", "poem", "play", "musical", "documentary", "video",
 )
 
+# Table names whose "title" column is a dish/recipe name, not a job.
+_FOOD_TABLE_HINTS = ("recipe", "dish", "meal", "menu", "food")
+
+# Table names whose "title" column is an event name; work_title is the
+# closest pool (a job title here is a category error).
+_EVENT_TABLE_HINTS = (
+    "event", "conference", "webinar", "concert", "festival",
+    "meetup", "seminar", "workshop", "exhibition",
+)
+
 # Table names that strongly imply the "name" column is an organisation name.
 # Checked against table_name.lower() with substring matching.
 _COMPANY_TABLE_HINTS = (
@@ -814,6 +824,21 @@ class RealisticTextGenerator:
         # "title" in a creative-work table is the work's title, not a job.
         _is_media_table = any(h in table for h in _MEDIA_TABLE_HINTS)
         if name in ("title", "work_title") and _is_media_table:
+            return "work_title"
+        # "title" in a recipes/dishes/meals table is the dish name, not a job.
+        if name in ("title", "recipe_title", "dish_title", "meal_title") and any(
+            h in table for h in _FOOD_TABLE_HINTS
+        ):
+            return "menu_item"
+        # "title" in a product/listing table is the product's name.
+        if name == "title" and any(
+            h in table for h in ("product", "listing", "item", "sku", "catalog")
+        ):
+            return "product_name"
+        # A ticket's "title"/"subject" is the one-line issue, not a job.
+        if name in ("title", "subject") and ("ticket" in table or "issue" in table):
+            return "support_ticket"
+        if name == "title" and any(h in table for h in _EVENT_TABLE_HINTS):
             return "work_title"
         if "genre" in name:
             return "genre"
