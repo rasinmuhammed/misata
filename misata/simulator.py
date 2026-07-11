@@ -44,6 +44,34 @@ from misata.vocabulary import SemanticVocabularyGenerator
 from misata.workflows import WorkflowEngine
 
 
+# Column-name tokens whose values are money-like and therefore right-skewed in
+# the real world (most rows low, a long upper tail). When only bounds are
+# declared, these default to a skewed draw instead of a symmetric bell curve.
+_MONETARY_TOKENS = (
+    "salary", "income", "wage", "revenue", "amount", "balance", "price",
+    "cost", "fee", "payment", "wealth", "net_worth", "networth", "mrr", "arr",
+    "gmv", "spend", "budget", "donation", "deposit", "premium", "payout",
+    "invoice_total", "order_total", "subtotal", "compensation", "earnings",
+)
+
+
+def _is_monetary_name(name: str) -> bool:
+    n = name.lower()
+    return any(tok in n for tok in _MONETARY_TOKENS)
+
+
+def _draw_right_skewed(rng, lo: float, hi: float, size: int) -> "np.ndarray":
+    """Right-skewed draw bounded in [lo, hi]: most mass low, a realistic upper
+    tail. Shapes income/price/revenue the way EDA expects (skew ~1-2), instead
+    of the symmetric bell a normal(midpoint) produces."""
+    import numpy as np
+
+    z = rng.lognormal(mean=0.0, sigma=0.65, size=size)
+    z = z / np.quantile(z, 0.995)          # scale so ~99.5th pct maps near 1
+    z = np.clip(z, 0.0, 1.0)
+    return lo + (hi - lo) * z
+
+
 def _lognormal_mu_sigma(mean: float, std: float, minimum=None) -> "tuple[float, float]":
     """Resolve lognormal (mu, sigma) from `mean`/`std`, disambiguating the
     log-space-vs-arithmetic convention.
@@ -1178,6 +1206,21 @@ class DataSimulator:
                 elif _cname.endswith("_rating") or _cname == "rating":
                     params = {**params, "min": 1.0, "max": 5.0}
                 _lo, _hi = params.get("min"), params.get("max")
+
+            # Monetary columns are right-skewed in reality. When the user gave
+            # only bounds (default distribution, no shape params), draw a skewed
+            # value instead of a symmetric bell. Respects an explicit
+            # distribution/mean/std/mu/sigma if the user set one.
+            if (
+                params.get("_distribution_is_default")
+                and not any(k in params for k in ("mean", "std", "mu", "sigma", "choices"))
+                and _is_monetary_name(_cname)
+                and isinstance(_lo, (int, float)) and isinstance(_hi, (int, float))
+                and float(_hi) > float(_lo)
+            ):
+                vals = _draw_right_skewed(self.rng, float(_lo), float(_hi), size)
+                decimals = params.get("decimals", 2)
+                return np.round(vals, decimals)
             _has_bounds = (
                 isinstance(_lo, (int, float))
                 and isinstance(_hi, (int, float))

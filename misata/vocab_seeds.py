@@ -371,6 +371,27 @@ STATES_BY_COUNTRY: Dict[str, List[str]] = {
         "South Australia", "Tasmania", "Australian Capital Territory",
         "Northern Territory",
     ],
+    "Brazil": [
+        "São Paulo", "Rio de Janeiro", "Minas Gerais", "Bahia", "Paraná",
+        "Rio Grande do Sul", "Pernambuco", "Ceará", "Pará", "Santa Catarina",
+        "Goiás", "Amazonas", "Espírito Santo", "Distrito Federal", "Mato Grosso",
+    ],
+    "France": [
+        "Île-de-France", "Auvergne-Rhône-Alpes", "Provence-Alpes-Côte d'Azur",
+        "Nouvelle-Aquitaine", "Occitanie", "Hauts-de-France", "Grand Est",
+        "Pays de la Loire", "Normandie", "Bretagne", "Bourgogne-Franche-Comté",
+        "Centre-Val de Loire",
+    ],
+    "Japan": [
+        "Tokyo", "Osaka", "Kanagawa", "Aichi", "Saitama", "Chiba", "Hyogo",
+        "Hokkaido", "Fukuoka", "Shizuoka", "Kyoto", "Hiroshima", "Miyagi",
+        "Nagano", "Okinawa",
+    ],
+    "Netherlands": [
+        "North Holland", "South Holland", "Utrecht", "North Brabant",
+        "Gelderland", "Overijssel", "Limburg", "Groningen", "Friesland",
+        "Drenthe", "Flevoland", "Zeeland",
+    ],
 }
 
 # ---------------------------------------------------------------------------

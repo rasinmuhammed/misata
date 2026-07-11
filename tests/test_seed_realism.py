@@ -120,3 +120,97 @@ def test_lifecycle_ordering_generalizes_to_saas():
     s, p, c = (pd.to_datetime(a["signup_date"]), pd.to_datetime(a["paid_date"]),
                pd.to_datetime(a["cancelled_date"]))
     assert (s <= p).all() and (p <= c).all()
+
+
+class TestGeographicCoherence:
+    @pytest.fixture(scope="class")
+    def addresses(self):
+        schema = SchemaConfig(
+            name="addr", seed=11,
+            tables=[Table(name="people", row_count=150)],
+            columns={"people": [
+                Column(name="person_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 100000}),
+                Column(name="city", type="text"),
+                Column(name="state", type="text"),
+                Column(name="zip_code", type="text"),
+                Column(name="country", type="text"),
+            ]},
+        )
+        return misata.generate_from_schema(schema)["people"]
+
+    def test_state_is_not_an_order_status(self, addresses):
+        statuses = {"pending", "active", "inactive", "cancelled"}
+        assert not addresses["state"].astype(str).str.lower().isin(statuses).any()
+
+    def test_state_belongs_to_country(self, addresses):
+        from misata.realism import COUNTRY_STATES
+        def ok(r):
+            pool = COUNTRY_STATES.get(str(r["country"]))
+            return pool is None or str(r["state"]) in pool
+        assert addresses.apply(ok, axis=1).mean() >= 0.95
+
+    def test_zip_matches_country_format(self, addresses):
+        import re
+        fmt = {
+            "United States": r"^\d{5}$", "Germany": r"^\d{5}$",
+            "France": r"^\d{5}$", "Australia": r"^\d{4}$",
+            "India": r"^\d{6}$", "Japan": r"^\d{3}-\d{4}$",
+            "Netherlands": r"^\d{4} [A-Z]{2}$", "Brazil": r"^\d{5}-\d{3}$",
+        }
+        def ok(r):
+            pat = fmt.get(str(r["country"]))
+            return pat is None or bool(re.match(pat, str(r["zip_code"])))
+        assert addresses.apply(ok, axis=1).mean() >= 0.95
+
+    def test_phone_matches_country_calling_code(self):
+        schema = SchemaConfig(
+            name="ph", seed=4, tables=[Table(name="p", row_count=200)],
+            columns={"p": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="phone", type="text"),
+                Column(name="country", type="text"),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["p"]
+        codes = {"United States": "+1", "Canada": "+1", "United Kingdom": "+44",
+                 "Germany": "+49", "France": "+33", "India": "+91",
+                 "Japan": "+81", "Netherlands": "+31", "Australia": "+61",
+                 "Brazil": "+55", "Mexico": "+52"}
+        def ok(r):
+            cc = codes.get(str(r["country"]))
+            return cc is None or str(r["phone"]).startswith(cc)
+        assert d.apply(ok, axis=1).mean() >= 0.95
+
+
+class TestDistributionRealism:
+    def test_salary_is_right_skewed(self):
+        schema = SchemaConfig(
+            name="emp", seed=4, tables=[Table(name="e", row_count=3000)],
+            columns={"e": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="salary", type="float",
+                       distribution_params={"min": 30000, "max": 250000}),
+            ]},
+        )
+        salary = misata.generate_from_schema(schema)["e"]["salary"]
+        assert salary.skew() > 0.7, f"salary skew {salary.skew():.2f} too symmetric"
+        assert salary.median() < salary.mean(), "income should have mean > median"
+        assert salary.min() >= 30000 and salary.max() <= 250000
+
+    def test_explicit_distribution_is_respected(self):
+        """A user who declares a distribution must not be overridden by skew."""
+        schema = SchemaConfig(
+            name="emp2", seed=4, tables=[Table(name="e", row_count=2000)],
+            columns={"e": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="revenue", type="float",
+                       distribution_params={"distribution": "normal",
+                                            "mean": 100000, "std": 5000}),
+            ]},
+        )
+        rev = misata.generate_from_schema(schema)["e"]["revenue"]
+        assert abs(rev.skew()) < 0.5, "explicit normal must stay symmetric"

@@ -94,8 +94,11 @@ SEMANTIC_PATTERNS: List[Tuple[str, str, Dict[str, Any]]] = [
     # Boolean patterns
     (r"^is_|^has_|^can_|^should_|^active$|^enabled$|^verified$|^confirmed$", "boolean", {"probability": 0.5}),
 
-    # Status patterns
-    (r"^status$|^state$|^order_?status$|^subscription_?status$", "categorical", {"choices": ["active", "inactive", "pending", "cancelled"]}),
+    # Status patterns. NOTE: bare `state` is deliberately excluded — in a data
+    # model it is far more often a geographic region (address forms) than an
+    # order state, and the realism layer fills it with country-coherent
+    # provinces/states. Order state should be named `status`/`order_status`.
+    (r"^status$|^order_?status$|^subscription_?status$|^payment_?status$", "categorical", {"choices": ["active", "inactive", "pending", "cancelled"]}),
 
     # Date patterns (already handled by type, but ensure proper params)
     (r"^date$|^created_?at$|^updated_?at$|^start_?date$|^end_?date$|_date$|_at$", "date", {"start": "2023-01-01", "end": "2024-12-31"}),

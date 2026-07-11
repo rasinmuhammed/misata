@@ -1830,6 +1830,163 @@ def _fix_city_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) 
     ]
 
 
+_LETTERS = "ABCDEFGHJKLMNPRSTUVWXYZ"  # postal-safe (no I/O/Q)
+
+
+def _postal_for(cc: str, prefix: str, rng: np.random.Generator) -> str:
+    """Build a postal code in the national format for country code ``cc``,
+    starting from the city ``prefix`` recorded in CITY_GEODATA."""
+    d = lambda n: "".join(str(rng.integers(0, 10)) for _ in range(n))  # noqa: E731
+    L = lambda n: "".join(rng.choice(list(_LETTERS)) for _ in range(n))  # noqa: E731
+    # Numeric run of exactly n chars, keeping the city prefix at the front.
+    num = lambda n: (str(prefix) + d(n))[:n]  # noqa: E731
+    if cc == "CA":                       # A9A 9A9
+        p = (str(prefix) + L(1))[:1]
+        return f"{p}{d(1)}{L(1)} {d(1)}{L(1)}{d(1)}"
+    if cc == "GB":                       # EC1 2AB (prefix already 1-2 letters)
+        return f"{prefix}{d(1)} {d(1)}{L(2)}"
+    if cc == "JP":                       # 100-0001
+        return f"{num(3)}-{d(4)}"
+    if cc == "NL":                       # 1012 AB
+        return f"{num(4)} {L(2)}"
+    if cc == "BR":                       # 01310-100
+        return f"{num(5)}-{d(3)}"
+    if cc in ("IN", "SG"):               # 6 digits
+        return num(6)
+    if cc == "AU":                       # 4 digits
+        return num(4)
+    # US, DE, FR, KR, MX, AE and default: 5-digit numeric
+    return num(5)
+
+
+def _city_geo_lookup():
+    """Map lowercased city name -> (country_code, postal_prefix)."""
+    from misata.vocab_seeds import CITY_GEODATA
+    return {str(r[0]).lower(): (r[4], r[3]) for r in CITY_GEODATA}
+
+
+# Fallback country-name -> (country_code, representative prefix) so a row with
+# a country but an unknown city still gets a correctly-formatted postal code.
+_COUNTRY_TO_CC = {
+    "United States": ("US", "1"), "Canada": ("CA", "K"),
+    "United Kingdom": ("GB", "B"), "Germany": ("DE", "1"),
+    "France": ("FR", "7"), "India": ("IN", "1"), "Japan": ("JP", "1"),
+    "Netherlands": ("NL", "1"), "Australia": ("AU", "2"), "Brazil": ("BR", "0"),
+    "Mexico": ("MX", "0"), "South Korea": ("KR", "0"), "Singapore": ("SG", "0"),
+    "United Arab Emirates": ("AE", "0"),
+}
+
+
+def _fix_postal_from_city(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+    """Regenerate postal codes so they match the row's city (preferred) or
+    country, in the correct national format. A US-style five-digit ZIP on a
+    Tokyo row is an instant tell; this ties the code to real geography.
+    """
+    postal_col = next(
+        (c for c in df.columns if c.lower() in
+         ("zip", "zip_code", "zipcode", "postal", "postal_code", "postcode")),
+        None,
+    )
+    if postal_col is None:
+        return
+    city_col = next((c for c in df.columns
+                     if c.lower() == "city" or c.lower().endswith("_city")), None)
+    country_col = next((c for c in df.columns
+                        if c.lower() == "country" or c.lower().endswith("_country")), None)
+    if city_col is None and country_col is None:
+        return
+
+    geo = _city_geo_lookup()
+    out = []
+    for _, row in df.iterrows():
+        cc_prefix = None
+        if city_col is not None:
+            cc_prefix = geo.get(str(row[city_col]).lower())
+        if cc_prefix is None and country_col is not None:
+            cc_prefix = _COUNTRY_TO_CC.get(str(row[country_col]))
+        if cc_prefix is None:
+            out.append(row[postal_col])          # unknown geography: leave as-is
+        else:
+            cc, prefix = cc_prefix
+            out.append(_postal_for(cc, prefix, rng))
+    df[postal_col] = out
+
+
+# National phone templates: '#' is a random digit, the calling code is fixed.
+_PHONE_TEMPLATES = {
+    "United States": "+1 (###) ###-####", "Canada": "+1 (###) ###-####",
+    "United Kingdom": "+44 #### ######", "Germany": "+49 ### #######",
+    "France": "+33 # ## ## ## ##", "India": "+91 ##### #####",
+    "Japan": "+81 ## #### ####", "Netherlands": "+31 # ########",
+    "Australia": "+61 # #### ####", "Brazil": "+55 ## #####-####",
+    "Mexico": "+52 ## #### ####", "South Korea": "+82 ## #### ####",
+    "Singapore": "+65 #### ####", "United Arab Emirates": "+971 ## ### ####",
+}
+
+
+def _fix_phone_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+    """Re-map phone numbers so each row's number uses its country's calling
+    code and format. A +1 US number on a Tokyo row is an obvious tell."""
+    phone_col = next(
+        (c for c in df.columns
+         if "phone" in c.lower() or "mobile" in c.lower()
+         or {"tel", "telephone"} & set(c.lower().split("_"))),
+        None,
+    )
+    country_col = next((c for c in df.columns
+                        if c.lower() == "country" or c.lower().endswith("_country")), None)
+    if phone_col is None or country_col is None:
+        return
+    countries = df[country_col].astype(str)
+    if not countries.isin(_PHONE_TEMPLATES).any():
+        return
+    out = []
+    for orig, country in zip(df[phone_col], countries):
+        tmpl = _PHONE_TEMPLATES.get(str(country))
+        if tmpl is None:
+            out.append(orig)
+        else:
+            out.append("".join(str(rng.integers(0, 10)) if ch == "#" else ch
+                               for ch in tmpl))
+    df[phone_col] = out
+
+
+def _fix_state_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+    """Re-map state/province values so each row's state belongs to its country.
+
+    Without this an address reads "Curitiba, Indiana, Brazil" — a US state in
+    a Brazilian row. Fires when the table carries both a state-ish and a
+    country-ish column; states are resampled from the row's country pool.
+    """
+    state_col = next(
+        (c for c in df.columns
+         if c.lower() in ("state", "province", "region", "state_province")
+         or c.lower().endswith("_state") or c.lower().endswith("_province")),
+        None,
+    )
+    country_col = next(
+        (c for c in df.columns
+         if c.lower() == "country" or c.lower().endswith("_country")),
+        None,
+    )
+    if state_col is None or country_col is None:
+        return
+    countries = df[country_col].astype(str)
+    known_mask = countries.isin(COUNTRY_STATES.keys())
+    if not known_mask.any():
+        return
+    incoherent = known_mask & ~df.apply(
+        lambda r: str(r[state_col]) in COUNTRY_STATES.get(str(r[country_col]), ()),
+        axis=1,
+    )
+    if not incoherent.any():
+        return
+    df.loc[incoherent, state_col] = [
+        rng.choice(COUNTRY_STATES[str(c)])
+        for c in countries[incoherent]
+    ]
+
+
 def apply_realism_rules(
     df: pd.DataFrame,
     table_name: str = "",
@@ -1853,6 +2010,9 @@ def apply_realism_rules(
     # (column generation order means the city may have been sampled before
     # the country existed; this pass runs after the full table is built).
     _fix_city_country(df, columns, _rng)
+    _fix_state_country(df, columns, _rng)
+    _fix_postal_from_city(df, columns, _rng)
+    _fix_phone_country(df, columns, _rng)
     _fix_time_chains(df, columns, _rng)
 
     # ── Temporal consistency ──
