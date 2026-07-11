@@ -267,6 +267,19 @@ class DataSimulator:
             return values
         return None
 
+    def _sample_unique_ints(self, low: int, high: int, count: int) -> np.ndarray:
+        """Draw `count` distinct integers from [low, high] without materializing
+        the range. Collision probability is negligible because callers only use
+        this when the range is at least 4x the requested count."""
+        seen = np.array([], dtype=np.int64)
+        while len(seen) < count:
+            draw = self.rng.integers(
+                low, high + 1, size=int((count - len(seen)) * 1.1) + 16
+            )
+            seen = np.unique(np.concatenate([seen, draw]))
+        self.rng.shuffle(seen)  # np.unique sorts; restore randomness
+        return seen[:count]
+
     def _generate_unique_text(self, text_type: str, size: int) -> np.ndarray:
         """Generate exactly `size` distinct text values for a unique column."""
         _note_fn = lambda: str(self.realistic_text.microtext.notes(1)[0])  # noqa: E731
@@ -983,9 +996,17 @@ class DataSimulator:
                         warnings.warn(f"Range {high-low+1} too small for unique column {column.name} (needs {total_needed_for_table}). Extending max.")
                         high = low + total_needed_for_table + 100
 
-                    # Generate full permutation over the inclusive range.
-                    pool = np.arange(low, high + 1)
-                    self.rng.shuffle(pool)
+                    range_size = high - low + 1
+                    needed = total_needed_for_table + 1000
+                    if range_size > max(4 * needed, 1_000_000):
+                        # Sparse range: sample only what the table needs.
+                        # A full permutation of e.g. a 500M-wide id space
+                        # allocates ~4GB to draw a few thousand values.
+                        pool = self._sample_unique_ints(low, high, needed)
+                    else:
+                        # Dense range: full permutation over [low, high].
+                        pool = np.arange(low, high + 1)
+                        self.rng.shuffle(pool)
                     self._unique_pools[pool_key] = pool
                     self._unique_counters[pool_key] = 0
 
