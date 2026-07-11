@@ -147,6 +147,44 @@ _COMPANY_TABLE_HINTS = (
     "partner", "partners",
 )
 
+# Exact qualifiers (the token before "_name") that decide what a *_name column
+# holds, ahead of any table context: business_name in a listings table is the
+# business, seller_name in an orders table is the seller. "account"/"store"/
+# "shop" are organisations (CRM accounts, retail stores); "account_holder" is
+# the person. Matching is exact against the full qualifier, so short entries
+# like "rep" cannot bleed into "report_name".
+_PERSON_NAME_COL_QUALIFIERS = {
+    "customer", "user", "full", "display", "contact",
+    "holder", "legal", "person", "owner", "agent", "client", "member",
+    "recipient", "employee", "buyer", "applicant", "sender", "driver",
+    "account_holder", "manager", "cashier", "clerk", "teller", "supervisor",
+    "seller", "assignee", "reviewer", "approver", "rep", "salesperson",
+    "technician", "nurse", "doctor", "patient", "student", "teacher",
+    "instructor", "passenger", "guest", "tenant", "borrower",
+    "attendee", "participant", "subscriber", "donor", "player", "candidate",
+}
+_COMPANY_NAME_COL_QUALIFIERS = {
+    "company", "vendor", "brand", "organization", "supplier",
+    "employer", "business", "firm", "partner", "merchant",
+    "account", "store", "shop", "agency", "carrier", "airline",
+    "manufacturer", "distributor", "retailer", "wholesaler", "insurer",
+    "publisher", "studio", "dealer", "dealership", "franchise",
+}
+# *_name columns naming a physical facility — composed as "{City} {Kind}"
+# ("Riverside Hotel", "Salem Warehouse"), which reads right where a corporate
+# name ("Vertex Labs Group") or a tier label ("Pro") would not.
+_FACILITY_NAME_COL_QUALIFIERS = {
+    "warehouse", "branch", "facility", "depot", "hub", "plant", "terminal",
+    "station", "campus", "office", "hotel", "clinic", "hospital", "pharmacy",
+    "bank", "school", "university", "library", "airport", "gym",
+}
+_TEAM_NAME_WORDS = [
+    "Platform", "Growth", "Data", "Mobile", "Infrastructure", "Design",
+    "Payments", "Search", "Analytics", "Core", "Security", "Support",
+    "Revenue", "Onboarding", "Billing", "Frontend", "Backend", "Marketing",
+    "Sales", "Success",
+]
+
 # Generic, domain-neutral labels for a lookup table that arrived without
 # inline_data — far better than person names or lorem sentences for a 3-20 row
 # dimension table (plan tiers, statuses, types).
@@ -391,10 +429,14 @@ class RealisticTextGenerator:
             # "name" in companies/vendors/orgs → company name.
             # "name" in products/items → product name.
             # "name" in plans/statuses/lookup tables → short tier label.
+            # "account"/"store"/"shop" are organisations (CRM accounts, retail
+            # stores) — account_holder stays a person via "holder".
             _PERSON_NAME_QUALIFIERS = {
-                "customer", "user", "full", "display", "contact", "account",
+                "customer", "user", "full", "display", "contact",
                 "holder", "legal", "person", "owner", "agent", "client", "member",
             }
+            _COMPANY_NAME_QUALIFIERS = ("account", "store", "shop", "company",
+                                        "vendor", "brand", "merchant")
             _PRODUCT_TABLE_HINTS = (
                 "product", "products", "item", "items", "listing", "listings",
                 "catalog", "catalogue", "merchandise", "inventory", "sku", "offer",
@@ -402,11 +444,15 @@ class RealisticTextGenerator:
             _tbl = table_name.lower()
             _col_lower = column_name.lower()
             _col_has_person_qualifier = any(q in _col_lower for q in _PERSON_NAME_QUALIFIERS)
-            if _col_has_person_qualifier or any(p in _tbl for p in _PERSON_TABLE_HINTS):
+            _col_has_company_qualifier = any(q in _col_lower for q in _COMPANY_NAME_QUALIFIERS)
+            if _col_has_person_qualifier or (
+                not _col_has_company_qualifier
+                and any(p in _tbl for p in _PERSON_TABLE_HINTS)
+            ):
                 if faker and not _has_capsule_vocab("first_name"):
                     return np.array([faker.name() for _ in range(size)])
                 return self._person_frame(table_name, size)["full"]
-            if any(c in _tbl for c in _COMPANY_TABLE_HINTS):
+            if _col_has_company_qualifier or any(c in _tbl for c in _COMPANY_TABLE_HINTS):
                 return self.generate(column_name, table_name, size, "company_name")
             if any(pt in _tbl for pt in _PRODUCT_TABLE_HINTS):
                 return self.generate(column_name, table_name, size, "product_name")
@@ -537,6 +583,18 @@ class RealisticTextGenerator:
                     for _ in range(size)
                 ]
             )
+        if semantic == "facility_name":
+            # "{City} {Kind}": warehouse_name → "Salem Warehouse",
+            # hotel_name → "Riverside Hotel".
+            _col = column_name.lower()
+            _kind = (_col[:-5].split("_")[-1] if _col.endswith("_name")
+                     else "facility").title()
+            cities = self.generate(column_name, table_name, size, "city")
+            return np.array([f"{c} {_kind}" for c in cities])
+        if semantic == "team_name":
+            return np.array([
+                f"{w} Team" for w in self.rng.choice(_TEAM_NAME_WORDS, size=size)
+            ])
         if semantic == "job_title":
             if faker:
                 try:
@@ -884,7 +942,8 @@ class RealisticTextGenerator:
             return "longitude"
         if name in ("zip", "zip_code", "postal", "postal_code", "postcode"):
             return "postal_code"
-        if "phone" in name or "mobile" in name or "tel" in name:
+        # "tel" must be its own token — "hotel_name" is not a telephone.
+        if "phone" in name or "mobile" in name or {"tel", "telephone"} & set(name.split("_")):
             return "phone_number"
         if name in ("domain", "website", "site", "homepage") or name.endswith("_domain") or name.endswith("_url"):
             return "url"
@@ -912,6 +971,22 @@ class RealisticTextGenerator:
                 return "research_project_name"
         if "comment" in table and name == "body":
             return "comment_body"
+        if name.endswith("_name"):
+            # The exact qualifier decides before any table catchall —
+            # business_name in a listings table is the business, not a listing.
+            _q = name[:-5]
+            if _q in _PERSON_NAME_COL_QUALIFIERS or _q in _PERSON_ROLE_COLUMNS:
+                return "person_name"
+            if _q in _COMPANY_NAME_COL_QUALIFIERS:
+                return "company_name"
+            if _q in _FACILITY_NAME_COL_QUALIFIERS:
+                return "facility_name"
+            if _q in ("product", "item", "sku", "listing"):
+                return "product_name"
+            if _q in ("restaurant", "cafe", "diner"):
+                return "restaurant_name"
+            if _q == "team":
+                return "team_name"
         if "product" in table or "item" in table or "listing" in table:
             return "product_name"
         if name in ("name", "label") and table in ("departments", "department", "wards"):
@@ -930,23 +1005,20 @@ class RealisticTextGenerator:
                 return "product_name"
             return "category_label"
         if name.endswith("_name"):
-            # Use the qualifier (prefix before "_name") as the primary signal,
-            # then fall back to table context.
-            _qualifier = name[:-5]  # e.g. "customer" from "customer_name"
-            _PERSON_COL_QUALIFIERS = {
-                "customer", "user", "full", "display", "contact", "account",
-                "holder", "legal", "person", "owner", "agent", "client", "member",
-                "recipient", "employee", "buyer", "applicant", "sender", "driver",
-            }
-            _COMPANY_COL_QUALIFIERS = {
-                "company", "vendor", "brand", "organization", "supplier",
-                "employer", "business", "firm", "partner", "merchant",
-            }
-            if _qualifier in _PERSON_COL_QUALIFIERS or any(p in table for p in _PERSON_TABLE_HINTS):
+            # The exact qualifier was already checked (before the product
+            # catchall above) — only table context is left to consult.
+            # An event/action token in the column itself outranks it:
+            # user_actions.action_name is an event label, not a user.
+            # Token match — "transactions" must not read as "action".
+            _col_toks = {t.rstrip("s") for t in name.split("_")}
+            if {"event", "action", "activity"} & _col_toks:
+                return "event_type"
+            if any(p in table for p in _PERSON_TABLE_HINTS):
                 return "person_name"
-            if _qualifier in _COMPANY_COL_QUALIFIERS or any(c in table for c in _COMPANY_TABLE_HINTS):
+            if any(c in table for c in _COMPANY_TABLE_HINTS):
                 return "company_name"
-            if "event" in name or "action" in name or "event" in table or "action" in table or "activity" in table:
+            _tbl_toks = {t.rstrip("s") for t in table.split("_")}
+            if {"event", "action", "activity"} & _tbl_toks:
                 return "event_type"
             return "category_label"
         # Payment-method and reason lookup columns — extremely common in

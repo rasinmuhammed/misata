@@ -805,11 +805,29 @@ def from_dict_schema(
 # ---------------------------------------------------------------------------
 
 class IntegrityReport:
-    """Result of a referential integrity check across FK relationships."""
+    """Result of a referential integrity check across FK relationships.
 
-    def __init__(self, violations: List[Dict[str, Any]]):
+    ``relationships`` holds one entry per declared relationship — intact ones
+    included (``{"relationship": ..., "intact": True, "orphans": 0}``) — so
+    the report is a positive proof, not just an absence of complaints.
+    """
+
+    def __init__(
+        self,
+        violations: List[Dict[str, Any]],
+        relationships: Optional[List[Dict[str, Any]]] = None,
+    ):
         self.violations = violations
+        self.relationships = relationships or []
         self.ok = len(violations) == 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        """JSON-serialisable form: ``{"ok", "relationships", "violations"}``."""
+        return {
+            "ok": self.ok,
+            "relationships": self.relationships,
+            "violations": self.violations,
+        }
 
     def __repr__(self) -> str:
         if self.ok:
@@ -852,7 +870,16 @@ def verify_integrity(
         report = misata.verify_integrity(tables, schema)
         print(report)  # IntegrityReport(ok=True, violations=0)
     """
+    import pandas as pd
+
     violations: List[Dict[str, Any]] = []
+    relationships: List[Dict[str, Any]] = []
+
+    def _broken(label: str, issue: str) -> None:
+        violations.append({"relationship": label, "issue": issue,
+                           "orphan_count": -1})
+        relationships.append({"relationship": label, "intact": False,
+                              "orphans": -1, "issue": issue})
 
     for rel in schema.relationships:
         pname, cname = rel.parent_table, rel.child_table
@@ -860,28 +887,20 @@ def verify_integrity(
         label = f"{cname}.{ckey} → {pname}.{pkey}"
 
         if pname not in tables:
-            violations.append({"relationship": label,
-                                "issue": f"Parent table '{pname}' not found.",
-                                "orphan_count": -1})
+            _broken(label, f"Parent table '{pname}' not found.")
             continue
         if cname not in tables:
-            violations.append({"relationship": label,
-                                "issue": f"Child table '{cname}' not found.",
-                                "orphan_count": -1})
+            _broken(label, f"Child table '{cname}' not found.")
             continue
 
         parent_df = tables[pname]
         child_df = tables[cname]
 
         if pkey not in parent_df.columns:
-            violations.append({"relationship": label,
-                                "issue": f"Column '{pkey}' not in '{pname}'.",
-                                "orphan_count": -1})
+            _broken(label, f"Column '{pkey}' not in '{pname}'.")
             continue
         if ckey not in child_df.columns:
-            violations.append({"relationship": label,
-                                "issue": f"Column '{ckey}' not in '{cname}'.",
-                                "orphan_count": -1})
+            _broken(label, f"Column '{ckey}' not in '{cname}'.")
             continue
 
         # Normalise numeric types before membership test: an int PK and a
@@ -895,6 +914,9 @@ def verify_integrity(
         valid_ids = set(parent_ids.unique())
         orphans = child_vals[~child_vals.isin(valid_ids)]
 
+        relationships.append({"relationship": label,
+                              "intact": len(orphans) == 0,
+                              "orphans": int(len(orphans))})
         if len(orphans) > 0:
             violations.append({
                 "relationship": label,
@@ -903,4 +925,4 @@ def verify_integrity(
                 "sample_orphans": orphans.unique()[:5].tolist(),
             })
 
-    return IntegrityReport(violations=violations)
+    return IntegrityReport(violations=violations, relationships=relationships)

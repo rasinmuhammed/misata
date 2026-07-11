@@ -124,6 +124,7 @@ class EvalPackResult:
     dropped: List[Dict[str, Any]]
     certificate: Dict[str, Any]
     seed: int
+    conformance_warnings: List[str] = field(default_factory=list)
 
     @property
     def all_verified(self) -> bool:
@@ -141,6 +142,8 @@ class EvalPackResult:
         if fk:
             orphans = sum(entry["orphans"] for entry in fk)
             lines.append(f"  fk relationships: {len(fk)} ({orphans} orphans)")
+        for w in self.conformance_warnings:
+            lines.append(f"  ⚠ {w}")
         return "\n".join(lines)
 
 
@@ -516,6 +519,11 @@ def build_evalpack(
     exactly matches the declared answer are shipped. Failures are recorded
     in ``manifest.json`` under ``dropped_questions``.
 
+    Before generation, :func:`~misata.conformance.conformance_preview` runs
+    against the schema's outcome curves; its warnings (Prop-3 clamping,
+    bound conflicts) are printed and recorded under ``conformance_warnings``
+    in both ``manifest.json`` and ``certificate.json``.
+
     Args:
         schema:     A :class:`~misata.schema.SchemaConfig`. If ``schema.seed``
                     is ``None`` a seed is chosen and recorded so the pack is
@@ -535,6 +543,18 @@ def build_evalpack(
 
         schema.seed = random.randint(1, 2**31 - 1)
     seed = int(schema.seed)
+
+    # Pre-generation conformance check: Prop-3 clamping silently distorts
+    # per-row values (a period whose ideal row count exceeds
+    # max_transactions_per_period ships inflated amounts), so the pack must
+    # carry those warnings, not hide them.
+    conformance_warnings: List[str] = []
+    if getattr(schema, "outcome_curves", None):
+        from misata.conformance import conformance_preview
+
+        conformance_warnings = list(conformance_preview(schema).warnings)
+        for w in conformance_warnings:
+            print(f"⚠ evalpack conformance: {w}")
 
     if tables is None:
         tables = misata.generate_from_schema(schema)
@@ -595,6 +615,10 @@ def build_evalpack(
             "strings compared exactly"
         ),
         "fk_integrity": fk_integrity,
+        # all_match certifies the declared aggregates only; clamping
+        # distortion of per-row values is disclosed here, not hidden in
+        # the manifest alone.
+        "conformance_warnings": conformance_warnings,
         "questions": entries,
         "all_match": all(e["match"] for e in entries) if entries else False,
     }
@@ -608,6 +632,7 @@ def build_evalpack(
         "questions_shipped": len(shipped),
         "questions_dropped": len(dropped),
         "dropped_questions": dropped,
+        "conformance_warnings": conformance_warnings,
         "schema": json.loads(spec_json),
     }
 
@@ -627,6 +652,7 @@ def build_evalpack(
         dropped=dropped,
         certificate=certificate,
         seed=seed,
+        conformance_warnings=conformance_warnings,
     )
 
 

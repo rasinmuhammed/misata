@@ -20,7 +20,7 @@ from misata.evalpack import build_evalpack, _quote_ident
 from misata.schema import Column, Relationship, SchemaConfig, Table
 
 
-def _pack_schema(seed: int = 7) -> SchemaConfig:
+def _pack_schema(seed: int = 7, max_tx: int = 10_000) -> SchemaConfig:
     schema = SchemaConfig(
         name="evalpack_test",
         seed=seed,
@@ -57,6 +57,7 @@ def _pack_schema(seed: int = 7) -> SchemaConfig:
         .anchor("2024-06", 120_000)
         .anchor("2024-12", 200_000)
         .avg_value(150.0)
+        .row_bounds(1, max_tx)
         .build()
     )
     schema = OutcomeCurveBuilder.attach(schema, curve)
@@ -211,3 +212,30 @@ class TestGuards:
         result = build_evalpack(schema, tmp_path / "bare")
         assert result.questions == []
         assert result.all_verified is False
+
+
+class TestConformanceWarnings:
+    def test_prop3_clamp_warning_recorded_and_printed(self, tmp_path, capsys):
+        """A period whose ideal row count exceeds max_transactions_per_period
+        ships inflated per-row values (Prop. 3 upper clamp) — the pack must
+        say so in the manifest and on stdout, never silently."""
+        # Peak target 200,000 at avg 150 needs ≈1,333 rows; cap at 100.
+        result = build_evalpack(_pack_schema(seed=11, max_tx=100),
+                                tmp_path / "clamped")
+        assert result.conformance_warnings
+        assert any("max_transactions_per_period" in w
+                   for w in result.conformance_warnings)
+        manifest = json.loads(
+            (result.output_dir / "manifest.json").read_text())
+        assert manifest["conformance_warnings"] == result.conformance_warnings
+        certificate = json.loads(
+            (result.output_dir / "certificate.json").read_text())
+        assert certificate["conformance_warnings"] == result.conformance_warnings
+        out = capsys.readouterr().out
+        assert "Prop. 3 upper clamp" in out
+
+    def test_unclamped_curve_has_no_warnings(self, pack):
+        assert pack.conformance_warnings == []
+        manifest = json.loads((pack.output_dir / "manifest.json").read_text())
+        assert manifest["conformance_warnings"] == []
+        assert pack.certificate["conformance_warnings"] == []

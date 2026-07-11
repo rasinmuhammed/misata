@@ -848,6 +848,127 @@ def test_realism_category_label_values_are_short():
     assert all(len(v) < 30 and "." not in v for v in vals), vals
 
 
+def test_realism_account_and_store_name_are_companies_not_people():
+    """account_name (CRM) and store_name/shop_name (retail) are organisation
+    names — they must hit the company pool, never the person generator."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(1))
+    assert g._infer_semantic("account_name", "accounts") == "company_name"
+    assert g._infer_semantic("account_name", "deals") == "company_name"
+    assert g._infer_semantic("store_name", "transactions") == "company_name"
+    assert g._infer_semantic("shop_name", "orders") == "company_name"
+    # the column qualifier outranks a person-flavoured table name
+    assert g._infer_semantic("store_name", "customers") == "company_name"
+    # people stay people
+    assert g._infer_semantic("account_holder_name", "accounts") == "person_name"
+    assert g._infer_semantic("customer_name", "orders") == "person_name"
+
+
+def test_smart_values_account_and_store_name_detect_company_domain(tmp_path):
+    from misata.smart_values import SmartValueGenerator
+    g = SmartValueGenerator(cache_dir=str(tmp_path))
+    assert g.detect_domain("account_name", "accounts") == "company_name"
+    assert g.detect_domain("store_name", "transactions") == "company_name"
+    assert g.detect_domain("shop_name", "orders") == "company_name"
+    assert g.detect_domain("merchant_name", "payments") == "company_name"
+
+
+def test_smart_values_compound_keywords_are_alive(tmp_path):
+    """detect_domain space-normalizes column names, so underscore keywords
+    could never match — 31 of them were dead (payment_method → None)."""
+    from misata.smart_values import SmartValueGenerator
+    g = SmartValueGenerator(cache_dir=str(tmp_path))
+    assert g.detect_domain("payment_method", "orders") == "payment_method"
+    assert g.detect_domain("account_type", "accounts") == "account_type"
+    assert g.detect_domain("transaction_type", "payments") == "transaction_type"
+    assert g.detect_domain("law_firm", "cases") == "law_firm"
+    assert g.detect_domain("case_type", "cases") == "case_type"
+    assert g.detect_domain("legal_status", "cases") == "legal_status"
+    assert g.detect_domain("job_title", "employees") == "job_title"
+    # compound keywords beat single-word ones ("item" of the product domain)
+    assert g.detect_domain("menu_item", "orders") == "menu_item"
+    # every matchable domain must have a curated pool — never cascade a
+    # detected domain to the generic name pool
+    for domain in g.DOMAIN_PATTERNS:
+        assert g.FALLBACK_POOLS.get(domain), f"no fallback pool for {domain}"
+    # compound keywords must not bleed from the table name onto unrelated
+    # columns ("bank account" ⊄ table "bank_accounts" + column "status")
+    assert g.detect_domain("status", "bank_accounts") != "account_type"
+
+
+def test_verify_integrity_runs_and_reports_per_relationship():
+    """verify_integrity crashed with NameError (pd never imported in
+    compat.py) on the happy path, and reported nothing for intact
+    relationships — the report must be a positive per-relationship proof."""
+    import misata
+    from misata.schema import Column, Relationship, SchemaConfig, Table
+    schema = SchemaConfig(
+        name="t", seed=1,
+        tables=[Table(name="customers", row_count=5),
+                Table(name="orders", row_count=10)],
+        columns={
+            "customers": [Column(name="customer_id", type="int", unique=True,
+                                 distribution_params={"min": 1, "max": 100})],
+            "orders": [Column(name="order_id", type="int", unique=True,
+                              distribution_params={"min": 1, "max": 100}),
+                       Column(name="customer_id", type="foreign_key")],
+        },
+        relationships=[Relationship(parent_table="customers",
+                                    child_table="orders",
+                                    parent_key="customer_id",
+                                    child_key="customer_id")],
+    )
+    tables = misata.generate_from_schema(schema)
+    report = misata.verify_integrity(tables, schema)
+    assert report.ok
+    d = report.to_dict()
+    assert d["ok"] is True
+    assert d["relationships"] == [{
+        "relationship": "orders.customer_id → customers.customer_id",
+        "intact": True, "orphans": 0,
+    }]
+
+
+def test_realism_facility_and_person_role_names():
+    """The audit battery: *_name columns that used to produce phone numbers,
+    tier labels, event slugs, or corporate names for people."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    g = RealisticTextGenerator(np.random.default_rng(1))
+    # "hotel_name" is not a telephone ("tel" substring trap)
+    assert g._infer_semantic("hotel_name", "bookings") == "facility_name"
+    assert all("Hotel" in str(v) for v in g.generate("hotel_name", "bookings", 4, None))
+    # facilities compose as "{City} {Kind}", never tier labels like "Pro"
+    for col, tbl, kind in [("warehouse_name", "inventory", "Warehouse"),
+                           ("bank_name", "loans", "Bank"),
+                           ("clinic_name", "visits", "Clinic"),
+                           ("branch_name", "banks", "Branch")]:
+        assert g._infer_semantic(col, tbl) == "facility_name"
+        assert all(kind in str(v) for v in g.generate(col, tbl, 3, None))
+    # people who used to fall to labels or company names
+    assert g._infer_semantic("seller_name", "orders") == "person_name"
+    assert g._infer_semantic("manager_name", "stores") == "person_name"
+    assert g._infer_semantic("cashier_name", "transactions") == "person_name"
+    # organisations
+    assert g._infer_semantic("agency_name", "deals") == "company_name"
+    assert g._infer_semantic("business_name", "listings") == "company_name"
+    # teams get team names, not subscription tiers
+    assert g._infer_semantic("team_name", "projects") == "team_name"
+    assert all(str(v).endswith("Team") for v in g.generate("team_name", "projects", 4, None))
+    # "transactions" must not read as "action": no event slugs for its columns
+    assert g._infer_semantic("cashier_name", "transactions") == "person_name"
+    # ...but real event/action columns still map to event labels, even in
+    # person-hinted tables like user_actions
+    assert g._infer_semantic("action_name", "user_actions") == "event_type"
+    assert g._infer_semantic("event_name", "events") == "event_type"
+    # phone columns still work with the token-aware check
+    assert g._infer_semantic("tel", "contacts") == "phone_number"
+    assert g._infer_semantic("contact_tel", "contacts") == "phone_number"
+    # column qualifier beats the product-table catchall both ways
+    assert g._infer_semantic("product_name", "reviews") == "product_name"
+
+
 # ---------------------------------------------------------------------------
 # LLM-output robustness: imperfect-but-close schemas must not crash generation
 # ---------------------------------------------------------------------------
