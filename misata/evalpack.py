@@ -437,6 +437,72 @@ def _fk_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuestion]:
     return questions
 
 
+def _ledger_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuestion]:
+    """Identity questions from ``balanced_ledger`` constraints.
+
+    Double-entry data satisfies a cross-row identity: within every journal
+    entry, total debits equal total credits. Two questions follow, both
+    requiring a group-by (the composed-declaration families): the count of
+    entries that fail to balance (declared zero, like FK orphans), and the
+    global trial-balance difference (declared zero)."""
+    questions: List[EvalQuestion] = []
+    for table in getattr(schema, "tables", []) or []:
+        for con in getattr(table, "constraints", []) or []:
+            if getattr(con, "type", None) != "balanced_ledger":
+                continue
+            debit = getattr(con, "debit_column", None)
+            credit = getattr(con, "credit_column", None)
+            group_by = getattr(con, "group_by", None) or []
+            if not (debit and credit and group_by):
+                continue
+            tbl = _quote_ident(table.name)
+            dcol, ccol = _quote_ident(debit), _quote_ident(credit)
+            gcols = ", ".join(_quote_ident(g) for g in group_by)
+            dec = int(getattr(con, "decimals", 2) or 2)
+            key_phrase = " and ".join(group_by)
+
+            questions.append(
+                EvalQuestion(
+                    id=next_id(),
+                    question=(
+                        f"In the {table.name} table, grouping rows by "
+                        f"{key_phrase}, how many groups have a total {debit} "
+                        f"that does not equal their total {credit} (rounded to "
+                        f"{dec} decimal places)? Give an integer."
+                    ),
+                    gold_sql=(
+                        f"SELECT COUNT(*) FROM (SELECT {gcols}, "
+                        f"ROUND(SUM({dcol}) - SUM({ccol}), {dec}) AS net "
+                        f"FROM {tbl} GROUP BY {gcols}) WHERE net <> 0"
+                    ),
+                    expected_answer=0,
+                    answer_type="integer",
+                    tags=["group_by", "identity", "accounting", "single_table"],
+                    source={"kind": "ledger_entry_balance", "table": table.name},
+                )
+            )
+            questions.append(
+                EvalQuestion(
+                    id=next_id(),
+                    question=(
+                        f"In the {table.name} table, what is the total {debit} "
+                        f"across all rows minus the total {credit} across all "
+                        f"rows, rounded to {dec} decimal places? Give a number."
+                    ),
+                    gold_sql=(
+                        f"SELECT ROUND(SUM({dcol}) - SUM({ccol}), {dec}) "
+                        f"FROM {tbl}"
+                    ),
+                    expected_answer=0.0,
+                    answer_type="number",
+                    round_decimals=dec,
+                    tags=["aggregation", "identity", "accounting", "single_table"],
+                    source={"kind": "ledger_trial_balance", "table": table.name},
+                )
+            )
+    return questions
+
+
 # ---------------------------------------------------------------------------
 # Independent verification (DuckDB over the written files)
 # ---------------------------------------------------------------------------
@@ -576,6 +642,7 @@ def build_evalpack(
     candidates.extend(_curve_questions(schema, next_id))
     candidates.extend(_rate_questions(schema, next_id))
     candidates.extend(_fk_questions(schema, next_id))
+    candidates.extend(_ledger_questions(schema, next_id))
 
     # Verify what we ship: DuckDB reads the CSVs from disk, exactly as a
     # downstream consumer would. The generator and the verifier share

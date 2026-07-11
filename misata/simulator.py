@@ -2997,6 +2997,118 @@ class DataSimulator:
             # Row-level bound: low_column <= column <= high_column (e.g. bid <= sale <= list).
             df = self._apply_col_range_constraint(df, constraint)
 
+        elif constraint.type == "balanced_ledger":
+            # Double-entry invariant: per group, sum(debit) == sum(credit) exactly.
+            df = self._apply_balanced_ledger(df, constraint)
+
+        return df
+
+    def _apply_balanced_ledger(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
+        """Force every journal entry to balance: sum(debit) == sum(credit).
+
+        Real ledgers obey this to the cent; independently drawn debit/credit
+        columns never do. Approach, per group:
+
+        1. Make each line one-sided. Whichever of (debit, credit) is larger is
+           kept; the other is zeroed. A ledger line is a debit or a credit,
+           not both.
+        2. Pick a shared entry total T (the max of the two side-sums, so no
+           line has to grow past the data's own scale by much) and rescale the
+           debit lines to sum to T and the credit lines to sum to T.
+        3. Rounding to ``decimals`` leaves a residual on each side; absorb it
+           into that side's largest line so both sides equal T exactly.
+
+        Degenerate groups (a lone line, or a side with no lines) are handled by
+        mirroring: a single line becomes a matched debit/credit pair of equal
+        value, which still balances.
+        """
+        debit_col = getattr(constraint, "debit_column", None)
+        credit_col = getattr(constraint, "credit_column", None)
+        group_by = constraint.group_by
+        decimals = int(getattr(constraint, "decimals", 2) or 2)
+
+        for col in (debit_col, credit_col):
+            if not col or col not in df.columns:
+                warnings.warn(
+                    f"Constraint '{constraint.name}': balanced_ledger needs "
+                    f"debit_column and credit_column present. Skipping."
+                )
+                return df
+        if not group_by:
+            warnings.warn(
+                f"Constraint '{constraint.name}': balanced_ledger needs group_by "
+                f"(the journal-entry key). Skipping."
+            )
+            return df
+
+        d = df[debit_col].fillna(0.0).to_numpy(dtype=float).copy()
+        c = df[credit_col].fillna(0.0).to_numpy(dtype=float).copy()
+
+        # Step 1: one-sided lines. Ties (equal or both zero) become debits.
+        is_credit = c > d
+        d[is_credit] = 0.0
+        c[~is_credit] = 0.0
+        # A line with nothing on it would make an entry unbalanceable on that
+        # side; give it a nominal debit so every line carries a value.
+        empty = (d == 0.0) & (c == 0.0)
+        d[empty] = 1.0
+
+        single = len(group_by) == 1
+        gseries = df[group_by[0]] if single else pd.MultiIndex.from_frame(df[group_by])
+        gcodes, guniques = pd.factorize(gseries)
+
+        # A double-entry transaction needs at least two lines. Reassign any
+        # single-line group into a group that has room, rewriting the entry
+        # key in-place so referential integrity survives and no line ever ends
+        # up carrying both a debit and a credit.
+        counts = np.bincount(gcodes, minlength=len(guniques)) if len(gcodes) else np.array([])
+        lone = [g for g in range(len(counts)) if counts[g] == 1]
+        hosts = [g for g in range(len(counts)) if counts[g] >= 2]
+        if lone and hosts:
+            key_col = group_by[0] if single else None
+            for i, g in enumerate(lone):
+                host = hosts[i % len(hosts)]
+                row = int(np.where(gcodes == g)[0][0])
+                gcodes[row] = host
+                if single:
+                    df.iloc[row, df.columns.get_loc(key_col)] = guniques[host]
+                else:
+                    for j, col in enumerate(group_by):
+                        df.iloc[row, df.columns.get_loc(col)] = guniques[host][j]
+
+        for g in range(gcodes.max() + 1 if len(gcodes) else 0):
+            idx = np.where(gcodes == g)[0]
+            if idx.size == 0:
+                continue
+            di = idx[d[idx] > 0]
+            ci = idx[c[idx] > 0]
+            # If a side is empty, split the present side into two sides. With
+            # the lone-line repair above, every group here has >= 2 lines.
+            if di.size == 0 or ci.size == 0:
+                present = di if di.size else ci
+                half = present[: max(1, present.size // 2)]
+                if di.size == 0:
+                    d[half], c[half] = c[half], 0.0
+                else:
+                    c[half], d[half] = d[half], 0.0
+                di = idx[d[idx] > 0]
+                ci = idx[c[idx] > 0]
+
+            sd, sc = d[di].sum(), c[ci].sum()
+            t = max(sd, sc)
+            if sd > 0:
+                d[di] = d[di] * (t / sd)
+            if sc > 0:
+                c[ci] = c[ci] * (t / sc)
+            d[di] = np.round(d[di], decimals)
+            c[ci] = np.round(c[ci], decimals)
+            t_round = round(float(t), decimals)
+            # Absorb rounding residual into the largest line on each side.
+            d[di[np.argmax(d[di])]] += round(t_round - d[di].sum(), decimals)
+            c[ci[np.argmax(c[ci])]] += round(t_round - c[ci].sum(), decimals)
+
+        df[debit_col] = np.round(d, decimals)
+        df[credit_col] = np.round(c, decimals)
         return df
 
     # Comparison operators reachable from inequality/col_range constraints.

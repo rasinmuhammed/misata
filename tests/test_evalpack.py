@@ -17,7 +17,7 @@ duckdb = pytest.importorskip("duckdb")
 import misata
 from misata import OutcomeCurveBuilder, RateCurveBuilder
 from misata.evalpack import build_evalpack, _quote_ident
-from misata.schema import Column, Relationship, SchemaConfig, Table
+from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
 
 
 def _pack_schema(seed: int = 7, max_tx: int = 10_000) -> SchemaConfig:
@@ -239,3 +239,53 @@ class TestConformanceWarnings:
         manifest = json.loads((pack.output_dir / "manifest.json").read_text())
         assert manifest["conformance_warnings"] == []
         assert pack.certificate["conformance_warnings"] == []
+
+
+class TestLedgerIdentityQuestions:
+    """balanced_ledger constraints yield group-by identity questions whose
+    declared answers (unbalanced entries = 0, trial balance = 0) verify."""
+
+    @pytest.fixture(scope="class")
+    def ledger_pack(self, tmp_path_factory):
+        schema = SchemaConfig(
+            name="gl_test", seed=99,
+            tables=[
+                Table(name="journal_entries", row_count=300),
+                Table(name="journal_lines", row_count=900, constraints=[
+                    Constraint(name="double_entry", type="balanced_ledger",
+                               group_by=["entry_id"], debit_column="debit",
+                               credit_column="credit"),
+                ]),
+            ],
+            columns={
+                "journal_entries": [
+                    Column(name="entry_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 100000}),
+                ],
+                "journal_lines": [
+                    Column(name="line_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 10_000_000}),
+                    Column(name="entry_id", type="foreign_key"),
+                    Column(name="debit", type="float",
+                           distribution_params={"min": 0, "max": 5000, "decimals": 2}),
+                    Column(name="credit", type="float",
+                           distribution_params={"min": 0, "max": 5000, "decimals": 2}),
+                ],
+            },
+            relationships=[
+                Relationship(parent_table="journal_entries", child_table="journal_lines",
+                             parent_key="entry_id", child_key="entry_id"),
+            ],
+        )
+        return build_evalpack(schema, tmp_path_factory.mktemp("gl"))
+
+    def test_ledger_questions_ship_and_verify(self, ledger_pack):
+        kinds = {q.source["kind"] for q in ledger_pack.questions}
+        assert "ledger_entry_balance" in kinds
+        assert "ledger_trial_balance" in kinds
+        assert ledger_pack.all_verified
+
+    def test_ledger_answers_are_zero(self, ledger_pack):
+        for q in ledger_pack.questions:
+            if q.source["kind"] in ("ledger_entry_balance", "ledger_trial_balance"):
+                assert float(q.expected_answer) == 0.0

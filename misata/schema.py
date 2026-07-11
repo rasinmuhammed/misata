@@ -190,6 +190,7 @@ class Constraint(BaseModel):
         "unique_combination",
         "inequality",     # col_a OP col_b  (e.g. price > cost)
         "col_range",      # low_col <= col <= high_col
+        "balanced_ledger",  # per group: sum(debit) == sum(credit), exactly
     ]
     group_by: List[str] = Field(default_factory=list)
     column: Optional[str] = None
@@ -202,6 +203,15 @@ class Constraint(BaseModel):
     # col_range fields
     low_column: Optional[str] = None
     high_column: Optional[str] = None
+    # balanced_ledger fields: double-entry accounting invariant. Each group
+    # (a journal entry) is forced to sum(debit_column) == sum(credit_column)
+    # exactly. Lines are first made one-sided (a ledger line is a debit OR a
+    # credit, never both), then each side is scaled to a shared per-entry
+    # total and the rounding residual is absorbed by the largest line so the
+    # equality holds to the cent.
+    debit_column: Optional[str] = None
+    credit_column: Optional[str] = None
+    decimals: int = 2
 
 
 class ScenarioEvent(BaseModel):
