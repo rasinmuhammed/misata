@@ -5,6 +5,60 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A bare `title` column now follows its table's domain instead of always
+  becoming a job title.** Semantic inference routed any column containing
+  "title" to `job_title`, so a recipes table got "Software Engineer" as a
+  recipe title. `title` now resolves by table context: dish names in
+  recipe/dish/meal/menu tables, product names in product/listing/catalog
+  tables, one-line issue subjects in ticket/issue tables, and show-style names
+  in event tables. Genuinely job-shaped contexts (`employees.title`, any
+  `job_title` column) still resolve to occupations, and the existing
+  creative-work carve-out for media tables is unchanged.
+- **`*_name` columns are routed by their exact qualifier before any table
+  context.** `business_name` in a listings table is the business, not a
+  listing; `seller_name` in an orders table is a person; `account_name` and
+  `store_name` are organisations while `account_holder_name` stays a person.
+  Facility columns (`warehouse_name`, `hotel_name`, `branch_name`, ...)
+  compose readable facility names ("Salem Warehouse", "Riverside Hotel"),
+  and `team_name` gets real team labels. Also fixed: `hotel_name` is no
+  longer mistaken for a telephone column ("tel" must be its own token).
+- `verify_integrity` reports per-relationship results, and evalpack results
+  carry richer metadata.
+
+## [0.8.1.28] - 2026-07-10
+
+### Added
+
+- **Evalpacks: answer-key-first eval databases for data agents**
+  (`misata evalpack --config misata.yaml -o ./my_pack`, or
+  `build_evalpack(schema, "my_pack")` from Python). An evalpack inverts the
+  usual benchmark-construction order: instead of annotating question/answer
+  pairs on top of an existing database (the step where published text-to-SQL
+  benchmarks pick up answer-key errors), the ground truth is the declared
+  spec itself: outcome curves, rate curves, and FK relationships. Misata
+  generates a database that satisfies the spec, then every shipped question
+  is verified by executing its gold SQL against the written CSV files with
+  DuckDB, an engine that shares no code with the generator. Questions whose
+  observed answer does not exactly match the declared answer are dropped and
+  recorded in the manifest, so a wrong answer key is impossible by
+  construction and double-checked by independent execution. Each pack ships
+  the tables, `questions.jsonl`, a per-question verification certificate, a
+  manifest (spec hash, seed, versions), and a standalone `verify.py` anyone
+  can re-run with only `duckdb` installed. Requires
+  `pip install "misata[evalpack]"`.
+- The pack README and certificate state the SQL dialect and the
+  numeric-comparison contract explicitly, so third-party verifiers know
+  exactly what "match" means.
+
+> Releases 0.8.1.15 through 0.8.1.27 (feasibility validation, text
+> intelligence, vocabulary capsules and the 31-domain registry, coherence
+> audit, field-report fix rounds, pandas 3 compatibility) are documented in
+> their release notes and commit history on GitHub.
+
 ## [0.8.1.14] - 2026-07-02
 
 Quality + resilience release. The theme: **generation never crashes, and never

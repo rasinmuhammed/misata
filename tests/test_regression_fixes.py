@@ -969,6 +969,40 @@ def test_realism_facility_and_person_role_names():
     assert g._infer_semantic("product_name", "reviews") == "product_name"
 
 
+def test_realism_bare_title_is_not_a_job_outside_hr_tables():
+    """A bare `title` column must follow the table's domain: dish names in
+    recipe tables, product names in listings, issue subjects in tickets,
+    show names in events. Only genuinely job-shaped contexts keep job_title."""
+    import numpy as np
+    from misata.realism import RealisticTextGenerator
+    from misata.vocab_seeds import JOB_TITLES, MENU_ITEMS_BY_CATEGORY
+    g = RealisticTextGenerator(np.random.default_rng(5))
+    # food tables -> dish names
+    assert g._infer_semantic("title", "recipes") == "menu_item"
+    assert g._infer_semantic("title", "dishes") == "menu_item"
+    assert g._infer_semantic("title", "meals") == "menu_item"
+    assert g._infer_semantic("title", "menu_items") == "menu_item"
+    assert g._infer_semantic("recipe_title", "recipes") == "menu_item"
+    # products / listings -> product names
+    assert g._infer_semantic("title", "products") == "product_name"
+    assert g._infer_semantic("title", "listings") == "product_name"
+    # tickets / issues -> one-line issue text
+    assert g._infer_semantic("title", "support_tickets") == "support_ticket"
+    assert g._infer_semantic("subject", "issues") == "support_ticket"
+    # events -> creative-work style names, never jobs
+    assert g._infer_semantic("title", "events") == "work_title"
+    # media carve-out still wins, and real job contexts still resolve to jobs
+    assert g._infer_semantic("title", "movies") == "work_title"
+    assert g._infer_semantic("title", "employees") == "job_title"
+    assert g._infer_semantic("job_title", "recipes") == "job_title"
+    # value-level: recipe titles are dishes, not occupations
+    vals = [str(v) for v in g.generate("title", "recipes", 30, None)]
+    jobs = set(JOB_TITLES)
+    dishes = {item for pool in MENU_ITEMS_BY_CATEGORY.values() for item in pool}
+    assert not any(v in jobs for v in vals), vals
+    assert all(v in dishes for v in vals), vals
+
+
 # ---------------------------------------------------------------------------
 # LLM-output robustness: imperfect-but-close schemas must not crash generation
 # ---------------------------------------------------------------------------
