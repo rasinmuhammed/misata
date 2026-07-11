@@ -32,6 +32,13 @@ the column is the more specific signal, in both directions.
 - `verify_integrity` reports per-relationship results, and evalpack results
   carry richer metadata.
 
+### Performance
+
+- **Unique integer ids over sparse ranges no longer permute the whole range.**
+  Drawing 10k unique ids from a 500M id space allocated a 4 GB permutation;
+  it now samples only what is needed. A 10k-row outcome-curve build dropped
+  from 1023s to 0.3s.
+
 ## [0.8.1.28] - 2026-07-10
 
 ### Added
