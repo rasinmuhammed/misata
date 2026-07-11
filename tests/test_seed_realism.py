@@ -245,3 +245,112 @@ class TestCountIntegrity:
         )
         d = misata.generate_from_schema(schema)["t"]
         assert (d["temperature_c"] < 0).any(), "temperature must allow negatives"
+
+
+class TestBoundedAndSemanticDefaults:
+    def test_percent_columns_bounded_0_to_100(self):
+        schema = SchemaConfig(
+            name="pct", seed=6, tables=[Table(name="m", row_count=1000)],
+            columns={"m": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 9999}),
+                Column(name="discount_percent", type="float"),
+                Column(name="conversion_pct", type="float"),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["m"]
+        for c in ("discount_percent", "conversion_pct"):
+            assert d[c].min() >= 0 and d[c].max() <= 100
+
+    def test_rate_columns_bounded_0_to_1(self):
+        schema = SchemaConfig(
+            name="rate", seed=6, tables=[Table(name="m", row_count=1000)],
+            columns={"m": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 9999}),
+                Column(name="completion_rate", type="float"),
+                Column(name="churn_ratio", type="float"),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["m"]
+        for c in ("completion_rate", "churn_ratio"):
+            assert d[c].min() >= 0 and d[c].max() <= 1
+
+    def test_boolean_base_rates_are_semantic(self):
+        schema = SchemaConfig(
+            name="bool", seed=6, tables=[Table(name="t", row_count=3000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="is_fraud", type="boolean"),
+                Column(name="is_active", type="boolean"),
+                Column(name="is_deleted", type="boolean"),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["t"]
+        assert d["is_fraud"].mean() < 0.15, "fraud should be rare"
+        assert d["is_deleted"].mean() < 0.15, "deletion should be rare"
+        assert d["is_active"].mean() > 0.7, "active should be common"
+
+    def test_explicit_probability_is_respected(self):
+        schema = SchemaConfig(
+            name="bp", seed=6, tables=[Table(name="t", row_count=3000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="is_fraud", type="boolean",
+                       distribution_params={"probability": 0.5}),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["t"]
+        assert 0.4 < d["is_fraud"].mean() < 0.6, "explicit 0.5 must be honored"
+
+
+class TestCorporateEmail:
+    def test_work_email_uses_company_domain(self):
+        schema = SchemaConfig(
+            name="corp", seed=6, tables=[Table(name="emp", row_count=100)],
+            columns={"emp": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 9999}),
+                Column(name="first_name", type="text"),
+                Column(name="last_name", type="text"),
+                Column(name="company_name", type="text"),
+                Column(name="work_email", type="text"),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["emp"]
+        free = ("gmail.com", "outlook.com", "hotmail.com", "yahoo.com",
+                "icloud.com", "protonmail.com")
+        assert not d["work_email"].str.contains("|".join(free)).any()
+        assert d["work_email"].str.contains("@").all()
+
+
+class TestReferenceCodes:
+    @pytest.fixture(scope="class")
+    def orders(self):
+        schema = SchemaConfig(
+            name="oc", seed=6, tables=[Table(name="orders", row_count=1000)],
+            columns={"orders": [
+                Column(name="order_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="status", type="categorical",
+                       distribution_params={"choices": ["pending", "shipped",
+                                                        "delivered", "cancelled"]}),
+                Column(name="tracking_number", type="text"),
+                Column(name="invoice_number", type="text"),
+            ]},
+        )
+        return misata.generate_from_schema(schema)["orders"]
+
+    def test_reference_codes_are_codes_not_prose(self, orders):
+        # A code has no spaces and is short; prose has spaces and length.
+        inv = orders["invoice_number"].dropna().astype(str)
+        assert (~inv.str.contains(" ")).all()
+        assert (inv.str.len() < 20).all()
+
+    def test_tracking_only_present_when_shipped(self, orders):
+        shipped = {"shipped", "delivered", "completed", "fulfilled",
+                   "returned", "refunded", "dispatched", "in_transit"}
+        with_tracking = orders[orders["tracking_number"].notna()]
+        assert with_tracking["status"].str.lower().isin(shipped).all()

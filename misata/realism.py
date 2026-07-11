@@ -536,6 +536,22 @@ class RealisticTextGenerator:
                     return result
             all_models = [p for models in VEHICLE_MODELS_BY_MAKE.values() for p in models]
             return self.rng.choice(all_models, size=size)
+        if semantic == "reference_code":
+            # Alphanumeric identifier, uniform shape per column. Carrier-style
+            # for tracking columns, generic prefixed code otherwise.
+            n = str(column_name).lower()
+            letters = np.array(list("ABCDEFGHJKLMNPQRSTUVWXYZ"))
+            if "track" in n or "awb" in n or "waybill" in n or "shipment" in n:
+                out = [f"1Z{''.join(self.rng.choice(letters, 3))}"
+                       f"{''.join(str(self.rng.integers(0, 10)) for _ in range(13)) }"
+                       for _ in range(size)]
+                return np.array(out)
+            prefix = ("INV" if "invoice" in n else "SKU" if "sku" in n
+                      else "ORD" if "order" in n else "CNF" if "conf" in n
+                      else "REF")
+            out = [f"{prefix}-{''.join(str(self.rng.integers(0, 10)) for _ in range(8))}"
+                   for _ in range(size)]
+            return np.array(out)
         if semantic == "license_plate":
             # US-style plate shapes; one shape per column keeps a table uniform.
             _shapes = ["LLL-DDDD", "DLLL-DDD", "LLL DDDD", "DDD-LLLL"]
@@ -943,6 +959,23 @@ class RealisticTextGenerator:
         if name in ("license_plate", "plate_number", "number_plate", "plate",
                     "registration_plate", "reg_plate", "vehicle_plate"):
             return "license_plate"
+        # Tracking / reference / confirmation codes are alphanumeric identifiers,
+        # never prose. Catches tracking_number, reference_number, sku,
+        # confirmation_code, order_number, invoice_number, awb, etc.
+        _code_exact = {
+            "tracking_number", "tracking_id", "tracking_code", "reference_number",
+            "reference_code", "reference_no", "ref_number", "confirmation_number",
+            "confirmation_code", "order_number", "invoice_number", "invoice_no",
+            "serial_number", "serial_no", "sku", "sku_code", "awb",
+            "waybill_number", "shipment_number", "booking_reference", "pnr",
+            "voucher_code", "coupon_code", "promo_code", "transaction_reference",
+        }
+        # Only the explicit set and unambiguous suffixes. A broad "_code" match
+        # would hijack columns with real vocabularies (mcc_code, currency_code,
+        # country_code) that are handled elsewhere.
+        if name in _code_exact or name.endswith(("_tracking_number",
+                                                 "_reference_number")):
+            return "reference_code"
         if name in ("model", "vehicle_model", "car_model", "make_model") and (
             _is_vehicle_table or name != "model"
         ):
@@ -2034,6 +2067,7 @@ def apply_realism_rules(
     # ── Identity consistency ──
     _fix_gender_name_coherence(df, columns, _rng)   # before email: email derives from the fixed name
     _fix_email_from_name(df, columns, _rng)
+    _fix_corporate_email(df, columns, _rng)
     _fix_slug_from_name(df, columns)
     _fix_category_from_product_name(df, columns, table_name)
 
@@ -2215,9 +2249,14 @@ def _fix_delivered_requires_status(df: pd.DataFrame, columns: set[str]) -> None:
     status = df[status_col].astype(str).str.strip().str.lower()
     for col in df.columns:
         lc = col.lower()
-        if not (("time" in lc or "date" in lc or lc.endswith("_at"))):
+        is_time = "time" in lc or "date" in lc or lc.endswith("_at")
+        is_tracking = ("tracking" in lc or "awb" in lc or "waybill" in lc
+                       or "shipment_number" in lc)
+        if not (is_time or is_tracking):
             continue
-        if "deliver" in lc:
+        if is_tracking:
+            allowed = SHIPPED_STATUSES
+        elif "deliver" in lc:
             allowed = DELIVERED_STATUSES
         elif "ship" in lc or "dispatch" in lc:
             allowed = SHIPPED_STATUSES
@@ -2536,6 +2575,64 @@ def _fix_email_from_name(df: pd.DataFrame, columns: set[str], rng: np.random.Gen
         stem = f"{first}{separators[i]}{last}".strip(".")
         emails.append(f"{stem}@{domain_choices[i]}")
     df["email"] = emails
+
+
+# Trailing company-type words dropped when turning a company name into a domain.
+_CORP_SUFFIXES = {
+    "inc", "llc", "ltd", "limited", "co", "corp", "corporation", "company",
+    "group", "holdings", "partners", "ventures", "labs", "technologies",
+    "technology", "tech", "solutions", "systems", "analytics", "works",
+    "studio", "studios", "industries", "enterprises", "international", "global",
+}
+
+
+def _company_domain(company: str) -> "str | None":
+    words = [w for w in re.sub(r"[^a-z0-9 ]", "", str(company).lower()).split()
+             if w and w not in _CORP_SUFFIXES]
+    if not words:
+        return None
+    return "".join(words) + ".com"
+
+
+def _fix_corporate_email(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
+    """A work/corporate email must use the company's domain, not a free
+    webmail provider. "Vijay Becker at Blue Peak Labs" with vbecker@outlook.com
+    is wrong; it should be vbecker@bluepeak.com.
+    """
+    email_col = next((c for c in df.columns if c.lower() in
+                      ("work_email", "corporate_email", "company_email",
+                       "business_email", "office_email")), None)
+    company_col = next((c for c in df.columns if c.lower() in
+                        ("company", "company_name", "employer", "organization",
+                         "organisation", "org_name", "account_name")), None)
+    if email_col is None or company_col is None:
+        return
+
+    def _clean(part: str) -> str:
+        return re.sub(r"[^a-z]", "", str(part).lower().strip())
+
+    if {"first_name", "last_name"}.issubset(columns):
+        firsts, lasts = df["first_name"].astype(str), df["last_name"].astype(str)
+    elif "name" in columns:
+        parts = df["name"].astype(str).str.strip().str.split()
+        firsts, lasts = parts.str[0], parts.str[-1]
+    else:
+        firsts = lasts = None
+
+    out = []
+    seps = rng.choice([".", "_", ""], size=len(df), p=[0.7, 0.15, 0.15])
+    for i in range(len(df)):
+        domain = _company_domain(df.iloc[i][company_col])
+        if domain is None:
+            out.append(df.iloc[i][email_col])
+            continue
+        if firsts is not None:
+            f, l = _clean(firsts.iloc[i]), _clean(lasts.iloc[i])
+            local = f"{f}{seps[i]}{l}".strip(".") or "contact"
+        else:
+            local = "contact"
+        out.append(f"{local}@{domain}")
+    df[email_col] = out
 
 
 _NAME_TO_POOL: Dict[str, str] = {}

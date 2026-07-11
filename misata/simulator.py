@@ -76,6 +76,37 @@ def _is_count_name(name: str) -> bool:
     return any(tok in n for tok in _COUNT_TOKENS)
 
 
+# Semantic base rates for boolean columns. A default of 0.5 makes "is_fraud"
+# true half the time, which no reviewer believes. Rare-event flags default low,
+# healthy-state flags default high; anything unmatched stays a coin flip.
+_BOOL_RARE_TRUE = (      # ~3% true
+    "fraud", "chargeback", "disputed", "flagged", "blocked", "banned",
+    "suspended", "blacklist", "defaulted", "delinquent", "bounced",
+    "is_deleted", "is_returned", "is_refunded", "is_churned", "is_cancelled",
+    "is_canceled", "is_spam", "is_bot", "is_test", "is_fake",
+)
+_BOOL_COMMON_TRUE = (    # ~85% true
+    "active", "is_active", "verified", "email_verified", "enabled",
+    "confirmed", "subscribed", "opted_in", "opt_in", "approved", "valid",
+    "in_stock", "available", "is_paid", "completed", "consent",
+)
+_BOOL_LOW_TRUE = (       # ~20% true
+    "premium", "vip", "trial", "on_sale", "discounted", "gift", "featured",
+    "is_admin", "is_staff", "returning",
+)
+
+
+def _boolean_base_rate(name: str) -> float:
+    n = name.lower()
+    if any(tok in n for tok in _BOOL_RARE_TRUE):
+        return 0.03
+    if any(tok in n for tok in _BOOL_COMMON_TRUE):
+        return 0.85
+    if any(tok in n for tok in _BOOL_LOW_TRUE):
+        return 0.20
+    return 0.5
+
+
 def _draw_right_skewed(rng, lo: float, hi: float, size: int) -> "np.ndarray":
     """Right-skewed draw bounded in [lo, hi]: most mass low, a realistic upper
     tail. Shapes income/price/revenue the way EDA expects (skew ~1-2), instead
@@ -1230,7 +1261,12 @@ class DataSimulator:
             if not any(k in params for k in ("mean", "std", "min", "max", "mu", "sigma", "choices")):
                 if _cname.endswith(("_multiplier", "_factor", "_coefficient")) or _cname == "multiplier":
                     params = {**params, "min": 0.8, "max": 3.5}
-                elif _cname.endswith(("_rate", "_ratio", "_pct", "_percentage", "_share", "_probability")):
+                elif (_cname.endswith(("_percent", "_pct", "_percentage"))
+                      or _cname in ("percent", "percentage")):
+                    # "percent" means out of 100. Without this a discount_percent
+                    # column ran to 162 (a 162% discount).
+                    params = {**params, "min": 0.0, "max": 100.0}
+                elif _cname.endswith(("_rate", "_ratio", "_share", "_fraction", "_probability")):
                     params = {**params, "min": 0.0, "max": 1.0}
                 elif _cname.endswith("_rating") or _cname == "rating":
                     params = {**params, "min": 1.0, "max": 5.0}
@@ -1748,7 +1784,9 @@ class DataSimulator:
 
         # BOOLEAN
         elif column.type == "boolean":
-            probability = params.get("probability", 0.5)
+            probability = params.get("probability")
+            if probability is None:
+                probability = _boolean_base_rate(column.name)
             values = self.rng.random(size) < probability
             return values
 

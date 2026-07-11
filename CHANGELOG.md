@@ -5,6 +5,108 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-07-12
+
+A realism-hardening release. The starting point was a simple exercise: generate
+the most ordinary thing anyone asks Misata for, a users-and-orders database, and
+read it the way a developer or a data scientist would in the first ten seconds.
+Several things that should have been obvious were wrong, and this release fixes
+them from the bottom up. Every item below started as a defect that was
+reproduced and measured, not a hunch, and each is now covered by a test in
+`tests/test_seed_realism.py` or `tests/test_balanced_ledger.py`. The
+exact-aggregate outcome-curve engine is unchanged; all of this is about the
+values themselves.
+
+None of these need per-column configuration. Naming a column is enough.
+
+### Added
+
+- **`balanced_ledger` constraint: double-entry data that actually balances.**
+  Independently drawn debit and credit columns never reconcile: in a probe, 0
+  of 476 journal entries balanced. With this constraint every entry sums to
+  `debit == credit` to the cent, the global trial balance nets to zero, no line
+  carries both a debit and a credit (a real ledger line is one or the other),
+  and single-line entries are folded into genuine multi-line transactions while
+  foreign-key integrity is preserved. Declared as
+  `Constraint(type="balanced_ledger", group_by=["entry_id"], debit_column="debit", credit_column="credit")`.
+  This is the cross-table-identity primitive real accounting data has and
+  imitation synthesisers do not.
+- **Evalpacks derive ledger-identity questions.** A `balanced_ledger`
+  constraint now emits two group-by questions into an evalpack, each with a
+  declared answer of zero that is verified independently by DuckDB: the count
+  of entries that fail to balance, and the total-debit-minus-total-credit trial
+  balance. These are the join- and group-by-requiring question families the
+  answer-key-first paper (arXiv:2606.08736 line of work) named as its next
+  step.
+
+### Fixed
+
+- **Lifecycle timestamps now flow forward.** A per-row date-chain sorter kept
+  `created_at <= updated_at` correct but knew nothing about commerce, so 46% of
+  orders "shipped" before they were placed. The ordering vocabulary now covers
+  the e-commerce, SaaS, and logistics lifecycles (placed, paid, shipped,
+  delivered, returned; signup, paid, cancelled; booked, picked_up, delivered).
+  Order-before-ship went from 54% to 100%, and the fix generalises to any
+  recognised sequence rather than a hard-coded pair.
+- **`age` agrees with `date_of_birth`.** The two columns were generated
+  independently and matched 4% of the time (age 24 for someone born in 1965).
+  Age is now derived from the birth date as of the dataset's latest timestamp,
+  which keeps it reproducible.
+- **Event dates and tracking numbers are gated on status.** A cancelled or
+  pending order no longer carries a `shipped_date` or a `tracking_number`. Any
+  column matching ship, dispatch, deliver, or tracking is cleared unless the
+  row's status has actually reached that stage. The gate only fires when the
+  status vocabulary overlaps the expected set, so it never blanks a column
+  whose statuses it does not recognise.
+- **A `state` column is geographic again.** Semantic inference mapped a bare
+  `state` column to order-status values, so an address read "Los Angeles,
+  pending, 00033". `state` now resolves to a region (order state should be named
+  `status` or `order_status`), and it is resampled to belong to the row's
+  country, so "Curitiba, Indiana, Brazil" no longer happens. State pools were
+  added for Brazil, France, Japan, and the Netherlands.
+- **Postal codes match the row's city and national format.** The generator was
+  emitting a random US-style five-digit code regardless of location, so a Tokyo
+  row got a New York ZIP. Codes are now built from the row's city prefix in the
+  correct national format: five digits for the US, Germany, and France; four for
+  Australia; six for India; `NNN-NNNN` for Japan; `NNNN AA` for the Netherlands;
+  `NNNNN-NNN` for Brazil; alphanumeric for the UK and Canada.
+- **Phone numbers match the country.** Every number used the +1 North American
+  format regardless of country. Phones now use the row's calling code and a
+  plausible national format across 14 countries.
+- **Monetary columns are right-skewed.** A `salary` column declared only with
+  bounds produced a symmetric bell curve (skew about 0), which any histogram
+  gives away as synthetic. Columns whose names read as money (salary, income,
+  revenue, price, amount, balance, and similar) now draw a right-skewed
+  distribution bounded by the declared range, with mean above median and a
+  realistic upper tail (skew about 1.7). An explicitly declared distribution,
+  mean, or standard deviation is never overridden.
+- **Count columns never go negative.** An integer column named like a count
+  (`num_items`, `session_count`, `quantity`) with a small mean and no standard
+  deviation fell back to a flat standard deviation of 20, which drove about 45%
+  of rows negative (a mean of 2 produced a minimum of -63). Counts now floor at
+  zero (or the declared minimum) and use a Poisson-scale spread so a small count
+  stays small. Legitimately signed columns such as `temperature` keep their
+  negatives.
+- **Percent columns are bounded.** A `discount_percent` column with no bounds
+  ran to 162 (a 162% discount). Columns named as a percentage now fall in
+  0 to 100, while rate, ratio, share, and probability columns fall in 0 to 1.
+- **Boolean columns have believable base rates.** Every boolean defaulted to a
+  50/50 split, so `is_fraud` was true half the time. Rare-event flags (fraud,
+  deleted, cancelled, refunded, and similar) now default to about 3% true,
+  healthy-state flags (active, verified, enabled, confirmed) to about 85%, and
+  status flags with no clear prior stay a coin flip. An explicit probability is
+  always honoured.
+- **Reference and tracking numbers are codes, not prose.** A `tracking_number`
+  column was filling with sentences. Tracking, reference, confirmation, invoice,
+  and SKU columns now generate carrier-style and prefixed alphanumeric codes.
+  The detection is deliberately narrow so columns with real vocabularies
+  (`mcc_code`, `currency_code`, `country_code`) are left to their own generators.
+- **A work or corporate email uses the company domain.** `work_email` was
+  drawing from free webmail providers, so a person at "Blue Peak Labs" got a
+  gmail address. When a company or employer column is present, the work-email
+  domain is derived from it (vijaybecker@bluepeak.com), dropping trailing
+  company-type words like Labs, Group, and Technologies.
+
 ## [0.8.1.29] - 2026-07-11
 
 Value-quality release: a column's own name now beats table context wherever
