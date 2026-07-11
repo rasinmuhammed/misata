@@ -79,7 +79,11 @@ class SmartValueGenerator:
         "address": ["address", "location", "street", "postal"],
         
         # NEW: Business
-        "company_name": ["company", "organization", "business", "corporation", "enterprise", "firm"],
+        # "account name" etc. are the space-normalized forms of account_name /
+        # store_name / shop_name — an account in a CRM and a store in retail
+        # are organisations, never people.
+        "company_name": ["company", "organization", "business", "corporation", "enterprise", "firm",
+                         "account name", "store name", "shop name", "merchant name"],
         "industry": ["industry", "sector", "vertical", "market"],
         
         # NEW: Tech/Software
@@ -371,6 +375,25 @@ class SmartValueGenerator:
             "Orthopedic Surgery", "Otolaryngology", "Pediatrics", "Psychiatry",
             "Pulmonology", "Radiology", "Rheumatology", "Urology", "Anesthesiology",
         ],
+        "case_type": [
+            "Civil Litigation", "Criminal Defense", "Family Law", "Personal Injury",
+            "Contract Dispute", "Employment Dispute", "Bankruptcy", "Real Estate",
+            "Intellectual Property", "Immigration", "Estate Planning", "Tax Law",
+            "Medical Malpractice", "Product Liability", "Class Action",
+            "Workers' Compensation", "Landlord-Tenant", "Securities Fraud",
+        ],
+        "law_firm": [
+            "Whitfield & Associates", "Harmon Brooks LLP", "Caldwell & Reyes",
+            "Sterling Legal Group", "Marsh, Ellery & Boone", "Vance Whitmore LLP",
+            "Prescott Law Offices", "Delaney & Partners", "Kessler Rowan LLP",
+            "Ashford Chambers", "Blackwell & Tate", "Norwood Legal Partners",
+            "Fairbanks & Murray", "Hollis Grant LLP", "Ryder Cole & Associates",
+        ],
+        "legal_status": [
+            "Filed", "Under Review", "Discovery", "Pre-Trial", "In Trial",
+            "Settled", "Dismissed", "On Appeal", "Closed", "Pending Judgment",
+            "Arbitration", "Mediation", "Stayed", "Default Judgment",
+        ],
         "transaction_type": [
             "Purchase", "Refund", "Transfer", "Deposit", "Withdrawal",
             "Payment", "Credit", "Debit", "Fee", "Interest",
@@ -528,12 +551,25 @@ class SmartValueGenerator:
         table_lower = table_name.lower().replace("_", " ")
         combined = f"{table_lower} {col_lower}"
         
-        # Check each domain pattern
+        # Keywords are compared underscore-free because col_lower/combined
+        # are space-normalized above — without this, every compound keyword
+        # ("payment_method", "law_firm") is dead. Compound keywords are
+        # checked first (menu_item must beat the product domain's "item")
+        # and against the column only — matching the combined string would
+        # let a table like "bank_accounts" claim every one of its columns
+        # via "bank account".
         for domain, patterns in self.DOMAIN_PATTERNS.items():
             for pattern in patterns:
-                if pattern in col_lower or pattern in combined:
+                pattern = pattern.replace("_", " ")
+                if " " in pattern and pattern in col_lower:
                     return domain
-        
+        for domain, patterns in self.DOMAIN_PATTERNS.items():
+            for pattern in patterns:
+                if "_" not in pattern and " " not in pattern and (
+                    pattern in col_lower or pattern in combined
+                ):
+                    return domain
+
         return None
     
     def _get_cache_key(self, domain: str, context: str, size: int) -> str:
