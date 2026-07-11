@@ -60,6 +60,22 @@ def _is_monetary_name(name: str) -> bool:
     return any(tok in n for tok in _MONETARY_TOKENS)
 
 
+# Column-name tokens that denote a non-negative count/quantity.
+_COUNT_TOKENS = (
+    "count", "quantity", "qty", "num_", "number_of", "num", "items",
+    "units", "attempts", "visits", "sessions", "orders", "clicks", "views",
+    "logins", "purchases", "children", "employees", "seats", "licenses",
+    "tickets", "messages", "comments", "likes", "shares", "followers",
+    "reviews", "ratings_count", "stock", "inventory", "age", "days", "weeks",
+    "months", "years", "hours", "minutes",
+)
+
+
+def _is_count_name(name: str) -> bool:
+    n = name.lower()
+    return any(tok in n for tok in _COUNT_TOKENS)
+
+
 def _draw_right_skewed(rng, lo: float, hi: float, size: int) -> "np.ndarray":
     """Right-skewed draw bounded in [lo, hi]: most mass low, a realistic upper
     tail. Shapes income/price/revenue the way EDA expects (skew ~1-2), instead
@@ -1073,14 +1089,27 @@ class DataSimulator:
             elif distribution == "normal":
                 mean = params.get("mean", 100)
                 # Std scales with the mean when unspecified (fixed 20 made
-                # large-mean int columns visually constant).
+                # large-mean int columns visually constant). For small means a
+                # flat std of 20 drove counts deeply negative (mean=2 gave
+                # ~45% negative rows); a count-scale std keeps the spread sane.
                 if "std" in params:
                     std = params["std"]
                 elif isinstance(mean, (int, float)) and abs(float(mean)) > 80:
                     std = abs(float(mean)) * 0.25
+                elif isinstance(mean, (int, float)) and abs(float(mean)) <= 20:
+                    # Poisson-like: spread grows with sqrt of the mean, so a
+                    # small count stays a small count.
+                    std = max(1.0, abs(float(mean)) ** 0.5)
                 else:
                     std = 20
                 values = self.rng.normal(mean, std, size=size).astype(int)
+                # A column with no declared negative floor that reads as a
+                # count/quantity must never go below zero.
+                _declared_min = params.get("min")
+                if _declared_min is not None:
+                    values = np.maximum(values, int(_declared_min))
+                elif _is_count_name(column.name):
+                    values = np.maximum(values, 0)
             elif distribution in ("lognormal", "log_normal"):
                 # mu/sigma are in log-space; alternatively accept mean/std and convert
                 if "mu" in params or "sigma" in params:

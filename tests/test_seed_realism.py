@@ -214,3 +214,34 @@ class TestDistributionRealism:
         )
         rev = misata.generate_from_schema(schema)["e"]["revenue"]
         assert abs(rev.skew()) < 0.5, "explicit normal must stay symmetric"
+
+
+class TestCountIntegrity:
+    def test_count_columns_never_negative(self):
+        schema = SchemaConfig(
+            name="cnt", seed=9, tables=[Table(name="t", row_count=3000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="num_items", type="int", distribution_params={"mean": 2}),
+                Column(name="session_count", type="int", distribution_params={"mean": 5}),
+                Column(name="quantity", type="int", distribution_params={"mean": 3}),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["t"]
+        for c in ("num_items", "session_count", "quantity"):
+            assert (d[c] >= 0).all(), f"{c} went negative"
+        # Small-mean counts must stay small (sqrt-scale std, not flat 20).
+        assert d["num_items"].max() < 30
+
+    def test_non_count_signed_columns_keep_negatives(self):
+        schema = SchemaConfig(
+            name="temp", seed=9, tables=[Table(name="t", row_count=2000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="temperature_c", type="int", distribution_params={"mean": -3}),
+            ]},
+        )
+        d = misata.generate_from_schema(schema)["t"]
+        assert (d["temperature_c"] < 0).any(), "temperature must allow negatives"
