@@ -589,6 +589,11 @@ def build_evalpack(
         "spec_sha256": spec_hash,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "verifier": {"engine": "duckdb", "version": duckdb.__version__},
+        "sql_dialect": "duckdb",
+        "answer_comparison": (
+            "numeric at round_decimals (never string equality); "
+            "strings compared exactly"
+        ),
         "fk_integrity": fk_integrity,
         "questions": entries,
         "all_match": all(e["match"] for e in entries) if entries else False,
@@ -643,6 +648,10 @@ python verify.py
 observed values, FK orphan counts). `manifest.json` records the generation
 seed, the misata version, the spec hash, and every candidate question that
 was dropped by the verification gate.
+
+Gold SQL is written in DuckDB dialect and verified with DuckDB. Numeric
+answers must be compared numerically at each question's `round_decimals`
+(JSON numbers cannot carry trailing zeros); never compare answers as strings.
 
 Regenerate the identical pack from `manifest.json`'s schema + seed with
 [misata](https://github.com/rasinmuhammed/misata), or change the seed to get
