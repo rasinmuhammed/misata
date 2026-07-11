@@ -32,6 +32,13 @@ from misata.vocab_seeds import (
 INACTIVE_STATUSES = {"inactive", "cancelled", "canceled", "ended", "expired", "churned"}
 ACTIVE_STATUSES = {"active", "trialing", "trial", "enabled"}
 DELIVERED_STATUSES = {"delivered", "completed", "fulfilled"}
+# Statuses that imply the order has physically shipped (so a ship timestamp is
+# plausible). Anything earlier in the lifecycle should not carry a ship date.
+SHIPPED_STATUSES = {"shipped", "dispatched", "in_transit", "out_for_delivery",
+                    "delivered", "completed", "fulfilled", "returned", "refunded"}
+# Reproducible "as of" date for age <- date_of_birth derivation when the table
+# carries no other timestamp to anchor "now". Seed data ages as of this date.
+_AGE_REFERENCE = "2025-06-01"
 
 # Geography — now sourced from the rich seed pools
 COUNTRY_STATES = STATES_BY_COUNTRY
@@ -1638,11 +1645,35 @@ class EntityCoherenceEngine:
         df.loc[mismatch_array, "name"] = desired_series[mismatch_array]
 
 
-_TIME_CHAIN_ORDER = ("created", "requested", "request", "signup", "start",
-                     "begin", "dispatch", "pickup", "departure", "sent",
-                     "updated", "end", "arrival", "arrived", "dropoff",
-                     "delivered", "completed", "complete", "finish",
-                     "closed", "resolved")
+# Causal order of lifecycle timestamps found on one row. A row's date columns
+# are sorted so the earliest real value lands on the earliest-ranked column,
+# which kills impossible orderings (an order that "shipped" before it was
+# placed) while leaving each column's marginal distribution intact. Ordering
+# covers the obvious e-commerce / SaaS / logistics lifecycles a user seeds.
+# NOTE: forward-looking columns (due, expires, valid_until) are intentionally
+# absent — they legitimately post-date everything and are left untouched.
+_TIME_CHAIN_ORDER = (
+    # account / record birth
+    "created", "registered", "signup", "sign_up", "joined", "onboarded",
+    "requested", "request", "submitted", "applied",
+    # commerce: place → pay → approve
+    "placed", "ordered", "order", "booking", "booked", "reserved",
+    "quoted", "invoiced", "billed", "paid", "payment", "captured",
+    "approved", "authorized", "confirmed", "accepted",
+    # fulfilment: prepare → dispatch → transit
+    "start", "begin", "processing", "prepared", "packed", "ready",
+    "dispatch", "dispatched", "fulfilled", "shipped", "shipment", "sent",
+    "pickup", "pick_up", "picked", "collected", "loaded", "scanned",
+    "departure", "departed", "in_transit", "transit", "out_for_delivery",
+    # arrival / completion
+    "arrival", "arrived", "dropoff", "delivered", "received", "installed",
+    "activated", "checkin", "check_in", "checkout", "check_out",
+    "completed", "complete", "finish", "finished", "closed", "resolved",
+    "end",
+    # last modification, then reversals (always latest)
+    "updated", "modified", "returned", "refunded", "cancelled", "canceled",
+    "deleted", "archived",
+)
 
 
 # Chain steps that happen within ONE sitting (a trip, a session, a surge
@@ -1829,6 +1860,7 @@ def apply_realism_rules(
     _fix_start_end_dates(df, columns, _rng)
     _fix_created_delivered(df, columns, _rng)
     _fix_delivered_requires_status(df, columns)
+    _fix_age_from_dob(df, columns)
 
     # ── Monetary consistency ──
     _fix_cost_less_than_price(df, columns, _rng)
@@ -2006,12 +2038,69 @@ def _fix_created_delivered(df: pd.DataFrame, columns: set[str], rng: np.random.G
 
 
 def _fix_delivered_requires_status(df: pd.DataFrame, columns: set[str]) -> None:
-    """delivered_at should be null unless status is 'delivered'/'completed'."""
-    if "status" in columns and "delivered_at" in columns:
-        status = df["status"].astype(str).str.strip().str.lower()
-        not_delivered = ~status.isin(DELIVERED_STATUSES)
-        if not_delivered.any():
-            df.loc[not_delivered, "delivered_at"] = None
+    """A ship/deliver timestamp must not exist unless the row's status has
+    reached that stage. A cancelled or pending order with a shipped_date is
+    the kind of contradiction a developer spots instantly in seed data.
+
+    Matches any column whose name contains 'deliver' or 'ship' (delivered_at,
+    delivery_date, shipped_date, ship_date, ...) against the row's status.
+    """
+    # 'state' is deliberately excluded: it is far more often a US-state column
+    # than an order-state one, and a mis-gate there is highly visible.
+    status_col = next((c for c in df.columns
+                       if c.lower() in ("status", "order_status", "fulfillment_status")),
+                      None)
+    if status_col is None:
+        return
+    status = df[status_col].astype(str).str.strip().str.lower()
+    for col in df.columns:
+        lc = col.lower()
+        if not (("time" in lc or "date" in lc or lc.endswith("_at"))):
+            continue
+        if "deliver" in lc:
+            allowed = DELIVERED_STATUSES
+        elif "ship" in lc or "dispatch" in lc:
+            allowed = SHIPPED_STATUSES
+        else:
+            continue
+        # Only enforce when the status vocabulary actually overlaps the gate,
+        # so we never blank a column whose statuses we don't recognise.
+        if not (set(status.unique()) & allowed):
+            continue
+        not_reached = ~status.isin(allowed)
+        if not_reached.any():
+            df.loc[not_reached, col] = None
+
+
+def _fix_age_from_dob(df: pd.DataFrame, columns: set[str]) -> None:
+    """An ``age`` column must agree with ``date_of_birth`` (or birth_date/dob).
+
+    Age is derived from the birth date as of the dataset's latest known moment
+    (the max of any other datetime column), falling back to a fixed reference
+    so the result stays reproducible for a birthdate-only table.
+    """
+    age_col = next((c for c in columns if c.lower() in ("age", "age_years")), None)
+    dob_col = next((c for c in columns if c.lower() in
+                    ("date_of_birth", "birth_date", "birthdate", "dob", "born_on")),
+                   None)
+    if age_col is None or dob_col is None:
+        return
+    dob = pd.to_datetime(df[dob_col], errors="coerce")
+    if dob.isna().all():
+        return
+
+    # "Now" = the latest timestamp the dataset references, else the fixed ref.
+    ref = pd.Timestamp(_AGE_REFERENCE)
+    for c in df.columns:
+        if c == dob_col:
+            continue
+        if "date" in c.lower() or "time" in c.lower() or c.lower().endswith("_at"):
+            other = pd.to_datetime(df[c], errors="coerce")
+            if other.notna().any():
+                ref = max(ref, other.max())
+    years = ((ref - dob).dt.days / 365.25).round().astype("Int64")
+    years = years.clip(lower=0, upper=120)
+    df[age_col] = years
 
 
 # ─── MONETARY RULES ──────────────────────────────────────────────────────────
