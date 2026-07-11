@@ -25,7 +25,7 @@ Realistic, relational rows that hit exact revenue curves, fraud rates, referenti
 
 ---
 
-Most synthetic-data tools learn from a real dataset and imitate it. Misata works the other way: you **declare the outcome you want** : "monthly revenue rises from \$50k to \$200k," "fraud is 3% in Q1 rising to 8% by Q4," "every customer's `total_spent` equals the sum of their orders", and Misata generates individual rows whose aggregates hit those targets **exactly**, with full referential integrity, from no source data at all.
+Most synthetic-data tools learn from a real dataset and imitate it. Misata works the other way: you **declare the outcome you want**: "monthly revenue rises from \$50k to \$200k," "fraud is 3% in Q1 rising to 8% by Q4," "every customer's `total_spent` equals the sum of their orders", and Misata generates individual rows whose aggregates hit those targets **exactly**, with full referential integrity, from no source data at all.
 
 This is *outcome-conformant generation*. The mechanism is formalised in an arXiv preprint ([2606.08736](https://arxiv.org/abs/2606.08736v1)): a closed-form method that satisfies declared aggregates to \$0.00 error, where off-the-shelf imitation synthesisers trained on the same data miss by 74–86%. Every run can also emit an **Oracle report**, a proof bundle covering referential integrity, constraints, temporal consistency, and reproducibility.
 
@@ -89,6 +89,7 @@ pip install "misata[llm]"        # multi-provider LLM schema generation
 pip install "misata[documents]"  # PDF output via weasyprint
 pip install "misata[advanced]"   # SDV/CTGAN statistical synthesis
 pip install "misata[mcp]"        # MCP server, expose Misata to Claude, Cursor, and other AI agents
+pip install "misata[evalpack]"   # evalpacks: verified eval databases for data agents (DuckDB)
 ```
 
 ---
@@ -419,7 +420,7 @@ Synthetic data rarely fails on the big numbers; it fails on the small tells a re
 | `appointment_date: 2022-08-29 06:36:12.995319155`: nanosecond precision, 6 AM, a Sunday | **Temporal profiles**: scheduled events snap to 15-minute grids in business hours with weekends damped; signups follow waking-hour rhythms; only machine events (logs, clicks) keep sub-second precision; birth dates are dates. |
 | Every category equally likely | **Zipf–Mandelbrot marginals**: unweighted categoricals follow the rank-frequency power law real statuses, countries, and categories follow, with the dominant value varying per column. Declared probabilities always win. |
 | `Chicago → San Diego, 145.6 km` | **Geographic facts**: distances between named cities are computed (haversine × road circuity) from 289 embedded city coordinates, and travel times follow from distances. Facts, not distributions: so the Oracle can verify them. |
-| A five-star review that reads "disappointing" (or lorem ipsum | **Grammar microtext**: review text is generated *from* the row's rating by a seeded grammar (1★ reads angry, 5★ reads delighted) a verifiable invariant), and free-text notes come from a business-note grammar. Lorem ipsum cannot reach output. |
+| A five-star review that reads "disappointing", or lorem ipsum | **Grammar microtext**: review text is generated *from* the row's rating by a seeded grammar (1★ reads angry, 5★ reads delighted), a verifiable invariant. Free-text notes come from a business-note grammar. Lorem ipsum cannot reach output. |
 | A 19-minute appointment, a price of $43.27 | **Numeric quantization**: scheduled durations snap to the slot grids calendars actually offer (15/30/45/60), retail prices end in .99/.95/.00, ages are integers. Measured quantities are left alone. |
 
 ```python
@@ -463,7 +464,7 @@ tables = misata.generate("a veterinary clinic with patients and visits",
                          capsule="vet.capsule.json")
 ```
 
-Capsules can also be written by an LLM once and reviewed before use (`capsule_from_llm`, BYO key (Groq's free tier works), or written by hand: it's JSON. Because a capsule is a file, it's a community artifact) share it via git, a gist, or HF datasets.
+Capsules can also be written by an LLM once and reviewed before use (`capsule_from_llm`, BYO key; Groq's free tier works), or written by hand: it's JSON. Because a capsule is a file, it's a community artifact. Share it via git, a gist, or HF datasets.
 
 ---
 
@@ -989,6 +990,26 @@ print(bundle.fidelity.grade)             # letter grade for the same score
 print(bundle.privacy.overall_risk_score) # heuristic PII / re-identification risk
 print(bundle.data_card.tables)           # per-table row counts and metadata
 ```
+
+---
+
+## Evalpacks: eval databases where the answer key cannot be wrong
+
+Published text-to-SQL benchmarks are built by annotating question/answer pairs on top of an existing database, and that annotation step is where pervasive answer-key errors creep in. An evalpack inverts the order: the ground truth is the declared spec itself (outcome curves, rate curves, FK relationships), Misata generates a database that satisfies it, and every question shipped in the pack is then verified by executing its gold SQL against the written CSV files with DuckDB, an engine that shares no code with the generator. Questions whose observed answer does not exactly match the declared answer are dropped and recorded in the manifest. A wrong answer key is impossible by construction and double-checked by independent execution.
+
+```bash
+pip install "misata[evalpack]"
+misata evalpack --config misata.yaml -o ./my_pack --seed 42
+```
+
+```python
+from misata.evalpack import build_evalpack
+
+result = build_evalpack(schema, "my_pack")
+assert result.all_verified
+```
+
+Each pack ships the tables as CSVs, `questions.jsonl`, a per-question verification certificate, a manifest with the spec hash and seed, and a standalone `verify.py` that anyone can re-run with nothing but `duckdb` installed. Use it to benchmark SQL agents, RAG-over-database systems, or any tool that claims to answer questions about data, against a database whose right answers are known before a single row exists.
 
 ---
 
