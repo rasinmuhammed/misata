@@ -5,6 +5,16 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3.1] - 2026-07-12
+
+### Fixed
+
+- **A known city carries its actual state even when the table has no country
+  column.** The city-to-state truth map only applied when a country column was
+  present, so a city/state/zip table (no country) could read "New York,
+  Michigan". The exact mapping now fires from the city alone; unmapped cities
+  keep the documented country-level behaviour.
+
 ## [0.8.3] - 2026-07-12
 
 ### Added

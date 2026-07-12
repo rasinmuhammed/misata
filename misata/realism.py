@@ -2002,15 +2002,11 @@ def _fix_state_country(df: pd.DataFrame, columns: set, rng: np.random.Generator)
          if c.lower() == "country" or c.lower().endswith("_country")),
         None,
     )
-    if state_col is None or country_col is None:
+    if state_col is None:
         return
-    countries = df[country_col].astype(str)
-    known_mask = countries.isin(COUNTRY_STATES.keys())
-    if not known_mask.any():
-        return
-
     # When the row's city is a known one, its actual state is the truth:
-    # São Paulo city gets São Paulo state, not a random Brazilian province.
+    # São Paulo city gets São Paulo state, not a random province. This runs
+    # even without a country column, because the city alone determines it.
     from misata.vocab_seeds import CITY_STATE
     city_col = next(
         (c for c in df.columns
@@ -2022,6 +2018,13 @@ def _fix_state_country(df: pd.DataFrame, columns: set, rng: np.random.Generator)
         has_exact = exact.notna()
         if has_exact.any():
             df.loc[has_exact, state_col] = exact[has_exact]
+
+    if country_col is None:
+        return
+    countries = df[country_col].astype(str)
+    known_mask = countries.isin(COUNTRY_STATES.keys())
+    if not known_mask.any():
+        return
 
     incoherent = known_mask & ~df.apply(
         lambda r: str(r[state_col]) in COUNTRY_STATES.get(str(r[country_col]), ()),
