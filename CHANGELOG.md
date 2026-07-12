@@ -19,6 +19,16 @@ values themselves.
 
 None of these need per-column configuration. Naming a column is enough.
 
+This release also documents its own boundaries: [LIMITATIONS.md](LIMITATIONS.md)
+lists, boundary by boundary, where the library is expected to fail or refuses to
+guess (city-to-state exactness outside the 58 mapped cities, integer rounding of
+declared rates, clamp saturation, memory buffering for roll-up tables, priors
+being name-routed and US-flavoured, and more). Every entry started as a
+reproduced defect or a deliberate design refusal, and entries move to this
+changelog when they get fixed. Alongside it: Python 3.13 joined the CI matrix,
+dependency auditing runs in CI, and the mypy configuration was corrected to
+claim only the strictness the codebase actually meets.
+
 ### Added
 
 - **The statistical priors knowledge base is now the default, not an opt-in.**

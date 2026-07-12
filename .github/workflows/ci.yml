@@ -37,6 +37,12 @@ jobs:
         run: |
           pytest tests/test_integration_scale.py -v -m slow --tb=short
 
+      - name: Audit dependencies for known vulnerabilities
+        if: matrix.python-version == '3.11'
+        run: |
+          pip install pip-audit
+          pip-audit --skip-editable || true  # informational for now; tighten to blocking after a clean baseline
+
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4

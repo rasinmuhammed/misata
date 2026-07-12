@@ -468,6 +468,10 @@ data telling the story is internally coherent.
   the schema classes, and the builders). Underscore-prefixed modules and
   functions may change without notice.
 
+Where the library is expected to fail is documented honestly, boundary by
+boundary, in [LIMITATIONS.md](LIMITATIONS.md). Every entry there started as a
+reproduced defect or a deliberate design refusal.
+
 ## Unknown domains: composed, not confabulated
 
 The 18 built-in domains are templates. For everything else, Misata refuses to fake understanding, and refuses to give up. A compositional synthesizer derives **structure** from your sentence: plural noun phrases become tables, "80 beekeepers" binds a row count, and a small archetype lattice (person / asset / place / event / document) provides honest structural columns and foreign-key wiring.
