@@ -41,6 +41,23 @@ None of these need per-column configuration. Naming a column is enough.
 
 ### Fixed
 
+- **A multi-table story now reconciles across joins.** Testing a full
+  e-commerce story (customers, products, orders, order items, payments) surfaced
+  three cross-table value defects, all now fixed. A line item's `unit_price`
+  matched the product it references 0% of the time, because the denormalised-copy
+  pass only recognised parent attributes prefixed with the parent's name
+  (`product_price`), not intrinsic attributes shared by exact name; a small,
+  explicit set of parent-owned attributes (price, unit_price, category, brand,
+  sku, currency, tax_rate, and similar) is now copied from the parent, so the
+  price on a line matches the product and the recomputed `line_total` stays
+  consistent. An order's `order_total` matched the sum of its line items 0% of
+  the time, because roll-up inference recognised `total_orders` but not
+  `order_total`; an entity-total column (`order_total`, `invoice_total`,
+  `total`, `subtotal`) now rolls up the sum of a line-item child's line measure,
+  but only when exactly one child is an unambiguous line-item table, so it never
+  double counts a sibling such as payments. A generation crash was also fixed:
+  the line-total rule called `.fillna` on a scalar when no `discount` column was
+  present, which aborted any order-items table without a discount.
 - **A child event can no longer predate the parent it belongs to.** Generated
   table by table, a child's timestamps had no knowledge of the parent's, so an
   order could be placed before its customer signed up and a review written

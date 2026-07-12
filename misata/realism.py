@@ -2330,7 +2330,8 @@ def _fix_line_total(df: pd.DataFrame, columns: set[str]) -> None:
     if {"quantity", "unit_price", "line_total"}.issubset(columns):
         qty = pd.to_numeric(df["quantity"], errors="coerce").fillna(1)
         unit_price = pd.to_numeric(df["unit_price"], errors="coerce").fillna(0)
-        discount = pd.to_numeric(df.get("discount", 0), errors="coerce").fillna(0)
+        discount = (pd.to_numeric(df["discount"], errors="coerce").fillna(0)
+                    if "discount" in columns else 0)
         df["line_total"] = np.round(qty * unit_price - discount, 2).clip(lower=0)
 
 

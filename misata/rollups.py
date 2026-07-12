@@ -158,6 +158,80 @@ def infer_rollups(config: Any, tables_present: Optional[set] = None) -> List[Rol
                 agg=agg,
                 column=child_col,
             ))
+    specs.extend(_infer_line_item_totals(config, existing=specs))
+    return specs
+
+
+# A parent monetary total that equals the sum of its line items. Distinct from
+# the name-rule roll-ups above: the column is named for the parent entity
+# (order_total, invoice_total, cart.total), not for the child, and the child is
+# recognised by being an unambiguous line-item table. Kept strict so it never
+# fires on an order that also has a payments child (which would double count).
+_TOTAL_COL_RE = re.compile(r"^(grand_total|sub_?total|total|.+_total|.+_amount|amount)$")
+_LINE_MEASURE_NAMES = ("line_total", "line_amount", "line_subtotal",
+                       "extended_price", "extended_amount")
+_LINE_TABLE_TOKENS = ("item", "items", "line", "lines", "detail", "details",
+                      "lineitem", "orderline")
+
+
+def _looks_like_line_item_child(config: Any, child_table: str):
+    """Return the child's summable line-measure column when the child is
+    unambiguously a line-item table, else None."""
+    cols = config.columns.get(child_table, [])
+    names = {c.name.lower(): c for c in cols}
+    measure = next((n for n in _LINE_MEASURE_NAMES if n in names), None)
+    ct = child_table.lower()
+    table_is_line = any(tok in ct.split("_") or ct.endswith(tok)
+                        for tok in _LINE_TABLE_TOKENS)
+    if measure is None and not table_is_line:
+        return None
+    if measure is None:
+        # A line table with no explicit line measure: sum a single obvious
+        # money column if there is exactly one.
+        money = [c.name for c in cols
+                 if c.type == "float" and not c.unique and not c.name.endswith("_id")
+                 and any(k in c.name.lower()
+                         for k in ("total", "amount", "price", "subtotal"))]
+        if len(money) != 1:
+            return None
+        measure = money[0]
+    return measure
+
+
+def _infer_line_item_totals(config: Any, existing: List[RollupSpec]) -> List[RollupSpec]:
+    specs: List[RollupSpec] = []
+    children = _children_by_parent(config)
+    declared = {(s.parent_table, s.target_column) for s in existing}
+    declared |= {(s.parent_table, s.target_column) for s in collect_declared_rollups(config)}
+    for parent_table, cols in config.columns.items():
+        kids = children.get(parent_table, [])
+        if not kids:
+            continue
+        parent_key = _primary_key_of(config, parent_table)
+        # Every line-item child of this parent (must be exactly one to fire).
+        line_children = [
+            (ct, fk, meas)
+            for (ct, fk, _pk) in kids
+            if (meas := _looks_like_line_item_child(config, ct)) is not None
+        ]
+        if len(line_children) != 1:
+            continue
+        child_table, fk_col, measure = line_children[0]
+        for col in cols:
+            if (parent_table, col.name) in declared:
+                continue
+            if (col.distribution_params or {}).get("rollup"):
+                continue
+            if col.type != "float":
+                continue
+            if not _TOTAL_COL_RE.match(col.name.lower()):
+                continue
+            specs.append(RollupSpec(
+                parent_table=parent_table, target_column=col.name,
+                from_table=child_table, fk=fk_col, parent_key=parent_key,
+                agg="sum", column=measure,
+            ))
+            declared.add((parent_table, col.name))
     return specs
 
 

@@ -96,6 +96,17 @@ _BOOL_LOW_TRUE = (       # ~20% true
 )
 
 
+# Intrinsic attributes of a parent entity: when a child shares one of these by
+# exact name with an FK parent, the child's value is a copy of the parent's
+# (a line item's unit_price is the product's price). Kept deliberately small so
+# generic same-named columns (status, name, created_at) are never overwritten.
+_PARENT_OWNED_ATTRS = {
+    "unit_price", "price", "list_price", "category", "brand", "sku",
+    "currency", "tax_rate", "product_name", "color", "size", "weight",
+    "manufacturer", "supplier",
+}
+
+
 def _boolean_base_rate(name: str) -> float:
     n = name.lower()
     if any(tok in n for tok in _BOOL_RARE_TRUE):
@@ -602,6 +613,14 @@ class DataSimulator:
                     if (
                         cl.startswith(_head + "_")
                         and not cl.endswith("_id")
+                        and child_col.name in df.columns
+                    ):
+                        needed_cols.add(child_col.name)
+                    # A parent-owned attribute the child shares by exact name
+                    # (order_item.unit_price <- product.unit_price) must survive
+                    # trimming so the child can copy the parent's value.
+                    elif (
+                        cl in _PARENT_OWNED_ATTRS
                         and child_col.name in df.columns
                     ):
                         needed_cols.add(child_col.name)
@@ -4028,7 +4047,15 @@ class DataSimulator:
                 if c in parent_df.columns
                 and c != rel.child_key
                 and not c.lower().endswith("_id")
-                and c.lower().startswith(head + "_")
+                and (
+                    c.lower().startswith(head + "_")
+                    # A parent-owned attribute shared by exact name is the
+                    # parent's value: an order_item's unit_price is the
+                    # product's price, not an independent draw. Restricted to
+                    # intrinsic attributes so generic columns (status, name,
+                    # created_at) are never blindly copied across a join.
+                    or c.lower() in _PARENT_OWNED_ATTRS
+                )
                 and not any(k in col_params.get(c, {}) for k in ("depends_on", "formula", "rollup"))
             ]
             if not shared:

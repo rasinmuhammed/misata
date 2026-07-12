@@ -412,3 +412,66 @@ class TestCrossTableCausality:
         o = chained["orders"]
         assert (pd.to_datetime(o["order_date"])
                 <= pd.to_datetime(o["shipped_date"])).all()
+
+
+class TestCrossTableValueCoherence:
+    """A multi-table story must reconcile across joins: a line item's price is
+    the product's price, and an order's total is the sum of its line items."""
+
+    @pytest.fixture(scope="class")
+    def shop(self):
+        schema = SchemaConfig(
+            name="shop", seed=13,
+            tables=[Table(name="products", row_count=60),
+                    Table(name="orders", row_count=400),
+                    Table(name="order_items", row_count=1200)],
+            columns={
+                "products": [
+                    Column(name="product_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 9999}),
+                    Column(name="unit_price", type="float",
+                           distribution_params={"min": 5, "max": 500, "decimals": 2})],
+                "orders": [
+                    Column(name="order_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 999999}),
+                    Column(name="order_total", type="float",
+                           distribution_params={"min": 5, "max": 5000, "decimals": 2})],
+                "order_items": [
+                    Column(name="item_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 9999999}),
+                    Column(name="order_id", type="foreign_key"),
+                    Column(name="product_id", type="foreign_key"),
+                    Column(name="quantity", type="int",
+                           distribution_params={"min": 1, "max": 5}),
+                    Column(name="unit_price", type="float",
+                           distribution_params={"min": 5, "max": 500, "decimals": 2}),
+                    Column(name="line_total", type="float",
+                           distribution_params={"min": 5, "max": 2500, "decimals": 2})],
+            },
+            relationships=[
+                Relationship(parent_table="orders", child_table="order_items",
+                             parent_key="order_id", child_key="order_id"),
+                Relationship(parent_table="products", child_table="order_items",
+                             parent_key="product_id", child_key="product_id")],
+        )
+        return misata.generate_from_schema(schema)
+
+    def test_line_item_price_matches_product(self, shop):
+        m = shop["order_items"].merge(
+            shop["products"].rename(columns={"unit_price": "p"}), on="product_id")
+        assert (abs(m["unit_price"] - m["p"]) < 0.01).mean() >= 0.99
+
+    def test_line_total_is_quantity_times_price(self, shop):
+        oi = shop["order_items"]
+        assert (abs(oi["line_total"] - (oi["quantity"] * oi["unit_price"]).round(2))
+                < 0.01).mean() >= 0.99
+
+    def test_order_total_is_sum_of_line_items(self, shop):
+        sums = shop["order_items"].groupby("order_id")["line_total"].sum().round(2)
+        ot = shop["orders"].set_index("order_id")["order_total"]
+        j = ot.to_frame("t").join(sums.to_frame("s")).dropna()
+        assert (abs(j["t"] - j["s"]) < 0.01).mean() >= 0.99
+
+    def test_generation_does_not_crash_without_discount_column(self, shop):
+        # Regression: _fix_line_total crashed on df.get("discount", 0).fillna.
+        assert len(shop["order_items"]) > 0
