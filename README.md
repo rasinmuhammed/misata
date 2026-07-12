@@ -423,6 +423,10 @@ Synthetic data rarely fails on the big numbers; it fails on the small tells a re
 | `Chicago → San Diego, 145.6 km` | **Geographic facts**: distances between named cities are computed (haversine × road circuity) from 289 embedded city coordinates, and travel times follow from distances. Facts, not distributions: so the Oracle can verify them. |
 | A five-star review that reads "disappointing", or lorem ipsum | **Grammar microtext**: review text is generated *from* the row's rating by a seeded grammar (1★ reads angry, 5★ reads delighted), a verifiable invariant. Free-text notes come from a business-note grammar. Lorem ipsum cannot reach output. |
 | A 19-minute appointment, a price of $43.27 | **Numeric quantization**: scheduled durations snap to the slot grids calendars actually offer (15/30/45/60), retail prices end in .99/.95/.00, ages are integers. Measured quantities are left alone. |
+| An order shipped before it was placed, by a customer who had not signed up yet | **Lifecycle and causality ordering**: a row's timestamps sort along the real e-commerce/SaaS/logistics lifecycle, and a child row is shifted so it never predates its FK parent, across multi-level chains, preserving the row's own gaps. |
+| `state: cancelled` next to `city: Los Angeles`, a Tokyo row with a US ZIP, +1 phones everywhere | **Address-chain coherence**: city, state, postal format, and phone calling code all agree with the row's country (and a known city carries its exact state), across 14 countries and 8 postal formats. |
+| `is_fraud` true on half the rows, salaries in a symmetric bell, every quantity 1-5 uniform | **Statistical priors knowledge base**: recognised column names draw their real-world shape automatically: J-shaped ratings, Zipf order quantities (60% ones), lognormal salaries, .99 price endings, ~3% rare-event flags. Explicit declarations always win. |
+| An `order_total` that does not equal the sum of its line items | **Cross-table value coherence**: a line item's `unit_price` is copied from the product it references, and an entity-total column rolls up from its line-item child, never double counting a sibling table. |
 
 ```python
 tables = misata.generate("A hospital with 300 patients, doctors and appointments", seed=7)
@@ -431,6 +435,38 @@ tables = misata.generate("A hospital with 300 patients, doctors and appointments
 ```
 
 ---
+
+## The dataset grades itself
+
+Every coherence class above is also a detector. `story_audit` checks a generated
+dataset against the full invariant catalog: FK orphans, cross-table temporal
+causality, roll-up agreement, status gating, count and percent bounds, rare-flag
+base rates, age against birth date, and more. Nothing incoherent ships silently.
+
+```python
+tables = misata.generate_from_schema(schema, verify=True)   # warns on any finding
+
+report = misata.story_audit(tables, schema)                  # or audit explicitly
+print(report.summary())    # "Coherence: clean" or a scored list of findings
+```
+
+Every evalpack manifest embeds this verdict alongside its DuckDB answer
+certificate, so a pack asserts both that its answers are right and that the
+data telling the story is internally coherent.
+
+## Reproducibility and stability
+
+- **Within a version, generation is deterministic.** The same schema, seed, and
+  misata version produce byte-identical tables. Evalpack manifests record the
+  version, seed, and a SHA-256 of the spec for exactly this reason.
+- **Across versions, RNG streams may change** when generation improves (they
+  did in 0.8.1.29 and 0.8.2). Declared outcomes still hold: aggregates,
+  rates, identities, and integrity survive any upgrade; the individual rows may
+  differ. Pin the version when you need bit-identical regeneration.
+- **The public API is the documented top-level surface** (`misata.generate`,
+  `generate_from_schema`, `story_audit`, `coherence_audit`, `build_evalpack`,
+  the schema classes, and the builders). Underscore-prefixed modules and
+  functions may change without notice.
 
 ## Unknown domains: composed, not confabulated
 
