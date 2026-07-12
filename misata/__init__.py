@@ -206,6 +206,7 @@ def generate(
     max_retries: int = 3,
     smart_correlations: bool = False,
     capsule: "Optional[str]" = None,
+    verify: bool = False,
 ) -> "Dict[str, Any]":
     """One-liner: story → dict of DataFrames.
 
@@ -246,32 +247,16 @@ def generate(
     if seed is not None:
         schema.seed = seed
 
-    if capsule is not None:
-        _attach_capsule(schema, capsule)
-
-    if smart_correlations:
-        _infer_correlations(schema)
-
-    if min_quality_score is None:
-        return _run_simulation(schema)
-
-    from misata.reporting import FidelityChecker
-    best_tables: "Optional[Dict[str, Any]]" = None
-    best_score = -1.0
-    base_seed = schema.seed or 0
-
-    for attempt in range(max_retries + 1):
-        if attempt > 0:
-            schema.seed = base_seed + attempt
-        tables = _run_simulation(schema)
-        report = FidelityChecker().check_against_schema(tables, schema)
-        if report.overall_score > best_score:
-            best_score = report.overall_score
-            best_tables = tables
-        if report.overall_score >= min_quality_score:
-            break
-
-    return best_tables  # type: ignore[return-value]
+    # Delegate to generate_from_schema: one pipeline, so every feature wired
+    # there (priors, coherence passes, verify) applies to the story path too.
+    return generate_from_schema(
+        schema,
+        min_quality_score=min_quality_score,
+        max_retries=max_retries,
+        smart_correlations=smart_correlations,
+        capsule=capsule,
+        verify=verify,
+    )
 
 
 def _attach_capsule(schema: "SchemaConfig", capsule_path: str) -> None:

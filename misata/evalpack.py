@@ -690,6 +690,21 @@ def build_evalpack(
         "all_match": all(e["match"] for e in entries) if entries else False,
     }
 
+    # The story-audit verdict rides in the manifest: an evalpack asserts its
+    # answers are right, and this asserts the DATA telling that story is
+    # internally coherent (FK, causality, roll-ups, bounds). Same honesty
+    # ledger, second axis.
+    try:
+        from misata.coherence import story_audit as _story_audit
+        _audit = _story_audit(tables, schema)
+        story_audit_block = {
+            "clean": bool(_audit.clean),
+            "score": float(_audit.score),
+            "findings": [f.to_dict() for f in _audit.findings],
+        }
+    except Exception as exc:  # noqa: BLE001 - advisory, never blocks a build
+        story_audit_block = {"clean": None, "error": str(exc)[:200]}
+
     manifest = {
         "pack": schema.name,
         "misata_version": misata.__version__,
@@ -700,6 +715,7 @@ def build_evalpack(
         "questions_dropped": len(dropped),
         "dropped_questions": dropped,
         "conformance_warnings": conformance_warnings,
+        "story_audit": story_audit_block,
         "schema": json.loads(spec_json),
     }
 

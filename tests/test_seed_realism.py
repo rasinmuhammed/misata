@@ -650,3 +650,65 @@ class TestStatisticalPriors:
         )
         p = misata.generate_from_schema(schema)["t"]["unit_price"]
         assert p.min() >= 10 and p.max() <= 50
+
+
+class TestWiring:
+    """Every entry point must flow through the same realism pipeline. These
+    exist because features kept working on one path and missing on another."""
+
+    def test_fk_string_shorthand_builds_the_relationship(self):
+        """foreign_key: "users.user_id" (the form an LLM writes first) must
+        create the Relationship, not just type the column."""
+        d = {
+            "users": {"__rows__": 40,
+                      "user_id": {"type": "integer", "primary_key": True}},
+            "orders": {"__rows__": 120,
+                       "order_id": {"type": "integer", "primary_key": True},
+                       "user_id": {"type": "integer",
+                                   "foreign_key": "users.user_id"}},
+        }
+        schema = misata.from_dict_schema(d, seed=3)
+        assert len(schema.relationships) == 1
+        t = misata.generate_from_schema(schema)
+        assert t["orders"]["user_id"].isin(t["users"]["user_id"]).all()
+
+    def test_story_path_gets_priors_via_delegation(self):
+        """generate(story) delegates to generate_from_schema, so name-routed
+        priors and verify= work identically on both paths."""
+        import inspect
+        sig = inspect.signature(misata.generate)
+        assert "verify" in sig.parameters
+        t = misata.generate("A simple shop with 100 orders", seed=5, verify=True)
+        assert len(t) >= 1
+
+    def test_evalpack_manifest_carries_story_audit(self, tmp_path):
+        pytest.importorskip("duckdb")
+        import json
+        from misata.evalpack import build_evalpack
+        from misata import OutcomeCurveBuilder
+        schema = SchemaConfig(
+            name="w", seed=9,
+            tables=[Table(name="c", row_count=40), Table(name="o", row_count=200)],
+            columns={
+                "c": [Column(name="c_id", type="int", unique=True,
+                             distribution_params={"min": 1, "max": 999})],
+                "o": [Column(name="o_id", type="int", unique=True,
+                             distribution_params={"min": 1, "max": 99999}),
+                      Column(name="c_id", type="foreign_key"),
+                      Column(name="amount", type="float",
+                             distribution_params={"min": 5, "max": 500}),
+                      Column(name="order_date", type="datetime",
+                             distribution_params={"start": "2025-01-01",
+                                                  "end": "2025-12-31"})],
+            },
+            relationships=[Relationship(parent_table="c", child_table="o",
+                                        parent_key="c_id", child_key="c_id")],
+        )
+        curve = (OutcomeCurveBuilder("o", column="amount", time_column="order_date")
+                 .anchor("2025-01", 20000).anchor("2025-12", 60000)
+                 .avg_value(80.0).build())
+        schema = OutcomeCurveBuilder.attach(schema, curve)
+        build_evalpack(schema, tmp_path / "p")
+        manifest = json.loads((tmp_path / "p" / "manifest.json").read_text())
+        assert "story_audit" in manifest
+        assert manifest["story_audit"]["clean"] is True

@@ -735,7 +735,8 @@ def from_dict_schema(
             if col_name.startswith("__") or not isinstance(col_def, dict):
                 continue
 
-            # Collect FK relationships — nested dict form or
+            # Collect FK relationships — nested dict form,
+            # ``foreign_key: "parent_table.parent_key"`` string shorthand, or
             # ``references: "parent_table.parent_key"`` string form.
             fk_ref = col_def.get("foreign_key")
             if fk_ref and isinstance(fk_ref, dict):
@@ -743,6 +744,18 @@ def from_dict_schema(
                     parent_table=fk_ref["table"],
                     child_table=table_name,
                     parent_key=fk_ref.get("column", "id"),
+                    child_key=col_name,
+                ))
+            elif isinstance(fk_ref, str) and "." in fk_ref:
+                # The shorthand a hand-written or LLM-written schema reaches
+                # for first. Without this branch the column was typed as a
+                # foreign key while its relationship silently never existed,
+                # and validation failed with a confusing message.
+                p_table, p_key = fk_ref.rsplit(".", 1)
+                relationships.append(Relationship(
+                    parent_table=p_table.strip(),
+                    child_table=table_name,
+                    parent_key=p_key.strip(),
                     child_key=col_name,
                 ))
             elif (

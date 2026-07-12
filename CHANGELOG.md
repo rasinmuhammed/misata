@@ -71,6 +71,23 @@ None of these need per-column configuration. Naming a column is enough.
 
 ### Fixed
 
+- **Every entry point flows through one pipeline.** A wiring audit ran the
+  same realism markers (rating shape, quantity distribution, lifecycle
+  ordering, geographic state, cross-table causality) through every public
+  path: `generate_from_schema`, the dict-schema route the MCP server uses,
+  streaming consumption, and the plain-English `generate(story)`. Three
+  disconnections were found and closed. `generate(story)` reimplemented its
+  own generation loop, so features added to the schema path (the priors
+  knowledge base, `verify=`) silently did not apply to stories; it now
+  delegates to `generate_from_schema`, so the two paths cannot drift apart
+  again, and `verify=` works on both. The dict-schema shorthand
+  `foreign_key: "users.user_id"` typed the column as a foreign key but never
+  built the relationship, failing validation with a confusing message; the
+  string form now builds the Relationship like the dict and `references`
+  forms always did. And every evalpack manifest now carries the
+  `story_audit` verdict (clean flag, score, findings), so a pack asserts
+  both that its answers are right and that the data telling the story is
+  internally coherent.
 - **A multi-table story now reconciles across joins.** Testing a full
   e-commerce story (customers, products, orders, order items, payments) surfaced
   three cross-table value defects, all now fixed. A line item's `unit_price`
