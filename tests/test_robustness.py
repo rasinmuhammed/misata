@@ -165,3 +165,37 @@ class TestSelfAuditProperty:
         tables = misata.generate_from_schema(schema)
         report = misata.story_audit(tables, schema)
         assert report.clean, f"seed {seed}: {report.summary()}"
+
+
+class TestAuditCLI:
+    """`misata audit <dir>` works on any CSVs and gates on high findings."""
+
+    def test_clean_data_exits_zero(self, tmp_path):
+        import subprocess, sys
+        schema = SchemaConfig(
+            name="ok", seed=3, tables=[Table(name="t", row_count=60)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 999}),
+                Column(name="amount", type="float",
+                       distribution_params={"min": 1, "max": 100})]},
+        )
+        d = tmp_path / "clean"; d.mkdir()
+        for name, df in misata.generate_from_schema(schema).items():
+            df.to_csv(d / f"{name}.csv", index=False)
+        r = subprocess.run([sys.executable, "-m", "misata.cli", "audit", str(d)],
+                           capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout + r.stderr
+
+    def test_incoherent_data_exits_nonzero(self, tmp_path):
+        import subprocess, sys
+        d = tmp_path / "bad"; d.mkdir()
+        pd.DataFrame({
+            "order_id": range(1, 41),
+            "order_date": ["2025-06-01 10:00:00"] * 40,
+            "shipped_date": ["2025-01-01 10:00:00"] * 40,   # ships before order
+            "quantity": [-5] * 40,                           # negative counts
+        }).to_csv(d / "orders.csv", index=False)
+        r = subprocess.run([sys.executable, "-m", "misata.cli", "audit", str(d)],
+                           capture_output=True, text=True)
+        assert r.returncode == 1, r.stdout + r.stderr

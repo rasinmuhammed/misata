@@ -2146,5 +2146,90 @@ def evalpack_cmd(config: str, output_dir: str, seed: Optional[int]) -> None:
         sys.exit(1)
 
 
+@main.command("audit")
+@click.argument("data_dir", type=click.Path(exists=True))
+@click.option("--schema", "-s", type=click.Path(exists=True), default=None,
+              help="Optional schema (misata.yaml or SchemaConfig JSON/YAML). "
+                   "With it, relationship-level checks run too: FK orphans, "
+                   "cross-table causality, roll-up agreement.")
+@click.option("--strict", is_flag=True, default=False,
+              help="Exit nonzero on ANY finding (default: only high severity). "
+                   "Use in CI to gate seed data.")
+def audit_cmd(data_dir: str, schema: Optional[str], strict: bool) -> None:
+    """Audit a folder of CSVs for the contradictions that make data look fake.
+
+    Works on ANY tabular data, whoever generated it: faker scripts, SDV,
+    Mockaroo, a hand-written seed file, or Misata itself. Checks the invariant
+    catalog: orders that shipped before they were placed, ages that disagree
+    with birth dates, cancelled orders carrying tracking numbers, counts below
+    zero, percents above 100, 50% fraud rates, states that are order statuses,
+    and (with a schema) FK orphans, child events predating their parents, and
+    parent totals that do not equal the sum of their children.
+
+    Examples:
+
+        misata audit ./seed_data/
+
+        misata audit ./seed_data/ --schema misata.yaml --strict
+    """
+    from pathlib import Path as _Path
+
+    import pandas as pd
+
+    from misata.coherence import coherence_audit, story_audit
+
+    print_banner()
+    csvs = sorted(_Path(data_dir).glob("*.csv"))
+    if not csvs:
+        console.print(f"[red]No CSV files found in {data_dir}[/red]")
+        sys.exit(2)
+
+    tables = {}
+    for p in csvs:
+        try:
+            tables[p.stem] = pd.read_csv(p)
+        except Exception as e:
+            console.print(f"[yellow]Skipping {p.name}: {e}[/yellow]")
+    console.print(f"Auditing [cyan]{len(tables)}[/cyan] table(s): "
+                  + ", ".join(f"{k} ({len(v)} rows)" for k, v in tables.items()))
+
+    schema_config = None
+    if schema:
+        config_dict = _load_yaml_or_json(schema)
+        if isinstance(config_dict.get("tables"), dict):
+            schema_config = load_yaml_schema(schema)
+        else:
+            schema_config = SchemaConfig(**config_dict)
+
+    report = (story_audit(tables, schema_config) if schema_config is not None
+              else coherence_audit(tables))
+
+    if report.clean:
+        console.print(f"\n[green]✓ {report.summary()}[/green]")
+        sys.exit(0)
+
+    tbl = RichTable(show_header=True, header_style="bold cyan", box=None, padding=(0, 1))
+    tbl.add_column("Severity", style="bold")
+    tbl.add_column("Table")
+    tbl.add_column("Column", style="dim")
+    tbl.add_column("Finding")
+    tbl.add_column("Rows", justify="right")
+    sev_style = {"high": "red", "medium": "yellow", "low": "dim"}
+    ordered = sorted(report.findings,
+                     key=lambda f: {"high": 0, "medium": 1, "low": 2}.get(f.severity, 3))
+    for f in ordered:
+        if f.repaired:
+            continue
+        tbl.add_row(f"[{sev_style.get(f.severity, '')}]{f.severity}[/]",
+                    f.table, f.column or "", f.message, str(f.rows_affected))
+    console.print()
+    console.print(tbl)
+    console.print(f"\n{report.summary()}")
+
+    has_high = any(f.severity == "high" and not f.repaired for f in report.findings)
+    if strict or has_high:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
