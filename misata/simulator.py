@@ -130,6 +130,23 @@ def _draw_right_skewed(rng, lo: float, hi: float, size: int) -> "np.ndarray":
     return lo + (hi - lo) * z
 
 
+def _datetime_range_ns(start: "pd.Timestamp", end: "pd.Timestamp") -> "tuple[int, int]":
+    """Sampling bounds for a declared date range, tolerating degenerate input.
+
+    A single-date range (start == end, the natural way to say "everything on
+    launch day") means "within that day". A reversed range is swapped with a
+    warning instead of crashing with ``low >= high``.
+    """
+    if end < start:
+        warnings.warn(
+            f"date range start {start.date()} is after end {end.date()}; swapping"
+        )
+        start, end = end, start
+    if end == start:
+        end = start + pd.Timedelta(days=1)
+    return start.value, end.value
+
+
 def _lognormal_mu_sigma(mean: float, std: float, minimum=None) -> "tuple[float, float]":
     """Resolve lognormal (mu, sigma) from `mean`/`std`, disambiguating the
     log-space-vs-arithmetic convention.
@@ -1526,8 +1543,7 @@ class DataSimulator:
             start = pd.to_datetime(params.get("start", "2020-01-01"))
             end = pd.to_datetime(params.get("end", "2024-12-31"))
 
-            start_int = start.value
-            end_int = end.value
+            start_int, end_int = _datetime_range_ns(start, end)
             random_ints = self.rng.integers(start_int, end_int, size=size)
             values = pd.to_datetime(random_ints)
 
@@ -1861,8 +1877,7 @@ class DataSimulator:
             # Generate random datetimes within a range
             start = pd.to_datetime(params.get("start", "2020-01-01"))
             end = pd.to_datetime(params.get("end", "2024-12-31"))
-            start_int = start.value
-            end_int = end.value
+            start_int, end_int = _datetime_range_ns(start, end)
             random_ints = self.rng.integers(start_int, end_int, size=size)
             values = pd.to_datetime(random_ints)
             return values
