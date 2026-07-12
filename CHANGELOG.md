@@ -21,6 +21,20 @@ None of these need per-column configuration. Naming a column is enough.
 
 ### Added
 
+- **`story_audit`: the dataset grades itself.** Every coherence class this
+  release fixes is now also a detector, so the same defects can never return
+  silently. `misata.story_audit(tables, schema)` audits a generated multi-table
+  dataset against the full invariant catalog: everything `coherence_audit`
+  already checked, plus the relationship-level story checks that need the
+  schema (foreign-key orphans, cross-table temporal causality, roll-up
+  agreement between a parent total and its child rows), and new table-local
+  checks for status gating, count and percent bounds, rare-flag base rates,
+  age against birth date, and sibling share columns that fail to partition a
+  whole. `generate_from_schema(..., verify=True)` runs the audit after
+  generation and emits a warning per finding. Validated in both directions: a
+  clean generated story audits clean, and sabotaging four different invariants
+  (orphaned keys, backdated events, inflated totals, negative quantities)
+  produces four named findings and drops the coherence score from 100 to 40.
 - **`balanced_ledger` constraint: double-entry data that actually balances.**
   Independently drawn debit and credit columns never reconcile: in a probe, 0
   of 476 journal entries balanced. With this constraint every entry sums to
@@ -90,12 +104,17 @@ None of these need per-column configuration. Naming a column is enough.
   row's status has actually reached that stage. The gate only fires when the
   status vocabulary overlaps the expected set, so it never blanks a column
   whose statuses it does not recognise.
-- **A `state` column is geographic again.** Semantic inference mapped a bare
-  `state` column to order-status values, so an address read "Los Angeles,
-  pending, 00033". `state` now resolves to a region (order state should be named
-  `status` or `order_status`), and it is resampled to belong to the row's
-  country, so "Curitiba, Indiana, Brazil" no longer happens. State pools were
-  added for Brazil, France, Japan, and the Netherlands.
+- **A `state` column is geographic again, and a known city carries its actual
+  state.** Semantic inference mapped a bare `state` column to order-status
+  values, so an address read "Los Angeles, pending, 00033". `state` now
+  resolves to a region (order state should be named `status` or
+  `order_status`), and it is resampled to belong to the row's country, so
+  "Curitiba, Indiana, Brazil" no longer happens. State pools were added for
+  Brazil, France, Japan, and the Netherlands. For the 58 cities the engine
+  knows geodata for, the state is exact rather than merely country-coherent:
+  Amsterdam is always in North Holland and São Paulo city in São Paulo state.
+  Cities outside that set still fall back to a country-correct state, which
+  can mismatch the city; that boundary is documented rather than hidden.
 - **Postal codes match the row's city and national format.** The generator was
   emitting a random US-style five-digit code regardless of location, so a Tokyo
   row got a New York ZIP. Codes are now built from the row's city prefix in the

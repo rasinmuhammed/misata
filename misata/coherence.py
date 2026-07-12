@@ -518,11 +518,282 @@ def _detect_denormalized_mismatch(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Story-level detectors: the invariants that make a MULTI-TABLE dataset tell a
+# consistent story. Single-table checks catch a bad column; these catch a bad
+# relationship. Each one exists because it failed in a real audit first.
+# ---------------------------------------------------------------------------
+
+_SHIPPED_OK = {"shipped", "dispatched", "in_transit", "out_for_delivery",
+               "delivered", "completed", "fulfilled", "returned", "refunded"}
+_DELIVERED_OK = {"delivered", "completed", "fulfilled"}
+_RARE_FLAG_TOKENS = ("fraud", "chargeback", "disputed", "is_deleted", "is_spam",
+                     "is_bot", "blacklist", "banned")
+_COUNTISH = ("count", "quantity", "qty", "num_", "items", "units", "visits",
+             "sessions", "clicks", "views", "seats", "age")
+
+
+def _detect_fk_orphans(tables, schema) -> List[CoherenceFinding]:
+    out: List[CoherenceFinding] = []
+    for rel in getattr(schema, "relationships", []) or []:
+        child = tables.get(rel.child_table)
+        parent = tables.get(rel.parent_table)
+        if child is None or parent is None:
+            continue
+        if rel.child_key not in child.columns or rel.parent_key not in parent.columns:
+            continue
+        fk = child[rel.child_key].dropna()
+        orphans = int((~fk.isin(parent[rel.parent_key])).sum())
+        if orphans:
+            out.append(CoherenceFinding(
+                kind="fk_orphans", severity="high",
+                table=rel.child_table, column=rel.child_key,
+                message=(f"{orphans} rows reference a {rel.parent_table}."
+                         f"{rel.parent_key} that does not exist"),
+                rows_affected=orphans,
+            ))
+    return out
+
+
+def _detect_cross_table_causality(tables, schema) -> List[CoherenceFinding]:
+    """A child row's earliest timestamp must not precede its FK parent's."""
+    out: List[CoherenceFinding] = []
+    for rel in getattr(schema, "relationships", []) or []:
+        child = tables.get(rel.child_table)
+        parent = tables.get(rel.parent_table)
+        if child is None or parent is None:
+            continue
+        if rel.child_key not in child.columns or rel.parent_key not in parent.columns:
+            continue
+        cdt = [c for c in child.columns if pd.api.types.is_datetime64_any_dtype(child[c])]
+        pdt = [c for c in parent.columns if pd.api.types.is_datetime64_any_dtype(parent[c])]
+        if not cdt or not pdt:
+            continue
+        birth = parent.set_index(rel.parent_key)[pdt].min(axis=1)
+        birth = birth[~birth.index.duplicated(keep="first")]
+        mapped = child[rel.child_key].map(birth)
+        child_min = child[cdt].min(axis=1)
+        bad = int(((child_min < mapped) & mapped.notna()).sum())
+        if bad:
+            out.append(CoherenceFinding(
+                kind="temporal_causality", severity="high",
+                table=rel.child_table, column=None,
+                message=(f"{bad} rows have events dated before their "
+                         f"{rel.parent_table} parent existed"),
+                rows_affected=bad,
+            ))
+    return out
+
+
+def _detect_rollup_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """A parent aggregate column must equal what its child rows sum to."""
+    out: List[CoherenceFinding] = []
+    try:
+        from misata.rollups import collect_declared_rollups, infer_rollups
+        specs = collect_declared_rollups(schema) + infer_rollups(schema)
+    except Exception:
+        return out
+    for s in specs:
+        parent = tables.get(s.parent_table)
+        child = tables.get(s.from_table)
+        if parent is None or child is None:
+            continue
+        needed = {s.fk} | ({s.column} if s.column else set())
+        if (s.target_column not in parent.columns
+                or s.parent_key not in parent.columns
+                or not needed.issubset(child.columns)):
+            continue
+        if s.agg == "count":
+            expected = child.groupby(s.fk).size()
+        elif s.agg in ("sum", "mean", "max", "min"):
+            expected = getattr(child.groupby(s.fk)[s.column], s.agg)()
+        else:
+            continue
+        got = parent.set_index(s.parent_key)[s.target_column]
+        joined = got.to_frame("got").join(expected.to_frame("want")).dropna()
+        if joined.empty:
+            continue
+        bad = int((abs(joined["got"] - joined["want"]) > 0.01).sum())
+        if bad:
+            out.append(CoherenceFinding(
+                kind="rollup_mismatch", severity="high",
+                table=s.parent_table, column=s.target_column,
+                message=(f"{bad} rows disagree with {s.agg}({s.from_table}"
+                         f".{s.column or 'rows'}) over the relationship"),
+                rows_affected=bad,
+            ))
+    return out
+
+
+def _detect_status_gating(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
+    """Ship/deliver dates and tracking codes only belong on rows whose status
+    reached that stage."""
+    out: List[CoherenceFinding] = []
+    status_col = next((c for c in df.columns
+                       if c.lower() in ("status", "order_status", "fulfillment_status")),
+                      None)
+    if status_col is None:
+        return out
+    status = df[status_col].astype(str).str.strip().str.lower()
+    for col in df.columns:
+        lc = col.lower()
+        if "deliver" in lc and ("date" in lc or "time" in lc or lc.endswith("_at")):
+            allowed = _DELIVERED_OK
+        elif (("ship" in lc or "dispatch" in lc)
+              and ("date" in lc or "time" in lc or lc.endswith("_at"))) \
+                or "tracking" in lc:
+            allowed = _SHIPPED_OK
+        else:
+            continue
+        if not (set(status.unique()) & allowed):
+            continue
+        bad = int((df[col].notna() & ~status.isin(allowed)).sum())
+        if bad:
+            out.append(CoherenceFinding(
+                kind="status_gating", severity="medium", table=table, column=col,
+                message=f"{bad} rows carry {col} although their status never reached that stage",
+                rows_affected=bad,
+            ))
+    return out
+
+
+def _detect_bounds(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
+    """Counts must be non-negative; percents in 0-100; rates in 0-1."""
+    out: List[CoherenceFinding] = []
+    for col in df.columns:
+        s = _numeric(df[col])
+        if s.isna().all():
+            continue
+        lc = col.lower()
+        if any(t in lc for t in _COUNTISH) and not lc.startswith(("temp", "delta", "change", "net_")):
+            bad = int((s < 0).sum())
+            if bad:
+                out.append(CoherenceFinding(
+                    kind="bounds", severity="high", table=table, column=col,
+                    message=f"{bad} negative values in a count-like column",
+                    rows_affected=bad))
+        if lc.endswith(("_percent", "_pct", "_percentage")):
+            bad = int(((s < 0) | (s > 100)).sum())
+            if bad:
+                out.append(CoherenceFinding(
+                    kind="bounds", severity="high", table=table, column=col,
+                    message=f"{bad} values outside 0-100 in a percent column",
+                    rows_affected=bad))
+        if lc.endswith(("_rate", "_ratio", "_share", "_probability")):
+            bad = int(((s < 0) | (s > 1.0001)).sum())
+            if bad:
+                out.append(CoherenceFinding(
+                    kind="bounds", severity="high", table=table, column=col,
+                    message=f"{bad} values outside 0-1 in a rate column",
+                    rows_affected=bad))
+    return out
+
+
+def _detect_flag_rates(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
+    """A rare-event boolean flag that is true on a third of rows is not rare."""
+    out: List[CoherenceFinding] = []
+    for col in df.columns:
+        lc = col.lower()
+        if not any(t in lc for t in _RARE_FLAG_TOKENS):
+            continue
+        s = df[col]
+        if s.dtype != bool and not set(pd.unique(s.dropna())) <= {True, False, 0, 1}:
+            continue
+        rate = float(pd.Series(s).fillna(False).astype(bool).mean())
+        if rate > 0.30:
+            out.append(CoherenceFinding(
+                kind="implausible_rate", severity="medium", table=table, column=col,
+                message=f"{col} is true on {rate:.0%} of rows; rare-event flags should be rare",
+                rows_affected=int(rate * len(df))))
+    return out
+
+
+def _detect_age_dob(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
+    age_col = next((c for c in df.columns if c.lower() in ("age", "age_years")), None)
+    dob_col = next((c for c in df.columns if c.lower() in
+                    ("date_of_birth", "birth_date", "birthdate", "dob")), None)
+    if age_col is None or dob_col is None:
+        return []
+    dob = pd.to_datetime(df[dob_col], errors="coerce")
+    if dob.isna().all():
+        return []
+    ref = pd.Timestamp("2025-06-01")
+    for c in df.columns:
+        if c != dob_col and ("date" in c.lower() or c.lower().endswith("_at")):
+            other = pd.to_datetime(df[c], errors="coerce")
+            if other.notna().any():
+                ref = max(ref, other.max())
+    implied = ((ref - dob).dt.days / 365.25).round()
+    bad = int((abs(_numeric(df[age_col]) - implied) > 2).sum())
+    if bad:
+        return [CoherenceFinding(
+            kind="age_dob_mismatch", severity="high", table=table, column=age_col,
+            message=f"{bad} rows where {age_col} disagrees with {dob_col}",
+            rows_affected=bad)]
+    return []
+
+
+def _detect_sibling_percent_sum(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
+    """Share-of-whole siblings (pct_cash, pct_card, pct_online) should sum to
+    ~100 (or ~1). Advisory: detection only, never forced, because percent
+    columns are not always partitions of the same whole."""
+    groups: Dict[str, List[str]] = {}
+    for col in df.columns:
+        lc = col.lower()
+        for suffix in ("_pct", "_percent", "_share", "_percentage"):
+            if lc.endswith(suffix):
+                groups.setdefault(suffix, []).append(col)
+    out: List[CoherenceFinding] = []
+    for suffix, cols in groups.items():
+        if len(cols) < 2:
+            continue
+        total = df[cols].apply(_numeric).sum(axis=1)
+        target = 1.0 if total.median() <= 1.5 else 100.0
+        off = int((abs(total - target) > target * 0.05).sum())
+        if off > len(df) * 0.5:
+            out.append(CoherenceFinding(
+                kind="sibling_percent_sum", severity="low", table=table,
+                column=", ".join(cols),
+                message=(f"{len(cols)} sibling share columns sum to neither "
+                         f"~{target:g} nor a consistent whole on {off} rows"),
+                rows_affected=off))
+    return out
+
+
+def story_audit(
+    tables: Dict[str, pd.DataFrame],
+    schema: Any = None,
+    *,
+    repair: bool = False,
+    seed: Optional[int] = 42,
+) -> CoherenceReport:
+    """Grade a generated multi-table dataset against the full invariant
+    catalog: everything :func:`coherence_audit` checks, plus the
+    relationship-level story checks (FK orphans, cross-table temporal
+    causality, roll-up agreement) that need the schema.
+
+    This is the self-check that keeps "sells a story" honest: run it after
+    generation and a dataset that contradicts itself cannot pass silently.
+
+    Args:
+        tables: mapping of table name to DataFrame.
+        schema: the SchemaConfig the tables were generated from. Without it,
+                only table-local checks run.
+        repair: apply the safe repair subset in place (see coherence_audit).
+        seed:   RNG seed for repairs that sample.
+
+    Returns:
+        A :class:`CoherenceReport`; check ``.clean`` or read ``.summary()``.
+    """
+    return coherence_audit(tables, repair=repair, seed=seed, schema=schema)
+
+
 def coherence_audit(
     tables: Dict[str, pd.DataFrame],
     *,
     repair: bool = False,
     seed: Optional[int] = 42,
+    schema: Any = None,
 ) -> CoherenceReport:
     """Audit generated tables for reader-visible contradictions.
 
@@ -543,6 +814,10 @@ def coherence_audit(
     report = CoherenceReport(repaired=repair)
 
     report.findings.extend(_detect_denormalized_mismatch(tables))
+    if schema is not None:
+        report.findings.extend(_detect_fk_orphans(tables, schema))
+        report.findings.extend(_detect_cross_table_causality(tables, schema))
+        report.findings.extend(_detect_rollup_mismatch(tables, schema))
     for name, df in tables.items():
         if not isinstance(df, pd.DataFrame) or df.empty:
             continue
@@ -554,5 +829,10 @@ def coherence_audit(
         report.findings.extend(_detect_and_repair_geo(name, df, repair, rng))
         report.findings.extend(_detect_tenure(name, df))
         report.findings.extend(_detect_and_repair_derived_math(name, df, repair))
+        report.findings.extend(_detect_status_gating(name, df))
+        report.findings.extend(_detect_bounds(name, df))
+        report.findings.extend(_detect_flag_rates(name, df))
+        report.findings.extend(_detect_age_dob(name, df))
+        report.findings.extend(_detect_sibling_percent_sum(name, df))
 
     return report

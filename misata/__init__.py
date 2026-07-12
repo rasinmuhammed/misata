@@ -290,6 +290,7 @@ def generate_from_schema(
     max_retries: int = 3,
     smart_correlations: bool = False,
     capsule: "Optional[str]" = None,
+    verify: bool = False,
 ) -> "Dict[str, Any]":
     """Generate data from an already-built SchemaConfig.
 
@@ -305,6 +306,9 @@ def generate_from_schema(
         max_retries:       Maximum retry attempts when ``min_quality_score`` is set.
         smart_correlations: If True, automatically infer Pearson correlations
                             between semantically related numeric columns.
+        verify:            If True, run :func:`misata.story_audit` on the result
+                           and emit a warning for every unrepaired finding, so a
+                           dataset that contradicts itself never ships silently.
 
     Returns:
         Dict mapping table name → ``pd.DataFrame``.
@@ -323,8 +327,22 @@ def generate_from_schema(
     if capsule is not None:
         _attach_capsule(schema, capsule)
 
+    def _verified(tables: "Dict[str, Any]") -> "Dict[str, Any]":
+        if verify:
+            import warnings as _warnings
+            from misata.coherence import story_audit
+            report = story_audit(tables, schema)
+            for f in report.findings:
+                if not f.repaired:
+                    _warnings.warn(
+                        f"story_audit [{f.severity}] {f.table}"
+                        f"{'.' + f.column if f.column else ''}: {f.message}",
+                        UserWarning, stacklevel=3,
+                    )
+        return tables
+
     if min_quality_score is None:
-        return _run_simulation(schema, custom_generators=custom_generators)
+        return _verified(_run_simulation(schema, custom_generators=custom_generators))
 
     from misata.reporting import FidelityChecker
     best_tables: "Optional[Dict[str, Any]]" = None
@@ -342,7 +360,7 @@ def generate_from_schema(
         if report.overall_score >= min_quality_score:
             break
 
-    return best_tables  # type: ignore[return-value]
+    return _verified(best_tables)  # type: ignore[arg-type]
 
 
 def generate_more(
@@ -614,7 +632,7 @@ from misata.smart_values import SmartValueGenerator
 from misata.noise import NoiseInjector, add_noise
 from misata.customization import Customizer, ColumnOverride
 from misata.quality import DataQualityChecker, check_quality
-from misata.coherence import coherence_audit, CoherenceReport, CoherenceFinding
+from misata.coherence import coherence_audit, story_audit, CoherenceReport, CoherenceFinding
 from misata.vocab_validator import validate_vocabulary, ValidationResult
 from misata.capsule_registry import (
     install_capsule,
@@ -838,6 +856,7 @@ __all__ = [
     "DataQualityChecker",
     "check_quality",
     "coherence_audit",
+    "story_audit",
     "CoherenceReport",
     "CoherenceFinding",
     "validate_vocabulary",

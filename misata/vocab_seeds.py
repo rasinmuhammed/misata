@@ -394,6 +394,35 @@ STATES_BY_COUNTRY: Dict[str, List[str]] = {
     ],
 }
 
+# City -> its actual state/province/region. Keeps a row's full address chain
+# consistent: São Paulo belongs in São Paulo state, not a random Brazilian one.
+CITY_STATE: Dict[str, str] = {
+    "New York": "New York", "Los Angeles": "California", "Chicago": "Illinois",
+    "Houston": "Texas", "Phoenix": "Arizona", "Philadelphia": "Pennsylvania",
+    "San Antonio": "Texas", "San Diego": "California", "Dallas": "Texas",
+    "San Jose": "California", "Austin": "Texas", "Seattle": "Washington",
+    "Denver": "Colorado", "Boston": "Massachusetts", "Atlanta": "Georgia",
+    "Miami": "Florida", "Minneapolis": "Minnesota", "Portland": "Oregon",
+    "London": "England", "Manchester": "England", "Birmingham": "England",
+    "Edinburgh": "Scotland", "Bristol": "England", "Leeds": "England",
+    "Toronto": "Ontario", "Vancouver": "British Columbia",
+    "Montreal": "Quebec", "Calgary": "Alberta",
+    "Berlin": "Berlin", "Munich": "Bavaria", "Hamburg": "Hamburg",
+    "Frankfurt": "Hesse",
+    "Mumbai": "Maharashtra", "Delhi": "Delhi", "Bangalore": "Karnataka",
+    "Hyderabad": "Telangana", "Chennai": "Tamil Nadu",
+    "Sydney": "New South Wales", "Melbourne": "Victoria",
+    "Brisbane": "Queensland", "Perth": "Western Australia",
+    "Paris": "Île-de-France", "Lyon": "Auvergne-Rhône-Alpes",
+    "Marseille": "Provence-Alpes-Côte d'Azur",
+    "Tokyo": "Tokyo", "Osaka": "Osaka", "Kyoto": "Kyoto",
+    "São Paulo": "São Paulo", "Rio de Janeiro": "Rio de Janeiro",
+    "Amsterdam": "North Holland", "Rotterdam": "South Holland",
+    "Dubai": "Dubai", "Abu Dhabi": "Abu Dhabi",
+    "Seoul": "Seoul", "Busan": "Busan",
+    "Mexico City": "Mexico City", "Guadalajara": "Jalisco",
+}
+
 # ---------------------------------------------------------------------------
 # Geospatial — city coordinates + postal code patterns
 # ---------------------------------------------------------------------------

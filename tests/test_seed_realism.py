@@ -475,3 +475,105 @@ class TestCrossTableValueCoherence:
     def test_generation_does_not_crash_without_discount_column(self, shop):
         # Regression: _fix_line_total crashed on df.get("discount", 0).fillna.
         assert len(shop["order_items"]) > 0
+
+
+class TestStoryAudit:
+    """The self-check layer: generation grades its own output against the full
+    invariant catalog, so a dataset that contradicts itself cannot pass
+    silently. Both directions matter: clean data must audit clean, and each
+    sabotaged invariant must be caught by name."""
+
+    @pytest.fixture(scope="class")
+    def story(self):
+        schema = SchemaConfig(
+            name="shop", seed=13,
+            tables=[Table(name="customers", row_count=150),
+                    Table(name="orders", row_count=450),
+                    Table(name="order_items", row_count=1100)],
+            columns={
+                "customers": [
+                    Column(name="customer_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 99999}),
+                    Column(name="signup_date", type="datetime",
+                           distribution_params={"start": "2022-01-01", "end": "2024-12-31"})],
+                "orders": [
+                    Column(name="order_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 999999}),
+                    Column(name="customer_id", type="foreign_key"),
+                    Column(name="order_date", type="datetime",
+                           distribution_params={"start": "2022-01-01", "end": "2025-06-30"}),
+                    Column(name="order_total", type="float",
+                           distribution_params={"min": 5, "max": 5000, "decimals": 2})],
+                "order_items": [
+                    Column(name="item_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 9999999}),
+                    Column(name="order_id", type="foreign_key"),
+                    Column(name="quantity", type="int",
+                           distribution_params={"min": 1, "max": 5}),
+                    Column(name="unit_price", type="float",
+                           distribution_params={"min": 5, "max": 500, "decimals": 2}),
+                    Column(name="line_total", type="float",
+                           distribution_params={"min": 5, "max": 2500, "decimals": 2})],
+            },
+            relationships=[
+                Relationship(parent_table="customers", child_table="orders",
+                             parent_key="customer_id", child_key="customer_id"),
+                Relationship(parent_table="orders", child_table="order_items",
+                             parent_key="order_id", child_key="order_id")],
+        )
+        return schema, misata.generate_from_schema(schema)
+
+    def test_clean_generation_audits_clean(self, story):
+        schema, tables = story
+        report = misata.story_audit(tables, schema)
+        assert report.clean, report.summary()
+
+    def test_fk_orphans_are_caught(self, story):
+        schema, tables = story
+        bad = {k: v.copy() for k, v in tables.items()}
+        bad["order_items"].loc[bad["order_items"].index[:20], "order_id"] = -1
+        kinds = {f.kind for f in misata.story_audit(bad, schema).findings}
+        assert "fk_orphans" in kinds
+
+    def test_causality_violations_are_caught(self, story):
+        schema, tables = story
+        bad = {k: v.copy() for k, v in tables.items()}
+        bad["orders"].loc[bad["orders"].index[:30], "order_date"] = \
+            pd.Timestamp("2019-01-01")
+        kinds = {f.kind for f in misata.story_audit(bad, schema).findings}
+        assert "temporal_causality" in kinds
+
+    def test_rollup_mismatch_is_caught(self, story):
+        schema, tables = story
+        bad = {k: v.copy() for k, v in tables.items()}
+        bad["orders"]["order_total"] = bad["orders"]["order_total"] + 500.0
+        kinds = {f.kind for f in misata.story_audit(bad, schema).findings}
+        assert "rollup_mismatch" in kinds
+
+    def test_negative_counts_are_caught(self, story):
+        schema, tables = story
+        bad = {k: v.copy() for k, v in tables.items()}
+        bad["order_items"].loc[bad["order_items"].index[:15], "quantity"] = -3
+        kinds = {f.kind for f in misata.story_audit(bad, schema).findings}
+        assert "bounds" in kinds
+
+
+def test_city_gets_its_actual_state():
+    """A known city carries its real state: Amsterdam is in North Holland,
+    never a random Dutch province."""
+    from misata.vocab_seeds import CITY_STATE
+    schema = SchemaConfig(
+        name="cs", seed=7, tables=[Table(name="u", row_count=120)],
+        columns={"u": [
+            Column(name="id", type="int", unique=True,
+                   distribution_params={"min": 1, "max": 9999}),
+            Column(name="city", type="text"),
+            Column(name="state", type="text"),
+            Column(name="country", type="text"),
+        ]},
+    )
+    d = misata.generate_from_schema(schema)["u"]
+    known = d[d["city"].isin(CITY_STATE)]
+    if len(known):
+        assert (known.apply(lambda r: CITY_STATE[str(r["city"])] == str(r["state"]),
+                            axis=1)).all()
