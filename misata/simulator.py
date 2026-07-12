@@ -605,6 +605,17 @@ class DataSimulator:
                         and child_col.name in df.columns
                     ):
                         needed_cols.add(child_col.name)
+                # Cross-table causality: if the child carries any date column, the
+                # parent's own dates must survive trimming so a child event can be
+                # constrained to postdate the parent (see _fix_cross_table_temporal).
+                child_has_date = any(
+                    c.type in ("date", "datetime")
+                    for c in self.config.get_columns(rel.child_table)
+                )
+                if child_has_date:
+                    for c in df.columns:
+                        if pd.api.types.is_datetime64_any_dtype(df[c]):
+                            needed_cols.add(c)
 
         for child_table in self.config.tables:
             child_cols = self.config.get_columns(child_table.name)
@@ -2280,6 +2291,10 @@ class DataSimulator:
             # (a transaction's merchant_city is the merchant's city)
             df_batch = self._fix_denormalized_parent_columns(df_batch, table_name)
 
+            # A child event cannot predate the parent it belongs to (an order
+            # before the customer signed up).
+            df_batch = self._fix_cross_table_temporal(df_batch, table_name)
+
             # Apply column correlations (Iman-Conover)
             df_batch = self._apply_correlations(df_batch, table_name)
 
@@ -3909,6 +3924,80 @@ class DataSimulator:
     # ------------------------------------------------------------------
     # State machine (#9)
     # ------------------------------------------------------------------
+
+    def _fix_cross_table_temporal(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+        """A child row's events cannot predate the parent it belongs to.
+
+        An order cannot be placed before the customer signed up; a review
+        cannot be written before the order it reviews. Generated independently,
+        a child's timestamps have no knowledge of the parent's, so ~40% of rows
+        land before their parent exists and the first temporal JOIN exposes it.
+
+        For each FK parent, the parent's earliest timestamp (its "birth", the
+        row-wise minimum over the parent's datetime columns) is looked up per
+        child row. Every child row whose earliest timestamp precedes that birth
+        is shifted forward by a single per-row delta applied to ALL of its
+        datetime columns, which enforces causality while preserving the row's
+        internal ordering and gaps. Columns with an explicit parent-relative
+        derivation (``relative_to``/``after_column``) are left untouched.
+        """
+        rels = [r for r in self.config.relationships if r.child_table == table_name]
+        if not rels:
+            return df
+
+        def _dt_cols(frame, names):
+            out = []
+            for c in names:
+                if c in frame.columns and pd.api.types.is_datetime64_any_dtype(frame[c]):
+                    out.append(c)
+            return out
+
+        col_params = {
+            c.name: (c.distribution_params or {})
+            for c in self.config.columns.get(table_name, [])
+        }
+        # Child date columns eligible to be shifted (skip explicitly derived).
+        child_dt = [
+            c for c in _dt_cols(df, df.columns)
+            if not any(k in col_params.get(c, {})
+                       for k in ("relative_to", "after_column", "formula", "depends_on"))
+        ]
+        if not child_dt:
+            return df
+
+        child_min = df[child_dt].min(axis=1)
+        # A strict-inequality nudge so the child starts after, not exactly on,
+        # the parent's birth (lognormal hours, capped at ~30 days). Whole
+        # seconds only, so the shift never leaks sub-second noise into dates.
+        eps_secs = np.minimum(
+            self.rng.lognormal(np.log(6 * 3600), 1.1, size=len(df)), 30 * 86400
+        ).astype("int64")
+        epsilon = pd.to_timedelta(eps_secs, unit="s")
+        total_shift = pd.Series(pd.Timedelta(0), index=df.index)
+
+        for rel in rels:
+            parent_df = self.context.get(rel.parent_table)
+            if parent_df is None or rel.child_key not in df.columns:
+                continue
+            parent_dt = _dt_cols(parent_df, parent_df.columns)
+            if not parent_dt:
+                continue
+            parent_birth = parent_df.set_index(rel.parent_key)[parent_dt].min(axis=1)
+            # Duplicate parent keys can occur in self-referential/looped data;
+            # keep the first so reindex stays 1-to-1.
+            parent_birth = parent_birth[~parent_birth.index.duplicated(keep="first")]
+            mapped = parent_birth.reindex(df[rel.child_key].values)
+            mapped.index = df.index
+            required = mapped + epsilon                      # earliest allowed child start
+            deficit = (required - (child_min + total_shift))
+            deficit = deficit.where(deficit > pd.Timedelta(0), pd.Timedelta(0))
+            total_shift = total_shift + deficit.fillna(pd.Timedelta(0))
+
+        if (total_shift > pd.Timedelta(0)).any():
+            total_shift = total_shift.dt.ceil("s")   # never leak sub-second noise
+            for c in child_dt:
+                df[c] = df[c] + total_shift
+        return df
 
     def _fix_denormalized_parent_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """A denormalized copy of a parent attribute must equal the parent's.

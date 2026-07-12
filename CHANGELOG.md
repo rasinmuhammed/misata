@@ -41,6 +41,21 @@ None of these need per-column configuration. Naming a column is enough.
 
 ### Fixed
 
+- **A child event can no longer predate the parent it belongs to.** Generated
+  table by table, a child's timestamps had no knowledge of the parent's, so an
+  order could be placed before its customer signed up and a review written
+  before its order existed. In a probe, 40% of orders predated their customer
+  and 44% of reviews predated their order. Now, after a table is generated, each
+  child row's earliest timestamp is compared against the birth date of every FK
+  parent it points to (the parent's earliest timestamp, looked up per row), and
+  any row that starts too early is shifted forward by a single whole-second
+  delta applied to all of its date columns. Causality holds across multi-level
+  chains (customer to order to review), the row's own internal ordering and
+  gaps are preserved (an order still ships after it is placed), the result is
+  reproducible, and no sub-second noise is introduced. This required teaching
+  context retention to keep a parent's date columns alive through trimming so
+  the lookup is possible; columns with an explicit parent-relative rule
+  (`relative_to`, `after_column`) are left untouched.
 - **Lifecycle timestamps now flow forward.** A per-row date-chain sorter kept
   `created_at <= updated_at` correct but knew nothing about commerce, so 46% of
   orders "shipped" before they were placed. The ordering vocabulary now covers

@@ -354,3 +354,61 @@ class TestReferenceCodes:
                    "returned", "refunded", "dispatched", "in_transit"}
         with_tracking = orders[orders["tracking_number"].notna()]
         assert with_tracking["status"].str.lower().isin(shipped).all()
+
+
+class TestCrossTableCausality:
+    """A child event cannot predate the parent it belongs to. This is the
+    hardest correctness property: it needs a per-row FK lookup of the parent's
+    birth date, retained across context trimming, applied so the child's own
+    internal ordering survives."""
+
+    @pytest.fixture(scope="class")
+    def chained(self):
+        schema = SchemaConfig(
+            name="chain", seed=7,
+            tables=[Table(name="customers", row_count=150),
+                    Table(name="orders", row_count=600),
+                    Table(name="reviews", row_count=300)],
+            columns={
+                "customers": [
+                    Column(name="customer_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 99999}),
+                    Column(name="signup_date", type="datetime",
+                           distribution_params={"start": "2022-01-01", "end": "2024-12-31"})],
+                "orders": [
+                    Column(name="order_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 999999}),
+                    Column(name="customer_id", type="foreign_key"),
+                    Column(name="order_date", type="datetime",
+                           distribution_params={"start": "2022-01-01", "end": "2025-06-30"}),
+                    Column(name="shipped_date", type="datetime",
+                           distribution_params={"start": "2022-01-01", "end": "2025-07-30"})],
+                "reviews": [
+                    Column(name="review_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 999999}),
+                    Column(name="order_id", type="foreign_key"),
+                    Column(name="review_date", type="datetime",
+                           distribution_params={"start": "2022-01-01", "end": "2025-12-31"})],
+            },
+            relationships=[
+                Relationship(parent_table="customers", child_table="orders",
+                             parent_key="customer_id", child_key="customer_id"),
+                Relationship(parent_table="orders", child_table="reviews",
+                             parent_key="order_id", child_key="order_id")],
+        )
+        return misata.generate_from_schema(schema)
+
+    def test_order_postdates_customer_signup(self, chained):
+        m = chained["orders"].merge(chained["customers"], on="customer_id")
+        assert (pd.to_datetime(m["order_date"])
+                >= pd.to_datetime(m["signup_date"])).all()
+
+    def test_review_postdates_its_order_two_levels_deep(self, chained):
+        m = chained["reviews"].merge(chained["orders"], on="order_id")
+        assert (pd.to_datetime(m["review_date"])
+                >= pd.to_datetime(m["order_date"])).all()
+
+    def test_intra_row_order_survives_the_shift(self, chained):
+        o = chained["orders"]
+        assert (pd.to_datetime(o["order_date"])
+                <= pd.to_datetime(o["shipped_date"])).all()
