@@ -1130,6 +1130,18 @@ class DataSimulator:
                 self._unique_counters[pool_key] += size
                 return values.astype(int)
 
+            # Statistical priors knowledge base for int columns (age pyramid,
+            # mostly-1 order quantities, NPS promoter skew). Fires only when
+            # the user declared no shape; declared bounds still clip.
+            if (
+                params.get("_distribution_is_default")
+                and not any(k in params for k in ("mean", "std", "mu", "sigma", "choices"))
+            ):
+                from misata.profiles import sample_semantic
+                _prior = sample_semantic(column.name, params, self.rng, size)
+                if _prior is not None:
+                    return np.round(_prior).astype(int)
+
             distribution = params.get("distribution", "normal")
             # When no explicit distribution is specified but min/max are present
             # (and no mean/mu), default to uniform instead of normal so that
@@ -1301,6 +1313,19 @@ class DataSimulator:
                 elif _cname.endswith("_rating") or _cname == "rating":
                     params = {**params, "min": 1.0, "max": 5.0}
                 _lo, _hi = params.get("min"), params.get("max")
+
+            # Statistical priors knowledge base: a recognised column name draws
+            # its real-world shape (J-shaped ratings, lognormal salaries, .99
+            # retail prices, mostly-1 order quantities) whenever the user
+            # declared no shape of their own. Declared bounds still clip.
+            if (
+                params.get("_distribution_is_default")
+                and not any(k in params for k in ("mean", "std", "mu", "sigma", "choices"))
+            ):
+                from misata.profiles import sample_semantic
+                _prior = sample_semantic(column.name, params, self.rng, size)
+                if _prior is not None:
+                    return _prior.astype(float)
 
             # Monetary columns are right-skewed in reality. When the user gave
             # only bounds (default distribution, no shape params), draw a skewed

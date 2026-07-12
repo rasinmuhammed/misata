@@ -330,3 +330,99 @@ def generate_with_profile(
         raise ValueError(f"Unknown profile: {profile_name}. Available: {available}")
     
     return profile.generate(size, rng)
+
+
+# ============ Semantic routing: the statistical priors knowledge base ============
+#
+# A column NAME carries distributional knowledge: a rating is J-shaped toward
+# 5, an order quantity is mostly 1, a salary is lognormal, retail prices end
+# in .99. The profiles above encode those shapes; this router applies them
+# automatically whenever the user declared no shape of their own, so realism
+# is the default instead of an opt-in. Explicit distribution/mean/std/mu/sigma
+# always win; declared min/max bounds are respected by clipping.
+
+# (predicate on lowercased name, profile name, treat_as)
+# treat_as: "value" (use as-is), "price" (snap to retail endings),
+#           "unit_rate" (normalise 0-100 output to 0-1 for *_rate columns)
+def _r_rating(n):   return n in ("rating", "stars", "star_rating") or n.endswith("_rating")
+def _r_age(n):      return n in ("age", "age_years", "customer_age", "user_age")
+def _r_salary(n):   return "salary" in n or n in ("annual_income", "income")
+def _r_price(n):    return n in ("price", "unit_price", "list_price", "item_price", "retail_price")
+def _r_qty(n):      return n in ("quantity", "qty", "order_quantity", "items_per_order")
+def _r_session(n):  return n in ("session_duration", "session_duration_seconds",
+                                 "duration_seconds", "session_length_seconds")
+def _r_txn(n):      return n == "transaction_amount"
+def _r_conv(n):     return n in ("conversion_rate", "signup_rate", "click_through_rate", "ctr")
+def _r_churn(n):    return n in ("churn_rate", "attrition_rate", "cancellation_rate")
+def _r_nps(n):      return n in ("nps", "nps_score")
+
+_SEMANTIC_ROUTES = [
+    (_r_rating,  "rating_5star",             "value"),
+    (_r_age,     "age_adult",                "value"),
+    (_r_salary,  "salary_usd",               "value"),
+    (_r_price,   "price_retail",             "price"),
+    (_r_qty,     "order_quantity",           "value"),
+    (_r_session, "session_duration_seconds", "value"),
+    (_r_txn,     "transaction_amount",       "value"),
+    (_r_conv,    "conversion_rate",          "unit_rate"),
+    (_r_churn,   "churn_rate",               "unit_rate"),
+    (_r_nps,     "nps_score",                "value"),
+]
+
+# Retail price endings and how often each occurs; most real price tags end
+# in .99, a chunk in .95/.49/.00. Applied to ~85% of price draws, the rest
+# keep organic cents so the column is not suspiciously uniform.
+_PRICE_ENDINGS = ([0.99] * 45 + [0.95] * 12 + [0.49] * 10 + [0.00] * 18)
+
+
+def match_profile(column_name: str) -> Optional[str]:
+    """Return the profile name the semantic router would apply, or None."""
+    n = str(column_name).lower()
+    for pred, profile, _mode in _SEMANTIC_ROUTES:
+        if pred(n):
+            return profile
+    return None
+
+
+def sample_semantic(
+    column_name: str,
+    params: Dict[str, Any],
+    rng: np.random.Generator,
+    size: int,
+) -> Optional[np.ndarray]:
+    """Draw from the priors knowledge base for a recognised column name.
+
+    Returns None when no profile matches, so the caller falls through to its
+    generic path. Declared ``min``/``max`` clip the draw; declared ``decimals``
+    override the profile's rounding.
+    """
+    n = str(column_name).lower()
+    route = next(((prof, mode) for pred, prof, mode in _SEMANTIC_ROUTES if pred(n)), None)
+    if route is None:
+        return None
+    profile_name, mode = route
+    profile = PROFILES.get(profile_name)
+    if profile is None:
+        return None
+
+    values = profile.generate(size, rng=rng)
+
+    if mode == "unit_rate" and n.endswith(("_rate", "_ratio", "_share", "_probability")):
+        # The percent-scaled profile output becomes a 0-1 fraction, matching
+        # the library-wide convention that *_rate columns live in 0-1.
+        values = values / 100.0
+    if mode == "price":
+        snap = rng.random(size) < 0.85
+        endings = rng.choice(_PRICE_ENDINGS, size=size)
+        values = np.where(snap, np.floor(values) + endings, np.round(values, 2))
+        values = np.maximum(values, 0.49)
+
+    lo, hi = params.get("min"), params.get("max")
+    if isinstance(lo, (int, float)):
+        values = np.maximum(values, float(lo))
+    if isinstance(hi, (int, float)):
+        values = np.minimum(values, float(hi))
+    decimals = params.get("decimals", profile.decimals)
+    if decimals is not None:
+        values = np.round(values, int(decimals))
+    return values

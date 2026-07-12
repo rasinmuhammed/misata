@@ -89,7 +89,7 @@ SEMANTIC_PATTERNS: List[Tuple[str, str, Dict[str, Any]]] = [
     (r"^height$|^height_?cm$", "float", {"distribution": "normal", "mean": 170, "std": 10, "min": 140, "max": 220}),
 
     # Rating patterns
-    (r"^rating$|^score$|^stars$|^review_?score$", "float", {"distribution": "uniform", "min": 1, "max": 5, "decimals": 1}),
+    (r"^rating$|^score$|^stars$|^review_?score$", "float", {"min": 1, "max": 5, "decimals": 1}),
 
     # Boolean patterns
     (r"^is_|^has_|^can_|^should_|^active$|^enabled$|^verified$|^confirmed$", "boolean", {"probability": 0.5}),

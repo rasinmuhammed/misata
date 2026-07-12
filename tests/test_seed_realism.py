@@ -577,3 +577,76 @@ def test_city_gets_its_actual_state():
     if len(known):
         assert (known.apply(lambda r: CITY_STATE[str(r["city"])] == str(r["state"]),
                             axis=1)).all()
+
+
+class TestStatisticalPriors:
+    """The priors knowledge base: a recognised column name draws its real-world
+    shape automatically. Explicit user shapes always win; declared bounds clip."""
+
+    @pytest.fixture(scope="class")
+    def shapes(self):
+        schema = SchemaConfig(
+            name="priors", seed=6, tables=[Table(name="t", row_count=4000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="rating", type="float"),
+                Column(name="quantity", type="int"),
+                Column(name="unit_price", type="float"),
+                Column(name="age", type="int"),
+                Column(name="conversion_rate", type="float"),
+            ]},
+        )
+        return misata.generate_from_schema(schema)["t"]
+
+    def test_quantity_is_mostly_one(self, shapes):
+        p1 = (shapes["quantity"] == 1).mean()
+        assert p1 > 0.4, f"P(quantity=1)={p1:.0%}; real order quantities are mostly 1"
+
+    def test_prices_snap_to_retail_endings(self, shapes):
+        cents = (shapes["unit_price"] * 100 % 100).round().astype(int)
+        ending_99 = (cents == 99).mean()
+        assert ending_99 > 0.25, f".99 endings only {ending_99:.0%}"
+
+    def test_age_is_adult_pyramid_not_uniform(self, shapes):
+        age = shapes["age"]
+        assert age.min() >= 18 and age.max() <= 100
+        # A population pyramid concentrates 25-55; uniform 18-80 puts ~48% there.
+        assert ((age >= 25) & (age <= 55)).mean() > 0.55
+
+    def test_rating_skews_high(self, shapes):
+        assert shapes["rating"].mean() > 3.2
+        assert shapes["rating"].min() >= 1 and shapes["rating"].max() <= 5
+
+    def test_conversion_rate_is_low_fraction(self, shapes):
+        cr = shapes["conversion_rate"]
+        assert cr.max() <= 1.0, "rate columns live in 0-1"
+        assert cr.median() < 0.10, "typical conversion is a few percent"
+
+    def test_explicit_shape_beats_the_prior(self):
+        schema = SchemaConfig(
+            name="explicit", seed=6, tables=[Table(name="t", row_count=2000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="rating", type="float",
+                       distribution_params={"distribution": "uniform",
+                                            "min": 1, "max": 5}),
+            ]},
+        )
+        r = misata.generate_from_schema(schema)["t"]["rating"]
+        # A uniform draw has no high-skew: mean stays near the midpoint.
+        assert 2.7 < r.mean() < 3.3
+
+    def test_declared_bounds_clip_the_prior(self):
+        schema = SchemaConfig(
+            name="clip", seed=6, tables=[Table(name="t", row_count=2000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="unit_price", type="float",
+                       distribution_params={"min": 10, "max": 50}),
+            ]},
+        )
+        p = misata.generate_from_schema(schema)["t"]["unit_price"]
+        assert p.min() >= 10 and p.max() <= 50

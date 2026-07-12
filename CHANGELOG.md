@@ -21,6 +21,22 @@ None of these need per-column configuration. Naming a column is enough.
 
 ### Added
 
+- **The statistical priors knowledge base is now the default, not an opt-in.**
+  The library has long shipped researched distribution profiles (a population
+  age pyramid, lognormal salaries, J-shaped five-star ratings, Zipf order
+  quantities, low-beta conversion and churn rates, retail price shapes), but
+  they only applied through an explicit `generate_with_profile` call, so a
+  column named `rating` still came out uniform and `quantity` came out
+  bell-shaped. A semantic router now recognises these column names and draws
+  from the matching profile automatically whenever the user declared no shape
+  of their own. Measured on one generation with zero configuration: order
+  quantities are 60% ones, unit prices end in .99 on 46% of rows around a $32
+  median, age forms an adult pyramid instead of a flat line, salary is
+  lognormal around a $60k median, and conversion_rate sits at a 3% median in
+  the 0-1 convention. An explicit distribution, mean, or std always wins, and
+  declared min/max bounds clip every draw. The router is deliberately
+  conservative: exact and suffix name matches only, so a column it does not
+  recognise behaves exactly as before.
 - **`story_audit`: the dataset grades itself.** Every coherence class this
   release fixes is now also a detector, so the same defects can never return
   silently. `misata.story_audit(tables, schema)` audits a generated multi-table
