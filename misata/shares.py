@@ -128,7 +128,8 @@ def apply_group_shares(
         buckets = [(np.arange(len(df)), float(pd.to_numeric(
             df[spec.measure], errors="coerce").fillna(0).sum()))]
 
-    measure = pd.to_numeric(df[spec.measure], errors="coerce").fillna(0).to_numpy(dtype=float)
+    measure = pd.to_numeric(
+        df[spec.measure], errors="coerce").fillna(0).to_numpy(dtype=float, copy=True)
     groups = df[spec.group_column].astype(object).to_numpy(copy=True)
 
     for idx, total in buckets:

@@ -5,6 +5,19 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4.1] - 2026-07-13
+
+### Fixed
+
+- **Group shares now apply under NumPy 2 / pandas 3.** The generation pass
+  wrote into a measure array taken from `.to_numpy()`, which those newer
+  versions return as a read-only, copy-on-write view; the write raised, the
+  pass was skipped with a warning, and the shares silently did not hold (the
+  local NumPy 1.26 build masked it). The array is now taken with `copy=True`,
+  matching the group-label array that already was. Reproduced on NumPy 2.4.6 /
+  pandas 3.0.3 and covered by the existing group-share suite on both version
+  lines.
+
 ## [0.8.4] - 2026-07-13
 
 ### Added
