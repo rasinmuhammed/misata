@@ -354,6 +354,23 @@ assert abs(monthly[1]  -  50_000) < 0.01   # exact
 assert abs(monthly[12] - 200_000) < 0.01   # exact
 ```
 
+**Exact group shares**: declare how a measure divides across a categorical column ("Electronics is 40% of revenue, Home 25%") with `__group_shares__`. Paired with an outcome curve on the same table and measure, the shares hold to the cent inside every declared period, and the period totals still hold; without a curve, the shares hold over the table total:
+
+```python
+schema = misata.from_dict_schema({
+    "__group_shares__": [{
+        "table": "orders",
+        "measure": "amount",
+        "group_column": "category",
+        "shares": {"Electronics": 0.4, "Home": 0.25, "Toys": 0.2, "Grocery": 0.15},
+    }],
+    # ... same orders table and __outcome_curves__ as above,
+    # plus a "category" enum column
+}, seed=42)
+```
+
+A period with fewer rows than positive-share groups is skipped with a warning rather than silently mangled; see LIMITATIONS.md. `story_audit` verifies the shares in the output, and evalpacks turn each period-group pair into a verified filtered-aggregation question.
+
 **Constraints and correlations**: enforce business rules and inter-column relationships directly in the dict schema:
 
 ```python

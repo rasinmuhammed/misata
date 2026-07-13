@@ -503,6 +503,101 @@ def _ledger_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuestion
     return questions
 
 
+def _group_share_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuestion]:
+    """Filtered-aggregation questions from ``group_shares`` declarations.
+
+    Emitted only when the spec pairs with an exact-target curve on the same
+    table and measure: that is the only case where the totals being split are
+    themselves declared, so the expected answers come from the specification
+    rather than from measuring the generated data (answer-key-first). The
+    targets are computed by the same helper the generator uses, so the
+    questions cannot drift from the data."""
+    from misata.shares import declared_group_targets
+
+    questions: List[EvalQuestion] = []
+    for spec in getattr(schema, "group_shares", []) or []:
+        per_bucket = declared_group_targets(spec, schema)
+        if not per_bucket:
+            continue
+        curve = next(
+            (c for c in schema.outcome_curves
+             if c.table == spec.table and c.column == spec.measure), None)
+        if curve is None:
+            continue
+        tbl = _quote_ident(spec.table)
+        m_sql = _quote_ident(spec.measure)
+        g_sql = _quote_ident(spec.group_column)
+        time_sql = _quote_ident(curve.time_column)
+
+        grand: Dict[str, float] = {}
+        for start, end, targets in per_bucket:
+            for label, t in targets.items():
+                grand[label] = round(grand.get(label, 0.0) + t, 2)
+                lab_sql = "'" + str(label).replace("'", "''") + "'"
+                questions.append(
+                    EvalQuestion(
+                        id=next_id(),
+                        question=(
+                            f"In the {spec.table} table, what is the total of "
+                            f"{spec.measure} for rows where {spec.group_column} "
+                            f"is '{label}' {_window_phrase(start, end)}? "
+                            f"Give a number rounded to 2 decimal places."
+                        ),
+                        gold_sql=(
+                            f"SELECT ROUND(SUM({m_sql}), 2) FROM {tbl} "
+                            f"WHERE {g_sql} = {lab_sql} "
+                            f"AND {time_sql} >= {_ts_literal(start)} "
+                            f"AND {time_sql} < {_ts_literal(end)}"
+                        ),
+                        expected_answer=t,
+                        answer_type="number",
+                        round_decimals=2,
+                        tags=["group_by", "filtered_aggregation", "single_table"],
+                        source={
+                            "kind": "group_share_period",
+                            "table": spec.table,
+                            "measure": spec.measure,
+                            "group": str(label),
+                        },
+                    )
+                )
+
+        first_start = per_bucket[0][0]
+        last_end = per_bucket[-1][1]
+        for label, total in grand.items():
+            lab_sql = "'" + str(label).replace("'", "''") + "'"
+            questions.append(
+                EvalQuestion(
+                    id=next_id(),
+                    question=(
+                        f"In the {spec.table} table, what is the total of "
+                        f"{spec.measure} for rows where {spec.group_column} is "
+                        f"'{label}' across all rows whose {curve.time_column} "
+                        f"is on or after {first_start.date()} and strictly "
+                        f"before {last_end.date()}? Give a number rounded to "
+                        f"2 decimal places."
+                    ),
+                    gold_sql=(
+                        f"SELECT ROUND(SUM({m_sql}), 2) FROM {tbl} "
+                        f"WHERE {g_sql} = {lab_sql} "
+                        f"AND {time_sql} >= {_ts_literal(first_start)} "
+                        f"AND {time_sql} < {_ts_literal(last_end)}"
+                    ),
+                    expected_answer=round(total, 2),
+                    answer_type="number",
+                    round_decimals=2,
+                    tags=["group_by", "filtered_aggregation", "single_table"],
+                    source={
+                        "kind": "group_share_total",
+                        "table": spec.table,
+                        "measure": spec.measure,
+                        "group": str(label),
+                    },
+                )
+            )
+    return questions
+
+
 # ---------------------------------------------------------------------------
 # Independent verification (DuckDB over the written files)
 # ---------------------------------------------------------------------------
@@ -643,6 +738,7 @@ def build_evalpack(
     candidates.extend(_rate_questions(schema, next_id))
     candidates.extend(_fk_questions(schema, next_id))
     candidates.extend(_ledger_questions(schema, next_id))
+    candidates.extend(_group_share_questions(schema, next_id))
 
     # Verify what we ship: DuckDB reads the CSVs from disk, exactly as a
     # downstream consumer would. The generator and the verifier share

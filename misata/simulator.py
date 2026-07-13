@@ -4329,12 +4329,20 @@ class DataSimulator:
             rollup_tables.add(s.parent_table)
             rollup_tables.add(s.from_table)
 
+        # Exact group shares rewrite group labels and rescale the measure over
+        # the whole table at once, so their tables buffer too.
+        group_share_specs = [
+            s for s in (getattr(self.config, "group_shares", None) or [])
+            if s.table in set(sorted_tables)
+        ]
+        group_share_tables = {s.table for s in group_share_specs}
+
         # Identify which tables must be buffered (cascade resolution OR roll-ups)
         cascade_tables: set = set()
         for event in cascade_events:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
-        buffer_tables = cascade_tables | rollup_tables
+        buffer_tables = cascade_tables | rollup_tables | group_share_tables
 
         buffered: Dict[str, pd.DataFrame] = {}
         streamed: list = []   # tables already yielded (order record for phase 3)
@@ -4354,9 +4362,24 @@ class DataSimulator:
                     yield table_name, batch
                 streamed.append(table_name)
 
-        # Phase 2 — apply cascades, then roll-ups, to buffered tables
+        # Phase 2 — apply cascades, then group shares, then roll-ups, to
+        # buffered tables. Group shares run before roll-ups so parent summary
+        # columns sum the post-share children.
         for event in cascade_events:
             self.propagate_event_cascade(buffered, event)
+        if group_share_specs:
+            from misata.shares import apply_group_shares
+            for spec in group_share_specs:
+                if spec.table in buffered:
+                    try:
+                        buffered[spec.table] = apply_group_shares(
+                            buffered[spec.table], spec, self.config, self.rng
+                        )
+                    except Exception:
+                        warnings.warn(
+                            f"group_shares on {spec.table}.{spec.measure} "
+                            "could not be applied; leaving the table as generated"
+                        )
         if rollup_specs:
             try:
                 apply_rollups(buffered, rollup_specs)

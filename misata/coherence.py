@@ -625,6 +625,59 @@ def _detect_rollup_mismatch(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _detect_group_share_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Declared group shares must hold in the data: per declared period when
+    an exact-target curve pairs with the spec, over the table total otherwise.
+    Targets come from the same helper the generator uses, so the audit and the
+    generator cannot disagree about what a share is worth."""
+    out: List[CoherenceFinding] = []
+    try:
+        from misata.shares import (declared_group_targets, normalized_shares,
+                                    split_total_by_shares)
+    except Exception:
+        return out
+    for spec in getattr(schema, "group_shares", None) or []:
+        df = tables.get(spec.table)
+        if df is None or spec.measure not in df.columns or spec.group_column not in df.columns:
+            continue
+        measure = pd.to_numeric(df[spec.measure], errors="coerce").fillna(0)
+        per_bucket = declared_group_targets(spec, schema)
+        bad_groups = 0
+        if per_bucket is not None:
+            curve = next((c for c in schema.outcome_curves
+                          if c.table == spec.table and c.column == spec.measure), None)
+            if curve is None or curve.time_column not in df.columns:
+                continue
+            times = pd.to_datetime(df[curve.time_column], errors="coerce")
+            for start, end, targets in per_bucket:
+                in_bucket = (times >= start) & (times < end)
+                if not in_bucket.any():
+                    continue
+                got = measure[in_bucket].groupby(
+                    df.loc[in_bucket, spec.group_column]).sum()
+                for label, t in targets.items():
+                    if abs(round(float(got.get(label, 0.0)), 2) - t) > 0.01:
+                        bad_groups += 1
+        else:
+            shares = normalized_shares(spec)
+            if not shares:
+                continue
+            targets = split_total_by_shares(shares, float(measure.sum()))
+            got = measure.groupby(df[spec.group_column]).sum()
+            for label, t in targets.items():
+                if abs(round(float(got.get(label, 0.0)), 2) - t) > 0.01:
+                    bad_groups += 1
+        if bad_groups:
+            out.append(CoherenceFinding(
+                kind="group_share_mismatch", severity="high",
+                table=spec.table, column=spec.measure,
+                message=(f"{bad_groups} group totals disagree with the declared "
+                         f"shares of {spec.measure} across {spec.group_column}"),
+                rows_affected=bad_groups,
+            ))
+    return out
+
+
 def _detect_status_gating(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
     """Ship/deliver dates and tracking codes only belong on rows whose status
     reached that stage."""
@@ -818,6 +871,7 @@ def coherence_audit(
         report.findings.extend(_detect_fk_orphans(tables, schema))
         report.findings.extend(_detect_cross_table_causality(tables, schema))
         report.findings.extend(_detect_rollup_mismatch(tables, schema))
+        report.findings.extend(_detect_group_share_mismatch(tables, schema))
     for name, df in tables.items():
         if not isinstance(df, pd.DataFrame) or df.empty:
             continue

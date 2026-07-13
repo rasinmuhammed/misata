@@ -5,6 +5,40 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - 2026-07-13
+
+### Added
+
+- **Exact group shares: "Electronics is 40% of revenue" is now a declaration,
+  not a hope.** The new `group_shares` schema field (and `__group_shares__`
+  dict envelope) splits a measure's total across the values of a categorical
+  column at exact fractions. Paired with an outcome curve on the same table
+  and measure, the shares hold to the cent inside every declared period, and
+  the period totals themselves survive untouched; without a curve, the shares
+  hold exactly over the table total. One helper
+  (`misata.shares.split_total_by_shares`, rounding residual to the largest
+  share) computes the targets for the generator, the evalpack questions, and
+  the audit, so the three cannot drift apart.
+- **Evalpacks gain their first composed question family.** When a
+  `group_shares` declaration pairs with an exact-target curve, the pack ships
+  per-period per-group filtered aggregations ("total revenue where category is
+  'Electronics' during March 2025") and per-group grand totals, every answer
+  taken from the declaration and re-verified by DuckDB before shipping. A
+  6-month, 4-group schema yields 28 such questions, all verified exactly.
+  Specs without a curve ship no group questions: their totals would be
+  measured rather than declared, which breaks the answer-key-first
+  construction.
+- **`story_audit` checks declared shares.** A new `group_share_mismatch`
+  detector (severity high) recomputes per-group sums against the same declared
+  targets and catches both a rescaled measure and relabeled groups. Validated
+  two-sided in the suite: clean on honest output, loud on sabotage.
+
+### Notes
+
+- A curve period with fewer rows than positive-share groups cannot host the
+  split; it is skipped with a warning and documented in LIMITATIONS.md.
+  Shares that do not sum to 1 are normalised with a warning.
+
 ## [0.8.3.1] - 2026-07-12
 
 ### Fixed

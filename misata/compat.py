@@ -42,6 +42,7 @@ from typing import Any, Dict, List, Optional
 from misata.schema import (
     Column,
     Constraint,
+    GroupShares,
     NoiseConfig,
     OutcomeCurve,
     RateCurve,
@@ -478,6 +479,7 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
         flat["__domain__"] = schemas["domain"]
     for env_key, dunder in (("outcome_curves", "__outcome_curves__"),
                             ("rate_curves", "__rate_curves__"),
+                            ("group_shares", "__group_shares__"),
                             ("noise", "__noise__"),
                             ("vocabulary", "__vocabulary__"),
                             ("vocabularies", "__vocabulary__")):
@@ -535,6 +537,12 @@ def from_dict_schema(
       categorical columns, e.g. ``[{"table": "transactions", "column":
       "is_fraud", "time_column": "transaction_date", "rate_points":
       [{"period": "2024-01", "rate": 0.03}, ...]}]``.
+    - ``__group_shares__``: exact shares of a measure across a categorical
+      column, e.g. ``[{"table": "orders", "measure": "revenue",
+      "group_column": "category", "shares": {"Electronics": 0.4,
+      "Home": 0.25, "Toys": 0.2, "Grocery": 0.15}}]``. Paired with an
+      outcome curve on the same table and measure, the shares hold exactly
+      inside every declared period; otherwise over the table total.
     - ``__noise__``: declared data-quality defects injected at a known rate, so
       a cleaning / DQ pipeline can be tested against ground truth, e.g.
       ``{"mode": "custom", "duplicate_rate": 0.03, "null_rate": 0.02,
@@ -609,6 +617,12 @@ def from_dict_schema(
             rate_curves.append(RateCurve(**rate_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __rate_curves__[{i}]: {e}")
+    group_shares: List[GroupShares] = []
+    for i, share_def in enumerate(schemas.get("__group_shares__") or []):
+        try:
+            group_shares.append(GroupShares(**share_def))
+        except Exception as e:
+            warnings.warn(f"Skipping invalid __group_shares__[{i}]: {e}")
 
     # __noise__ injects declared data-quality defects (nulls, outliers, typos,
     # duplicates) at a known rate — so a data-cleaning / DQ pipeline can be
@@ -806,6 +820,7 @@ def from_dict_schema(
         relationships=relationships,
         outcome_curves=outcome_curves,
         rate_curves=rate_curves,
+        group_shares=group_shares,
         noise_config=noise_config,
         seed=seed,
         domain=domain,

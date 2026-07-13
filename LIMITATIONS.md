@@ -46,6 +46,12 @@ bug worth reporting.
   to preserve the sum. Every aggregate check still passes while the row-level
   distribution shifts. The builder warns on saturation; the warning is the
   only signal.
+- **Group shares need enough rows per bucket.** A `group_shares` declaration
+  places at least one row in every positive-share group, so a curve period
+  with fewer rows than groups cannot host the split. Such a bucket is skipped
+  with a warning and keeps its generated values; the period total still holds,
+  the shares inside that period do not. Tiny shares also inherit integer
+  effects: 1% of a 40-row month is one row carrying the whole 1% target.
 - **No learned correlation structure.** Misata does not fit a copula or a
   neural model to real data. Correlations exist only when declared, inferred
   from the well-known name pairs `smart_correlations` covers, or implied by a

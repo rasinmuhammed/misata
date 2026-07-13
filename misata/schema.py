@@ -345,6 +345,32 @@ class RateCurve(BaseModel):
     rate_points: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class GroupShares(BaseModel):
+    """Declare exact shares of a measure across the values of a categorical
+    column: "Electronics is 40% of revenue, Home 25%".
+
+    Paired with an :class:`OutcomeCurve` on the same table and measure, the
+    shares hold exactly within every declared period (the period target is
+    split by the shares, so the group totals are fully declared, not
+    measured). Without a curve, the shares hold exactly over the table's
+    total.
+
+    Attributes:
+        table:        Fact table carrying the measure.
+        measure:      Numeric column whose total is split.
+        group_column: Categorical column defining the groups. Its values are
+                      overwritten so the declared shares hold.
+        shares:       Mapping of group label to fraction. Must sum to ~1;
+                      a small deviation is normalised with a warning.
+    """
+
+    table: str
+    measure: str
+    group_column: str
+    shares: Dict[str, float]
+    description: Optional[str] = None
+
+
 class NoiseConfig(BaseModel):
     """
     Configuration for optional realism noise injection.
@@ -439,6 +465,7 @@ class SchemaConfig(BaseModel):
     events: List[ScenarioEvent] = Field(default_factory=list)
     outcome_curves: List[OutcomeCurve] = Field(default_factory=list)
     rate_curves: List[RateCurve] = Field(default_factory=list)
+    group_shares: List[GroupShares] = Field(default_factory=list)
     noise_config: Optional[NoiseConfig] = None
     realism: Optional[RealismConfig] = None
     seed: Optional[int] = None
