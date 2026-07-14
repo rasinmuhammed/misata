@@ -54,6 +54,7 @@ tests/*
 !tests/test_seed_realism.py
 !tests/test_robustness.py
 !tests/test_group_shares.py
+!tests/test_price_bands.py
 jman_output/
 llm_test/
 ml_demo_output/

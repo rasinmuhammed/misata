@@ -652,6 +652,83 @@ class TestStatisticalPriors:
         assert p.min() >= 10 and p.max() <= 50
 
 
+class TestPriorsRoundTwo:
+    """Second batch of the priors knowledge base: event timing, social
+    counts, discount spikes, tenure, and locale-aware money."""
+
+    @pytest.fixture(scope="class")
+    def shapes(self):
+        schema = SchemaConfig(
+            name="priors2", seed=11, tables=[Table(name="t", row_count=6000)],
+            columns={"t": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 9999999}),
+                Column(name="follower_count", type="int"),
+                Column(name="time_between_sessions", type="float"),
+                Column(name="discount_percent", type="int"),
+                Column(name="discount_rate", type="float"),
+                Column(name="tenure_months", type="int"),
+            ]},
+        )
+        return misata.generate_from_schema(schema)["t"]
+
+    def test_social_counts_are_heavy_tailed(self, shapes):
+        fc = shapes["follower_count"]
+        assert fc.min() >= 0
+        # The tail drags the mean well above the median; a normal draw
+        # would keep them within a few percent of each other.
+        assert fc.mean() > 1.5 * fc.median(), (
+            f"median={fc.median():.0f} mean={fc.mean():.0f}: no heavy tail")
+        assert fc.quantile(0.99) > 5 * fc.median()
+
+    def test_interarrival_is_exponential_shaped(self, shapes):
+        tb = shapes["time_between_sessions"]
+        assert tb.min() >= 0
+        cv = tb.std() / tb.mean()
+        # Exponential waits have cv == 1; uniform gives 0.58, normal ~0.2.
+        assert 0.8 < cv < 1.2, f"cv={cv:.2f}; waits between events are exponential"
+
+    def test_discounts_sit_on_round_spikes(self, shapes):
+        assert set(shapes["discount_percent"].unique()) <= {5, 10, 15, 20, 25, 50}
+
+    def test_discount_rate_is_unit_scale(self, shapes):
+        dr = shapes["discount_rate"]
+        assert set(dr.round(2).unique()) <= {0.05, 0.10, 0.15, 0.20, 0.25, 0.50}
+
+    def test_tenure_is_mostly_recent(self, shapes):
+        t = shapes["tenure_months"]
+        assert t.min() >= 0
+        assert t.median() < t.mean(), "exponential tenure: median below mean"
+
+    def test_locale_scales_money_and_drops_charm_cents(self):
+        from misata.schema import RealismConfig
+        cols = [
+            Column(name="id", type="int", unique=True,
+                   distribution_params={"min": 1, "max": 9999999}),
+            Column(name="unit_price", type="float"),
+        ]
+        def gen(locale):
+            schema = SchemaConfig(
+                name="loc", seed=11,
+                tables=[Table(name="t", row_count=4000, columns=["id", "unit_price"])],
+                columns={"t": cols}, relationships=[],
+                realism=RealismConfig(locale=locale) if locale else None,
+            )
+            return misata.generate_from_schema(schema)["t"]["unit_price"]
+        usd = gen(None)
+        jpy = gen("ja_JP")
+        # JPY runs two orders of magnitude above USD and carries no cents.
+        assert jpy.median() > 30 * usd.median()
+        assert (jpy == jpy.round()).all()
+
+    def test_country_suffix_finds_the_pack(self):
+        # Packs are keyed by one canonical language per country; en_IN
+        # must still resolve to the hi_IN pack's INR.
+        from misata.profiles import _locale_currency
+        assert _locale_currency("en_IN") == "INR"
+        assert _locale_currency("xx_ZZ") == "USD"
+
+
 class TestWiring:
     """Every entry point must flow through the same realism pipeline. These
     exist because features kept working on one path and missing on another."""

@@ -45,6 +45,11 @@ class DomainCapsule:
     # "map": {parent_value: [child_values]}}. Keeps brand→model pairs
     # coherent (a Submariner is a Rolex, never a Patek Philippe).
     conditional_vocabularies: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    # Price bands: price column -> {"parent": category_column,
+    # "bands": {category_value: [min, max]}}. A row's price draws inside the
+    # band belonging to its category, so honey is never $500 and a laptop is
+    # never $4. Values are [low, high] in the capsule's currency.
+    price_bands: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def get_values(self, name: str, fallback: Optional[List[str]] = None) -> List[str]:
         """Return a vocabulary list, falling back when absent or empty."""

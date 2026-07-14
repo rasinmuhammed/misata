@@ -55,6 +55,7 @@ def save_capsule(capsule: DomainCapsule, path: Union[str, Path]) -> Path:
         "metadata": capsule.metadata,
         "vocabularies": capsule.vocabularies,
         "conditional_vocabularies": capsule.conditional_vocabularies,
+        "price_bands": capsule.price_bands,
         "provenance": {
             name: [
                 {
@@ -126,6 +127,21 @@ def load_capsule(path: Union[str, Path]) -> DomainCapsule:
                     if isinstance(vals, (list, tuple)) and vals
                 },
             }
+    # Price bands (category→[min,max]): a row's price stays inside the band
+    # of its category value.
+    for child, spec in (raw.get("price_bands") or {}).items():
+        if isinstance(spec, dict) and isinstance(spec.get("bands"), dict) and spec.get("parent"):
+            bands = {}
+            for k, band in spec["bands"].items():
+                if (isinstance(band, (list, tuple)) and len(band) == 2
+                        and all(isinstance(x, (int, float)) for x in band)
+                        and float(band[0]) <= float(band[1])):
+                    bands[str(k)] = [float(band[0]), float(band[1])]
+            if bands:
+                capsule.price_bands[str(child).lower()] = {
+                    "parent": str(spec["parent"]).lower(),
+                    "bands": bands,
+                }
     return capsule
 
 
@@ -140,6 +156,8 @@ def merge_into(base: DomainCapsule, overlay: DomainCapsule) -> DomainCapsule:
         base.provenance[name] = list(overlay.provenance.get(name, []))
     for child, spec in overlay.conditional_vocabularies.items():
         base.conditional_vocabularies[child] = spec
+    for child, spec in overlay.price_bands.items():
+        base.price_bands[child] = spec
     base.metadata.setdefault("capsule_overlays", []).append(overlay.domain)
     return base
 

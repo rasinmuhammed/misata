@@ -352,6 +352,85 @@ class DataSimulator:
             out.append(self.rng.choice(union))
         return np.array(out)
 
+    def _capsule_price_band_for_column(self, column_name: str, table_data,
+                                       size: int, params: Dict[str, Any]):
+        """Per-row prices drawn inside the capsule's category band, else None.
+
+        A capsule's price bands ({"price": {"parent": "category", "bands":
+        {"Honey": [4, 25], "Laptops": [400, 3500]}}}) tie a price to the row's
+        category: log-uniform inside the band (cheap-heavy, like real
+        catalogs), most tags snapped to retail endings, never outside the
+        band. Declared min/max intersect the band; rows with an unknown
+        category draw from the union of all bands.
+        """
+        capsule = self.domain_capsule
+        if capsule is None or table_data is None or table_data.empty:
+            return None
+        spec = getattr(capsule, "price_bands", {}).get(column_name.lower())
+        if not spec or not isinstance(spec.get("bands"), dict):
+            return None
+        parent_col = next(
+            (c for c in table_data.columns
+             if c.lower() == str(spec.get("parent", "")).lower()),
+            None,
+        )
+        if parent_col is None:
+            return None
+        bands = {str(k).strip().lower(): (float(v[0]), float(v[1]))
+                 for k, v in spec["bands"].items()
+                 if isinstance(v, (list, tuple)) and len(v) == 2}
+        if not bands:
+            return None
+        union = (min(lo for lo, _ in bands.values()),
+                 max(hi for _, hi in bands.values()))
+
+        # Declared bounds intersect every band; an empty intersection means
+        # the declaration contradicts the capsule, and the declaration wins.
+        # Bounds invented by semantic fallback (a bare "price" column gets a
+        # generic 0-1000) are not declarations and must not clip the band.
+        if params.get("_semantic_default_bounds"):
+            d_lo, d_hi = None, None
+        else:
+            d_lo, d_hi = params.get("min"), params.get("max")
+
+        def _clip_band(lo: float, hi: float):
+            if isinstance(d_lo, (int, float)):
+                lo = max(lo, float(d_lo))
+            if isinstance(d_hi, (int, float)):
+                hi = min(hi, float(d_hi))
+            return (lo, hi) if lo <= hi else None
+
+        parents = table_data[parent_col].astype(str).str.strip().str.lower().values[:size]
+        out = np.empty(size, dtype=float)
+        decimals = int(params.get("decimals", 2) or 2)
+        for value in np.unique(parents[:size]):
+            mask = parents == value
+            n = int(mask.sum())
+            band = _clip_band(*bands.get(value, union))
+            if band is None:
+                return None
+            lo, hi = band
+            if hi <= lo:
+                draws = np.full(n, lo)
+            else:
+                # Log-uniform: catalogs stack the cheap end of every band.
+                draws = np.exp(self.rng.uniform(
+                    np.log(max(lo, 0.01)), np.log(max(hi, 0.02)), n))
+            if decimals >= 2 and hi - lo > 2:
+                snap = self.rng.random(n) < 0.85
+                endings = self.rng.choice([0.99, 0.95, 0.49, 0.00], size=n,
+                                          p=[0.5, 0.14, 0.12, 0.24])
+                draws = np.where(snap, np.floor(draws) + endings, draws)
+            draws = np.clip(np.round(draws, decimals), lo, hi)
+            out[mask] = draws
+        if size > len(parents):
+            lo, hi = _clip_band(*union) or union
+            out[len(parents):] = np.round(
+                np.exp(self.rng.uniform(np.log(max(lo, 0.01)),
+                                        np.log(max(hi, 0.02)),
+                                        size - len(parents))), decimals)
+        return out
+
     def _capsule_vocab_for_column(self, column_name: str):
         """User-capsule vocabulary keyed by column name, else None.
 
@@ -1155,7 +1234,7 @@ class DataSimulator:
                 and not any(k in params for k in ("mean", "std", "mu", "sigma", "choices"))
             ):
                 from misata.profiles import sample_semantic
-                _prior = sample_semantic(column.name, params, self.rng, size)
+                _prior = sample_semantic(column.name, params, self.rng, size, locale=self.locale)
                 if _prior is not None:
                     return np.round(_prior).astype(int)
 
@@ -1331,6 +1410,18 @@ class DataSimulator:
                     params = {**params, "min": 1.0, "max": 5.0}
                 _lo, _hi = params.get("min"), params.get("max")
 
+            # Capsule price bands beat the generic price prior: a price tied
+            # to the row's category draws inside that category's band, so
+            # honey is never $500. Explicit user shapes still win.
+            if (
+                params.get("_distribution_is_default")
+                and not any(k in params for k in ("mean", "std", "mu", "sigma", "choices"))
+            ):
+                _banded = self._capsule_price_band_for_column(
+                    column.name, table_data, size, params)
+                if _banded is not None:
+                    return _banded
+
             # Statistical priors knowledge base: a recognised column name draws
             # its real-world shape (J-shaped ratings, lognormal salaries, .99
             # retail prices, mostly-1 order quantities) whenever the user
@@ -1340,7 +1431,7 @@ class DataSimulator:
                 and not any(k in params for k in ("mean", "std", "mu", "sigma", "choices"))
             ):
                 from misata.profiles import sample_semantic
-                _prior = sample_semantic(column.name, params, self.rng, size)
+                _prior = sample_semantic(column.name, params, self.rng, size, locale=self.locale)
                 if _prior is not None:
                     return _prior.astype(float)
 

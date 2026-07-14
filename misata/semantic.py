@@ -189,6 +189,16 @@ class SemanticInference:
         if should_fix:
             # Merge inferred params with existing (inferred takes precedence)
             merged_params = {**column.distribution_params, **inferred_params}
+            # Mark bounds we invented (vs. bounds the user declared): a
+            # fallback range like price 0-1000 must lose to better knowledge
+            # downstream (a capsule price band knows a laptop is 400-3500),
+            # while a user-declared bound must win over everything.
+            if (
+                ("min" in inferred_params or "max" in inferred_params)
+                and "min" not in column.distribution_params
+                and "max" not in column.distribution_params
+            ):
+                merged_params["_semantic_default_bounds"] = True
             return Column(
                 name=column.name,
                 type=inferred_type,

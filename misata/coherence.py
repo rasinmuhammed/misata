@@ -678,6 +678,70 @@ def _detect_group_share_mismatch(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _audit_capsule(schema):
+    """Rebuild the capsule the generator would attach, for audit use.
+
+    Sources, in generation's own order: registry auto-attach from the schema's
+    tables/columns, then the user's capsule file. Returns None when neither
+    contributes anything band-related."""
+    try:
+        from misata.domain_capsule import DomainCapsule
+        capsule = DomainCapsule()
+        try:
+            from misata.capsule_registry import auto_attach_capsules
+            auto_attach_capsules(schema, capsule)
+        except Exception:
+            pass
+        capsule_file = getattr(getattr(schema, "realism", None), "capsule_file", None)
+        if capsule_file:
+            from misata.capsules import load_capsule, merge_into
+            capsule = merge_into(capsule, load_capsule(capsule_file))
+        return capsule if getattr(capsule, "price_bands", None) else None
+    except Exception:
+        return None
+
+
+def _detect_price_band_violation(tables, schema) -> List[CoherenceFinding]:
+    """A price must sit inside the band its category declares. Only fires
+    when a capsule with price bands is attached; a $500 jar of honey next to
+    a "Honey: 4-25" band is a defect whoever generated the row."""
+    out: List[CoherenceFinding] = []
+    capsule = _audit_capsule(schema)
+    if capsule is None:
+        return out
+    for price_col, spec in capsule.price_bands.items():
+        parent_name = str(spec.get("parent", "")).lower()
+        bands = {str(k).strip().lower(): v for k, v in (spec.get("bands") or {}).items()}
+        if not parent_name or not bands:
+            continue
+        for tname, df in tables.items():
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
+            p_col = next((c for c in df.columns if c.lower() == price_col), None)
+            c_col = next((c for c in df.columns if c.lower() == parent_name), None)
+            if p_col is None or c_col is None:
+                continue
+            price = pd.to_numeric(df[p_col], errors="coerce")
+            cats = df[c_col].astype(str).str.strip().str.lower()
+            bad = 0
+            for cat, band in bands.items():
+                lo, hi = float(band[0]), float(band[1])
+                in_cat = cats == cat
+                if not in_cat.any():
+                    continue
+                # Tolerance of one currency unit absorbs ending snaps at edges.
+                bad += int(((price[in_cat] < lo - 1.0) | (price[in_cat] > hi + 1.0)).sum())
+            if bad:
+                out.append(CoherenceFinding(
+                    kind="price_band_violation", severity="high",
+                    table=tname, column=p_col,
+                    message=(f"{bad} rows price outside their {c_col} band "
+                             f"declared by the domain capsule"),
+                    rows_affected=bad,
+                ))
+    return out
+
+
 def _detect_status_gating(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
     """Ship/deliver dates and tracking codes only belong on rows whose status
     reached that stage."""
@@ -872,6 +936,7 @@ def coherence_audit(
         report.findings.extend(_detect_cross_table_causality(tables, schema))
         report.findings.extend(_detect_rollup_mismatch(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
+        report.findings.extend(_detect_price_band_violation(tables, schema))
     for name, df in tables.items():
         if not isinstance(df, pd.DataFrame) or df.empty:
             continue

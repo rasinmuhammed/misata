@@ -5,6 +5,49 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2026-07-14
+
+### Added
+
+- **Capsule price bands: a price now knows its category.** A domain capsule
+  can declare `price_bands` ("Honey": 4 to 25, "Laptops": 400 to 3500) and
+  every generated price draws inside the band of its row's category:
+  log-uniform within the band (catalogs stack the cheap end), most tags
+  snapped to retail endings, never outside the band. Combined with the
+  existing conditional vocabularies (category to product pool), a capsule now
+  pins name, category, and price to each other, which retires the "$500 jar
+  of honey" class of defect for capsule-covered domains. Precedence is
+  strict: an explicit user distribution ignores the band, declared min/max
+  intersect it, and a contradictory declaration wins outright.
+- **`story_audit` checks the bands.** A new `price_band_violation` detector
+  (severity high) flags any row priced outside its category's declared band,
+  with a one-unit tolerance for ending snaps at band edges. Fires only when
+  a capsule with bands is attached; validated two-sided (clean on honest
+  output, loud on a planted $500 honey).
+- **Priors knowledge base, round two.** Four new researched shapes route by
+  column name whenever no shape was declared: waits between events are
+  exponential (`time_between_*`, `*_interarrival`), social counts are
+  Pareto heavy-tailed (followers, views, likes: median tens, mean dragged
+  far above it), discounts sit on marketing's round spikes
+  (5/10/15/20/25/50, with `discount_rate` correctly landing in 0 to 1),
+  and customer tenure decays exponentially (most customers recent, a long
+  loyal tail).
+- **Locale-aware money.** With a locale set, price and transaction columns
+  scale to the locale's currency magnitude and adopt its tagging habits:
+  yen prices land in the thousands with no cents, euro tags lean on round
+  and .50 endings instead of .99 dominance, rupee prices scale to INR. A
+  locale whose exact pack key is missing resolves through its country
+  suffix (en_IN finds the hi_IN pack and its INR).
+
+### Fixed
+
+- **Semantic fallback bounds no longer masquerade as declarations.** A bare
+  `price` column gets a generic 0 to 1000 range from semantic inference;
+  those invented bounds are now marked internally and lose to better
+  knowledge (a capsule band knows a laptop is 400 to 3500), while bounds the
+  user actually declared still beat everything. Before the fix, the fallback
+  silently clipped every laptop to 1000.
+
 ## [0.8.4.1] - 2026-07-13
 
 ### Fixed

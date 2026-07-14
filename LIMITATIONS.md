@@ -29,6 +29,20 @@ bug worth reporting.
   products do not exist. Anything needing real-world facts in the values
   (actual ticker prices, real addresses) is out of scope by design.
 
+## Values and vocabulary (capsule price bands)
+
+- **Price bands need the category generated first.** A capsule's price band
+  draws from the row's category value, so the category column must precede
+  the price column in the schema's column order. When it does not, the band
+  quietly does not apply and the price falls back to its usual priors; the
+  audit detector will then flag any out-of-band rows, so the defect is loud
+  in the report even though generation gave no warning.
+- **The band detector only knows declared bands.** `price_band_violation`
+  fires solely when a capsule with `price_bands` is attached (via
+  `realism.capsule_file` or the bundled registry). Without a capsule, a $500
+  jar of honey is not a defect the audit can name, because nothing in the
+  schema says what honey costs.
+
 ## Statistics
 
 - **Declared rates are subject to integer rounding.** A 2% rate over 4,824
