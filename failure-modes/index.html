@@ -6,35 +6,35 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Generate realistic marketplace synthetic datasets in Python, sellers, buyers, listings, and orders with power-law seller distributions, beta-rated reviews, and referential integrity. No real user data required.">
+        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/domains/marketplace/">
+        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/failure-modes/">
       
       
-        <link rel="prev" href="../logistics/">
+        <link rel="prev" href="../validate/">
       
       
-        <link rel="next" href="../social/">
+        <link rel="next" href="../cli/">
       
       
         
       
       
-      <link rel="icon" href="../../assets/logo.svg">
+      <link rel="icon" href="../assets/logo.svg">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Generate Marketplace Synthetic Data in Python | Misata - Misata</title>
+        <title>When Misata Refuses - Misata</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/custom.css">
+      <link rel="stylesheet" href="../assets/custom.css">
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#generate-marketplace-synthetic-data-in-python" class="md-skip">
+        <a href="#when-misata-refuses" class="md-skip">
           Skip to content
         </a>
       
@@ -94,9 +94,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href=".." title="Misata" class="md-header__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../../assets/logo.svg" alt="logo">
+  <img src="../assets/logo.svg" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Generate Marketplace Synthetic Data in Python | Misata
+              When Misata Refuses
             
           </span>
         </div>
@@ -226,7 +226,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../.." class="md-tabs__link">
+      <a href=".." class="md-tabs__link">
         
   
   
@@ -245,7 +245,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../quickstart/" class="md-tabs__link">
+      <a href="../quickstart/" class="md-tabs__link">
         
   
   
@@ -266,7 +266,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../generation/" class="md-tabs__link">
+        <a href="../generation/" class="md-tabs__link">
           
   
   
@@ -286,7 +286,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../localisation/" class="md-tabs__link">
+      <a href="../localisation/" class="md-tabs__link">
         
   
   
@@ -305,7 +305,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../timeseries/" class="md-tabs__link">
+      <a href="../timeseries/" class="md-tabs__link">
         
   
   
@@ -322,13 +322,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../domains/" class="md-tabs__link">
           
   
   
@@ -348,7 +346,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../constraints/" class="md-tabs__link">
+      <a href="../constraints/" class="md-tabs__link">
         
   
   
@@ -367,7 +365,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../export/" class="md-tabs__link">
+      <a href="../export/" class="md-tabs__link">
         
   
   
@@ -386,7 +384,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../spark/" class="md-tabs__link">
+      <a href="../spark/" class="md-tabs__link">
         
   
   
@@ -405,7 +403,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../validate/" class="md-tabs__link">
+      <a href="../validate/" class="md-tabs__link">
         
   
   
@@ -422,9 +420,11 @@
   
   
   
+    
   
-    <li class="md-tabs__item">
-      <a href="../../failure-modes/" class="md-tabs__link">
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
         
   
   
@@ -443,7 +443,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../cli/" class="md-tabs__link">
+      <a href="../cli/" class="md-tabs__link">
         
   
   
@@ -464,7 +464,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../guides/" class="md-tabs__link">
+        <a href="../guides/" class="md-tabs__link">
           
   
   
@@ -500,9 +500,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
+    <a href=".." title="Misata" class="md-nav__button md-logo" aria-label="Misata" data-md-component="logo">
       
-  <img src="../../assets/logo.svg" alt="logo">
+  <img src="../assets/logo.svg" alt="logo">
 
     </a>
     Misata
@@ -529,7 +529,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -556,7 +556,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../quickstart/" class="md-nav__link">
+      <a href="../quickstart/" class="md-nav__link">
         
   
   
@@ -618,7 +618,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../generation/" class="md-nav__link ">
+            <a href="../generation/" class="md-nav__link ">
               
   
   
@@ -662,7 +662,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../generation/story/" class="md-nav__link">
+      <a href="../generation/story/" class="md-nav__link">
         
   
   
@@ -690,7 +690,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../generation/yaml/" class="md-nav__link">
+      <a href="../generation/yaml/" class="md-nav__link">
         
   
   
@@ -718,7 +718,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../generation/database/" class="md-nav__link">
+      <a href="../generation/database/" class="md-nav__link">
         
   
   
@@ -746,7 +746,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../generation/dict/" class="md-nav__link">
+      <a href="../generation/dict/" class="md-nav__link">
         
   
   
@@ -774,7 +774,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../generation/llm/" class="md-nav__link">
+      <a href="../generation/llm/" class="md-nav__link">
         
   
   
@@ -802,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../generation/incremental/" class="md-nav__link">
+      <a href="../generation/incremental/" class="md-nav__link">
         
   
   
@@ -837,7 +837,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../localisation/" class="md-nav__link">
+      <a href="../localisation/" class="md-nav__link">
         
   
   
@@ -864,7 +864,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../timeseries/" class="md-nav__link">
+      <a href="../timeseries/" class="md-nav__link">
         
   
   
@@ -888,10 +888,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -937,22 +935,19 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
             
   
   
@@ -970,7 +965,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -988,7 +983,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../domains/" class="md-nav__link">
         
   
   
@@ -1016,7 +1011,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../saas/" class="md-nav__link">
+      <a href="../domains/saas/" class="md-nav__link">
         
   
   
@@ -1044,7 +1039,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ecommerce/" class="md-nav__link">
+      <a href="../domains/ecommerce/" class="md-nav__link">
         
   
   
@@ -1072,7 +1067,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fintech/" class="md-nav__link">
+      <a href="../domains/fintech/" class="md-nav__link">
         
   
   
@@ -1100,7 +1095,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../healthcare/" class="md-nav__link">
+      <a href="../domains/healthcare/" class="md-nav__link">
         
   
   
@@ -1128,7 +1123,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hr/" class="md-nav__link">
+      <a href="../domains/hr/" class="md-nav__link">
         
   
   
@@ -1156,7 +1151,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../logistics/" class="md-nav__link">
+      <a href="../domains/logistics/" class="md-nav__link">
         
   
   
@@ -1181,37 +1176,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Marketplace
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../domains/marketplace/" class="md-nav__link">
         
   
   
@@ -1227,131 +1195,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-misata-generates" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What Misata generates
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What Misata generates">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tables-and-columns" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tables and columns
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#realistic-distributions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Realistic distributions
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick start
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-use-cases" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Common use cases
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#advanced-gmv-narrative-curves" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Advanced: GMV narrative curves
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#advanced-locale-aware-generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Advanced: locale-aware generation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#advanced-quality-guaranteed-generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Advanced: quality-guaranteed generation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-guides" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related guides
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1364,7 +1207,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../social/" class="md-nav__link">
+      <a href="../domains/social/" class="md-nav__link">
         
   
   
@@ -1392,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../realestate/" class="md-nav__link">
+      <a href="../domains/realestate/" class="md-nav__link">
         
   
   
@@ -1420,7 +1263,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../pharma/" class="md-nav__link">
+      <a href="../domains/pharma/" class="md-nav__link">
         
   
   
@@ -1448,7 +1291,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fooddelivery/" class="md-nav__link">
+      <a href="../domains/fooddelivery/" class="md-nav__link">
         
   
   
@@ -1476,7 +1319,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../edtech/" class="md-nav__link">
+      <a href="../domains/edtech/" class="md-nav__link">
         
   
   
@@ -1504,7 +1347,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../gaming/" class="md-nav__link">
+      <a href="../domains/gaming/" class="md-nav__link">
         
   
   
@@ -1532,7 +1375,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../crm/" class="md-nav__link">
+      <a href="../domains/crm/" class="md-nav__link">
         
   
   
@@ -1560,7 +1403,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../crypto/" class="md-nav__link">
+      <a href="../domains/crypto/" class="md-nav__link">
         
   
   
@@ -1588,7 +1431,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../insurance/" class="md-nav__link">
+      <a href="../domains/insurance/" class="md-nav__link">
         
   
   
@@ -1616,7 +1459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../travel/" class="md-nav__link">
+      <a href="../domains/travel/" class="md-nav__link">
         
   
   
@@ -1644,7 +1487,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../streaming/" class="md-nav__link">
+      <a href="../domains/streaming/" class="md-nav__link">
         
   
   
@@ -1679,7 +1522,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../constraints/" class="md-nav__link">
+      <a href="../constraints/" class="md-nav__link">
         
   
   
@@ -1706,7 +1549,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../export/" class="md-nav__link">
+      <a href="../export/" class="md-nav__link">
         
   
   
@@ -1733,7 +1576,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../spark/" class="md-nav__link">
+      <a href="../spark/" class="md-nav__link">
         
   
   
@@ -1760,7 +1603,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../validate/" class="md-nav__link">
+      <a href="../validate/" class="md-nav__link">
         
   
   
@@ -1784,10 +1627,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../failure-modes/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When Misata Refuses
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1803,6 +1673,114 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#rate-targets-and-integer-rounding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate targets and integer rounding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declared-bounds-versus-aggregate-targets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declared bounds versus aggregate targets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#row-count-clamps-prop-3-saturation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row-count clamps (Prop. 3 saturation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evalpack-question-gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evalpack question gates
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#group-shares-and-small-buckets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group shares and small buckets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reversed-and-degenerate-date-ranges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reversed and degenerate date ranges
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capsule-price-bands-and-contradictory-declarations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capsule price bands and contradictory declarations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-general-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The general principle
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1814,7 +1792,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../cli/" class="md-nav__link">
+      <a href="../cli/" class="md-nav__link">
         
   
   
@@ -1910,7 +1888,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../guides/" class="md-nav__link ">
+            <a href="../guides/" class="md-nav__link ">
               
   
   
@@ -1954,7 +1932,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/faker-vs-sdv-vs-misata/" class="md-nav__link">
+      <a href="../guides/faker-vs-sdv-vs-misata/" class="md-nav__link">
         
   
   
@@ -1982,7 +1960,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/multi-table-synthetic-data/" class="md-nav__link">
+      <a href="../guides/multi-table-synthetic-data/" class="md-nav__link">
         
   
   
@@ -2010,7 +1988,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/database-seeding-python/" class="md-nav__link">
+      <a href="../guides/database-seeding-python/" class="md-nav__link">
         
   
   
@@ -2038,7 +2016,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/synthetic-data-for-bi-demos/" class="md-nav__link">
+      <a href="../guides/synthetic-data-for-bi-demos/" class="md-nav__link">
         
   
   
@@ -2066,7 +2044,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../python-synthetic-data-generator/" class="md-nav__link">
+      <a href="../python-synthetic-data-generator/" class="md-nav__link">
         
   
   
@@ -2094,7 +2072,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/mimic/" class="md-nav__link">
+      <a href="../guides/mimic/" class="md-nav__link">
         
   
   
@@ -2122,7 +2100,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/geospatial/" class="md-nav__link">
+      <a href="../guides/geospatial/" class="md-nav__link">
         
   
   
@@ -2150,7 +2128,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/long-form-text/" class="md-nav__link">
+      <a href="../guides/long-form-text/" class="md-nav__link">
         
   
   
@@ -2178,7 +2156,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/outcome_curves/" class="md-nav__link">
+      <a href="../guides/outcome_curves/" class="md-nav__link">
         
   
   
@@ -2206,7 +2184,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/rate_curves/" class="md-nav__link">
+      <a href="../guides/rate_curves/" class="md-nav__link">
         
   
   
@@ -2234,7 +2212,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/correlations/" class="md-nav__link">
+      <a href="../guides/correlations/" class="md-nav__link">
         
   
   
@@ -2262,7 +2240,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/conditional-columns/" class="md-nav__link">
+      <a href="../guides/conditional-columns/" class="md-nav__link">
         
   
   
@@ -2290,7 +2268,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/distributions/" class="md-nav__link">
+      <a href="../guides/distributions/" class="md-nav__link">
         
   
   
@@ -2318,7 +2296,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/anomaly-injection/" class="md-nav__link">
+      <a href="../guides/anomaly-injection/" class="md-nav__link">
         
   
   
@@ -2346,7 +2324,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/research-benchmarks/" class="md-nav__link">
+      <a href="../guides/research-benchmarks/" class="md-nav__link">
         
   
   
@@ -2374,7 +2352,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/jupyter/" class="md-nav__link">
+      <a href="../guides/jupyter/" class="md-nav__link">
         
   
   
@@ -2402,7 +2380,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/rest-api/" class="md-nav__link">
+      <a href="../guides/rest-api/" class="md-nav__link">
         
   
   
@@ -2430,7 +2408,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/narrative-patterns/" class="md-nav__link">
+      <a href="../guides/narrative-patterns/" class="md-nav__link">
         
   
   
@@ -2458,7 +2436,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/mcp/" class="md-nav__link">
+      <a href="../guides/mcp/" class="md-nav__link">
         
   
   
@@ -2486,7 +2464,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/testing/" class="md-nav__link">
+      <a href="../guides/testing/" class="md-nav__link">
         
   
   
@@ -2514,7 +2492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/from-ddl/" class="md-nav__link">
+      <a href="../guides/from-ddl/" class="md-nav__link">
         
   
   
@@ -2542,7 +2520,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/dbt-seed/" class="md-nav__link">
+      <a href="../guides/dbt-seed/" class="md-nav__link">
         
   
   
@@ -2570,7 +2548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/streaming/" class="md-nav__link">
+      <a href="../guides/streaming/" class="md-nav__link">
         
   
   
@@ -2625,49 +2603,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-misata-generates" class="md-nav__link">
+  <a href="#rate-targets-and-integer-rounding" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Misata generates
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What Misata generates">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tables-and-columns" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tables and columns
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#realistic-distributions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Realistic distributions
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick start
+        Rate targets and integer rounding
       
     </span>
   </a>
@@ -2675,10 +2614,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#common-use-cases" class="md-nav__link">
+  <a href="#declared-bounds-versus-aggregate-targets" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Common use cases
+        Declared bounds versus aggregate targets
       
     </span>
   </a>
@@ -2686,10 +2625,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#advanced-gmv-narrative-curves" class="md-nav__link">
+  <a href="#row-count-clamps-prop-3-saturation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Advanced: GMV narrative curves
+        Row-count clamps (Prop. 3 saturation)
       
     </span>
   </a>
@@ -2697,10 +2636,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#advanced-locale-aware-generation" class="md-nav__link">
+  <a href="#evalpack-question-gates" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Advanced: locale-aware generation
+        Evalpack question gates
       
     </span>
   </a>
@@ -2708,10 +2647,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#advanced-quality-guaranteed-generation" class="md-nav__link">
+  <a href="#group-shares-and-small-buckets" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Advanced: quality-guaranteed generation
+        Group shares and small buckets
       
     </span>
   </a>
@@ -2719,10 +2658,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related-guides" class="md-nav__link">
+  <a href="#reversed-and-degenerate-date-ranges" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related guides
+        Reversed and degenerate date ranges
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capsule-price-bands-and-contradictory-declarations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capsule price bands and contradictory declarations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-general-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The general principle
       
     </span>
   </a>
@@ -2749,113 +2710,68 @@
   
 
 
-<h1 id="generate-marketplace-synthetic-data-in-python">Generate Marketplace Synthetic Data in Python</h1>
-<p>Online marketplaces have a distinctive data shape: a small number of power sellers drive most of the volume, buyer ratings cluster high, and listing prices follow a long-tailed distribution. If you generate seller, buyer, and listing data independently you lose all of this structure, and your marketplace analytics tool will look wrong from the first dashboard query. Misata generates a fully wired marketplace dataset where seller volume follows a power-law, ratings are beta-distributed toward 4–5 stars, and every order references a real buyer and listing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A freelance marketplace with 500 sellers and 2000 buyers&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>   <span class="c1"># [&#39;sellers&#39;, &#39;buyers&#39;, &#39;listings&#39;, &#39;orders&#39;]</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;orders&quot;</span><span class="p">][[</span><span class="s2">&quot;amount&quot;</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
+<h1 id="when-misata-refuses">When Misata refuses</h1>
+<p>Misata treats an impossible declaration as a bug in the declaration, not something to paper over. When your spec cannot be satisfied exactly, the engine either warns and tells you which property it sacrificed, or drops the affected artifact rather than shipping a wrong one. This page collects every such refusal, with the arithmetic that triggers it and the exact message you will see, so you can search this page by the warning text itself.</p>
+<p>The companion page is <a href="https://github.com/rasinmuhammed/misata/blob/main/LIMITATIONS.md">LIMITATIONS.md</a> in the repository: that file states what the engine cannot do; this one explains the messages it gives you when a specific run hits one of those walls.</p>
+<h2 id="rate-targets-and-integer-rounding">Rate targets and integer rounding</h2>
+<p>A rate over n rows can only be a multiple of 1/n. A declared 2% fraud rate over 4,824 rows is unreachable: 96 flagged rows gives 1.99%, 97 gives 2.01%.</p>
+<p>What happens: plain generation flags the closest achievable count and moves on. An evalpack, whose questions must verify exactly, drops the question instead of shipping a wrong answer. The drop is recorded in <code>manifest.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&quot;drop_reason&quot;: &quot;verification_mismatch&quot;
 </code></pre></div>
-<h2 id="what-misata-generates">What Misata generates</h2>
-<p>Four tables: <code>sellers</code>, <code>buyers</code>, <code>listings</code> (linked to sellers), and <code>orders</code> (linked to buyers and listings). Order completion rate is ~85% by default.</p>
-<h3 id="tables-and-columns">Tables and columns</h3>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">Table</th>
-<th style="text-align: left;">Key columns</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><code>sellers</code></td>
-<td style="text-align: left;"><code>seller_id</code>, <code>name</code>, <code>email</code>, <code>rating</code>, <code>total_sales</code>, <code>joined_at</code>, <code>country</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>buyers</code></td>
-<td style="text-align: left;"><code>buyer_id</code>, <code>name</code>, <code>email</code>, <code>total_spent</code>, <code>joined_at</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>listings</code></td>
-<td style="text-align: left;"><code>listing_id</code>, <code>seller_id</code>, <code>title</code>, <code>category</code>, <code>price</code>, <code>status</code>, <code>created_at</code></td>
-</tr>
-<tr>
-<td style="text-align: left;"><code>orders</code></td>
-<td style="text-align: left;"><code>order_id</code>, <code>buyer_id</code>, <code>listing_id</code>, <code>amount</code>, <code>status</code>, <code>created_at</code>, <code>completed_at</code></td>
-</tr>
-</tbody>
-</table>
-<h3 id="realistic-distributions">Realistic distributions</h3>
+<p>If you need the rate to be a round number, choose row counts that divide it: 2% of 5,000 is exactly 100 rows.</p>
+<h2 id="declared-bounds-versus-aggregate-targets">Declared bounds versus aggregate targets</h2>
+<p>A period target T over n rows with per-row bounds [lo, hi] is feasible only when:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>lo * n &lt;= T &lt;= hi * n
+</code></pre></div>
+<p>When the declaration violates this, the aggregate target wins and rows leave their bounds, loudly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>UserWarning: Outcome curve on &#39;orders.amount&#39; pushed values past the
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>column&#39;s declared bounds: 92 row(s) above declared max=100. The curve takes
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>precedence over the declared min/max. Widen the bounds or soften the curve
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>to avoid this.
+</code></pre></div>
+<p>The fix is in the message: widen the bounds or soften the curve. The conformance preview (<code>misata preview</code>) surfaces these conflicts before any rows are generated.</p>
+<h2 id="row-count-clamps-prop-3-saturation">Row-count clamps (Prop. 3 saturation)</h2>
+<p>When a period target needs more rows than <code>max_transactions_per_period</code> allows, the engine keeps the sum exact by inflating per-row values. Every aggregate check still passes while the row-level distribution shifts, so the warning is the only signal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Period &#39;2024-03&#39;: target=250,000.00 requires ≈2500 rows but
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>max_transactions_per_period=1000 — per-row values will be inflated
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>(Prop. 3 upper clamp). Raise max_transactions_per_period to avoid distortion.
+</code></pre></div>
+<p>The mirror case (target too small for <code>min_transactions_per_period</code>) deflates per-row values with the matching "Prop. 3 lower clamp" message.</p>
+<h2 id="evalpack-question-gates">Evalpack question gates</h2>
+<p>Every question in an evalpack is re-executed against the shipped CSV files with DuckDB before shipping. Anything inexact is dropped and logged, never shipped. The two drop reasons in <code>manifest.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>&quot;drop_reason&quot;: &quot;verification_mismatch&quot;   the answer did not reproduce exactly
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>&quot;drop_reason&quot;: &quot;sql_error: ...&quot;          the gold SQL failed to execute
+</code></pre></div>
+<p>A pack that ships 35 questions may have had 40 candidates. The dropped five are the honest ones.</p>
+<h2 id="group-shares-and-small-buckets">Group shares and small buckets</h2>
+<p>A <code>group_shares</code> declaration places at least one row in every positive-share group, so a curve period with fewer rows than groups cannot host the split:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>UserWarning: group_shares on orders: bucket with 2 rows cannot host
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>4 groups; skipping (infeasible)
+</code></pre></div>
+<p>The bucket keeps its generated values: the period total still holds, the shares inside that one period do not. Shares that do not sum to 1 are normalised, with a warning:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>UserWarning: group_shares on orders.revenue: shares sum to 0.970,
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>normalising to 1
+</code></pre></div>
+<h2 id="reversed-and-degenerate-date-ranges">Reversed and degenerate date ranges</h2>
+<p>A single-date range (start equals end) means "within that day" and generates normally. A reversed range is swapped rather than crashed on, and tells you:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>UserWarning: date range start 2025-06-30 is after end 2025-01-01; swapping
+</code></pre></div>
+<p>If you meant the reversed order, the warning is your cue that the schema says otherwise.</p>
+<h2 id="capsule-price-bands-and-contradictory-declarations">Capsule price bands and contradictory declarations</h2>
+<p>A capsule price band ("Laptops": 400 to 3500) draws every price inside the band of its row's category. Two precedence rules can make it stand down, silently by design:</p>
 <ul>
-<li><strong>Seller volume</strong> follows a power-law, top 10% of sellers account for ~60% of total_sales</li>
-<li><strong>Seller ratings</strong> beta-distributed (skewed toward 4–5 stars), matching real platform rating inflation</li>
-<li><strong>Listing prices</strong> lognormal, affordable commodities plus premium service listings</li>
-<li><strong>Order completion rate</strong> ~85%, remaining 15% in pending, disputed, or cancelled states</li>
-<li><strong><code>completed_at</code></strong> is always after <code>created_at</code> for completed orders</li>
+<li>An explicit user distribution (<code>mean</code>, <code>std</code>, <code>mu</code>, <code>sigma</code>) on the price column ignores the band entirely. Your shape, your numbers.</li>
+<li>Declared <code>min</code>/<code>max</code> intersect the band. When the intersection is empty (declared max 300 against a 400 to 3500 band), the declaration wins outright and the band does not apply.</li>
 </ul>
-<h2 id="quick-start">Quick start</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A freelance marketplace with 500 sellers and 2000 buyers&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Power-law seller distribution</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">total_sales</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;sellers&quot;</span><span class="p">][</span><span class="s2">&quot;total_sales&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">top10_pct</span> <span class="o">=</span> <span class="n">total_sales</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">total_sales</span><span class="p">)</span> <span class="o">//</span> <span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">total_sales</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Top 10% sellers: </span><span class="si">{</span><span class="n">top10_pct</span><span class="si">:</span><span class="s2">.0%</span><span class="si">}</span><span class="s2"> of total sales&quot;</span><span class="p">)</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Order completion rate</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;orders&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-</code></pre></div>
-<h2 id="common-use-cases">Common use cases</h2>
-<ul>
-<li><strong>Marketplace trust and safety</strong>: generate seller profiles with varied rating histories for testing fraud detection and account suspension workflows</li>
-<li><strong>Search ranking model training</strong>: use <code>listings</code> with price, category, and seller rating features to train relevance ranking models</li>
-<li><strong>Commission and fee calculation testing</strong>: validate fee structures against thousands of orders with varied amounts and statuses</li>
-<li><strong>Seller analytics dashboard development</strong>: build GMV, conversion rate, and listing performance reports on realistic power-law distributed seller data</li>
-<li><strong>Buyer recommendation systems</strong>: use <code>orders</code> history to prototype collaborative filtering before real purchase data exists</li>
-<li><strong>Dispute resolution workflow testing</strong>: generate orders in all status states including disputed for testing escalation logic</li>
-</ul>
-<h2 id="advanced-gmv-narrative-curves">Advanced: GMV narrative curves</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;Marketplace with 1k sellers — Black Friday GMV spike, slow January, growing through the year&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">)</span>
-</code></pre></div>
-<h2 id="advanced-locale-aware-generation">Advanced: locale-aware generation</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Latin American marketplace — BRL/MXN pricing, regional product categories</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Brazilian ecommerce marketplace with 500 sellers&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">)</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Southeast Asian gig marketplace — SGD pricing, regional skills</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;Freelance platform in Southeast Asia with 300 sellers&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
-</code></pre></div>
-<h2 id="advanced-quality-guaranteed-generation">Advanced: quality-guaranteed generation</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="s2">&quot;Freelance marketplace with 500 sellers&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">min_quality_score</span><span class="o">=</span><span class="mi">85</span><span class="p">,</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">smart_correlations</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
-</code></pre></div>
-<h2 id="related-guides">Related guides</h2>
-<ul>
-<li><a href="../../guides/multi-table-synthetic-data/">Multi-table Synthetic Data</a></li>
-<li><a href="../../guides/narrative-patterns/">Narrative Patterns</a></li>
-<li><a href="../../guides/database-seeding-python/">Database Seeding in Python</a></li>
-<li><a href="../../guides/faker-vs-sdv-vs-misata/">Faker vs SDV vs Misata</a></li>
-</ul>
+<p>There is one loud backstop: <code>story_audit</code> re-checks the bands on the output, so a price outside its category's band always surfaces as a <code>price_band_violation</code> finding in the coherence report, whichever rule produced it.</p>
+<h2 id="the-general-principle">The general principle</h2>
+<p>Each of these behaviours follows one rule: an exact declaration is either satisfied exactly or refused visibly. Nothing in the engine silently produces "close enough" while claiming exactness. When you see one of these warnings, the declaration and the data genuinely disagree, and the message names which one gave way.</p>
 
 
 
 
 
 
-
-  
-  
 
 
 
@@ -2938,10 +2854,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
