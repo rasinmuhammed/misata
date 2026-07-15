@@ -5,6 +5,32 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5.1] - 2026-07-15
+
+### Added
+
+- **Waterfall identities: the MRR waterfall becomes a declaration.** The new
+  `waterfalls` schema field (and `__waterfalls__` dict envelope) declares a
+  movements table by its balances: a starting value and the ending value of
+  every period. Generation emits new/expansion/contraction/churn rows whose
+  signed sum per period equals the declared delta to the cent, so the running
+  balance recomputed from the raw rows lands on every declared ending value,
+  including declared decline months (gross outflow rises to cover the drop
+  while both sides stay positive). Gross inflow and outflow each split across
+  their movement types by declared shares, reusing the exact-group-shares
+  arithmetic, and a table with fewer rows than period-type cells is skipped
+  with a warning rather than partially applied.
+- **Evalpacks gain running-balance questions.** Per period: the net movement
+  (signed sum), each movement type's total, and the ending balance as a
+  running total over `period <= label` (emitted only when the labels sort
+  lexicographically, as ISO labels do). All answers come from the declaration
+  through the same helper the generator uses; a 12-month schema ships 70
+  questions, every one re-verified by DuckDB before shipping.
+- **`story_audit` reconciles waterfalls.** A `waterfall_mismatch` detector
+  (severity high) recomputes the running balance from the rows against the
+  declared ending values. Validated two-sided: silent on honest output, loud
+  when a single movement is inflated.
+
 ## [0.8.5] - 2026-07-14
 
 ### Added

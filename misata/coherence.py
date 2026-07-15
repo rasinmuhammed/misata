@@ -678,6 +678,45 @@ def _detect_group_share_mismatch(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _detect_waterfall_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """A declared waterfall must reconcile in the data: every period's net
+    movement equals the declared delta and the running balance hits every
+    declared ending value. Targets come from the same helper the generator
+    uses, so audit and generator cannot disagree."""
+    out: List[CoherenceFinding] = []
+    try:
+        from misata.waterfall import declared_movements
+    except Exception:
+        return out
+    for spec in getattr(schema, "waterfalls", None) or []:
+        df = tables.get(spec.table)
+        plan = declared_movements(spec) if df is not None else []
+        needed = {spec.period_column, spec.type_column, spec.amount_column}
+        if not plan or df is None or not needed.issubset(df.columns):
+            continue
+        amounts = pd.to_numeric(df[spec.amount_column], errors="coerce").fillna(0)
+        periods = df[spec.period_column].astype(str)
+        types = df[spec.type_column].astype(str)
+        inflow_labels = {l for _, _, ins, _ in plan for l in ins}
+        signed = amounts.where(types.isin(inflow_labels), -amounts)
+        bad_periods = 0
+        running = round(float(spec.starting_value), 2)
+        for period, end, _ins, _outs in plan:
+            net = round(float(signed[periods == period].sum()), 2)
+            running = round(running + net, 2)
+            if abs(running - end) > 0.01:
+                bad_periods += 1
+        if bad_periods:
+            out.append(CoherenceFinding(
+                kind="waterfall_mismatch", severity="high",
+                table=spec.table, column=spec.amount_column,
+                message=(f"running balance misses the declared ending value "
+                         f"in {bad_periods} period(s)"),
+                rows_affected=bad_periods,
+            ))
+    return out
+
+
 def _audit_capsule(schema):
     """Rebuild the capsule the generator would attach, for audit use.
 
@@ -936,6 +975,7 @@ def coherence_audit(
         report.findings.extend(_detect_cross_table_causality(tables, schema))
         report.findings.extend(_detect_rollup_mismatch(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
+        report.findings.extend(_detect_waterfall_mismatch(tables, schema))
         report.findings.extend(_detect_price_band_violation(tables, schema))
     for name, df in tables.items():
         if not isinstance(df, pd.DataFrame) or df.empty:

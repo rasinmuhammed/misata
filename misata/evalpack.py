@@ -503,6 +503,113 @@ def _ledger_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuestion
     return questions
 
 
+def _waterfall_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuestion]:
+    """Running-balance questions from ``waterfalls`` declarations.
+
+    Fully answer-key-first: the per-period net movements and ending balances
+    come from the declaration (via the same ``declared_movements`` helper the
+    generator uses), never from measuring the data. Running-balance questions
+    are emitted only when the period labels sort lexicographically in
+    declaration order (true for ISO labels like 2025-01), because their gold
+    SQL filters with ``period <= label``."""
+    from misata.waterfall import declared_movements
+
+    questions: List[EvalQuestion] = []
+    for spec in getattr(schema, "waterfalls", []) or []:
+        plan = declared_movements(spec)
+        if not plan:
+            continue
+        tbl = _quote_ident(spec.table)
+        p_sql = _quote_ident(spec.period_column)
+        t_sql = _quote_ident(spec.type_column)
+        a_sql = _quote_ident(spec.amount_column)
+        inflow_labels = sorted({l for _, _, ins, _ in plan for l in ins})
+        in_list = ", ".join("'" + l.replace("'", "''") + "'" for l in inflow_labels)
+        signed = (f"SUM(CASE WHEN {t_sql} IN ({in_list}) "
+                  f"THEN {a_sql} ELSE -{a_sql} END)")
+        labels = [period for period, _, _, _ in plan]
+        labels_sorted = labels == sorted(labels)
+
+        prev = round(float(spec.starting_value), 2)
+        for period, end, inflows, outflows in plan:
+            lab = "'" + period.replace("'", "''") + "'"
+            delta = round(end - prev, 2)
+            questions.append(
+                EvalQuestion(
+                    id=next_id(),
+                    question=(
+                        f"In the {spec.table} table, treating "
+                        f"{', '.join(inflow_labels)} as inflows and every "
+                        f"other {spec.type_column} as an outflow, what is the "
+                        f"net movement of {spec.amount_column} in period "
+                        f"'{period}'? Give a number rounded to 2 decimal "
+                        f"places (negative for a net decline)."
+                    ),
+                    gold_sql=(
+                        f"SELECT ROUND({signed}, 2) FROM {tbl} "
+                        f"WHERE {p_sql} = {lab}"
+                    ),
+                    expected_answer=delta,
+                    answer_type="number",
+                    round_decimals=2,
+                    tags=["identity", "filtered_aggregation", "single_table"],
+                    source={"kind": "waterfall_net", "table": spec.table,
+                            "period": period},
+                )
+            )
+            for label, total in list(inflows.items()) + list(outflows.items()):
+                t_lab = "'" + label.replace("'", "''") + "'"
+                questions.append(
+                    EvalQuestion(
+                        id=next_id(),
+                        question=(
+                            f"In the {spec.table} table, what is the total "
+                            f"{spec.amount_column} of {spec.type_column} "
+                            f"'{label}' in period '{period}'? Give a number "
+                            f"rounded to 2 decimal places."
+                        ),
+                        gold_sql=(
+                            f"SELECT ROUND(SUM({a_sql}), 2) FROM {tbl} "
+                            f"WHERE {p_sql} = {lab} AND {t_sql} = {t_lab}"
+                        ),
+                        expected_answer=total,
+                        answer_type="number",
+                        round_decimals=2,
+                        tags=["group_by", "filtered_aggregation", "single_table"],
+                        source={"kind": "waterfall_component",
+                                "table": spec.table, "period": period,
+                                "type": label},
+                    )
+                )
+            if labels_sorted:
+                questions.append(
+                    EvalQuestion(
+                        id=next_id(),
+                        question=(
+                            f"The balance before the first period in the "
+                            f"{spec.table} table was "
+                            f"{round(float(spec.starting_value), 2)}. Treating "
+                            f"{', '.join(inflow_labels)} as inflows and every "
+                            f"other {spec.type_column} as an outflow, what is "
+                            f"the balance at the end of period '{period}'? "
+                            f"Give a number rounded to 2 decimal places."
+                        ),
+                        gold_sql=(
+                            f"SELECT ROUND({round(float(spec.starting_value), 2)} "
+                            f"+ {signed}, 2) FROM {tbl} WHERE {p_sql} <= {lab}"
+                        ),
+                        expected_answer=end,
+                        answer_type="number",
+                        round_decimals=2,
+                        tags=["identity", "running_total", "single_table"],
+                        source={"kind": "waterfall_balance",
+                                "table": spec.table, "period": period},
+                    )
+                )
+            prev = end
+    return questions
+
+
 def _group_share_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuestion]:
     """Filtered-aggregation questions from ``group_shares`` declarations.
 
@@ -739,6 +846,7 @@ def build_evalpack(
     candidates.extend(_fk_questions(schema, next_id))
     candidates.extend(_ledger_questions(schema, next_id))
     candidates.extend(_group_share_questions(schema, next_id))
+    candidates.extend(_waterfall_questions(schema, next_id))
 
     # Verify what we ship: DuckDB reads the CSVs from disk, exactly as a
     # downstream consumer would. The generator and the verifier share

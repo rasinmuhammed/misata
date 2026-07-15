@@ -4428,12 +4428,21 @@ class DataSimulator:
         ]
         group_share_tables = {s.table for s in group_share_specs}
 
+        # Waterfall identities rewrite period/type/amount over the whole
+        # movements table, so those tables buffer as well.
+        waterfall_specs = [
+            s for s in (getattr(self.config, "waterfalls", None) or [])
+            if s.table in set(sorted_tables)
+        ]
+        waterfall_tables = {s.table for s in waterfall_specs}
+
         # Identify which tables must be buffered (cascade resolution OR roll-ups)
         cascade_tables: set = set()
         for event in cascade_events:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
-        buffer_tables = cascade_tables | rollup_tables | group_share_tables
+        buffer_tables = (cascade_tables | rollup_tables | group_share_tables
+                         | waterfall_tables)
 
         buffered: Dict[str, pd.DataFrame] = {}
         streamed: list = []   # tables already yielded (order record for phase 3)
@@ -4470,6 +4479,19 @@ class DataSimulator:
                         warnings.warn(
                             f"group_shares on {spec.table}.{spec.measure} "
                             "could not be applied; leaving the table as generated"
+                        )
+        if waterfall_specs:
+            from misata.waterfall import apply_waterfall
+            for spec in waterfall_specs:
+                if spec.table in buffered:
+                    try:
+                        buffered[spec.table] = apply_waterfall(
+                            buffered[spec.table], spec, self.rng
+                        )
+                    except Exception:
+                        warnings.warn(
+                            f"waterfall on {spec.table} could not be applied; "
+                            "leaving the table as generated"
                         )
         if rollup_specs:
             try:

@@ -371,6 +371,43 @@ class GroupShares(BaseModel):
     description: Optional[str] = None
 
 
+class WaterfallIdentity(BaseModel):
+    """Declare a movements table whose rows reconcile to per-period balances.
+
+    "MRR starts at 100k, ends January at 112k, February at 118k" becomes rows
+    of new/expansion/contraction/churn whose signed sum per period equals the
+    period's declared delta exactly, so the running balance recomputed from
+    the raw rows hits every declared ending value.
+
+    Attributes:
+        table: Movements table the identity applies to.
+        period_column: Column carrying the period label (e.g. "2025-01").
+        type_column: Column carrying the movement type.
+        amount_column: Numeric column carrying the (positive) movement amount.
+        starting_value: Balance before the first declared period.
+        points: Ordered per-period declarations:
+            ``[{"period": "2025-01", "ending_value": 112000.0}, ...]``.
+        inflow_shares: How gross inflow splits across inflow types.
+        outflow_shares: How gross outflow splits across outflow types.
+        outflow_rate: Gross outflow per period as a fraction of the previous
+            balance (real books always churn something, even in a growth
+            month). Raised automatically when a declared decline needs more.
+    """
+
+    table: str
+    period_column: str = "period"
+    type_column: str = "movement_type"
+    amount_column: str = "amount"
+    starting_value: float
+    points: List[Dict[str, Any]]
+    inflow_shares: Dict[str, float] = Field(
+        default_factory=lambda: {"new": 0.65, "expansion": 0.35})
+    outflow_shares: Dict[str, float] = Field(
+        default_factory=lambda: {"churn": 0.7, "contraction": 0.3})
+    outflow_rate: float = 0.03
+    description: Optional[str] = None
+
+
 class NoiseConfig(BaseModel):
     """
     Configuration for optional realism noise injection.
@@ -466,6 +503,7 @@ class SchemaConfig(BaseModel):
     outcome_curves: List[OutcomeCurve] = Field(default_factory=list)
     rate_curves: List[RateCurve] = Field(default_factory=list)
     group_shares: List[GroupShares] = Field(default_factory=list)
+    waterfalls: List[WaterfallIdentity] = Field(default_factory=list)
     noise_config: Optional[NoiseConfig] = None
     realism: Optional[RealismConfig] = None
     seed: Optional[int] = None

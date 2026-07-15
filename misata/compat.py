@@ -43,6 +43,7 @@ from misata.schema import (
     Column,
     Constraint,
     GroupShares,
+    WaterfallIdentity,
     NoiseConfig,
     OutcomeCurve,
     RateCurve,
@@ -480,6 +481,7 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
     for env_key, dunder in (("outcome_curves", "__outcome_curves__"),
                             ("rate_curves", "__rate_curves__"),
                             ("group_shares", "__group_shares__"),
+                            ("waterfalls", "__waterfalls__"),
                             ("noise", "__noise__"),
                             ("vocabulary", "__vocabulary__"),
                             ("vocabularies", "__vocabulary__")):
@@ -623,6 +625,12 @@ def from_dict_schema(
             group_shares.append(GroupShares(**share_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __group_shares__[{i}]: {e}")
+    waterfalls: List[WaterfallIdentity] = []
+    for i, wf_def in enumerate(schemas.get("__waterfalls__") or []):
+        try:
+            waterfalls.append(WaterfallIdentity(**wf_def))
+        except Exception as e:
+            warnings.warn(f"Skipping invalid __waterfalls__[{i}]: {e}")
 
     # __noise__ injects declared data-quality defects (nulls, outliers, typos,
     # duplicates) at a known rate — so a data-cleaning / DQ pipeline can be
@@ -821,6 +829,7 @@ def from_dict_schema(
         outcome_curves=outcome_curves,
         rate_curves=rate_curves,
         group_shares=group_shares,
+        waterfalls=waterfalls,
         noise_config=noise_config,
         seed=seed,
         domain=domain,

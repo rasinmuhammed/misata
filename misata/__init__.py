@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.5"
+__version__ = "0.8.5.1"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -555,6 +555,7 @@ from misata.schema import (
     Constraint,
     NoiseConfig,
     GroupShares,
+    WaterfallIdentity,
     OutcomeCurve,
     RateCurve,
     RealismConfig,
@@ -718,6 +719,7 @@ __all__ = [
     "Constraint",
     "NoiseConfig",
     "GroupShares",
+    "WaterfallIdentity",
     "OutcomeCurve",
     "RateCurve",
     "RealismConfig",
