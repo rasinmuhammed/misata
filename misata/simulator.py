@@ -4123,7 +4123,9 @@ class DataSimulator:
             self.rng.lognormal(np.log(6 * 3600), 1.1, size=len(df)), 30 * 86400
         ).astype("int64")
         epsilon = pd.to_timedelta(eps_secs, unit="s")
+        one_sec = pd.Timedelta(seconds=1)
         total_shift = pd.Series(pd.Timedelta(0), index=df.index)
+        strict_shift = pd.Series(pd.Timedelta(0), index=df.index)
 
         for rel in rels:
             parent_df = self.context.get(rel.parent_table)
@@ -4142,11 +4144,43 @@ class DataSimulator:
             deficit = (required - (child_min + total_shift))
             deficit = deficit.where(deficit > pd.Timedelta(0), pd.Timedelta(0))
             total_shift = total_shift + deficit.fillna(pd.Timedelta(0))
+            # The hard causality floor: one second after the parent's birth.
+            strict = (mapped + one_sec) - (child_min + strict_shift)
+            strict = strict.where(strict > pd.Timedelta(0), pd.Timedelta(0))
+            strict_shift = strict_shift + strict.fillna(pd.Timedelta(0))
 
         if (total_shift > pd.Timedelta(0)).any():
             total_shift = total_shift.dt.ceil("s")   # never leak sub-second noise
+            strict_shift = strict_shift.dt.ceil("s")
+            # The comfortable shift must not push any column past its declared
+            # end: cap each row's shift at the tightest remaining headroom
+            # across its shifted columns. When even the hard causality floor
+            # exceeds the headroom (parent born at the window's edge),
+            # causality wins over the bound, loudly.
+            cap = pd.Series(pd.Timedelta.max, index=df.index)
             for c in child_dt:
-                df[c] = df[c] + total_shift
+                declared_end = col_params.get(c, {}).get("end")
+                if declared_end is None:
+                    continue
+                try:
+                    end_ts = pd.Timestamp(declared_end)
+                except (TypeError, ValueError):
+                    continue
+                if end_ts.normalize() == end_ts:
+                    end_ts = end_ts + pd.Timedelta(days=1) - one_sec  # within that day
+                cap = np.minimum(cap, (end_ts - df[c]).dt.floor("s"))
+            capped = np.minimum(total_shift, cap.where(cap > pd.Timedelta(0), pd.Timedelta(0)))
+            final_shift = np.maximum(capped, strict_shift)
+            overruns = int((final_shift > cap).sum())
+            if overruns:
+                warnings.warn(
+                    f"Table '{table_name}': {overruns} row(s) must postdate a "
+                    f"parent born at the edge of the declared date range; "
+                    f"causality takes precedence over the declared max date. "
+                    f"Widen the child's date range to avoid this."
+                )
+            for c in child_dt:
+                df[c] = df[c] + final_shift
         return df
 
     def _fix_denormalized_parent_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:

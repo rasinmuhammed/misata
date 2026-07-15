@@ -5,6 +5,22 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5.2] - 2026-07-15
+
+### Fixed
+
+- **The causality shift now respects the child's declared max date.** A
+  parent born near the edge of a child table's declared date window could
+  push the shifted child past that window (found live: a 2025-06-29 signup
+  produced a 2025-07-01 attempt in a table declared to end 2025-06-30). The
+  shift is now capped at each row's remaining headroom across its shifted
+  columns while still clearing the hard causality floor (one second after
+  the parent's birth). When even the floor exceeds the headroom, causality
+  wins over the bound and a warning says so, matching the engine's
+  declaration-precedence rules. Both properties verified together on the
+  dataset that exposed the bug: zero rows past the declared end, zero
+  children at or before their parent's birth.
+
 ## [0.8.5.1] - 2026-07-15
 
 ### Added

@@ -413,6 +413,43 @@ class TestCrossTableCausality:
         assert (pd.to_datetime(o["order_date"])
                 <= pd.to_datetime(o["shipped_date"])).all()
 
+    def test_causality_shift_respects_declared_max_date(self):
+        """Regression: a parent born near the child's window edge used to
+        push the shifted child past its declared max date (found live: a
+        2025-06-29 signup produced a 2025-07-01 attempt in a table declared
+        to end 2025-06-30). Both must hold: child postdates parent AND stays
+        inside its declared range."""
+        schema = SchemaConfig(
+            name="edge", seed=42,
+            tables=[Table(name="students", row_count=300),
+                    Table(name="attempts", row_count=6000)],
+            columns={
+                "students": [
+                    Column(name="student_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 99999}),
+                    # Signups run right up to the attempts window's edge.
+                    Column(name="signup_date", type="datetime",
+                           distribution_params={"start": "2024-01-01",
+                                                "end": "2025-06-30"})],
+                "attempts": [
+                    Column(name="attempt_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 999999}),
+                    Column(name="student_id", type="foreign_key"),
+                    Column(name="attempted_at", type="datetime",
+                           distribution_params={"start": "2025-01-01",
+                                                "end": "2025-06-30"})],
+            },
+            relationships=[
+                Relationship(parent_table="students", child_table="attempts",
+                             parent_key="student_id", child_key="student_id")],
+        )
+        tables = misata.generate_from_schema(schema)
+        m = tables["attempts"].merge(tables["students"], on="student_id")
+        at = pd.to_datetime(m["attempted_at"])
+        assert (at > pd.to_datetime(m["signup_date"])).all()
+        # "end": a bare date means within that day.
+        assert at.max() < pd.Timestamp("2025-07-01")
+
 
 class TestCrossTableValueCoherence:
     """A multi-table story must reconcile across joins: a line item's price is
