@@ -4,7 +4,10 @@
   "title": "Misata Schema",
   "description": "Declarative synthetic-data schema. Run `misata generate` to produce data from this file. https://github.com/rasinmuhammed/misata",
   "type": "object",
-  "required": ["name", "tables"],
+  "required": [
+    "name",
+    "tables"
+  ],
   "additionalProperties": false,
   "properties": {
     "name": {
@@ -58,32 +61,44 @@
       "type": "object",
       "description": "Tables to generate, keyed by table name.",
       "minProperties": 1,
-      "additionalProperties": { "$ref": "#/$defs/table" }
+      "additionalProperties": {
+        "$ref": "#/$defs/table"
+      }
     },
     "relationships": {
       "type": "array",
       "description": "Foreign-key relationships between tables.",
-      "items": { "$ref": "#/$defs/relationship" }
+      "items": {
+        "$ref": "#/$defs/relationship"
+      }
     },
     "constraints": {
       "type": "array",
       "description": "Business-rule constraints enforced at generation time.",
-      "items": { "$ref": "#/$defs/constraint" }
+      "items": {
+        "$ref": "#/$defs/constraint"
+      }
     },
     "events": {
       "type": "array",
       "description": "Scenario events that modify data conditionally (e.g. a Q3 revenue dip).",
-      "items": { "$ref": "#/$defs/event" }
+      "items": {
+        "$ref": "#/$defs/event"
+      }
     },
     "outcome_curves": {
       "type": "array",
       "description": "Aggregate target curves (e.g. monthly MRR shape) the generator must hit.",
-      "items": { "$ref": "#/$defs/outcome_curve" }
+      "items": {
+        "$ref": "#/$defs/outcome_curve"
+      }
     },
     "rate_curves": {
       "type": "array",
       "description": "Per-period rate constraints for boolean/categorical columns (e.g. fraud rate rising from 2% to 6%).",
-      "items": { "$ref": "#/$defs/rate_curve" }
+      "items": {
+        "$ref": "#/$defs/rate_curve"
+      }
     },
     "noise": {
       "$ref": "#/$defs/noise_config",
@@ -92,12 +107,143 @@
     "realism": {
       "$ref": "#/$defs/realism_config",
       "description": "Advanced realism planning and reporting options."
+    },
+    "group_shares": {
+      "type": "array",
+      "description": "Exact shares of a measure across a categorical column ('Electronics is 40% of revenue'). Paired with an outcome curve on the same table and measure, the shares hold exactly inside every declared period; otherwise over the table total.",
+      "items": {
+        "type": "object",
+        "required": [
+          "table",
+          "measure",
+          "group_column",
+          "shares"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "measure": {
+            "type": "string",
+            "description": "Numeric column whose total is split."
+          },
+          "group_column": {
+            "type": "string",
+            "description": "Categorical column defining the groups."
+          },
+          "shares": {
+            "type": "object",
+            "description": "Label to fraction; fractions should sum to 1 (normalised with a warning otherwise).",
+            "additionalProperties": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "waterfalls": {
+      "type": "array",
+      "description": "Movement tables that reconcile to declared per-period balances (the MRR waterfall). The running balance recomputed from the generated rows lands on every declared ending value exactly.",
+      "items": {
+        "type": "object",
+        "required": [
+          "table",
+          "starting_value",
+          "points"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "period_column": {
+            "type": "string",
+            "default": "period"
+          },
+          "type_column": {
+            "type": "string",
+            "default": "movement_type"
+          },
+          "amount_column": {
+            "type": "string",
+            "default": "amount"
+          },
+          "starting_value": {
+            "type": "number",
+            "description": "Balance before the first declared period."
+          },
+          "points": {
+            "type": "array",
+            "description": "Ordered per-period declarations.",
+            "items": {
+              "type": "object",
+              "required": [
+                "period",
+                "ending_value"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "period": {
+                  "type": "string",
+                  "description": "Period label, e.g. 2025-01."
+                },
+                "ending_value": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "inflow_shares": {
+            "type": "object",
+            "description": "How gross inflow splits across inflow movement types.",
+            "additionalProperties": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "outflow_shares": {
+            "type": "object",
+            "description": "How gross outflow splits across outflow movement types.",
+            "additionalProperties": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "outflow_rate": {
+            "type": "number",
+            "default": 0.03,
+            "minimum": 0,
+            "description": "Gross outflow per period as a fraction of the previous balance; raised automatically to cover a declared decline."
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "vocabularies": {
+      "type": "object",
+      "description": "Column name to a list of real domain values; spent once at design time so generation stays offline and deterministic.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
     }
   },
   "$defs": {
     "table": {
       "type": "object",
-      "required": ["columns"],
+      "required": [
+        "columns"
+      ],
       "additionalProperties": false,
       "properties": {
         "rows": {
@@ -116,24 +262,40 @@
         "inline_data": {
           "type": "array",
           "description": "Inline rows for reference tables (each item is an object).",
-          "items": { "type": "object" }
+          "items": {
+            "type": "object"
+          }
         },
         "columns": {
           "type": "object",
           "description": "Column definitions, keyed by column name.",
           "minProperties": 1,
-          "additionalProperties": { "$ref": "#/$defs/column" }
+          "additionalProperties": {
+            "$ref": "#/$defs/column"
+          }
         },
         "correlations": {
           "type": "array",
           "description": "Pairwise Pearson correlations to enforce between numeric columns.",
           "items": {
             "type": "object",
-            "required": ["col_a", "col_b", "r"],
+            "required": [
+              "col_a",
+              "col_b",
+              "r"
+            ],
             "properties": {
-              "col_a": { "type": "string" },
-              "col_b": { "type": "string" },
-              "r": { "type": "number", "minimum": -1, "maximum": 1 }
+              "col_a": {
+                "type": "string"
+              },
+              "col_b": {
+                "type": "string"
+              },
+              "r": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              }
             }
           }
         }
@@ -141,7 +303,9 @@
     },
     "column": {
       "type": "object",
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "properties": {
         "type": {
           "type": "string",
@@ -209,30 +373,66 @@
             "categorical"
           ]
         },
-        "mean": { "type": "number", "description": "Mean for normal distribution." },
-        "std": { "type": "number", "description": "Standard deviation for normal distribution." },
-        "mu": { "type": "number", "description": "Log-mean for lognormal distribution." },
-        "sigma": { "type": "number", "description": "Log-std for lognormal distribution." },
-        "scale": { "type": "number", "description": "Scale parameter (exponential, pareto)." },
-        "alpha": { "type": "number", "description": "Alpha parameter (power_law/pareto)." },
-        "a": { "type": "number", "description": "Beta distribution alpha parameter." },
-        "b": { "type": "number", "description": "Beta distribution beta parameter." },
+        "mean": {
+          "type": "number",
+          "description": "Mean for normal distribution."
+        },
+        "std": {
+          "type": "number",
+          "description": "Standard deviation for normal distribution."
+        },
+        "mu": {
+          "type": "number",
+          "description": "Log-mean for lognormal distribution."
+        },
+        "sigma": {
+          "type": "number",
+          "description": "Log-std for lognormal distribution."
+        },
+        "scale": {
+          "type": "number",
+          "description": "Scale parameter (exponential, pareto)."
+        },
+        "alpha": {
+          "type": "number",
+          "description": "Alpha parameter (power_law/pareto)."
+        },
+        "a": {
+          "type": "number",
+          "description": "Beta distribution alpha parameter."
+        },
+        "b": {
+          "type": "number",
+          "description": "Beta distribution beta parameter."
+        },
         "choices": {
           "type": "array",
           "description": "Categorical values to sample from.",
           "items": {
-            "type": ["string", "number", "boolean", "null"]
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         },
         "probabilities": {
           "type": "array",
           "description": "Sampling weights for `choices`. Must sum to 1.0 (±0.02). Length must match `choices`.",
-          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
         },
         "sampling": {
           "type": "string",
           "description": "Sampling strategy when probabilities are not given.",
-          "enum": ["uniform", "zipf"]
+          "enum": [
+            "uniform",
+            "zipf"
+          ]
         },
         "text_type": {
           "type": "string",
@@ -300,7 +500,9 @@
         "max_date": {
           "type": "string",
           "description": "Cap for after_column dates. Use 'today' to clamp at the current date.",
-          "enum": ["today"]
+          "enum": [
+            "today"
+          ]
         },
         "relative_to": {
           "type": "string",
@@ -326,7 +528,10 @@
         "null_if": {
           "type": "object",
           "description": "Conditional NULL: set this column to NULL when a sibling matches.",
-          "required": ["column", "values"],
+          "required": [
+            "column",
+            "values"
+          ],
           "properties": {
             "column": {
               "type": "string",
@@ -358,23 +563,44 @@
         },
         {
           "type": "object",
-          "required": ["parent", "child"],
+          "required": [
+            "parent",
+            "child"
+          ],
           "additionalProperties": false,
           "properties": {
-            "parent": { "type": "string" },
-            "child": { "type": "string" },
-            "parent_col": { "type": "string", "description": "Defaults to 'id'." },
-            "child_col": { "type": "string", "description": "Defaults to '<parent>_id'." },
-            "temporal": { "type": "boolean", "description": "Force child events after parent events." }
+            "parent": {
+              "type": "string"
+            },
+            "child": {
+              "type": "string"
+            },
+            "parent_col": {
+              "type": "string",
+              "description": "Defaults to 'id'."
+            },
+            "child_col": {
+              "type": "string",
+              "description": "Defaults to '<parent>_id'."
+            },
+            "temporal": {
+              "type": "boolean",
+              "description": "Force child events after parent events."
+            }
           }
         }
       ]
     },
     "constraint": {
       "type": "object",
-      "required": ["name", "type"],
+      "required": [
+        "name",
+        "type"
+      ],
       "properties": {
-        "name": { "type": "string" },
+        "name": {
+          "type": "string"
+        },
         "type": {
           "type": "string",
           "enum": [
@@ -386,45 +612,105 @@
             "col_range"
           ]
         },
-        "group_by": { "type": "array", "items": { "type": "string" } },
-        "column": { "type": "string" },
-        "value": { "type": "number" },
+        "group_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "column": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
         "action": {
           "type": "string",
-          "enum": ["cap", "redistribute", "drop", "error"],
+          "enum": [
+            "cap",
+            "redistribute",
+            "drop",
+            "error"
+          ],
           "description": "What to do when the constraint is violated."
         },
-        "column_a": { "type": "string", "description": "LHS for inequality constraints." },
-        "operator": { "type": "string", "enum": [">", ">=", "<", "<="] },
-        "column_b": { "type": "string", "description": "RHS for inequality constraints." },
-        "low_column": { "type": "string", "description": "Lower bound for col_range constraints." },
-        "high_column": { "type": "string", "description": "Upper bound for col_range constraints." }
+        "column_a": {
+          "type": "string",
+          "description": "LHS for inequality constraints."
+        },
+        "operator": {
+          "type": "string",
+          "enum": [
+            ">",
+            ">=",
+            "<",
+            "<="
+          ]
+        },
+        "column_b": {
+          "type": "string",
+          "description": "RHS for inequality constraints."
+        },
+        "low_column": {
+          "type": "string",
+          "description": "Lower bound for col_range constraints."
+        },
+        "high_column": {
+          "type": "string",
+          "description": "Upper bound for col_range constraints."
+        }
       }
     },
     "event": {
       "type": "object",
-      "required": ["name", "table", "column", "condition", "modifier_type", "modifier_value"],
+      "required": [
+        "name",
+        "table",
+        "column",
+        "condition",
+        "modifier_type",
+        "modifier_value"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string" },
-        "table": { "type": "string" },
-        "column": { "type": "string" },
+        "name": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        },
+        "column": {
+          "type": "string"
+        },
         "condition": {
           "type": "string",
           "description": "Pandas query expression evaluated on the DataFrame (e.g. `placed_at >= '2024-11-01'`)."
         },
         "modifier_type": {
           "type": "string",
-          "enum": ["multiply", "add", "set", "function"]
+          "enum": [
+            "multiply",
+            "add",
+            "set",
+            "function"
+          ]
         },
         "modifier_value": {
           "oneOf": [
-            { "type": "number" },
-            { "type": "string" },
-            { "type": "boolean" }
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
           ]
         },
-        "description": { "type": "string" },
+        "description": {
+          "type": "string"
+        },
         "propagate_to": {
           "type": "object",
           "description": "Cascade: child_table -> {column: value} to apply to matched children.",
@@ -437,14 +723,29 @@
     },
     "outcome_curve": {
       "type": "object",
-      "required": ["table", "column", "curve_points"],
+      "required": [
+        "table",
+        "column",
+        "curve_points"
+      ],
       "properties": {
-        "table": { "type": "string" },
-        "column": { "type": "string" },
-        "time_column": { "type": "string", "description": "Date/datetime column to bucket by. Defaults to 'date'." },
+        "table": {
+          "type": "string"
+        },
+        "column": {
+          "type": "string"
+        },
+        "time_column": {
+          "type": "string",
+          "description": "Date/datetime column to bucket by. Defaults to 'date'."
+        },
         "time_unit": {
           "type": "string",
-          "enum": ["day", "week", "month"],
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ],
           "description": "Bucket size. Defaults to 'month'."
         },
         "pattern_type": {
@@ -453,24 +754,51 @@
         },
         "value_mode": {
           "type": "string",
-          "enum": ["auto", "relative", "absolute"]
+          "enum": [
+            "auto",
+            "relative",
+            "absolute"
+          ]
         },
         "intra_period_pattern": {
           "type": "string",
-          "enum": ["uniform", "weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy"]
+          "enum": [
+            "uniform",
+            "weekday_heavy",
+            "weekend_heavy",
+            "start_heavy",
+            "end_heavy"
+          ]
         },
-        "avg_transaction_value": { "type": "number" },
-        "min_transactions_per_period": { "type": "integer", "minimum": 1 },
-        "max_transactions_per_period": { "type": "integer", "minimum": 1 },
-        "concentration": { "type": "number" },
-        "start_date": { "type": "string" },
-        "description": { "type": "string" },
+        "avg_transaction_value": {
+          "type": "number"
+        },
+        "min_transactions_per_period": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_transactions_per_period": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "concentration": {
+          "type": "number"
+        },
+        "start_date": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
         "curve_points": {
           "type": "array",
           "minItems": 2,
           "items": {
             "type": "object",
-            "required": ["period", "value"],
+            "required": [
+              "period",
+              "value"
+            ],
             "properties": {
               "period": {
                 "type": "string",
@@ -491,29 +819,90 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["off", "ml_training", "analytics_safe", "custom"]
+          "enum": [
+            "off",
+            "ml_training",
+            "analytics_safe",
+            "custom"
+          ]
         },
-        "null_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-        "outlier_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-        "typo_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-        "duplicate_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-        "null_columns": { "type": "array", "items": { "type": "string" } },
-        "outlier_columns": { "type": "array", "items": { "type": "string" } },
-        "typo_columns": { "type": "array", "items": { "type": "string" } },
-        "protected_columns": { "type": "array", "items": { "type": "string" } },
-        "exact_duplicates": { "type": "boolean" }
+        "null_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "outlier_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "typo_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "duplicate_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "null_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outlier_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "typo_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "protected_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exact_duplicates": {
+          "type": "boolean"
+        }
       }
     },
     "rate_curve": {
       "type": "object",
-      "required": ["table", "column", "rate_points"],
+      "required": [
+        "table",
+        "column",
+        "rate_points"
+      ],
       "properties": {
-        "table": { "type": "string", "description": "Table containing the column to constrain." },
-        "column": { "type": "string", "description": "Boolean or categorical column to set the rate on." },
-        "time_column": { "type": "string", "description": "Date column used to bucket rows into periods. Defaults to 'date'." },
+        "table": {
+          "type": "string",
+          "description": "Table containing the column to constrain."
+        },
+        "column": {
+          "type": "string",
+          "description": "Boolean or categorical column to set the rate on."
+        },
+        "time_column": {
+          "type": "string",
+          "description": "Date column used to bucket rows into periods. Defaults to 'date'."
+        },
         "time_unit": {
           "type": "string",
-          "enum": ["day", "week", "month", "quarter"],
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "quarter"
+          ],
           "description": "Granularity of each period bucket. Defaults to 'month'."
         },
         "true_value": {
@@ -523,14 +912,19 @@
           "type": "boolean",
           "description": "If true, rates between anchor points are linearly interpolated."
         },
-        "description": { "type": "string" },
+        "description": {
+          "type": "string"
+        },
         "rate_points": {
           "type": "array",
           "description": "List of {period, rate} anchor points.",
           "minItems": 1,
           "items": {
             "type": "object",
-            "required": ["period", "rate"],
+            "required": [
+              "period",
+              "rate"
+            ],
             "properties": {
               "period": {
                 "description": "Period label: 'YYYY-MM', 'all', or a 1-12 integer month index."
@@ -550,27 +944,78 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "row_planning": { "type": "string", "enum": ["off", "heuristic", "custom"] },
-        "row_planning_base_rows": { "type": "integer", "minimum": 1 },
+        "row_planning": {
+          "type": "string",
+          "enum": [
+            "off",
+            "heuristic",
+            "custom"
+          ]
+        },
+        "row_planning_base_rows": {
+          "type": "integer",
+          "minimum": 1
+        },
         "row_count_overrides": {
           "type": "object",
-          "additionalProperties": { "type": "integer", "minimum": 1 }
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
         },
         "relationship_multipliers": {
           "type": "object",
-          "additionalProperties": { "type": "number", "exclusiveMinimum": 0 }
+          "additionalProperties": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
         },
-        "coherence": { "type": "string", "enum": ["off", "standard", "strict"] },
-        "workflow_mode": { "type": "string", "enum": ["off", "preset", "custom"] },
+        "coherence": {
+          "type": "string",
+          "enum": [
+            "off",
+            "standard",
+            "strict"
+          ]
+        },
+        "workflow_mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "preset",
+            "custom"
+          ]
+        },
         "reports": {
           "type": "array",
-          "items": { "type": "string", "enum": ["privacy", "fidelity", "data_card"] }
+          "items": {
+            "type": "string",
+            "enum": [
+              "privacy",
+              "fidelity",
+              "data_card"
+            ]
+          }
         },
-        "text_mode": { "type": "string", "enum": ["default", "realistic_catalog"] },
-        "domain_hint": { "type": "string" },
-        "locale": { "type": "string" },
-        "era": { "type": "string" },
-        "asset_store_dir": { "type": "string" }
+        "text_mode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "realistic_catalog"
+          ]
+        },
+        "domain_hint": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "era": {
+          "type": "string"
+        },
+        "asset_store_dir": {
+          "type": "string"
+        }
       }
     }
   }

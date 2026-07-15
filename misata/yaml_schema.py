@@ -39,12 +39,16 @@ from misata.compat import _TYPE_MAP
 from misata.schema import (
     Column,
     Constraint,
+    GroupShares,
+    NoiseConfig,
     OutcomeCurve,
     RateCurve,
+    RealismConfig,
     Relationship,
     ScenarioEvent,
     SchemaConfig,
     Table,
+    WaterfallIdentity,
 )
 
 
@@ -411,6 +415,30 @@ def load_yaml_schema(
     # Rate curves
     rate_curves = [_parse_rate_curve(c) for c in (raw.get("rate_curves") or [])]
 
+    # Exact group shares ("Electronics is 40% of revenue")
+    group_shares = [GroupShares(**g) for g in (raw.get("group_shares") or [])]
+
+    # Waterfall identities (declared per-period balances)
+    waterfalls = [WaterfallIdentity(**w) for w in (raw.get("waterfalls") or [])]
+
+    # Declared data-quality defects
+    noise_raw = raw.get("noise")
+    noise_config = NoiseConfig(**noise_raw) if noise_raw else None
+
+    # Schema-embedded vocabularies (column name -> real values)
+    vocab_raw = raw.get("vocabularies")
+    vocabularies = (
+        {str(k): [str(v) for v in vals] for k, vals in vocab_raw.items() if vals}
+        if isinstance(vocab_raw, dict) else None
+    ) or None
+
+    # Realism settings (locale, capsule file). The documented top-level
+    # `locale:` shorthand folds into the realism block.
+    realism_raw = dict(raw.get("realism") or {})
+    if raw.get("locale") and "locale" not in realism_raw:
+        realism_raw["locale"] = raw["locale"]
+    realism = RealismConfig(**realism_raw) if realism_raw else None
+
     return SchemaConfig(
         name=name,
         domain=domain,
@@ -420,6 +448,11 @@ def load_yaml_schema(
         events=events,
         outcome_curves=outcome_curves,
         rate_curves=rate_curves,
+        group_shares=group_shares,
+        waterfalls=waterfalls,
+        noise_config=noise_config,
+        vocabularies=vocabularies,
+        realism=realism,
         seed=file_seed,
     )
 
@@ -535,8 +568,65 @@ def save_yaml_schema(
             for rc in schema.rate_curves
         ]
 
+    # Exact group shares
+    if getattr(schema, "group_shares", None):
+        doc["group_shares"] = [
+            {
+                "table": g.table,
+                "measure": g.measure,
+                "group_column": g.group_column,
+                "shares": g.shares,
+                **({"description": g.description} if g.description else {}),
+            }
+            for g in schema.group_shares
+        ]
+
+    # Waterfall identities
+    if getattr(schema, "waterfalls", None):
+        doc["waterfalls"] = [
+            {
+                "table": w.table,
+                **({"period_column": w.period_column}
+                   if w.period_column != "period" else {}),
+                **({"type_column": w.type_column}
+                   if w.type_column != "movement_type" else {}),
+                **({"amount_column": w.amount_column}
+                   if w.amount_column != "amount" else {}),
+                "starting_value": w.starting_value,
+                "points": w.points,
+                "inflow_shares": w.inflow_shares,
+                "outflow_shares": w.outflow_shares,
+                **({"outflow_rate": w.outflow_rate}
+                   if w.outflow_rate != 0.03 else {}),
+                **({"description": w.description} if w.description else {}),
+            }
+            for w in schema.waterfalls
+        ]
+
+    # Declared data-quality defects
+    if getattr(schema, "noise_config", None):
+        doc["noise"] = schema.noise_config.model_dump(exclude_none=True)
+
+    # Schema-embedded vocabularies
+    if getattr(schema, "vocabularies", None):
+        doc["vocabularies"] = schema.vocabularies
+
+    # Realism settings
+    if getattr(schema, "realism", None):
+        realism_doc = schema.realism.model_dump(exclude_none=True)
+        if realism_doc:
+            doc["realism"] = realism_doc
+
+    # The header line gives yaml-language-server users (VS Code and friends)
+    # autocomplete and inline validation against the published JSON Schema.
+    header = (
+        "# yaml-language-server: $schema="
+        "https://raw.githubusercontent.com/rasinmuhammed/misata/"
+        "main/schema/misata.schema.json\n"
+    )
     path.write_text(
-        yaml.dump(doc, allow_unicode=True, default_flow_style=False, sort_keys=False),
+        header + yaml.dump(doc, allow_unicode=True, default_flow_style=False,
+                           sort_keys=False),
         encoding="utf-8",
     )
     return path

@@ -2231,5 +2231,77 @@ def audit_cmd(data_dir: str, schema: Optional[str], strict: bool) -> None:
         sys.exit(1)
 
 
+@main.command("lint")
+@click.argument("schema_file", type=click.Path(exists=True))
+@click.option("--strict", is_flag=True, default=False,
+              help="Exit nonzero on ANY finding, not just errors.")
+@click.option("--rows", type=int, default=1000,
+              help="Default row count for schemas that omit it (default: 1000).")
+def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
+    """Check a schema for infeasible declarations BEFORE generating anything.
+
+    Runs the same feasibility arithmetic generation applies, in milliseconds:
+    aggregate targets versus declared bounds, Prop. 3 row-count clamps,
+    reversed date ranges, unique ranges too small for the row count,
+    relationships pointing nowhere, group shares that cannot fit their
+    buckets, waterfalls with more movements than rows.
+
+    An error means generation will refuse or knowingly violate a declaration;
+    a warning means generation proceeds with a documented sacrifice.
+
+    Examples:
+
+        misata lint misata.yaml
+
+        misata lint schema.json --strict
+    """
+    from misata.lint import lint_schema
+
+    print_banner()
+    try:
+        config_dict = _load_yaml_or_json(schema_file)
+        tables_block = config_dict.get("tables")
+        if isinstance(tables_block, dict):
+            schema_config = load_yaml_schema(schema_file, rows=rows)
+        elif isinstance(tables_block, list):
+            schema_config = SchemaConfig(**config_dict)
+        else:
+            from misata.compat import from_dict_schema
+            schema_config = from_dict_schema(config_dict, row_count=rows)
+    except Exception as e:
+        console.print(f"[red]Schema could not be parsed: {e}[/red]")
+        sys.exit(2)
+
+    findings = lint_schema(schema_config)
+    n_tables = len(schema_config.tables)
+    console.print(f"Linting [cyan]{schema_config.name}[/cyan] "
+                  f"({n_tables} table{'s' if n_tables != 1 else ''})")
+
+    if not findings:
+        console.print("\n[green]\u2713 Lint clean: every declaration is "
+                      "feasible as written.[/green]")
+        sys.exit(0)
+
+    tbl = RichTable(show_header=True, header_style="bold cyan", box=None,
+                    padding=(0, 1))
+    tbl.add_column("Severity", style="bold")
+    tbl.add_column("Where")
+    tbl.add_column("Finding")
+    sev_style = {"error": "red", "warning": "yellow", "info": "dim"}
+    for f in findings:
+        tbl.add_row(f"[{sev_style.get(f.severity, '')}]{f.severity}[/]",
+                    f.where, f.message)
+    console.print()
+    console.print(tbl)
+    counts = {s: sum(1 for f in findings if f.severity == s)
+              for s in ("error", "warning", "info")}
+    console.print("\n" + ", ".join(
+        f"{v} {k}{'s' if v != 1 else ''}" for k, v in counts.items() if v))
+
+    has_error = counts.get("error", 0) > 0
+    if strict or has_error:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()

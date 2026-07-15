@@ -56,6 +56,7 @@ tests/*
 !tests/test_group_shares.py
 !tests/test_price_bands.py
 !tests/test_waterfall.py
+!tests/test_schema_roundtrip_lint.py
 jman_output/
 llm_test/
 ml_demo_output/

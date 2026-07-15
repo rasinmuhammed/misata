@@ -5,6 +5,40 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6] - 2026-07-15
+
+### Added
+
+- **`misata lint`: catch infeasible declarations before generating anything.**
+  The new command runs generation's feasibility arithmetic against the schema
+  alone, in milliseconds: aggregate targets versus declared bounds
+  (lo * n <= target <= hi * n), Prop. 3 row-count clamps, reversed date
+  ranges, unique columns whose range cannot host the row count,
+  relationships pointing at missing tables or keys, group shares that cannot
+  fit their period buckets or do not sum to 1, waterfalls with more
+  period-type movements than rows, and rates outside 0..1. An error means
+  generation would refuse or knowingly violate a declaration; a warning means
+  it would proceed with a documented sacrifice. Exit codes gate CI: nonzero
+  on errors, or on any finding with `--strict`. Accepts misata.yaml, native
+  JSON, and the dict-schema envelope.
+- **Exported schemas now carry the editor header.** `save_yaml_schema` writes
+  a `yaml-language-server: $schema=...` first line, so VS Code (and any
+  editor speaking the YAML language server) gets autocomplete and inline
+  validation against the published JSON Schema for free.
+- **The JSON Schema now covers every declaration.** `group_shares`,
+  `waterfalls`, and `vocabularies` were missing from misata.schema.json, so
+  editors flagged valid files.
+
+### Fixed
+
+- **The YAML round-trip is no longer lossy.** `save_yaml_schema` silently
+  dropped `group_shares`, `waterfalls`, `noise`, `vocabularies`, and
+  `realism`, and `load_yaml_schema` ignored them (plus the documented
+  top-level `locale:` shorthand), so a saved-and-reloaded schema quietly
+  lost its declarations. Every declaration now survives the trip; the suite
+  asserts byte-identical generation across a save/load cycle covering every
+  feature at once.
+
 ## [0.8.5.2] - 2026-07-15
 
 ### Fixed
