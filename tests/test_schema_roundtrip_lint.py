@@ -288,3 +288,14 @@ class TestLintCLI:
         path = tmp_path / "bad.yaml"
         path.write_text("name: [unclosed\ntables: {{{{")
         assert self._run(path).returncode == 2
+
+class TestPublishedSchema:
+    def test_public_schema_copy_matches_source(self):
+        """schema/misata.schema.json is the URL editors fetch (SchemaStore,
+        the yaml-language-server header); it must never drift from the
+        source of truth in misata/_schemas/."""
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        public = (root / "schema" / "misata.schema.json").read_text()
+        source = (root / "misata" / "_schemas" / "misata.schema.json").read_text()
+        assert public == source

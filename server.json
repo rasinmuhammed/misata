@@ -1,21 +1,23 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
   "name": "io.github.rasinmuhammed/misata",
-  "description": "Generate multi-table synthetic data that hits declared revenue curves and fraud rates exactly.",
+  "description": "Generate realistic, referentially-intact multi-table synthetic data from natural language or a schema. Deterministic solver, exact declared aggregates, FK integrity, no real data.",
   "repository": {
     "url": "https://github.com/rasinmuhammed/misata",
     "source": "github"
   },
-  "version": "0.8.1.21",
+  "version": "0.8.7.2",
   "packages": [
     {
-      "registryType": "pypi",
+      "registry_type": "pypi",
       "identifier": "misata",
-      "version": "0.8.1.21",
-      "installInstructions": "pip install \"misata[mcp]\"",
+      "version": "0.8.7.2",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "runtime_hint": "uvx",
+      "package_arguments": [],
+      "environment_variables": []
     }
   ]
 }

@@ -5,6 +5,24 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.2] - 2026-07-16
+
+### Added
+
+- **Registry presence for the MCP server.** The repo now carries
+  `server.json` (official MCP registry manifest) and `glama.json` (Glama
+  auto-indexing), and the README carries the `mcp-name` ownership marker the
+  official registry validates against the PyPI page. The server itself is
+  unchanged: `pip install "misata[mcp]"` and the `misata-mcp` binary.
+
+### Fixed
+
+- **The published editor schema had drifted from the source.** The copy
+  served at `schema/misata.schema.json` (the URL in the yaml-language-server
+  header and the SchemaStore catalog entry) was missing every declaration
+  added since it was created. It is now synced, and a suite test asserts the
+  two files stay byte-identical so the drift cannot recur.
+
 ## [0.8.7.1] - 2026-07-16
 
 ### Added

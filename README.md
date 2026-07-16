@@ -127,6 +127,8 @@ Restart Claude Desktop. Then just ask:
 
 The agent designs whatever tables the request needs (any domain; it isn't limited to Misata's built-ins), calls Misata, writes CSVs to disk, and reports back with previews and the verified integrity summary. See the [MCP guide](docs/guides/mcp.md) for Cursor/Windsurf/Zed setup and all six available tools.
 
+mcp-name: io.github.rasinmuhammed/misata
+
 ---
 
 ## Quick start
