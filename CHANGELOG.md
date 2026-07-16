@@ -5,6 +5,41 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7] - 2026-07-16
+
+### Added
+
+- **Anchored generation: schema edits now produce minimal data diffs.** With
+  `generation_mode: "anchored"`, every generation site draws from an RNG
+  stream derived from its own stable name (seed, table, column, pass) instead
+  of one sequential stream. The consequences, each asserted byte-for-byte in
+  the suite: adding a column leaves every other column identical, adding a
+  table leaves every other table identical, and editing one column's
+  parameters re-rolls only that column plus its true dependents. Edits flow
+  down the dependency graph (a parent's key pool feeds its children), never
+  sideways. The golden dataset can now evolve like code: the schema diff and
+  the data diff have the same shape.
+- **Every exactness guarantee survives anchoring.** Outcome curves, group
+  shares, and waterfall reconciliation hold in anchored mode, and the story
+  audit stays clean; row-count planning is anchored per relationship so a new
+  table cannot shift another child's planned rows. Legacy mode stays the
+  default and byte-stable: the two modes produce different bytes for the same
+  seed, which is why anchored is opt-in. It becomes the default at 0.9.
+- **`generation_mode` round-trips everywhere**: misata.yaml, the JSON Schema
+  (editor autocomplete includes it), and both dict-schema forms.
+
+### Fixed
+
+- **Fact tables now get cross-table coherence.** Tables driven by exact
+  curves returned early and skipped the denormalized-parent and causality
+  fixes, so a fact table with an FK parent could carry hundreds of rows dated
+  before their parent existed (the audit saw them; generation never fixed
+  them). Both fixes now run inside the fact path with a new precedence rule:
+  the causality shift is hard-capped at each row's period-bucket end, because
+  a declared aggregate outranks the realism fix. When a row cannot both
+  postdate its parent and stay in its declared period, the aggregate wins,
+  the row keeps its period, and a warning names the conflict.
+
 ## [0.8.6] - 2026-07-15
 
 ### Added

@@ -318,6 +318,29 @@ class DataSimulator:
             self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
     
+    def _anchor(self, *parts):
+        """Scoped anchored RNG for one generation site (no-op in legacy mode).
+
+        In anchored mode, every engine holding an ``rng`` is swapped to a
+        stream derived from (seed, *parts) for the scope's duration, so the
+        site's randomness depends only on its own stable name. That is what
+        makes schema edits local: adding a column cannot shift any other
+        column's stream. See :mod:`misata.anchor`.
+        """
+        from contextlib import nullcontext
+
+        if getattr(self.config, "generation_mode", "legacy") != "anchored":
+            return nullcontext(self.rng)
+        from misata.anchor import anchored_rng
+        holders = [self, self.fact_engine, self.realistic_text,
+                   self.coherence_engine, self.workflow_engine]
+        return anchored_rng(holders, self.config.seed, *parts)
+
+    def _run_pass(self, pass_name: str, table_name: str, batch_key, fn, *args):
+        """Run one post-generation pass under its own anchored stream."""
+        with self._anchor("pass", pass_name, table_name, batch_key):
+            return fn(*args)
+
     def _capsule_conditional_for_column(self, column_name: str, table_data, size: int):
         """Parent-conditioned capsule values for this column, else None.
 
@@ -2152,6 +2175,12 @@ class DataSimulator:
             df_batch = self.apply_event(df_batch, event)
 
         df_batch = self.apply_constraints(df_batch, table)
+        # Cross-table coherence for fact tables too: denormalized parent
+        # attributes must match, and a child event cannot predate its parent.
+        # The causality shift is bucket-capped above, and rebalance runs
+        # after, so the declared per-period sums survive both fixes.
+        df_batch = self._fix_denormalized_parent_columns(df_batch, table_name)
+        df_batch = self._fix_cross_table_temporal(df_batch, table_name)
         df_batch = self.fact_engine.rebalance(df_batch, plan, column_map)
         df_batch = self.fact_engine.drop_internal_columns(df_batch)
 
@@ -2372,7 +2401,8 @@ class DataSimulator:
 
         exact_curves = self._get_exact_outcome_curves(table_name)
         if exact_curves:
-            fact_df = self._generate_fact_table(table_name, table, columns, exact_curves)
+            with self._anchor("fact", table_name):
+                fact_df = self._generate_fact_table(table_name, table, columns, exact_curves)
             if fact_df is not None:
                 # Gap 3: build temporal density map from the FactGenerationPlan so
                 # child tables can weight FK/date sampling by parent temporal density.
@@ -2385,9 +2415,12 @@ class DataSimulator:
                     df=fact_df,
                 )
                 # Gap 1: enforce RateCurve targets (proportional pass — preserves AME=0).
-                fact_df = self._apply_rate_curves(fact_df, table_name)
+                fact_df = self._run_pass("rate_curves", table_name, 0,
+                                         self._apply_rate_curves, fact_df, table_name)
                 self._update_context(table_name, fact_df)
-                output_df = self._apply_configured_noise(fact_df.copy(), table_name, table)
+                output_df = self._run_pass("noise", table_name, 0,
+                                           self._apply_configured_noise,
+                                           fact_df.copy(), table_name, table)
                 yield output_df
                 return
 
@@ -2410,85 +2443,108 @@ class DataSimulator:
             df_batch = pd.DataFrame()
 
             for column in columns:
-                values = self.generate_column(table_name, column, batch_size, df_batch)
+                with self._anchor("column", table_name, column.name, rows_generated):
+                    values = self.generate_column(table_name, column, batch_size, df_batch)
                 data[column.name] = values
                 df_batch[column.name] = values
 
             df_batch = pd.DataFrame(data)
 
             # Apply formulas
-            df_batch = self._apply_formula_columns(df_batch, table_name)
+            df_batch = self._run_pass("formulas", table_name, rows_generated,
+                                      self._apply_formula_columns, df_batch, table_name)
 
             # Apply conditional / MAR missingness (null_when, missing_if)
-            df_batch = self._apply_informative_missingness(df_batch, table_name)
+            df_batch = self._run_pass("missingness", table_name, rows_generated,
+                                      self._apply_informative_missingness, df_batch, table_name)
 
             # Apply legacy conditional nulls (null_if)
-            df_batch = self._apply_null_if(df_batch, table_name)
+            df_batch = self._run_pass("null_if", table_name, rows_generated,
+                                      self._apply_null_if, df_batch, table_name)
 
             # Apply exact incidence control (exact_incidence mode)
-            df_batch = self._apply_exact_incidence(df_batch, table_name)
+            df_batch = self._run_pass("exact_incidence", table_name, rows_generated,
+                                      self._apply_exact_incidence, df_batch, table_name)
 
             # Apply within-entity time-series autocorrelation (time_series spec)
-            df_batch = self._apply_time_series_columns(df_batch, table_name)
+            df_batch = self._run_pass("time_series", table_name, rows_generated,
+                                      self._apply_time_series_columns, df_batch, table_name)
 
             # Apply state machine terminal states (__state_machine__)
-            df_batch = self._apply_state_machine(df_batch, table_name)
+            df_batch = self._run_pass("state_machine", table_name, rows_generated,
+                                      self._apply_state_machine, df_batch, table_name)
 
             # Apply hierarchical ICC cluster effects from parent tables
-            df_batch = self._apply_cluster_effects(df_batch, table_name)
+            df_batch = self._run_pass("cluster_effects", table_name, rows_generated,
+                                      self._apply_cluster_effects, df_batch, table_name)
 
             # Denormalized parent attributes must agree with the parent row
             # (a transaction's merchant_city is the merchant's city)
-            df_batch = self._fix_denormalized_parent_columns(df_batch, table_name)
+            df_batch = self._run_pass("denormalized", table_name, rows_generated,
+                                      self._fix_denormalized_parent_columns, df_batch, table_name)
 
             # A child event cannot predate the parent it belongs to (an order
             # before the customer signed up).
-            df_batch = self._fix_cross_table_temporal(df_batch, table_name)
+            df_batch = self._run_pass("causality", table_name, rows_generated,
+                                      self._fix_cross_table_temporal, df_batch, table_name)
 
             # Apply column correlations (Iman-Conover)
-            df_batch = self._apply_correlations(df_batch, table_name)
+            df_batch = self._run_pass("correlations", table_name, rows_generated,
+                                      self._apply_correlations, df_batch, table_name)
 
             # Post-process
-            df_batch = self._fix_correlated_columns(df_batch, table_name)
+            df_batch = self._run_pass("correlated_columns", table_name, rows_generated,
+                                      self._fix_correlated_columns, df_batch, table_name)
 
             # Apply events
             table_events = [e for e in self.config.events if e.table == table_name]
             for event in table_events:
-                df_batch = self.apply_event(df_batch, event)
+                df_batch = self._run_pass("event:" + str(event.name), table_name,
+                                          rows_generated, self.apply_event,
+                                          df_batch, event)
 
             # Apply business rule constraints
-            df_batch = self.apply_constraints(df_batch, table)
+            df_batch = self._run_pass("constraints", table_name, rows_generated,
+                                      self.apply_constraints, df_batch, table)
 
             # Re-apply formulas AFTER constraints: a constraint may change a base column
             # (e.g. cap daily hours), and any formula derived from it (billed = hours * rate)
             # must reflect the constrained value, not the pre-constraint one. Formulas are
             # idempotent, so re-running is safe when nothing changed.
-            df_batch = self._apply_formula_columns(df_batch, table_name)
+            df_batch = self._run_pass("formulas", table_name, rows_generated,
+                                      self._apply_formula_columns, df_batch, table_name)
 
             # Apply per-column anomaly injection
-            df_batch = self._apply_anomalies(df_batch, table_name)
+            df_batch = self._run_pass("anomalies", table_name, rows_generated,
+                                      self._apply_anomalies, df_batch, table_name)
 
             # Apply outcome curves (Trends/Seasonality)
-            df_batch = self.apply_outcome_curves(df_batch, table_name)
+            df_batch = self._run_pass("outcome_curves", table_name, rows_generated,
+                                      self.apply_outcome_curves, df_batch, table_name)
 
             # Gap 1: enforce RateCurve targets (post-generation proportional pass).
             # Runs after apply_outcome_curves so numeric aggregates are untouched.
-            df_batch = self._apply_rate_curves(df_batch, table_name)
+            df_batch = self._run_pass("rate_curves", table_name, rows_generated,
+                                      self._apply_rate_curves, df_batch, table_name)
 
             # Gap B: relative-curve cross-batch sum correction.
             # For tables using relative curves (not exact), accumulate running
             # per-period totals and apply a correction factor per batch so the
             # final sum per period converges to the implied target.
-            df_batch = self._rebalance_relative_batch(df_batch, table_name)
+            df_batch = self._run_pass("rebalance", table_name, rows_generated,
+                                      self._rebalance_relative_batch, df_batch, table_name)
 
             # Apply null_rate / nullable nulls LAST — after correlations,
             # time-series, and rate curves, so the statistical passes see full
             # values and MNAR/MAR conditions are evaluated on final values.
-            df_batch = self._apply_null_rates(df_batch, table_name)
+            df_batch = self._run_pass("null_rates", table_name, rows_generated,
+                                      self._apply_null_rates, df_batch, table_name)
 
             # Update context for future batches/tables
             self._update_context(table_name, df_batch)
-            output_df = self._apply_configured_noise(df_batch.copy(), table_name, table)
+            output_df = self._run_pass("noise", table_name, rows_generated,
+                                       self._apply_configured_noise,
+                                       df_batch.copy(), table_name, table)
             yield output_df
 
             rows_generated += batch_size
@@ -4157,7 +4213,9 @@ class DataSimulator:
             # across its shifted columns. When even the hard causality floor
             # exceeds the headroom (parent born at the window's edge),
             # causality wins over the bound, loudly.
-            cap = pd.Series(pd.Timedelta.max, index=df.index)
+            # Soft cap (declared column ends): causality may exceed it, with
+            # a warning, matching the 0.8.5.2 precedence rules.
+            cap_soft = pd.Series(pd.Timedelta.max, index=df.index)
             for c in child_dt:
                 declared_end = col_params.get(c, {}).get("end")
                 if declared_end is None:
@@ -4168,16 +4226,56 @@ class DataSimulator:
                     continue
                 if end_ts.normalize() == end_ts:
                     end_ts = end_ts + pd.Timedelta(days=1) - one_sec  # within that day
-                cap = np.minimum(cap, (end_ts - df[c]).dt.floor("s"))
+                cap_soft = np.minimum(cap_soft, (end_ts - df[c]).dt.floor("s"))
+            # Hard cap (exact-curve period buckets): a shifted row must stay
+            # inside its bucket, or value would cross a period boundary and
+            # break the declared aggregate. Declared aggregates outrank the
+            # causality fix, so this cap is never exceeded.
+            from misata.engines.fact_engine import PERIOD_INDEX_COLUMN
+            cap_hard = pd.Series(pd.Timedelta.max, index=df.index)
+            if PERIOD_INDEX_COLUMN in df.columns:
+                for curve in self._get_exact_outcome_curves(table_name):
+                    t_col = getattr(curve, "time_column", None)
+                    if t_col not in df.columns:
+                        continue
+                    try:
+                        resolved = self.fact_engine._resolve_curve(
+                            curve, self.config.get_columns(table_name))
+                        bucket_ends = pd.Series(
+                            [b.end for b in resolved.buckets])
+                        row_end = bucket_ends.reindex(
+                            df[PERIOD_INDEX_COLUMN].values).values
+                        row_end = pd.Series(pd.to_datetime(row_end),
+                                            index=df.index)
+                        cap_hard = np.minimum(
+                            cap_hard,
+                            (row_end - one_sec - df[t_col]).dt.floor("s"))
+                    except Exception:
+                        continue
+            cap = np.minimum(cap_soft, cap_hard)
             capped = np.minimum(total_shift, cap.where(cap > pd.Timedelta(0), pd.Timedelta(0)))
             final_shift = np.maximum(capped, strict_shift)
-            overruns = int((final_shift > cap).sum())
-            if overruns:
+            # Declared aggregates win over causality: never cross a bucket.
+            cap_hard_nonneg = cap_hard.where(cap_hard > pd.Timedelta(0), pd.Timedelta(0))
+            unresolved = int((final_shift > cap_hard_nonneg).sum())
+            final_shift = np.minimum(final_shift, cap_hard_nonneg)
+            soft_overruns = int((final_shift > cap_soft).sum())
+            if soft_overruns:
                 warnings.warn(
-                    f"Table '{table_name}': {overruns} row(s) must postdate a "
-                    f"parent born at the edge of the declared date range; "
-                    f"causality takes precedence over the declared max date. "
-                    f"Widen the child's date range to avoid this."
+                    f"Table '{table_name}': {soft_overruns} row(s) must "
+                    f"postdate a parent born at the edge of the declared date "
+                    f"range; causality takes precedence over the declared max "
+                    f"date. Widen the child's date range to avoid this."
+                )
+            if unresolved:
+                warnings.warn(
+                    f"Table '{table_name}': {unresolved} row(s) cannot both "
+                    f"postdate their parent and stay inside their declared "
+                    f"aggregate period; the declared aggregate takes "
+                    f"precedence and these rows keep their period with "
+                    f"causality unresolved. The story audit will report "
+                    f"them. Align the parent's date range with the curve "
+                    f"window to avoid this."
                 )
             for c in child_dt:
                 df[c] = df[c] + final_shift
@@ -4500,15 +4598,18 @@ class DataSimulator:
         # buffered tables. Group shares run before roll-ups so parent summary
         # columns sum the post-share children.
         for event in cascade_events:
-            self.propagate_event_cascade(buffered, event)
+            with self._anchor("cascade", str(event.name), event.table):
+                self.propagate_event_cascade(buffered, event)
         if group_share_specs:
             from misata.shares import apply_group_shares
             for spec in group_share_specs:
                 if spec.table in buffered:
                     try:
-                        buffered[spec.table] = apply_group_shares(
-                            buffered[spec.table], spec, self.config, self.rng
-                        )
+                        with self._anchor("identity", "group_shares",
+                                          spec.table, spec.measure):
+                            buffered[spec.table] = apply_group_shares(
+                                buffered[spec.table], spec, self.config, self.rng
+                            )
                     except Exception:
                         warnings.warn(
                             f"group_shares on {spec.table}.{spec.measure} "
@@ -4519,9 +4620,10 @@ class DataSimulator:
             for spec in waterfall_specs:
                 if spec.table in buffered:
                     try:
-                        buffered[spec.table] = apply_waterfall(
-                            buffered[spec.table], spec, self.rng
-                        )
+                        with self._anchor("identity", "waterfall", spec.table):
+                            buffered[spec.table] = apply_waterfall(
+                                buffered[spec.table], spec, self.rng
+                            )
                     except Exception:
                         warnings.warn(
                             f"waterfall on {spec.table} could not be applied; "

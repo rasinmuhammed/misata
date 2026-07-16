@@ -361,6 +361,7 @@ def load_yaml_schema(
     raw: Dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
     name = raw.get("name", path.stem)
+    generation_mode = raw.get("generation_mode", "legacy")
     domain = raw.get("domain")
     file_seed = raw.get("seed", seed)
     default_rows = int(raw.get("rows", rows))
@@ -442,6 +443,7 @@ def load_yaml_schema(
     return SchemaConfig(
         name=name,
         domain=domain,
+        generation_mode=generation_mode,
         tables=tables,
         columns=columns_map,
         relationships=relationships,
@@ -486,6 +488,8 @@ def save_yaml_schema(
         doc["domain"] = schema.domain
     if schema.seed is not None:
         doc["seed"] = schema.seed
+    if getattr(schema, "generation_mode", "legacy") != "legacy":
+        doc["generation_mode"] = schema.generation_mode
 
     # Tables
     tables_doc: Dict[str, Any] = {}

@@ -99,6 +99,27 @@ bug worth reporting.
 - **`generate_stream` currently takes a story, not a schema.** Streaming a
   hand-built schema means driving `DataSimulator.generate_all()` directly.
 
+## Reproducibility and interfaces (anchored mode)
+
+- **Anchored and legacy modes produce different bytes for the same seed.**
+  `generation_mode: "anchored"` derives per-site RNG streams, so switching an
+  existing schema to anchored regenerates everything once. After that,
+  edits are local. Anchored becomes the default at 0.9; pin the mode
+  explicitly if the transition matters to you.
+- **Edit stability follows the dependency graph, not the diff.** Editing a
+  parent's key column legitimately re-rolls its children's foreign keys;
+  editing a column that a formula, correlation, or identity reads re-rolls
+  those outputs. "Only what you touch changes" means what the edit touches
+  semantically, which can be more than the line you edited.
+- **Changing a table's row count re-rolls that table.** Streams are anchored
+  per site, not per row, so growing a table from 1,000 to 1,100 rows redraws
+  the whole table (its columns' streams are consumed at different lengths).
+  Row-level extension stability needs counter-based RNG and is not built.
+- **A declared aggregate beats causality on the same row.** When a fact-table
+  row cannot both postdate its parent and stay in its declared period, the
+  period wins, the warning says so, and the story audit reports the row.
+  Align the parent's date range with the curve window to avoid the conflict.
+
 ## Reproducibility and interfaces
 
 - **Determinism is per-version.** The same schema, seed, and misata version

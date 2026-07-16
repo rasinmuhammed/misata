@@ -236,6 +236,15 @@
         },
         "minItems": 1
       }
+    },
+    "generation_mode": {
+      "type": "string",
+      "enum": [
+        "legacy",
+        "anchored"
+      ],
+      "default": "legacy",
+      "description": "\"anchored\" derives an independent RNG stream per column and per pass, so schema edits change only what they touch (adding a column leaves every other column byte-identical). Bytes differ between modes for the same seed."
     }
   },
   "$defs": {

@@ -174,7 +174,17 @@ class GenerationPlanner:
                         (parent_semantic, child_semantic),
                         CARDINALITY_PATTERNS.get(("entity", self._classify_table(child_name).replace("reference", "entity")), (2.0, 5.0)),
                     )
-                    multiplier = float(self.rng.uniform(low, high))
+                    if getattr(self.schema_config, "generation_mode",
+                               "legacy") == "anchored":
+                        # Anchored mode: the multiplier depends only on this
+                        # relationship's name, so adding an unrelated table
+                        # cannot shift another child's planned row count.
+                        from misata.anchor import derive_rng
+                        multiplier = float(derive_rng(
+                            self.schema_config.seed, "plan", key
+                        ).uniform(low, high))
+                    else:
+                        multiplier = float(self.rng.uniform(low, high))
 
                 if len(parents_of[child_name]) > 1:
                     multiplier /= len(parents_of[child_name])

@@ -478,6 +478,8 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
         flat["__seed__"] = schemas["seed"]
     if schemas.get("domain"):
         flat["__domain__"] = schemas["domain"]
+    if schemas.get("generation_mode"):
+        flat["__generation_mode__"] = schemas["generation_mode"]
     for env_key, dunder in (("outcome_curves", "__outcome_curves__"),
                             ("rate_curves", "__rate_curves__"),
                             ("group_shares", "__group_shares__"),
@@ -668,6 +670,8 @@ def from_dict_schema(
     for table_name, table_def in schemas.items():
         if table_name.startswith("__"):
             continue
+        if table_name == "generation_mode" and isinstance(table_def, str):
+            continue  # flat-form directive, read below
         if not isinstance(table_def, dict):
             warnings.warn(f"Skipping non-dict entry for table '{table_name}'.")
             continue
@@ -830,6 +834,8 @@ def from_dict_schema(
         rate_curves=rate_curves,
         group_shares=group_shares,
         waterfalls=waterfalls,
+        generation_mode=(schemas.get("__generation_mode__")
+                         or schemas.get("generation_mode") or "legacy"),
         noise_config=noise_config,
         seed=seed,
         domain=domain,
