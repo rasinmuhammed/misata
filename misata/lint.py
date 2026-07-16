@@ -201,6 +201,28 @@ def _check_group_shares(schema: "SchemaConfig") -> List[LintFinding]:
 
 def _check_waterfalls(schema: "SchemaConfig") -> List[LintFinding]:
     out = []
+    # Several waterfalls on one table must be segment-scoped consistently:
+    # one shared segment_column, distinct segment_values.
+    by_table: Dict[str, list] = {}
+    for spec in schema.waterfalls or []:
+        by_table.setdefault(spec.table, []).append(spec)
+    for tname, specs in by_table.items():
+        if len(specs) < 2:
+            continue
+        cols = {s.segment_column for s in specs}
+        vals = [s.segment_value for s in specs]
+        if None in cols or len(cols) != 1:
+            out.append(LintFinding(
+                "error", f"waterfalls ({tname})",
+                f"{len(specs)} waterfalls share this table but do not share "
+                f"one segment_column; generation will skip them all as "
+                f"ambiguous"))
+        elif None in vals or len(set(vals)) != len(vals):
+            out.append(LintFinding(
+                "error", f"waterfalls ({tname})",
+                "segment_values must be present and distinct across the "
+                "table's waterfalls; generation will skip them all as "
+                "ambiguous"))
     for i, spec in enumerate(schema.waterfalls or []):
         where = f"waterfalls[{i}] ({spec.table})"
         cols = _columns_of(schema, spec.table)
@@ -208,9 +230,12 @@ def _check_waterfalls(schema: "SchemaConfig") -> List[LintFinding]:
             out.append(LintFinding("error", where,
                        f"table '{spec.table}' does not exist"))
             continue
-        for role, cname in (("period_column", spec.period_column),
-                            ("type_column", spec.type_column),
-                            ("amount_column", spec.amount_column)):
+        named = [("period_column", spec.period_column),
+                 ("type_column", spec.type_column),
+                 ("amount_column", spec.amount_column)]
+        if spec.segment_column:
+            named.append(("segment_column", spec.segment_column))
+        for role, cname in named:
             if cname not in cols:
                 out.append(LintFinding("error", where,
                            f"{role} '{spec.table}.{cname}' does not exist"))
@@ -237,6 +262,54 @@ def _check_waterfalls(schema: "SchemaConfig") -> List[LintFinding]:
     return out
 
 
+def _check_scd2_and_stock(schema: "SchemaConfig") -> List[LintFinding]:
+    out = []
+    for table_cfg in schema.tables or []:
+        spec = getattr(table_cfg, "scd2", None)
+        if spec is None:
+            continue
+        where = f"{table_cfg.name}.scd2"
+        cols = _columns_of(schema, table_cfg.name)
+        named = [("entity_column", spec.entity_column),
+                 ("valid_from", spec.valid_from),
+                 ("valid_to", spec.valid_to)]
+        if spec.current_flag:
+            named.append(("current_flag", spec.current_flag))
+        for role, cname in named:
+            if cname not in cols:
+                out.append(LintFinding("error", where,
+                           f"{role} '{table_cfg.name}.{cname}' does not exist"))
+        if float(spec.avg_versions) < 1:
+            out.append(LintFinding("error", where,
+                       "avg_versions must be at least 1"))
+    for i, spec in enumerate(getattr(schema, "stock_flows", None) or []):
+        where = f"stock_flows[{i}] ({spec.table})"
+        cols = _columns_of(schema, spec.table)
+        if not cols:
+            out.append(LintFinding("error", where,
+                       f"table '{spec.table}' does not exist"))
+            continue
+        for role, cname in (("sku_column", spec.sku_column),
+                            ("period_column", spec.period_column),
+                            ("open_column", spec.open_column),
+                            ("received_column", spec.received_column),
+                            ("shipped_column", spec.shipped_column),
+                            ("close_column", spec.close_column)):
+            if cname not in cols:
+                out.append(LintFinding("error", where,
+                           f"{role} '{spec.table}.{cname}' does not exist"))
+        if not spec.periods:
+            out.append(LintFinding("error", where, "periods list is empty"))
+        table_cfg = next((t for t in schema.tables if t.name == spec.table), None)
+        if table_cfg is not None and spec.periods and table_cfg.row_count < len(spec.periods):
+            out.append(LintFinding(
+                "warning", where,
+                f"{table_cfg.row_count} rows cannot host one full "
+                f"{len(spec.periods)}-period history; the last SKU gets a "
+                f"partial history"))
+    return out
+
+
 def lint_schema(schema: "SchemaConfig") -> List[LintFinding]:
     """Run every pre-generation check against a parsed schema."""
     findings: List[LintFinding] = []
@@ -247,6 +320,7 @@ def lint_schema(schema: "SchemaConfig") -> List[LintFinding]:
     findings.extend(_check_curves(schema))
     findings.extend(_check_group_shares(schema))
     findings.extend(_check_waterfalls(schema))
+    findings.extend(_check_scd2_and_stock(schema))
     order = {"error": 0, "warning": 1, "info": 2}
     findings.sort(key=lambda f: order.get(f.severity, 3))
     return findings

@@ -5,6 +5,48 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.1] - 2026-07-16
+
+### Added
+
+- **Multi-tenant waterfalls.** A `WaterfallIdentity` can be scoped to a
+  segment (`segment_column` + `segment_value`), so one movements table
+  carries several tenants, each with its own declared balance trajectory,
+  growing or declining independently. Rows are partitioned across tenants in
+  proportion to declared gross movement, every tenant's running balance
+  reconciles to the cent on its own, the audit flags exactly the sabotaged
+  tenant and no other, and evalpack questions carry the segment filter in
+  their gold SQL. Ambiguous declarations (shared segment values, mixed
+  segment columns) are skipped loudly and caught by `misata lint` first.
+- **SCD2 histories that tile correctly.** A table-level `scd2` declaration
+  (entity column, valid_from/valid_to, optional current flag) generates
+  slowly-changing-dimension type 2 data with the three invariants naive
+  generation always breaks: within an entity every version closes exactly
+  where the next opens (no gaps, no overlaps), exactly one version per
+  entity is current, and only the last version is open-ended. Attribute
+  columns still vary across versions. Three new audit detectors
+  (`scd2_tiling`, `scd2_open_versions`, `scd2_current_flag`) recompute the
+  invariants from the rows.
+- **Stock-flow ledgers that reconcile to the unit.** A `stock_flows`
+  declaration generates one row per SKU per period where
+  closing = opening + received - shipped on every row, each period opens
+  where the previous closed, shipments never exceed available stock, and no
+  level goes negative. Row counts that do not divide evenly give the last
+  SKU a shorter history whose chain still holds. Audited by three detectors;
+  no evalpack questions ship from this identity because its trajectories are
+  generated rather than declared, and measured answers would break the
+  answer-key-first construction.
+- **`misata provenance` and DATA-PROVENANCE.md.** The questions a
+  procurement or security review asks, answered with the mechanism that
+  makes each answer true: no real data, no network at generation time, no
+  telemetry, deterministic bytes per (version, schema, seed, mode), LLM at
+  design time only, license-clean vocabularies with per-value Wikidata
+  provenance. With a directory argument the command adds a per-file sha256
+  and row-count manifest.
+- Every new declaration round-trips: misata.yaml, the dict-schema envelope,
+  and the published JSON Schema (editor autocomplete included), with lint
+  checks for missing columns, empty periods, and infeasible row counts.
+
 ## [0.8.7] - 2026-07-16
 
 ### Added

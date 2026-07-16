@@ -2303,5 +2303,69 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
         sys.exit(1)
 
 
+@main.command("provenance")
+@click.argument("data_dir", type=click.Path(exists=True), required=False)
+def provenance_cmd(data_dir: Optional[str]) -> None:
+    """Print the data-provenance statement, plus file hashes for a folder.
+
+    Answers the questions procurement asks: no real data involved, no network
+    at generation time, deterministic bytes per (version, schema, seed),
+    LLM at design time only, license-clean vocabularies. With a directory,
+    adds a per-file sha256 and row-count manifest you can attach to a
+    data-sharing review.
+
+    Examples:
+
+        misata provenance
+
+        misata provenance ./generated_data/
+    """
+    import hashlib as _hashlib
+    from pathlib import Path as _Path
+
+    console.print(f"[bold]Misata {__version__} data provenance[/bold]\n")
+    statement = (
+        "No real data: generation is declaration-driven; no training on or "
+        "fitting to personal records (misata mimic stores only quantiles, "
+        "opt-in, local).\n"
+        "No network at generation time: the solver is offline and the "
+        "library carries no telemetry.\n"
+        "Deterministic: same version + schema + seed + mode = same bytes, "
+        "asserted in the test suite.\n"
+        "LLM boundary: design time only, opt-in, your key; it never sees "
+        "generated rows.\n"
+        "Vocabularies: curated MIT pools and Wikidata capsules (CC0, "
+        "per-value QID provenance recorded in the capsule file).\n"
+        "Full statement: DATA-PROVENANCE.md in the repository."
+    )
+    for line in statement.split("\n"):
+        console.print(f"  {line}")
+
+    if not data_dir:
+        return
+    files = sorted(p for p in _Path(data_dir).glob("*")
+                   if p.is_file() and p.suffix in (".csv", ".parquet", ".json", ".jsonl", ".yaml"))
+    if not files:
+        console.print(f"\n[yellow]No data files found in {data_dir}[/yellow]")
+        return
+    console.print(f"\n[bold]Manifest for {data_dir}[/bold]")
+    tbl = RichTable(show_header=True, header_style="bold cyan", box=None,
+                    padding=(0, 1))
+    tbl.add_column("File")
+    tbl.add_column("sha256", style="dim")
+    tbl.add_column("Rows", justify="right")
+    for p in files:
+        digest = _hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+        rows = ""
+        if p.suffix == ".csv":
+            try:
+                with open(p, "rb") as fh:
+                    rows = str(sum(1 for _ in fh) - 1)
+            except Exception:
+                rows = "?"
+        tbl.add_row(p.name, digest, rows)
+    console.print(tbl)
+
+
 if __name__ == "__main__":
     main()

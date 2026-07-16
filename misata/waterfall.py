@@ -76,6 +76,80 @@ def declared_movements(
     return plan
 
 
+def _spec_gross(spec: WaterfallIdentity) -> float:
+    """Total gross movement a spec declares (its fair share of the rows)."""
+    return sum(
+        sum(ins.values()) + sum(outs.values())
+        for _, _, ins, outs in declared_movements(spec)
+    )
+
+
+def apply_waterfalls(
+    df: pd.DataFrame,
+    specs: List[WaterfallIdentity],
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    """Apply one or many waterfalls to a movements table.
+
+    One spec applies to the whole table (the classic case). Several specs on
+    the same table must be segment-scoped ("each tenant has its own declared
+    trajectory"): all share one ``segment_column`` with distinct
+    ``segment_value``s, the table's rows are partitioned across specs in
+    proportion to each spec's declared gross movement, and the pass writes
+    the segment column alongside period/type/amount. Every segment's running
+    balance then reconciles independently.
+    """
+    if not specs:
+        return df
+    if len(specs) == 1 and specs[0].segment_column is None:
+        return apply_waterfall(df, specs[0], rng)
+
+    seg_cols = {s.segment_column for s in specs}
+    seg_vals = [s.segment_value for s in specs]
+    if (None in seg_cols or len(seg_cols) != 1
+            or None in seg_vals or len(set(seg_vals)) != len(seg_vals)):
+        warnings.warn(
+            f"waterfalls on {specs[0].table}: multiple specs must share one "
+            f"segment_column and carry distinct segment_values; skipping all "
+            f"(ambiguous)")
+        return df
+    seg_col = specs[0].segment_column
+    if seg_col not in df.columns:
+        warnings.warn(
+            f"waterfalls on {specs[0].table}: segment column '{seg_col}' "
+            f"does not exist; skipping")
+        return df
+
+    # Partition rows across specs by declared gross movement, min one row
+    # per period-type cell so every spec stays feasible when possible.
+    gross = np.array([max(_spec_gross(s), 0.01) for s in specs])
+    n = len(df)
+    raw = gross / gross.sum() * n
+    counts = np.maximum(np.floor(raw).astype(int), 1)
+    while counts.sum() > n:
+        counts[int(np.argmax(counts))] -= 1
+    order = np.argsort(-(raw - np.floor(raw)))
+    i = 0
+    while counts.sum() < n:
+        counts[order[i % len(specs)]] += 1
+        i += 1
+
+    idx = rng.permutation(n)
+    pos = 0
+    segments = df[seg_col].astype(object).to_numpy(copy=True)
+    for spec, count in zip(specs, counts):
+        rows = idx[pos: pos + count]
+        pos += count
+        slice_df = df.iloc[rows].copy()
+        slice_df = apply_waterfall(slice_df, spec, rng)
+        for col in (spec.period_column, spec.type_column, spec.amount_column):
+            if col in slice_df.columns:
+                df.iloc[rows, df.columns.get_loc(col)] = slice_df[col].values
+        segments[rows] = spec.segment_value
+    df[seg_col] = segments
+    return df
+
+
 def apply_waterfall(
     df: pd.DataFrame, spec: WaterfallIdentity, rng: np.random.Generator
 ) -> pd.DataFrame:

@@ -4568,13 +4568,26 @@ class DataSimulator:
         ]
         waterfall_tables = {s.table for s in waterfall_specs}
 
+        # Stock-flow identities rewrite SKU/period/quantity columns.
+        stock_flow_specs = [
+            s for s in (getattr(self.config, "stock_flows", None) or [])
+            if s.table in set(sorted_tables)
+        ]
+        stock_flow_tables = {s.table for s in stock_flow_specs}
+
+        # SCD2 histories rewrite entity/validity columns over the whole table.
+        scd2_tables = {
+            t.name for t in self.config.tables
+            if getattr(t, "scd2", None) is not None and t.name in set(sorted_tables)
+        }
+
         # Identify which tables must be buffered (cascade resolution OR roll-ups)
         cascade_tables: set = set()
         for event in cascade_events:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
         buffer_tables = (cascade_tables | rollup_tables | group_share_tables
-                         | waterfall_tables)
+                         | waterfall_tables | scd2_tables | stock_flow_tables)
 
         buffered: Dict[str, pd.DataFrame] = {}
         streamed: list = []   # tables already yielded (order record for phase 3)
@@ -4616,19 +4629,52 @@ class DataSimulator:
                             "could not be applied; leaving the table as generated"
                         )
         if waterfall_specs:
-            from misata.waterfall import apply_waterfall
+            from misata.waterfall import apply_waterfalls
+            by_table: Dict[str, list] = {}
             for spec in waterfall_specs:
-                if spec.table in buffered:
+                by_table.setdefault(spec.table, []).append(spec)
+            for w_table, table_specs in by_table.items():
+                if w_table in buffered:
                     try:
-                        with self._anchor("identity", "waterfall", spec.table):
-                            buffered[spec.table] = apply_waterfall(
-                                buffered[spec.table], spec, self.rng
+                        with self._anchor("identity", "waterfall", w_table):
+                            buffered[w_table] = apply_waterfalls(
+                                buffered[w_table], table_specs, self.rng
                             )
                     except Exception:
                         warnings.warn(
-                            f"waterfall on {spec.table} could not be applied; "
+                            f"waterfall on {w_table} could not be applied; "
                             "leaving the table as generated"
                         )
+        if stock_flow_specs:
+            from misata.stockflow import apply_stock_flow
+            for spec in stock_flow_specs:
+                if spec.table in buffered:
+                    try:
+                        with self._anchor("identity", "stock_flow", spec.table):
+                            buffered[spec.table] = apply_stock_flow(
+                                buffered[spec.table], spec, self.rng)
+                    except Exception:
+                        warnings.warn(
+                            f"stock_flow on {spec.table} could not be applied; "
+                            "leaving the table as generated")
+        if scd2_tables:
+            from misata.scd2 import apply_scd2
+            for t_name in scd2_tables:
+                table_cfg = self.config.get_table(t_name)
+                if t_name in buffered and table_cfg is not None:
+                    try:
+                        vf_params = next(
+                            (c.distribution_params for c in
+                             self.config.get_columns(t_name)
+                             if c.name == table_cfg.scd2.valid_from), {})
+                        with self._anchor("identity", "scd2", t_name):
+                            buffered[t_name] = apply_scd2(
+                                buffered[t_name], table_cfg.scd2, self.rng,
+                                col_params=vf_params, table_name=t_name)
+                    except Exception:
+                        warnings.warn(
+                            f"scd2 on {t_name} could not be applied; "
+                            "leaving the table as generated")
         if rollup_specs:
             try:
                 apply_rollups(buffered, rollup_specs)

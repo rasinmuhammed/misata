@@ -40,6 +40,8 @@ from misata.schema import (
     Column,
     Constraint,
     GroupShares,
+    SCD2Config,
+    StockFlowIdentity,
     NoiseConfig,
     OutcomeCurve,
     RateCurve,
@@ -378,7 +380,9 @@ def load_yaml_schema(
         tdef = tdef or {}
         t_rows = int(tdef.get("rows", default_rows))
         t_desc = tdef.get("description")
-        tables.append(Table(name=table_name, row_count=t_rows, description=t_desc))
+        t_scd2 = SCD2Config(**tdef["scd2"]) if isinstance(tdef.get("scd2"), dict) else None
+        tables.append(Table(name=table_name, row_count=t_rows,
+                            description=t_desc, scd2=t_scd2))
 
         col_defs: Dict[str, Any] = tdef.get("columns", {})
         columns_map[table_name] = [
@@ -422,6 +426,9 @@ def load_yaml_schema(
     # Waterfall identities (declared per-period balances)
     waterfalls = [WaterfallIdentity(**w) for w in (raw.get("waterfalls") or [])]
 
+    # Stock-flow identities
+    stock_flows = [StockFlowIdentity(**s) for s in (raw.get("stock_flows") or [])]
+
     # Declared data-quality defects
     noise_raw = raw.get("noise")
     noise_config = NoiseConfig(**noise_raw) if noise_raw else None
@@ -452,6 +459,7 @@ def load_yaml_schema(
         rate_curves=rate_curves,
         group_shares=group_shares,
         waterfalls=waterfalls,
+        stock_flows=stock_flows,
         noise_config=noise_config,
         vocabularies=vocabularies,
         realism=realism,
@@ -501,6 +509,8 @@ def save_yaml_schema(
         entry: Dict[str, Any] = {"rows": table.row_count, "columns": col_doc}
         if table.description:
             entry["description"] = table.description
+        if getattr(table, "scd2", None) is not None:
+            entry["scd2"] = table.scd2.model_dump(exclude_none=True)
         tables_doc[table.name] = entry
     doc["tables"] = tables_doc
 
@@ -596,6 +606,10 @@ def save_yaml_schema(
                    if w.type_column != "movement_type" else {}),
                 **({"amount_column": w.amount_column}
                    if w.amount_column != "amount" else {}),
+                **({"segment_column": w.segment_column}
+                   if w.segment_column else {}),
+                **({"segment_value": w.segment_value}
+                   if w.segment_value is not None else {}),
                 "starting_value": w.starting_value,
                 "points": w.points,
                 "inflow_shares": w.inflow_shares,
@@ -605,6 +619,12 @@ def save_yaml_schema(
                 **({"description": w.description} if w.description else {}),
             }
             for w in schema.waterfalls
+        ]
+
+    # Stock-flow identities
+    if getattr(schema, "stock_flows", None):
+        doc["stock_flows"] = [
+            s.model_dump(exclude_none=True) for s in schema.stock_flows
         ]
 
     # Declared data-quality defects

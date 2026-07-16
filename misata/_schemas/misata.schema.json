@@ -222,6 +222,14 @@
           },
           "description": {
             "type": "string"
+          },
+          "segment_column": {
+            "type": "string",
+            "description": "Optional segment scoping: several waterfalls can share one movements table, one per value of this column (each tenant its own declared trajectory). All specs on a table must use the same segment_column."
+          },
+          "segment_value": {
+            "type": "string",
+            "description": "The segment this waterfall applies to; must be distinct across the table's specs."
           }
         }
       }
@@ -245,6 +253,67 @@
       ],
       "default": "legacy",
       "description": "\"anchored\" derives an independent RNG stream per column and per pass, so schema edits change only what they touch (adding a column leaves every other column byte-identical). Bytes differ between modes for the same seed."
+    },
+    "stock_flows": {
+      "type": "array",
+      "description": "Inventory tables whose stock ledger reconciles to the unit: closing = opening + received - shipped on every row, each period opens where the previous closed, no negative levels.",
+      "items": {
+        "type": "object",
+        "required": [
+          "table",
+          "periods"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "sku_column": {
+            "type": "string",
+            "default": "sku"
+          },
+          "period_column": {
+            "type": "string",
+            "default": "period"
+          },
+          "open_column": {
+            "type": "string",
+            "default": "opening_stock"
+          },
+          "received_column": {
+            "type": "string",
+            "default": "received"
+          },
+          "shipped_column": {
+            "type": "string",
+            "default": "shipped"
+          },
+          "close_column": {
+            "type": "string",
+            "default": "closing_stock"
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "starting_min": {
+            "type": "integer",
+            "default": 50,
+            "minimum": 0
+          },
+          "starting_max": {
+            "type": "integer",
+            "default": 500,
+            "minimum": 0
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -305,6 +374,45 @@
                 "minimum": -1,
                 "maximum": 1
               }
+            }
+          }
+        },
+        "scd2": {
+          "type": "object",
+          "required": [
+            "entity_column"
+          ],
+          "additionalProperties": false,
+          "description": "Slowly-changing-dimension (type 2): per entity, valid_from/valid_to tile without gaps or overlaps, exactly one current version.",
+          "properties": {
+            "entity_column": {
+              "type": "string"
+            },
+            "valid_from": {
+              "type": "string",
+              "default": "valid_from"
+            },
+            "valid_to": {
+              "type": "string",
+              "default": "valid_to"
+            },
+            "current_flag": {
+              "type": "string"
+            },
+            "avg_versions": {
+              "type": "number",
+              "default": 3.0,
+              "minimum": 1
+            },
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "open_ended": {
+              "type": "boolean",
+              "default": true
             }
           }
         }

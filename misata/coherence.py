@@ -694,9 +694,15 @@ def _detect_waterfall_mismatch(tables, schema) -> List[CoherenceFinding]:
         needed = {spec.period_column, spec.type_column, spec.amount_column}
         if not plan or df is None or not needed.issubset(df.columns):
             continue
-        amounts = pd.to_numeric(df[spec.amount_column], errors="coerce").fillna(0)
-        periods = df[spec.period_column].astype(str)
-        types = df[spec.type_column].astype(str)
+        scoped = df
+        if spec.segment_column and spec.segment_value is not None:
+            if spec.segment_column not in df.columns:
+                continue
+            scoped = df[df[spec.segment_column].astype(str)
+                        == str(spec.segment_value)]
+        amounts = pd.to_numeric(scoped[spec.amount_column], errors="coerce").fillna(0)
+        periods = scoped[spec.period_column].astype(str)
+        types = scoped[spec.type_column].astype(str)
         inflow_labels = {l for _, _, ins, _ in plan for l in ins}
         signed = amounts.where(types.isin(inflow_labels), -amounts)
         bad_periods = 0
@@ -714,6 +720,119 @@ def _detect_waterfall_mismatch(tables, schema) -> List[CoherenceFinding]:
                          f"in {bad_periods} period(s)"),
                 rows_affected=bad_periods,
             ))
+    return out
+
+
+def _detect_scd2_violations(tables, schema) -> List[CoherenceFinding]:
+    """SCD2 invariants recomputed from the rows: within an entity, versions
+    tile (no gaps, no overlaps, each valid_to equals the next valid_from);
+    exactly one version per entity is current; only the last version is
+    open-ended."""
+    out: List[CoherenceFinding] = []
+    for table_cfg in getattr(schema, "tables", None) or []:
+        spec = getattr(table_cfg, "scd2", None)
+        df = tables.get(table_cfg.name)
+        if spec is None or df is None or df.empty:
+            continue
+        needed = {spec.entity_column, spec.valid_from, spec.valid_to}
+        if not needed.issubset(df.columns):
+            continue
+        vf = pd.to_datetime(df[spec.valid_from], errors="coerce")
+        vt = pd.to_datetime(df[spec.valid_to], errors="coerce")
+        work = pd.DataFrame({
+            "ent": df[spec.entity_column],
+            "vf": vf, "vt": vt,
+        }).sort_values(["ent", "vf"])
+        bad_tiling = 0
+        bad_open = 0
+        tol = pd.Timedelta(seconds=1)
+        for _ent, g in work.groupby("ent", sort=False):
+            vfs = g["vf"].values
+            vts = g["vt"].values
+            # every non-last version must close exactly on the next opening
+            for i in range(len(g) - 1):
+                if pd.isna(vts[i]) or abs(pd.Timestamp(vts[i])
+                                          - pd.Timestamp(vfs[i + 1])) > tol:
+                    bad_tiling += 1
+                    break
+            # only the last version may be open-ended
+            if pd.isna(vts[:-1]).any() if len(g) > 1 else False:
+                bad_open += 1
+        if bad_tiling:
+            out.append(CoherenceFinding(
+                kind="scd2_tiling", severity="high",
+                table=table_cfg.name, column=spec.valid_to,
+                message=(f"{bad_tiling} entities have version intervals that "
+                         f"gap or overlap instead of tiling"),
+                rows_affected=bad_tiling,
+            ))
+        if bad_open:
+            out.append(CoherenceFinding(
+                kind="scd2_open_versions", severity="high",
+                table=table_cfg.name, column=spec.valid_to,
+                message=(f"{bad_open} entities have an open-ended validity "
+                         f"on a non-current version"),
+                rows_affected=bad_open,
+            ))
+        if spec.current_flag and spec.current_flag in df.columns:
+            flags = df[spec.current_flag].astype(bool)
+            per_ent = flags.groupby(df[spec.entity_column]).sum()
+            bad_current = int((per_ent != 1).sum())
+            if bad_current:
+                out.append(CoherenceFinding(
+                    kind="scd2_current_flag", severity="high",
+                    table=table_cfg.name, column=spec.current_flag,
+                    message=(f"{bad_current} entities do not have exactly one "
+                             f"current version"),
+                    rows_affected=bad_current,
+                ))
+    return out
+
+
+def _detect_stock_flow_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Inventory ledger identities recomputed from the rows: closing equals
+    opening + received - shipped on every row, each period opens where the
+    previous closed, and no level is negative."""
+    out: List[CoherenceFinding] = []
+    for spec in getattr(schema, "stock_flows", None) or []:
+        df = tables.get(spec.table)
+        needed = {spec.sku_column, spec.period_column, spec.open_column,
+                  spec.received_column, spec.shipped_column, spec.close_column}
+        if df is None or df.empty or not needed.issubset(df.columns):
+            continue
+        order = {str(p): i for i, p in enumerate(spec.periods or [])}
+        work = df.copy()
+        work["__ord"] = work[spec.period_column].astype(str).map(order)
+        work = work.dropna(subset=["__ord"]).sort_values(
+            [spec.sku_column, "__ord"])
+        o = pd.to_numeric(work[spec.open_column], errors="coerce")
+        r = pd.to_numeric(work[spec.received_column], errors="coerce")
+        s = pd.to_numeric(work[spec.shipped_column], errors="coerce")
+        c = pd.to_numeric(work[spec.close_column], errors="coerce")
+        bad_row = int((abs(o + r - s - c) > 0.001).sum())
+        same_sku = work[spec.sku_column].eq(work[spec.sku_column].shift(-1))
+        chain_break = int(((c - o.shift(-1)).abs() > 0.001)[same_sku].sum())
+        negative = int(((o < 0) | (c < 0) | (r < 0) | (s < 0)).sum())
+        if bad_row:
+            out.append(CoherenceFinding(
+                kind="stock_flow_arithmetic", severity="high",
+                table=spec.table, column=spec.close_column,
+                message=(f"{bad_row} rows fail closing = opening + received "
+                         f"- shipped"),
+                rows_affected=bad_row))
+        if chain_break:
+            out.append(CoherenceFinding(
+                kind="stock_flow_chain", severity="high",
+                table=spec.table, column=spec.open_column,
+                message=(f"{chain_break} periods do not open where the "
+                         f"previous period closed"),
+                rows_affected=chain_break))
+        if negative:
+            out.append(CoherenceFinding(
+                kind="stock_flow_negative", severity="high",
+                table=spec.table, column=spec.open_column,
+                message=f"{negative} rows carry a negative stock quantity",
+                rows_affected=negative))
     return out
 
 
@@ -976,6 +1095,8 @@ def coherence_audit(
         report.findings.extend(_detect_rollup_mismatch(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
         report.findings.extend(_detect_waterfall_mismatch(tables, schema))
+        report.findings.extend(_detect_scd2_violations(tables, schema))
+        report.findings.extend(_detect_stock_flow_mismatch(tables, schema))
         report.findings.extend(_detect_price_band_violation(tables, schema))
     for name, df in tables.items():
         if not isinstance(df, pd.DataFrame) or df.empty:

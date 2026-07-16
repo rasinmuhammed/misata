@@ -523,6 +523,14 @@ def _waterfall_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuest
         p_sql = _quote_ident(spec.period_column)
         t_sql = _quote_ident(spec.type_column)
         a_sql = _quote_ident(spec.amount_column)
+        seg_where = ""
+        seg_phrase = ""
+        if spec.segment_column and spec.segment_value is not None:
+            seg_sql = _quote_ident(spec.segment_column)
+            seg_lit = "'" + str(spec.segment_value).replace("'", "''") + "'"
+            seg_where = f" AND {seg_sql} = {seg_lit}"
+            seg_phrase = (f" for rows where {spec.segment_column} is "
+                          f"'{spec.segment_value}'")
         inflow_labels = sorted({l for _, _, ins, _ in plan for l in ins})
         in_list = ", ".join("'" + l.replace("'", "''") + "'" for l in inflow_labels)
         signed = (f"SUM(CASE WHEN {t_sql} IN ({in_list}) "
@@ -541,13 +549,13 @@ def _waterfall_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuest
                         f"In the {spec.table} table, treating "
                         f"{', '.join(inflow_labels)} as inflows and every "
                         f"other {spec.type_column} as an outflow, what is the "
-                        f"net movement of {spec.amount_column} in period "
-                        f"'{period}'? Give a number rounded to 2 decimal "
+                        f"net movement of {spec.amount_column}{seg_phrase} "
+                        f"in period '{period}'? Give a number rounded to 2 decimal "
                         f"places (negative for a net decline)."
                     ),
                     gold_sql=(
                         f"SELECT ROUND({signed}, 2) FROM {tbl} "
-                        f"WHERE {p_sql} = {lab}"
+                        f"WHERE {p_sql} = {lab}{seg_where}"
                     ),
                     expected_answer=delta,
                     answer_type="number",
@@ -565,12 +573,12 @@ def _waterfall_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuest
                         question=(
                             f"In the {spec.table} table, what is the total "
                             f"{spec.amount_column} of {spec.type_column} "
-                            f"'{label}' in period '{period}'? Give a number "
+                            f"'{label}'{seg_phrase} in period '{period}'? Give a number "
                             f"rounded to 2 decimal places."
                         ),
                         gold_sql=(
                             f"SELECT ROUND(SUM({a_sql}), 2) FROM {tbl} "
-                            f"WHERE {p_sql} = {lab} AND {t_sql} = {t_lab}"
+                            f"WHERE {p_sql} = {lab} AND {t_sql} = {t_lab}{seg_where}"
                         ),
                         expected_answer=total,
                         answer_type="number",
@@ -591,12 +599,14 @@ def _waterfall_questions(schema: "SchemaConfig", next_id: Any) -> List[EvalQuest
                             f"{round(float(spec.starting_value), 2)}. Treating "
                             f"{', '.join(inflow_labels)} as inflows and every "
                             f"other {spec.type_column} as an outflow, what is "
-                            f"the balance at the end of period '{period}'? "
+                            f"the balance{seg_phrase} at the end of period "
+                            f"'{period}'? "
                             f"Give a number rounded to 2 decimal places."
                         ),
                         gold_sql=(
                             f"SELECT ROUND({round(float(spec.starting_value), 2)} "
-                            f"+ {signed}, 2) FROM {tbl} WHERE {p_sql} <= {lab}"
+                            f"+ {signed}, 2) FROM {tbl} "
+                            f"WHERE {p_sql} <= {lab}{seg_where}"
                         ),
                         expected_answer=end,
                         answer_type="number",

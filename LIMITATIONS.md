@@ -74,6 +74,17 @@ bug worth reporting.
 
 ## Cross-table stories
 
+- **SCD2 and stock-flow trajectories are generated, not declared.** The
+  invariants are exact (versions tile, ledgers chain), but the particular
+  version counts, change dates, and stock movements come from seeded draws.
+  Evalpacks therefore ship no questions from these identities: their answers
+  would be measured from data rather than derived from a declaration, which
+  the answer-key-first construction forbids.
+- **Segmented waterfalls partition rows, they do not follow row counts you
+  chose.** Each tenant's row share follows its declared gross movement, so a
+  tiny tenant on a big table still gets few rows. Declare more rows if every
+  tenant needs a dense history.
+
 - **Payments are deliberately not forced to equal order totals.** Partial
   payments and installments are real, so `payment.amount == order.total` is
   not enforced or checked. If your story needs exact settlement, declare it.

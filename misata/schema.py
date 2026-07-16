@@ -115,6 +115,14 @@ class Table(BaseModel):
             "Keys: state_column, initial_state, transitions (dict of state → {next_state: prob})."
         ),
     )
+    scd2: Optional["SCD2Config"] = Field(
+        default=None,
+        description=(
+            "Slowly-changing-dimension (type 2) declaration: per entity, "
+            "valid_from/valid_to tile without gaps or overlaps and exactly "
+            "one version is current."
+        ),
+    )
     cluster_effect: Optional[Dict[str, Any]] = Field(
         default=None,
         description=(
@@ -371,6 +379,79 @@ class GroupShares(BaseModel):
     description: Optional[str] = None
 
 
+class StockFlowIdentity(BaseModel):
+    """Declare an inventory table whose stock ledger reconciles to the unit.
+
+    One row per (SKU, period). Two identities hold on every row and every
+    consecutive pair, by construction:
+
+        closing = opening + received - shipped        (within the row)
+        opening of period t+1 = closing of period t   (across the chain)
+
+    Shipments never exceed available stock, so no level ever goes negative.
+    The trajectories themselves are generated, not declared, so evalpacks
+    ship no questions from this identity (their answers would be measured,
+    which the answer-key-first construction forbids); the story audit
+    recomputes both identities instead.
+
+    Attributes:
+        table: Inventory movements table (one row per SKU per period).
+        sku_column: Column identifying the SKU.
+        period_column: Column carrying the period label.
+        open_column / received_column / shipped_column / close_column:
+            The four quantity columns of the ledger.
+        periods: Ordered period labels (e.g. ["2025-01", ..., "2025-06"]).
+        starting_min / starting_max: Range for each SKU's initial stock.
+    """
+
+    table: str
+    sku_column: str = "sku"
+    period_column: str = "period"
+    open_column: str = "opening_stock"
+    received_column: str = "received"
+    shipped_column: str = "shipped"
+    close_column: str = "closing_stock"
+    periods: List[str]
+    starting_min: int = 50
+    starting_max: int = 500
+    description: Optional[str] = None
+
+
+class SCD2Config(BaseModel):
+    """Declare a table as a slowly-changing-dimension (type 2) history.
+
+    Every entity's versions tile time without gaps or overlaps: each row's
+    ``valid_to`` equals the next version's ``valid_from``, exactly one row per
+    entity is current, and the last version is open-ended (or closes at the
+    window end). Data warehouses live on this shape; generated naively it is
+    always wrong.
+
+    Attributes:
+        entity_column: Column identifying the entity whose history this is.
+        valid_from: Timestamp column opening each version.
+        valid_to: Timestamp column closing each version (empty on the open
+            last version when ``open_ended``).
+        current_flag: Optional boolean column, true only on the last version.
+        avg_versions: Average versions per entity (the table's rows are
+            distributed over ``row_count / avg_versions`` entities).
+        start: History window start (defaults to the valid_from column's
+            declared start, else 2020-01-01).
+        end: History window end (defaults to the valid_from column's declared
+            end, else 2024-12-31).
+        open_ended: Last version's valid_to stays empty when true; closes at
+            the window end when false.
+    """
+
+    entity_column: str
+    valid_from: str = "valid_from"
+    valid_to: str = "valid_to"
+    current_flag: Optional[str] = None
+    avg_versions: float = 3.0
+    start: Optional[str] = None
+    end: Optional[str] = None
+    open_ended: bool = True
+
+
 class WaterfallIdentity(BaseModel):
     """Declare a movements table whose rows reconcile to per-period balances.
 
@@ -405,6 +486,12 @@ class WaterfallIdentity(BaseModel):
     outflow_shares: Dict[str, float] = Field(
         default_factory=lambda: {"churn": 0.7, "contraction": 0.3})
     outflow_rate: float = 0.03
+    # Segment scoping: one movements table can carry several waterfalls, one
+    # per segment value ("each tenant has its own declared MRR trajectory").
+    # All specs sharing a table must use the same segment_column with
+    # distinct segment_values; the pass writes the segment column too.
+    segment_column: Optional[str] = None
+    segment_value: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -504,6 +591,7 @@ class SchemaConfig(BaseModel):
     rate_curves: List[RateCurve] = Field(default_factory=list)
     group_shares: List[GroupShares] = Field(default_factory=list)
     waterfalls: List[WaterfallIdentity] = Field(default_factory=list)
+    stock_flows: List[StockFlowIdentity] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="legacy",
         description=(
