@@ -59,6 +59,7 @@ tests/*
 !tests/test_schema_roundtrip_lint.py
 !tests/test_anchored.py
 !tests/test_enterprise_identities.py
+!tests/test_dbt_import.py
 jman_output/
 llm_test/
 ml_demo_output/

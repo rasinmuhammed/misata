@@ -5,6 +5,23 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.3] - 2026-07-17
+
+### Added
+
+- **`misata dbt-seed` now reads your dbt project's own contract.** Run it
+  bare (or with `--from-project`) inside any dbt project and it builds the
+  schema from your properties YAML instead of a story: `relationships` tests
+  become FK relationships, `accepted_values` become the exact category
+  pools, `unique`/`not_null` become constraints, `data_type` and column-name
+  semantics decide types. The generated seeds satisfy the project's own
+  test suite — verified end-to-end against dbt-duckdb (`dbt build`: 24/24
+  passing on the demo project, including model-level relationship tests).
+  Both the legacy inline test syntax and the dbt 1.9+ `arguments:` nesting
+  are parsed; columns dbt declares as `date` are written date-only.
+  Untranslatable tests (`dbt_utils.*`, custom generics) are reported, not
+  guessed at. New module: `misata/dbt_import.py`.
+
 ## [0.8.7.2] - 2026-07-16
 
 ### Added

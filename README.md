@@ -215,7 +215,7 @@ assert len(overlap) == 0
 
 ---
 
-## Six ways to generate data
+## Seven ways to generate data
 
 ### 1. Plain English, no config required
 
@@ -298,7 +298,27 @@ from myapp.models import Base
 report = seed_from_sqlalchemy_models(Base, db_url="sqlite:///test.db", row_count=500, create_tables=True)
 ```
 
-### 4. Python dict schema
+### 4. From a dbt project's own schema.yml
+
+```bash
+cd my-dbt-project && misata dbt-seed
+```
+
+No story, no config. Misata reads the properties YAML your project already
+has and generates seed CSVs that satisfy it: `relationships` tests become
+foreign keys with guaranteed integrity, `accepted_values` become the exact
+category pools, `unique` and `not_null` become hard constraints, and
+`data_type` plus column-name semantics decide the rest. Then:
+
+```bash
+dbt build   # seed + run + test — the tests you already wrote, passing on day zero
+```
+
+Both the legacy inline test syntax and the dbt 1.9+ `arguments:` nesting are
+understood. Tests Misata can't translate (`dbt_utils.*`, custom generics) are
+listed in the output rather than silently guessed at.
+
+### 5. Python dict schema
 
 ```python
 schema = misata.from_dict_schema({
@@ -399,7 +419,7 @@ schema = misata.from_dict_schema({
 
 `__rate_curves__` works the same way for per-period rate targets on boolean or categorical columns (fraud rates, churn flags, plan distributions).
 
-### 5. LLM-assisted generation, richer semantics, optional
+### 6. LLM-assisted generation, richer semantics, optional
 
 ```python
 from misata import LLMSchemaGenerator
@@ -418,7 +438,7 @@ Requires `pip install "misata[llm]"` plus one of `GROQ_API_KEY`, `OPENAI_API_KEY
 
 > **Groq model tip:** `llama-3.3-70b-versatile` is the reliable free-tier default. Larger models (e.g. `openai/gpt-oss-120b`) can return `413 Request too large` on Groq's free tier, so use them only on a paid tier. Whatever the model returns, generation never crashes on an imperfect schema: missing relationships, malformed probabilities, and out-of-range `time_unit`s are repaired automatically.
 
-### 6. Incremental generation, grow a dataset without re-seeding
+### 7. Incremental generation, grow a dataset without re-seeding
 
 ```python
 tables = misata.generate("A fintech company with 1000 customers", seed=1)

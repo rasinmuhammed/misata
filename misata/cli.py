@@ -1643,6 +1643,10 @@ def validate_cmd(csv_file: str, schema: Optional[str], story: Optional[str], tab
               help="Locale for names, addresses, phone formats (e.g. de_DE, pt_BR, ja_JP).")
 @click.option("--capsule", type=click.Path(exists=True), default=None,
               help="Capsule JSON whose vocabularies override built-in pools.")
+@click.option("--from-project", "from_project", is_flag=True, default=False,
+              help="Build the schema from the dbt project's own schema.yml "
+                   "(relationships/accepted_values/unique/not_null tests) so "
+                   "the generated seeds pass the project's dbt test suite.")
 def dbt_seed_cmd(
     story: Optional[str],
     config: Optional[str],
@@ -1654,6 +1658,7 @@ def dbt_seed_cmd(
     save_misata: bool,
     locale: Optional[str],
     capsule: Optional[str],
+    from_project: bool,
 ) -> None:
     """Generate synthetic data into a dbt seeds/ directory with full integration.
 
@@ -1706,16 +1711,41 @@ def dbt_seed_cmd(
     seeds_path.mkdir(parents=True, exist_ok=True)
 
     # ── Build schema ─────────────────────────────────────────────────────
-    if not story and not config:
-        # Auto-detect misata.yaml
+    if not from_project and not story and not config:
+        # Auto-detect misata.yaml, then fall back to the dbt project's own contract
         if Path("misata.yaml").exists():
             config = "misata.yaml"
             console.print("[dim]Auto-detected misata.yaml[/dim]")
+        elif dbt_project:
+            from_project = True
         else:
             console.print("[red]Error:[/red] provide --story or --config (or create misata.yaml)")
             raise SystemExit(1)
 
-    if config:
+    if from_project:
+        if story or config:
+            console.print("[red]Error:[/red] --from-project cannot be combined with --story/--config")
+            raise SystemExit(1)
+        from misata.dbt_import import build_schema_from_dbt_project
+        try:
+            schema_config, import_report = build_schema_from_dbt_project(
+                dbt_project.project_root if dbt_project else None,
+                rows=rows, seed=seed,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            console.print(f"[red]Error:[/red] {exc}")
+            raise SystemExit(1)
+        console.print(
+            f"[dim]Schema built from the dbt project's own contract:[/dim]\n"
+            f"[dim]{import_report.summary()}[/dim]"
+        )
+        for w in import_report.warnings:
+            console.print(f"  [yellow]⚠[/yellow] {w}")
+        # The project already owns its tests; don't emit a second schema.yml,
+        # and keep misata.yaml out of the seeds dir (dbt parses every yml there).
+        emit_schema_yml = False
+        save_misata = False
+    elif config:
         schema_config = load_yaml_schema(config, rows=rows, seed=seed)
         console.print(f"[dim]Schema loaded from {config}[/dim]")
     else:
@@ -1755,6 +1785,10 @@ def dbt_seed_cmd(
             tables[name] = batch
 
     # ── Write seeds with size intelligence ───────────────────────────────
+    if from_project:
+        from misata.dbt_import import apply_date_only_columns
+        apply_date_only_columns(tables, import_report)
+
     written, skipped, size_reports = write_seeds_with_report(
         tables, seeds_path, force=force,
     )

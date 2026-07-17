@@ -7,7 +7,34 @@ description: Generate synthetic data and write CSV seed files directly into your
 
 `misata dbt-seed` generates synthetic data and writes one CSV file per table directly into your dbt `seeds/` directory. Run `dbt seed` afterwards and your data is in the warehouse.
 
-## Quick start
+## Quick start: from your project's own contract
+
+Run it bare inside a dbt project and Misata builds the schema from the properties YAML you already have:
+
+```bash
+cd my-dbt-project
+misata dbt-seed      # reads models/**/*.yml and seeds/**/*.yml
+dbt build            # seed + run + test — your own tests, passing
+```
+
+The translation is exact where it matters:
+
+| Your dbt declaration | What Misata generates |
+|:--|:--|
+| `relationships` test | A foreign key with guaranteed integrity (zero orphans) |
+| `accepted_values` test | A categorical column restricted to exactly those values |
+| `unique` test | A unique column (sequential ids for keys) |
+| `not_null` test | A column with no nulls |
+| `data_type` | The matching column type; `date` columns are written date-only |
+| No type declared | Semantic inference from the name (`email`, `*_date`, `first_name`, `amount`, …) |
+
+Both the legacy inline test syntax and the dbt 1.9+ `arguments:` nesting are parsed. Tests Misata can't translate (`dbt_utils.*`, custom generic tests) are listed in the output rather than silently guessed at. If your project declares seeds, those are generated; otherwise the declared models are.
+
+This is verified end-to-end against dbt-duckdb: on a jaffle-shop-style demo project, `dbt build` passes 24/24 tests, including model-level relationship tests, on data Misata generated from the schema.yml alone.
+
+## Quick start: from a story
+
+No dbt contract yet? Describe the data instead:
 
 ```bash
 # Generate SaaS seed data into dbt's seeds directory
@@ -31,6 +58,7 @@ Run dbt seed to load 3 table(s) into your warehouse.
 
 | Flag | Default | Description |
 |:--|:--|:--|
+| `--from-project` | auto | Build the schema from the dbt project's own properties YAML |
 | `--story`, `-s` |: | Plain-English dataset description |
 | `--config`, `-c` |: | Path to a `misata.yaml` schema file |
 | `--seeds-dir` | `seeds/` | dbt seeds directory |
