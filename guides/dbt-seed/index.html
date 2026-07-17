@@ -2856,10 +2856,30 @@
 <td style="text-align: left;">No type declared</td>
 <td style="text-align: left;">Semantic inference from the name (<code>email</code>, <code>*_date</code>, <code>first_name</code>, <code>amount</code>, …)</td>
 </tr>
+<tr>
+<td style="text-align: left;"><code>dbt_utils.accepted_range</code></td>
+<td style="text-align: left;">Hard numeric bounds (min_value/max_value)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dbt_utils.expression_is_true</code></td>
+<td style="text-align: left;"><code>"&gt;= 0"</code> becomes a bound; <code>"sale_price &lt;= list_price"</code> becomes a row-level inequality constraint</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dbt_utils.unique_combination_of_columns</code></td>
+<td style="text-align: left;">A composite-uniqueness constraint</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dbt_utils.not_empty_string</code></td>
+<td style="text-align: left;">Satisfied by construction (Misata never emits empty strings)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dbt_utils.relationships_where</code></td>
+<td style="text-align: left;">An FK with guaranteed integrity (a <code>to_condition</code> is reported as not enforced)</td>
+</tr>
 </tbody>
 </table>
-<p>Both the legacy inline test syntax and the dbt 1.9+ <code>arguments:</code> nesting are parsed. Tests Misata can't translate (<code>dbt_utils.*</code>, custom generic tests) are listed in the output rather than silently guessed at. If your project declares seeds, those are generated; otherwise the declared models are.</p>
-<p>This is verified end-to-end against dbt-duckdb: on a jaffle-shop-style demo project, <code>dbt build</code> passes 24/24 tests, including model-level relationship tests, on data Misata generated from the schema.yml alone.</p>
+<p>Both the legacy inline test syntax and the dbt 1.9+ <code>arguments:</code> nesting are parsed. Tests Misata can't translate (other <code>dbt_utils.*</code>, custom generic tests) are listed in the output rather than silently guessed at. If your project declares seeds, those are generated; otherwise the declared models are.</p>
+<p>This is verified end-to-end against dbt-duckdb and the real dbt-utils package: on a jaffle-shop-style demo project, <code>dbt build</code> passes 28/28 tests, including model-level relationship tests and dbt-utils generic tests, on data Misata generated from the schema.yml alone.</p>
 <h2 id="quick-start-from-a-story">Quick start: from a story</h2>
 <p>No dbt contract yet? Describe the data instead:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Generate SaaS seed data into dbt&#39;s seeds directory</span>
