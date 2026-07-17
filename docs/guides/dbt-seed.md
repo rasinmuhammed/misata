@@ -27,10 +27,15 @@ The translation is exact where it matters:
 | `not_null` test | A column with no nulls |
 | `data_type` | The matching column type; `date` columns are written date-only |
 | No type declared | Semantic inference from the name (`email`, `*_date`, `first_name`, `amount`, …) |
+| `dbt_utils.accepted_range` | Hard numeric bounds (min_value/max_value) |
+| `dbt_utils.expression_is_true` | `">= 0"` becomes a bound; `"sale_price <= list_price"` becomes a row-level inequality constraint |
+| `dbt_utils.unique_combination_of_columns` | A composite-uniqueness constraint |
+| `dbt_utils.not_empty_string` | Satisfied by construction (Misata never emits empty strings) |
+| `dbt_utils.relationships_where` | An FK with guaranteed integrity (a `to_condition` is reported as not enforced) |
 
-Both the legacy inline test syntax and the dbt 1.9+ `arguments:` nesting are parsed. Tests Misata can't translate (`dbt_utils.*`, custom generic tests) are listed in the output rather than silently guessed at. If your project declares seeds, those are generated; otherwise the declared models are.
+Both the legacy inline test syntax and the dbt 1.9+ `arguments:` nesting are parsed. Tests Misata can't translate (other `dbt_utils.*`, custom generic tests) are listed in the output rather than silently guessed at. If your project declares seeds, those are generated; otherwise the declared models are.
 
-This is verified end-to-end against dbt-duckdb: on a jaffle-shop-style demo project, `dbt build` passes 24/24 tests, including model-level relationship tests, on data Misata generated from the schema.yml alone.
+This is verified end-to-end against dbt-duckdb and the real dbt-utils package: on a jaffle-shop-style demo project, `dbt build` passes 28/28 tests, including model-level relationship tests and dbt-utils generic tests, on data Misata generated from the schema.yml alone.
 
 ## Quick start: from a story
 

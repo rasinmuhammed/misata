@@ -51,7 +51,23 @@ class DbtColumnSpec:
     accepted_values: Optional[List[Any]] = None
     # (to_entity, field) from a relationships test; None if not an FK
     relationship: Optional[Tuple[str, str]] = None
+    # dbt_utils.accepted_range → (min_value, max_value); either may be None
+    accepted_range: Optional[Tuple[Optional[float], Optional[float]]] = None
+    # dbt_utils.not_empty_string
+    non_empty: bool = False
+    # dbt_utils.expression_is_true at column level, parsed into
+    # (operator, operand) where operand is a float or another column name
+    expression: Optional[Tuple[str, Any]] = None
     skipped_tests: List[str] = field(default_factory=list)
+
+
+@dataclass
+class DbtEntityTest:
+    """A model/seed-level generic test (dbt_utils.* two-column forms)."""
+
+    # ("unique_combination", [col, ...]) or ("inequality", (col_a, op, col_b))
+    kind: str
+    payload: Any
 
 
 @dataclass
@@ -63,6 +79,8 @@ class DbtEntitySpec:
     source_file: Path
     description: Optional[str] = None
     columns: List[DbtColumnSpec] = field(default_factory=list)
+    entity_tests: List[DbtEntityTest] = field(default_factory=list)
+    skipped_tests: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -76,6 +94,7 @@ class DbtImportReport:
     accepted_values_translated: int = 0
     unique_translated: int = 0
     not_null_translated: int = 0
+    dbt_utils_translated: int = 0
     skipped_tests: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     # (table, column) pairs that must be written date-only (no time part):
@@ -89,7 +108,9 @@ class DbtImportReport:
             f"targeting {len(self.targets)} table(s): {', '.join(self.targets)}",
             f"Tests translated: {self.relationships_translated} relationships, "
             f"{self.accepted_values_translated} accepted_values, "
-            f"{self.unique_translated} unique, {self.not_null_translated} not_null",
+            f"{self.unique_translated} unique, {self.not_null_translated} not_null"
+            + (f", {self.dbt_utils_translated} dbt_utils"
+               if self.dbt_utils_translated else ""),
         ]
         if self.skipped_tests:
             lines.append(f"Skipped (not translatable): {', '.join(sorted(set(self.skipped_tests)))}")
@@ -102,6 +123,27 @@ class DbtImportReport:
 # ---------------------------------------------------------------------------
 
 _REF_RE = re.compile(r"""ref\(\s*['"]([^'"]+)['"]\s*(?:,\s*['"]([^'"]+)['"]\s*)?\)""")
+
+# "<op> <operand>" where operand is a number or a bare column name
+_COL_EXPR_RE = re.compile(r"^\s*(>=|<=|>|<)\s*([A-Za-z_][A-Za-z0-9_]*|-?\d+(?:\.\d+)?)\s*$")
+# "col_a <op> col_b" / "col_a <op> <number>" (model-level expression_is_true)
+_ROW_EXPR_RE = re.compile(
+    r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(>=|<=|>|<)\s*"
+    r"([A-Za-z_][A-Za-z0-9_]*|-?\d+(?:\.\d+)?)\s*$"
+)
+
+
+def _parse_expression(expr: str) -> Optional[Tuple[str, Any]]:
+    """Parse a column-level expression_is_true expression: ``">= 0"`` or
+    ``"<= list_price"`` → (operator, float-or-column-name)."""
+    m = _COL_EXPR_RE.match(str(expr))
+    if not m:
+        return None
+    op, operand = m.group(1), m.group(2)
+    try:
+        return op, float(operand)
+    except ValueError:
+        return op, operand
 
 
 def _parse_ref(to_expr: str) -> Optional[str]:
@@ -152,17 +194,80 @@ def _parse_column(raw: Dict[str, Any]) -> DbtColumnSpec:
             values = args.get("values")
             if isinstance(values, list) and values:
                 col.accepted_values = values
-        elif name == "relationships":
+        elif name in ("relationships", "dbt_utils.relationships_where"):
             target = _parse_ref(args.get("to", ""))
             fld = args.get("field")
             if target and fld:
                 col.relationship = (target, str(fld))
+                # A to_condition filters the valid parent set; we generate
+                # against the full parent table, which may violate it.
+                if args.get("to_condition"):
+                    col.skipped_tests.append(
+                        f"{name} to_condition ({args['to_condition']!r}) not enforced"
+                    )
             else:
-                col.skipped_tests.append(f"relationships({args.get('to')})")
+                col.skipped_tests.append(f"{name}({args.get('to')})")
+        elif name == "dbt_utils.accepted_range":
+            lo, hi = args.get("min_value"), args.get("max_value")
+            if lo is not None or hi is not None:
+                col.accepted_range = (
+                    float(lo) if lo is not None else None,
+                    float(hi) if hi is not None else None,
+                )
+        elif name == "dbt_utils.not_empty_string":
+            col.non_empty = True
+        elif name == "dbt_utils.expression_is_true":
+            parsed = _parse_expression(args.get("expression", ""))
+            if parsed is not None:
+                col.expression = parsed
+            else:
+                col.skipped_tests.append(
+                    f"dbt_utils.expression_is_true({args.get('expression')!r})"
+                )
         else:
-            # dbt_utils.*, custom generic tests, etc.
+            # other dbt_utils.*, custom generic tests, etc.
             col.skipped_tests.append(str(name))
     return col
+
+
+def _parse_entity_tests(raw: Dict[str, Any]) -> Tuple[List[DbtEntityTest], List[str]]:
+    """Parse model/seed-level generic tests (the dbt_utils multi-column forms)."""
+    parsed: List[DbtEntityTest] = []
+    skipped: List[str] = []
+    tests = raw.get("data_tests", raw.get("tests", [])) or []
+    for t in tests:
+        if isinstance(t, str):
+            name, spec = t, {}
+        elif isinstance(t, dict) and len(t) == 1:
+            name, spec = next(iter(t.items()))
+        else:
+            skipped.append(str(t))
+            continue
+        args = _test_args(spec)
+
+        if name == "dbt_utils.unique_combination_of_columns":
+            combo = args.get("combination_of_columns")
+            if isinstance(combo, list) and combo:
+                parsed.append(DbtEntityTest("unique_combination",
+                                            [str(c) for c in combo]))
+            else:
+                skipped.append(name)
+        elif name == "dbt_utils.expression_is_true":
+            m = _ROW_EXPR_RE.match(str(args.get("expression", "")))
+            if m:
+                col_a, op, operand = m.group(1), m.group(2), m.group(3)
+                try:
+                    operand = float(operand)
+                except ValueError:
+                    pass
+                parsed.append(DbtEntityTest("inequality", (col_a, op, operand)))
+            else:
+                skipped.append(
+                    f"dbt_utils.expression_is_true({args.get('expression')!r})"
+                )
+        else:
+            skipped.append(str(name))
+    return parsed, skipped
 
 
 def parse_dbt_properties(project: DbtProjectInfo) -> Tuple[List[DbtEntitySpec], int]:
@@ -200,6 +305,7 @@ def parse_dbt_properties(project: DbtProjectInfo) -> Tuple[List[DbtEntitySpec], 
                     if not isinstance(raw, dict) or not raw.get("name"):
                         continue
                     found_section = True
+                    entity_tests, entity_skipped = _parse_entity_tests(raw)
                     entities.append(DbtEntitySpec(
                         name=str(raw["name"]),
                         resource_type=rtype,
@@ -210,6 +316,8 @@ def parse_dbt_properties(project: DbtProjectInfo) -> Tuple[List[DbtEntitySpec], 
                             for c in (raw.get("columns") or [])
                             if isinstance(c, dict) and c.get("name")
                         ],
+                        entity_tests=entity_tests,
+                        skipped_tests=entity_skipped,
                     ))
             if found_section:
                 files_read += 1
@@ -264,7 +372,7 @@ def build_schema_from_dbt(
     Returns:
         (schema_config, report)
     """
-    from misata.schema import Column, Relationship, SchemaConfig, Table
+    from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
     from misata.semantic import SemanticInference
 
     report = DbtImportReport(entities=entities)
@@ -299,6 +407,8 @@ def build_schema_from_dbt(
 
     for entity in chosen:
         cols: List[Column] = []
+        table_constraints: List[Constraint] = []
+        report.skipped_tests.extend(entity.skipped_tests)
         for spec in entity.columns:
             report.skipped_tests.extend(spec.skipped_tests)
             if spec.unique:
@@ -367,6 +477,37 @@ def build_schema_from_dbt(
                 misata_type = "int"
                 params = {"min": 1, "max": max(rows * 10, 1000)}
 
+            # dbt_utils.accepted_range → hard numeric bounds
+            if spec.accepted_range is not None:
+                if misata_type not in ("int", "float"):
+                    misata_type = "float"
+                lo, hi = spec.accepted_range
+                if lo is not None:
+                    params["min"] = lo
+                if hi is not None:
+                    params["max"] = hi
+                report.dbt_utils_translated += 1
+
+            # dbt_utils.expression_is_true on the column
+            if spec.expression is not None:
+                op, operand = spec.expression
+                if isinstance(operand, float):
+                    if misata_type not in ("int", "float"):
+                        misata_type = "float"
+                    params["min" if op in (">", ">=") else "max"] = operand
+                    report.dbt_utils_translated += 1
+                else:
+                    table_constraints.append(Constraint(
+                        name=f"{entity.name}_{spec.name}_{op}_{operand}",
+                        type="inequality",
+                        column_a=spec.name, operator=op, column_b=operand,
+                    ))
+                    report.dbt_utils_translated += 1
+
+            # dbt_utils.not_empty_string: misata never generates empty text
+            if spec.non_empty:
+                report.dbt_utils_translated += 1
+
             if misata_type is None:
                 misata_type = "text"
 
@@ -384,6 +525,37 @@ def build_schema_from_dbt(
                 unique=spec.unique or (spec.name == "id" and misata_type == "int"),
                 description=spec.description,
             ))
+
+        # Model/seed-level dbt_utils tests → engine constraints
+        for et in entity.entity_tests:
+            if et.kind == "unique_combination":
+                table_constraints.append(Constraint(
+                    name=f"{entity.name}_unique_{'_'.join(et.payload)}",
+                    type="unique_combination",
+                    group_by=list(et.payload),
+                    action="drop",
+                ))
+                report.dbt_utils_translated += 1
+            elif et.kind == "inequality":
+                col_a, op, operand = et.payload
+                if isinstance(operand, float):
+                    target = next((c for c in cols if c.name == col_a), None)
+                    if target is not None and target.type in ("int", "float"):
+                        target.distribution_params[
+                            "min" if op in (">", ">=") else "max"
+                        ] = operand
+                        report.dbt_utils_translated += 1
+                    else:
+                        report.skipped_tests.append(
+                            f"expression_is_true({col_a} {op} {operand})"
+                        )
+                else:
+                    table_constraints.append(Constraint(
+                        name=f"{entity.name}_{col_a}_{op}_{operand}",
+                        type="inequality",
+                        column_a=col_a, operator=op, column_b=operand,
+                    ))
+                    report.dbt_utils_translated += 1
 
         # A referenced parent key must exist even if its yml omits the column
         needed_keys = {
@@ -404,6 +576,7 @@ def build_schema_from_dbt(
             row_count=rows,
             description=entity.description,
             columns=[c.name for c in cols],
+            constraints=table_constraints,
         ))
         columns[entity.name] = cols
 

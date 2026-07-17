@@ -5,6 +5,22 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.4] - 2026-07-17
+
+### Added
+
+- **dbt-utils tests are now part of the generation contract.** `misata
+  dbt-seed --from-project` translates the common dbt-utils generic tests
+  instead of skipping them: `accepted_range` becomes hard numeric bounds,
+  `expression_is_true` becomes a bound (`">= 0"`) or a row-level inequality
+  constraint (`"sale_price <= list_price"`), `unique_combination_of_columns`
+  becomes a composite-uniqueness constraint, `not_empty_string` is satisfied
+  by construction, and `relationships_where` becomes an FK with guaranteed
+  integrity (a `to_condition` is reported as not enforced). Verified against
+  the real dbt-utils package on dbt-duckdb: the demo project's `dbt build`
+  passes 28/28. Unknown dbt-utils and custom generic tests are still
+  reported, never guessed at.
+
 ## [0.8.7.3] - 2026-07-17
 
 ### Added

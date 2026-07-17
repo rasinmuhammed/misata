@@ -91,6 +91,51 @@ models:
         data_tests: [unique, not_null]
 """
 
+DBT_UTILS_PROPERTIES = """
+version: 2
+
+seeds:
+  - name: line_items
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_id, line_number]
+      - dbt_utils.expression_is_true:
+          expression: "sale_price <= list_price"
+      - dbt_utils.expression_is_true:
+          expression: "quantity >= 1"
+      - dbt_utils.some_future_test
+    columns:
+      - name: order_id
+      - name: line_number
+        data_type: integer
+      - name: quantity
+        data_type: integer
+      - name: list_price
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 500
+      - name: sale_price
+        data_type: float
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: sku
+        tests:
+          - dbt_utils.not_empty_string
+      - name: warehouse_id
+        tests:
+          - dbt_utils.relationships_where:
+              to: ref('warehouses')
+              field: id
+  - name: warehouses
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+"""
+
 
 @pytest.fixture
 def dbt_project(tmp_path: Path) -> Path:
@@ -138,8 +183,9 @@ def test_parse_both_test_syntaxes(dbt_project: Path):
 
     method = cols[("raw_payments", "payment_method")]
     assert method.accepted_values == ["credit_card", "coupon"]
-    # unknown/custom generic tests are recorded, not crashed on
-    assert "dbt_utils.not_empty_string" in method.skipped_tests
+    # dbt_utils.not_empty_string is now translated, not skipped
+    assert method.non_empty
+    assert method.skipped_tests == []
 
     # unique/not_null in both syntaxes
     assert cols[("raw_customers", "id")].unique
@@ -248,6 +294,81 @@ def test_project_without_columns_raises(tmp_path: Path):
     (tmp_path / "seeds").mkdir()
     with pytest.raises(ValueError):
         build_schema_from_dbt_project(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# dbt_utils tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def dbt_utils_project(tmp_path: Path) -> Path:
+    (tmp_path / "dbt_project.yml").write_text(DBT_PROJECT_YML)
+    (tmp_path / "seeds").mkdir()
+    (tmp_path / "models").mkdir()
+    (tmp_path / "seeds" / "properties.yml").write_text(DBT_UTILS_PROPERTIES)
+    return tmp_path
+
+
+def test_dbt_utils_parsing(dbt_utils_project: Path):
+    info = detect_dbt_project(dbt_utils_project)
+    entities, _ = parse_dbt_properties(info)
+    items = next(e for e in entities if e.name == "line_items")
+    cols = {c.name: c for c in items.columns}
+
+    assert cols["list_price"].accepted_range == (1.0, 500.0)
+    assert cols["sale_price"].expression == (">=", 0.0)
+    assert cols["sku"].non_empty
+    assert cols["warehouse_id"].relationship == ("warehouses", "id")
+
+    kinds = {(t.kind, str(t.payload)) for t in items.entity_tests}
+    assert ("unique_combination", "['order_id', 'line_number']") in kinds
+    assert ("inequality", "('sale_price', '<=', 'list_price')") in kinds
+    assert ("inequality", "('quantity', '>=', 1.0)") in kinds
+    # unknown dbt_utils tests are reported, not crashed on
+    assert "dbt_utils.some_future_test" in items.skipped_tests
+
+
+def test_dbt_utils_translation(dbt_utils_project: Path):
+    schema, report = build_schema_from_dbt_project(dbt_utils_project, rows=50)
+
+    cols = {c.name: c for c in schema.columns["line_items"]}
+    # accepted_range → numeric bounds
+    assert cols["list_price"].type in ("int", "float")
+    assert cols["list_price"].distribution_params["min"] == 1.0
+    assert cols["list_price"].distribution_params["max"] == 500.0
+    # column-level ">= 0" → min bound
+    assert cols["sale_price"].distribution_params["min"] == 0.0
+    # entity-level "quantity >= 1" → min bound on quantity
+    assert cols["quantity"].distribution_params["min"] == 1.0
+    # relationships_where → plain FK
+    assert cols["warehouse_id"].type == "foreign_key"
+
+    items_table = next(t for t in schema.tables if t.name == "line_items")
+    ctypes = {(c.type, tuple(c.group_by) if c.group_by else
+               (c.column_a, c.operator, c.column_b)) for c in items_table.constraints}
+    assert ("unique_combination", ("order_id", "line_number")) in ctypes
+    assert ("inequality", ("sale_price", "<=", "list_price")) in ctypes
+    assert report.dbt_utils_translated >= 6
+
+
+def test_dbt_utils_generation_satisfies_contract(dbt_utils_project: Path):
+    from misata.simulator import DataSimulator
+
+    schema, report = build_schema_from_dbt_project(dbt_utils_project, rows=200, seed=3)
+    sim = DataSimulator(schema)
+    tables: dict = {}
+    for name, batch in sim.generate_all():
+        tables[name] = pd.concat([tables[name], batch], ignore_index=True) \
+            if name in tables else batch
+
+    items = tables["line_items"]
+    assert (items["list_price"] >= 1).all() and (items["list_price"] <= 500).all()
+    assert (items["sale_price"] >= 0).all()
+    assert (items["sale_price"] <= items["list_price"]).all()
+    assert (items["quantity"] >= 1).all()
+    assert not items.duplicated(["order_id", "line_number"]).any()
+    assert set(items["warehouse_id"]).issubset(set(tables["warehouses"]["id"]))
+    assert items["sku"].astype(str).str.len().gt(0).all()
 
 
 # ---------------------------------------------------------------------------
