@@ -14,9 +14,12 @@ Run:
     python examples/bank_in_a_box.py
 """
 
+import os
+import sys
 import warnings
 
 warnings.filterwarnings("ignore")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # for fraud_typologies
 
 import misata
 import pandas as pd
@@ -401,6 +404,37 @@ def main() -> None:
     print("  Sample statement lines")
     for _, r in txns[["channel", "description", "amount_aed"]].drop_duplicates("channel").head(6).iterrows():
         print(f"    {r.description:<52} AED {r.amount_aed:>10,.2f}")
+    print()
+
+    # ── Organized-fraud overlay + answer key (the moat) ──────────────────
+    from fraud_typologies import plant_fraud_typologies, recompute_account_rollups
+
+    plant = plant_fraud_typologies(transactions=txns, accounts=accounts, seed=SEED)
+    txns = plant.transactions
+    accounts = recompute_account_rollups(accounts, txns)  # books reconcile incl. rings
+
+    print("  " + plant.summary().replace("\n", "\n  "))
+    print()
+    rings = txns[txns["fraud_case_id"].notna()]
+    caught_by_naive = rings["is_fraud"].mean()
+    print("  Answer key vs. the naive is_fraud flag")
+    print(f"    Ring transactions planted:        {len(rings):>6,}")
+    print(f"    Caught by naive is_fraud flag:    {caught_by_naive:>6.1%}  ← organized fraud evades it")
+    print(f"    Recoverable from answer key:       {'100.0%':>6}  ← ground truth by construction")
+    print()
+    print("  Sample cases (a detection model is scored against these)")
+    for _, r in plant.answer_key.head(3).iterrows():
+        print(f"    {r.case_id:<12} {r.typology:<13} {r.n_accounts:>2} acct / {r.n_transactions:>2} txn  — {r.note}")
+    print()
+
+    # Re-verify integrity holds on the FINAL shipped table (rings included)
+    final_orphans = (~txns["account_id"].isin(set(accounts["account_id"]))).sum()
+    spend2 = txns.groupby("account_id")["amount_aed"].sum().round(2)
+    recon2 = accounts.set_index("account_id")["total_spend_aed"].round(2).subtract(spend2, fill_value=0.0).abs().lt(0.005)
+    print("  Post-overlay integrity (final shipped dataset)")
+    print(f"    transactions → accounts orphans:  {final_orphans}")
+    print(f"    txn_id still unique:              {txns['txn_id'].is_unique}")
+    print(f"    rollups reconcile:                {recon2.sum():,}/{len(recon2):,} accounts")
     print()
 
     # ── Calendar rhythm (WPS salary window, Fri-Sat weekend, Ramadan) ────
