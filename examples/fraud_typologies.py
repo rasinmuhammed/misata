@@ -134,15 +134,21 @@ def plant_fraud_typologies(
         anchor = window_start + pd.Timedelta(days=float(rng.uniform(0, (window_end - window_start).days)))
         case_txn_ids: List[int] = []
 
-        # fan-in: each mule sends a small amount to the collector
+        # fan-in: each mule debits its own account, the collector is credited —
+        # a real transfer shows on both ledgers, so both accounts appear.
         inbound_total = 0.0
         for m in mules:
             amt = float(rng.uniform(3_500, 9_500))
             inbound_total += amt
-            new_rows.append(_row(next_txn_id, collector, _ts_around(anchor, 30),
-                                 "transfer", "Remittance", f"IPI CR FROM {int(m)}",
-                                 amt, f"INWARD TRANSFER REF{rng.integers(10**7,10**8)}",
-                                 case_id, "mule_chain"))
+            ref = rng.integers(10**7, 10**8)
+            ts = _ts_around(anchor, 30)
+            new_rows.append(_row(next_txn_id, m, ts, "transfer", "Remittance",
+                                 f"IPI DR TO {int(collector)}", amt,
+                                 f"OUTWARD TRANSFER REF{ref}", case_id, "mule_chain"))
+            case_txn_ids.append(next_txn_id); next_txn_id += 1
+            new_rows.append(_row(next_txn_id, collector, ts, "transfer", "Remittance",
+                                 f"IPI CR FROM {int(m)}", amt,
+                                 f"INWARD TRANSFER REF{ref}", case_id, "mule_chain"))
             case_txn_ids.append(next_txn_id); next_txn_id += 1
 
         # fan-out: collector drains via 1-3 large outbound transfers a bit later
