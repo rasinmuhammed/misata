@@ -1,0 +1,108 @@
+{
+  "misata_capsule": 1,
+  "domain": "gcc-banking",
+  "locale": "ae",
+  "era": null,
+  "metadata": {
+    "description": "UAE/GCC retail banking vocabulary: merchants conditioned on category, banks, billers, exchange houses. Amounts draw inside per-category AED bands.",
+    "currency": "AED"
+  },
+  "vocabularies": {
+    "bank_name": [
+      "First Abu Dhabi Bank", "Emirates NBD", "Abu Dhabi Commercial Bank",
+      "Dubai Islamic Bank", "Abu Dhabi Islamic Bank", "Mashreq", "RAKBANK",
+      "Commercial Bank of Dubai", "Emirates Islamic", "Sharjah Islamic Bank",
+      "National Bank of Fujairah", "HSBC Middle East", "Standard Chartered UAE",
+      "Wio Bank", "Liv", "Zand", "Al Maryah Community Bank"
+    ],
+    "biller_name": [
+      "DEWA", "SEWA", "ADDC", "AADC", "Etisalat by e&", "du", "Empower",
+      "Salik", "RTA", "Dubai Municipality", "Lootah Gas", "Emicool"
+    ],
+    "exchange_house": [
+      "Al Ansari Exchange", "Lulu Exchange", "Al Fardan Exchange",
+      "Al Rostamani International Exchange", "Wall Street Exchange",
+      "Index Exchange", "GCC Exchange", "Western Union"
+    ],
+    "merchant_name": [
+      "Carrefour", "Lulu Hypermarket", "Spinneys", "ADNOC", "ENOC", "Talabat",
+      "Careem", "noon.com", "Amazon.ae", "Sharaf DG", "Damas Jewellery",
+      "Emirates", "Etihad Airways", "DEWA", "Etisalat by e&", "du",
+      "Al Ansari Exchange", "Max Fashion", "Jumbo Electronics", "Namshi"
+    ]
+  },
+  "conditional_vocabularies": {
+    "merchant_category": {
+      "parent": "channel",
+      "map": {
+        "card_pos": ["Groceries", "Fuel", "Dining", "Gold & Jewellery", "Fashion", "Electronics"],
+        "card_online": ["Electronics", "Fashion", "Travel", "Dining", "Telecom"],
+        "atm": ["Cash"],
+        "transfer": ["Remittance"],
+        "wallet": ["Dining", "Groceries", "Telecom", "Travel", "Fashion"],
+        "standing_order": ["Utilities", "Telecom"]
+      }
+    },
+    "merchant_name": {
+      "parent": "merchant_category",
+      "map": {
+        "Groceries": [
+          "Carrefour", "Lulu Hypermarket", "Spinneys", "Choithrams",
+          "Union Coop", "West Zone Supermarket", "Nesto Hypermarket",
+          "Al Adil Trading", "Grandiose Supermarket", "Viva Supermarket"
+        ],
+        "Fuel": ["ADNOC", "ENOC", "EPPCO", "Emarat"],
+        "Cash": ["CASH"],
+        "Dining": [
+          "Talabat", "Deliveroo", "Zomato", "Al Mallah", "Ravi Restaurant",
+          "Operation Falafel", "Allo Beirut", "Tim Hortons", "Starbucks",
+          "McDonald's UAE", "KFC UAE", "Karak House", "Shakespeare and Co"
+        ],
+        "Utilities": ["DEWA", "SEWA", "ADDC", "AADC", "Empower", "Lootah Gas", "Emicool"],
+        "Telecom": ["Etisalat by e&", "du", "Virgin Mobile UAE", "Botim"],
+        "Remittance": [
+          "Al Ansari Exchange", "Lulu Exchange", "Al Fardan Exchange",
+          "Al Rostamani International Exchange", "Wall Street Exchange",
+          "Index Exchange", "GCC Exchange", "Western Union"
+        ],
+        "Gold & Jewellery": [
+          "Damas Jewellery", "Joyalukkas", "Malabar Gold and Diamonds",
+          "Kalyan Jewellers", "Pure Gold Jewellers", "Sky Jewellery",
+          "Kanz Jewels"
+        ],
+        "Electronics": [
+          "Sharaf DG", "Emax", "Jumbo Electronics", "Virgin Megastore",
+          "Jacky's Electronics", "noon.com", "Amazon.ae", "iSTYLE"
+        ],
+        "Fashion": [
+          "Namshi", "Ounass", "Splash", "Max Fashion", "Centrepoint",
+          "H&M UAE", "Brands For Less", "American Eagle UAE", "6thStreet"
+        ],
+        "Travel": [
+          "Emirates", "Etihad Airways", "flydubai", "Air Arabia",
+          "Wizz Air Abu Dhabi", "Careem", "RTA Nol Top-up", "Dubai Taxi",
+          "dnata Travel", "Cleartrip"
+        ]
+      }
+    }
+  },
+  "price_bands": {
+    "amount_aed": {
+      "parent": "merchant_category",
+      "bands": {
+        "Groceries": [12, 950],
+        "Fuel": [40, 420],
+        "Cash": [100, 6000],
+        "Dining": [14, 640],
+        "Utilities": [95, 3200],
+        "Telecom": [49, 1250],
+        "Remittance": [180, 18000],
+        "Gold & Jewellery": [450, 85000],
+        "Electronics": [79, 16000],
+        "Fashion": [35, 3400],
+        "Travel": [140, 14500]
+      }
+    }
+  },
+  "provenance": {}
+}

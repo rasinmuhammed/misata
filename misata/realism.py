@@ -2083,6 +2083,7 @@ def apply_realism_rules(
     _fix_rankable_lookup_monotonicity(df, columns, table_name)
 
     # ── Identity consistency ──
+    _fix_name_nationality_coherence(df, columns, _rng)  # before gender fix: culture anchors first
     _fix_gender_name_coherence(df, columns, _rng)   # before email: email derives from the fixed name
     _fix_email_from_name(df, columns, _rng)
     _fix_corporate_email(df, columns, _rng)
@@ -2484,6 +2485,116 @@ def _apply_plan_price_mapping(df: pd.DataFrame, columns: set[str]) -> None:
 
 
 # ─── IDENTITY RULES ──────────────────────────────────────────────────────────
+
+def _fix_name_nationality_coherence(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
+    """Make person names agree with a schema-declared ``nationality`` column.
+
+    Direction matters: the nationality DISTRIBUTION is part of the spec (it
+    may carry explicit probabilities matching real demographics), so we keep
+    nationality and redraw the name from the culture pool the nationality
+    maps to. "Susan Richardson — Pakistan" is the kind of tell a domain
+    reviewer catches in seconds; after this pass it can't ship.
+
+    Rows are left untouched when: the nationality has no culture mapping,
+    the name is unknown to every pool (capsule/locale vocabulary), or name
+    and nationality already agree. Gender agreement is preserved — a
+    declared gender column wins; otherwise the replacement keeps the
+    original name's inferred gender so the table's gender mix is stable.
+    """
+    from misata.people import (
+        CULTURE_POOLS,
+        LAST_NAME_CULTURE,
+        NAME_CULTURE,
+        lookup_nationality_culture,
+    )
+
+    nat_col = next(
+        (c for c in ("nationality", "citizenship", "country_of_citizenship") if c in columns),
+        None,
+    )
+    if nat_col is None:
+        return
+
+    # Locate the name representation. full_name is handled here (the gender
+    # rule above only covers first_name/name).
+    if "first_name" in columns:
+        name_col, split = "first_name", False
+    elif "full_name" in columns:
+        name_col, split = "full_name", True
+    elif "name" in columns:
+        series = df["name"].astype(str)
+        if series.str.strip().str.split().str.len().ge(2).mean() < 0.6:
+            return  # not personal names
+        name_col, split = "name", True
+    else:
+        return
+
+    targets = df[nat_col].map(lambda v: lookup_nationality_culture(v) or "")
+
+    names = df[name_col].astype(str).str.strip()
+    firsts = names.str.split().str[0]
+    if split:
+        lasts = names.str.split().str[-1]
+    elif "last_name" in columns:
+        lasts = df["last_name"].astype(str)
+    else:
+        lasts = pd.Series("", index=df.index)
+
+    first_cultures = firsts.map(lambda n: NAME_CULTURE.get(n, ""))
+    last_cultures = lasts.map(lambda n: LAST_NAME_CULTURE.get(n, ""))
+    known = (first_cultures != "") | (last_cultures != "")
+    mismatch = (
+        (targets != "")
+        & known
+        & (
+            ((first_cultures != "") & (first_cultures != targets))
+            | ((last_cultures != "") & (last_cultures != targets))
+        )
+    )
+    if not mismatch.any():
+        return
+
+    gender_col = next((c for c in ("gender", "sex") if c in columns), None)
+    if gender_col is not None:
+        declared = df[gender_col].astype(str).str.lower().str.strip().str[0]
+        genders = declared.map({"m": "male", "f": "female"})
+    else:
+        genders = firsts.map(lambda n: lookup_gender(n) or "")
+
+    for culture in sorted(set(targets[mismatch])):
+        pools = CULTURE_POOLS.get(culture)
+        if pools is None:
+            continue
+        c_mask = mismatch & (targets == culture)
+        n = int(c_mask.sum())
+        if n == 0:
+            continue
+        g = genders[c_mask].fillna("")
+        new_first = np.empty(n, dtype=object)
+        female = (g.values == "female")
+        male = (g.values == "male")
+        unknown = ~(female | male)
+        if unknown.any():
+            # Preserve nothing knowable: split the unknowns ~50/50.
+            coin = rng.random(int(unknown.sum())) < 0.5
+            u_idx = np.flatnonzero(unknown)
+            female[u_idx[coin]] = True
+            male[u_idx[~coin]] = True
+        if female.any():
+            new_first[female] = rng.choice(pools["female"], size=int(female.sum()))
+        if male.any():
+            new_first[male] = rng.choice(pools["male"], size=int(male.sum()))
+        new_last = rng.choice(pools["last"], size=n)
+
+        if name_col == "first_name":
+            df.loc[c_mask, "first_name"] = new_first
+            if "last_name" in columns:
+                df.loc[c_mask, "last_name"] = new_last
+            if "name" in columns:
+                df.loc[c_mask, "name"] = [f"{f} {l}" for f, l in zip(new_first, new_last)]
+        else:
+            df.loc[c_mask, name_col] = [f"{f} {l}" for f, l in zip(new_first, new_last)]
+
 
 def _fix_gender_name_coherence(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
     """Make first names agree with a schema-declared ``gender``/``sex`` column.

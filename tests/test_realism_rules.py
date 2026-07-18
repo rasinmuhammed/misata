@@ -115,3 +115,70 @@ def test_date_column_default_range_is_fixed():
     col = Column(name="created_at", type="date")
     assert col.distribution_params["start"] == "2020-01-01"
     assert col.distribution_params["end"] == "2024-12-31"
+
+
+# ── Nationality ⇄ name coherence ──────────────────────────────────────────────
+
+
+def _nationality_frame():
+    return pd.DataFrame(
+        {
+            "full_name": [
+                "Susan Richardson",   # anglo name, Pakistani nationality → mismatch
+                "Monika Müller",      # german name, Bangladeshi nationality → mismatch
+                "Arjun Chopra",       # south_asian name, Indian nationality → already correct
+                "Omar Al-Farsi",      # middle_eastern name, Emirati → already correct
+                "Wei Zhang",          # chinese name, unknown nationality → untouched
+            ],
+            "nationality": ["Pakistan", "Bangladesh", "India", "UAE", "Atlantis"],
+        }
+    )
+
+
+def test_name_nationality_mismatch_is_repaired():
+    from misata.people import NAME_CULTURE, LAST_NAME_CULTURE
+
+    df = apply_realism_rules(_nationality_frame(), rng=np.random.default_rng(7))
+
+    for idx, expected_culture in ((0, "south_asian"), (1, "south_asian")):
+        first, last = df.loc[idx, "full_name"].split(" ", 1)
+        assert NAME_CULTURE.get(first) == expected_culture, df.loc[idx, "full_name"]
+        assert LAST_NAME_CULTURE.get(last) == expected_culture, df.loc[idx, "full_name"]
+
+
+def test_name_nationality_matching_rows_untouched():
+    df = apply_realism_rules(_nationality_frame(), rng=np.random.default_rng(7))
+    assert df.loc[2, "full_name"] == "Arjun Chopra"
+    assert df.loc[4, "full_name"] == "Wei Zhang"  # unmapped nationality: leave alone
+
+
+def test_name_nationality_preserves_declared_gender():
+    from misata.people import NAME_GENDER
+
+    df = pd.DataFrame(
+        {
+            "full_name": ["Susan Richardson", "James Wilson"],
+            "nationality": ["India", "India"],
+            "gender": ["Female", "Male"],
+        }
+    )
+    out = apply_realism_rules(df, rng=np.random.default_rng(3))
+    first_f = out.loc[0, "full_name"].split(" ")[0]
+    first_m = out.loc[1, "full_name"].split(" ")[0]
+    assert NAME_GENDER.get(first_f) == "female"
+    assert NAME_GENDER.get(first_m) == "male"
+
+
+def test_name_nationality_handles_first_last_split_columns():
+    from misata.people import NAME_CULTURE, LAST_NAME_CULTURE
+
+    df = pd.DataFrame(
+        {
+            "first_name": ["Susan"],
+            "last_name": ["Richardson"],
+            "nationality": ["Philippines"],
+        }
+    )
+    out = apply_realism_rules(df, rng=np.random.default_rng(11))
+    assert NAME_CULTURE.get(out.loc[0, "first_name"]) == "hispanic"
+    assert LAST_NAME_CULTURE.get(out.loc[0, "last_name"]) == "hispanic"

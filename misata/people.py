@@ -364,6 +364,61 @@ class PersonSampler:
         return out
 
 
+# ---------------------------------------------------------------------------
+# Nationality → culture pool mapping (country names AND demonyms, lowercase).
+# Approximations are deliberate and documented: Filipino naming is largely
+# Hispanic (Spanish colonial surnames), Singapore maps to its Chinese
+# majority, Brazil's Portuguese names are closest to the hispanic pool.
+# ---------------------------------------------------------------------------
+
+_NATIONALITY_GROUPS: Dict[str, List[str]] = {
+    "south_asian": [
+        "india", "indian", "pakistan", "pakistani", "bangladesh", "bangladeshi",
+        "sri lanka", "sri lankan", "nepal", "nepali", "nepalese",
+    ],
+    "middle_eastern": [
+        "uae", "united arab emirates", "emirati", "saudi arabia", "saudi",
+        "egypt", "egyptian", "jordan", "jordanian", "lebanon", "lebanese",
+        "syria", "syrian", "iraq", "iraqi", "oman", "omani", "qatar", "qatari",
+        "kuwait", "kuwaiti", "bahrain", "bahraini", "yemen", "yemeni",
+        "palestine", "palestinian", "morocco", "moroccan", "tunisia",
+        "tunisian", "algeria", "algerian", "sudan", "sudanese",
+    ],
+    "anglo": [
+        "united kingdom", "uk", "british", "united states", "usa", "american",
+        "australia", "australian", "canada", "canadian", "ireland", "irish",
+        "new zealand",
+    ],
+    "chinese": ["china", "chinese", "taiwan", "taiwanese", "hong kong", "singapore", "singaporean"],
+    "japanese": ["japan", "japanese"],
+    "korean": ["south korea", "korea", "korean"],
+    "hispanic": [
+        "philippines", "filipino", "filipina", "mexico", "mexican", "spain",
+        "spanish", "colombia", "colombian", "argentina", "argentine", "peru",
+        "peruvian", "chile", "chilean", "venezuela", "venezuelan", "brazil",
+        "brazilian",
+    ],
+    "african": [
+        "nigeria", "nigerian", "kenya", "kenyan", "ghana", "ghanaian",
+        "ethiopia", "ethiopian", "south africa", "south african", "uganda",
+        "ugandan", "tanzania", "tanzanian",
+    ],
+    "german": ["germany", "german", "austria", "austrian", "switzerland", "swiss"],
+    "french": ["france", "french", "belgium", "belgian"],
+    "italian": ["italy", "italian"],
+}
+
+NATIONALITY_CULTURE: Dict[str, str] = {}
+for _culture, _labels in _NATIONALITY_GROUPS.items():
+    for _label in _labels:
+        NATIONALITY_CULTURE.setdefault(_label, _culture)
+
+
+def lookup_nationality_culture(nationality: str) -> Optional[str]:
+    """Culture pool for a nationality value (country name or demonym), else None."""
+    return NATIONALITY_CULTURE.get(str(nationality).strip().lower())
+
+
 def lookup_gender(first_name: str) -> Optional[str]:
     """Return 'male'/'female' for a known first name, else None."""
     return NAME_GENDER.get(str(first_name).split(" ")[0])
