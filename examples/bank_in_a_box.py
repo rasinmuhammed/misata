@@ -92,6 +92,10 @@ schema_dict = {
         # Filled from the gcc-banking capsule, conditioned on merchant_category:
         # a Fuel transaction gets ADNOC/ENOC, never Damas Jewellery.
         "merchant_name": {"type": "string"},
+        # amount_aed comes from a custom generator (below): log-uniform inside
+        # the capsule's per-category band, with ATM/Cash snapped to 100-AED
+        # notes — real ATMs don't dispense AED 892.67. Drawn during generation
+        # so the account rollups still reconcile to the fils.
         "amount_aed": {"type": "float", "decimals": 2},
         "description": {"type": "string"},
         "is_fraud": {"type": "boolean"},
@@ -132,6 +136,99 @@ schema_dict = {
         }
     ],
 }
+
+
+def _load_bands():
+    import json
+
+    cap = json.load(open("examples/gcc_banking.capsule.json"))
+    return cap["price_bands"]["amount_aed"]["bands"]
+
+
+def _amount_aed(partial_df, context_tables):
+    """Per-category amount, log-uniform inside the capsule band, ATM in notes.
+
+    Reads the capsule's own bands so there is one source of truth. Cash /
+    ATM rows snap to the nearest AED 100 (real dispensers hold 100 and 500
+    notes); everything else keeps 2-decimal retail precision.
+    """
+    import numpy as np
+
+    bands = _load_bands()
+    rng = np.random.default_rng(SEED + 11)
+    n = len(partial_df)
+    cats = partial_df["merchant_category"].astype(str).values
+    channel = partial_df["channel"].astype(str).values
+    lo_all = min(b[0] for b in bands.values())
+    hi_all = max(b[1] for b in bands.values())
+
+    out = np.empty(n, dtype=float)
+    for i in range(n):
+        lo, hi = bands.get(cats[i], (lo_all, hi_all))
+        # log-uniform: cheap-heavy, like real card spend
+        val = float(np.exp(rng.uniform(np.log(lo), np.log(hi))))
+        if channel[i] == "atm" or cats[i] == "Cash":
+            val = max(100.0, round(val / 100.0) * 100.0)
+            out[i] = val
+        else:
+            out[i] = round(val, 2)
+    return out
+
+
+def _txn_timestamps(partial_df, context_tables):
+    """Transaction timestamps with the rhythms a GCC banker expects to see.
+
+    Three real signals, all seeded and reproducible:
+      - Weekend is Friday-Saturday (not Sat-Sun): those days carry more
+        discretionary card spend.
+      - Salary-run window (25th-28th): the WPS payroll cycle lands salaries,
+        so transaction volume bumps in the last week of each month.
+      - Ramadan 2025 (~1-30 March): spend shifts to post-Iftar evening hours;
+        the rest of the year peaks late afternoon/early evening.
+    Timestamps stay inside 2025-01-01..2025-06-30 so the declared monthly
+    fraud-rate curve still binds exactly on this column.
+    """
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(SEED + 5)
+    n = len(partial_df)
+    start = pd.Timestamp("2025-01-01")
+    end = pd.Timestamp("2025-06-30")
+    days = pd.date_range(start, end, freq="D")
+
+    # Per-day weight: weekend (Fri=4, Sat=5) heavier, salary window heavier.
+    dow = days.dayofweek.values  # Mon=0 .. Sun=6
+    dom = days.day.values
+    w = np.ones(len(days))
+    w[(dow == 4) | (dow == 5)] *= 1.6            # Fri/Sat weekend
+    w[(dom >= 25) & (dom <= 28)] *= 1.5          # WPS salary-run bump
+    w = w / w.sum()
+
+    chosen = rng.choice(len(days), size=n, p=w)
+    picked = days[chosen]
+    ram = np.asarray(picked.month == 3)  # March 2025 ≈ Ramadan
+
+    # Hour: Ramadan evenings post-Iftar (19-25 → wraps past midnight),
+    # otherwise a late-afternoon/evening retail peak (~11-22).
+    hours = np.empty(n, dtype=int)
+    n_ram = int(ram.sum())
+    if n_ram:
+        hours[ram] = (rng.normal(21.5, 2.2, n_ram).round().astype(int)) % 24
+    reg = ~ram
+    n_reg = int(reg.sum())
+    if n_reg:
+        hours[reg] = np.clip(rng.normal(16.5, 3.5, n_reg).round().astype(int), 6, 23)
+
+    mins = rng.integers(0, 60, n)
+    secs = rng.integers(0, 60, n)
+    ts = (
+        pd.to_datetime(picked)
+        + pd.to_timedelta(hours, unit="h")
+        + pd.to_timedelta(mins, unit="m")
+        + pd.to_timedelta(secs, unit="s")
+    )
+    return ts.values
 
 
 def _statement_description(partial_df, context_tables):
@@ -178,7 +275,13 @@ def main() -> None:
     tables = misata.generate_from_schema(
         schema,
         capsule="examples/gcc_banking.capsule.json",
-        custom_generators={"transactions": {"description": _statement_description}},
+        custom_generators={
+            "transactions": {
+                "txn_ts": _txn_timestamps,
+                "amount_aed": _amount_aed,
+                "description": _statement_description,
+            }
+        },
     )
 
     customers = tables["customers"]
@@ -298,6 +401,23 @@ def main() -> None:
     print("  Sample statement lines")
     for _, r in txns[["channel", "description", "amount_aed"]].drop_duplicates("channel").head(6).iterrows():
         print(f"    {r.description:<52} AED {r.amount_aed:>10,.2f}")
+    print()
+
+    # ── Calendar rhythm (WPS salary window, Fri-Sat weekend, Ramadan) ────
+    ts = pd.to_datetime(txns["txn_ts"])
+    dow = ts.dt.dayofweek
+    weekend_share = dow.isin([4, 5]).mean()          # Fri, Sat
+    baseline = 2 / 7
+    salary_win = ts.dt.day.between(25, 28)
+    salary_daily = txns[salary_win].shape[0] / 4
+    other_daily = txns[~salary_win].shape[0] / 26
+    ram = ts.dt.month == 3
+    ram_evening = ts[ram].dt.hour.between(19, 23).mean()
+    non_ram_evening = ts[~ram].dt.hour.between(19, 23).mean()
+    print("  Calendar rhythm")
+    print(f"    Fri-Sat weekend share:   {weekend_share:>6.1%}  (flat calendar = {baseline:.1%})")
+    print(f"    Salary-window daily vol:  {salary_daily:>6.0f}/day vs {other_daily:.0f}/day rest of month")
+    print(f"    Ramadan evening spend:   {ram_evening:>6.1%}  vs {non_ram_evening:.1%} other months")
     print()
 
     # ── Coherence audit — the release gate ───────────────────────────────
