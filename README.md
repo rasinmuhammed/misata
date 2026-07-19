@@ -215,7 +215,7 @@ assert len(overlap) == 0
 
 ---
 
-## Seven ways to generate data
+## Eight ways to generate data
 
 ### 1. Plain English, no config required
 
@@ -318,7 +318,18 @@ Both the legacy inline test syntax and the dbt 1.9+ `arguments:` nesting are
 understood. Tests Misata can't translate (`dbt_utils.*`, custom generics) are
 listed in the output rather than silently guessed at.
 
-### 5. Python dict schema
+### 5. From a Prisma schema
+
+```bash
+cd my-app && misata prisma-seed
+```
+
+Reads the schema.prisma your app already maintains: `@relation` becomes foreign
+keys with zero orphans, enums become the exact value pools, `@id` and `@unique`
+are honoured, `@@id`/`@@unique` become composite uniqueness, and optional fields
+may be null. CSVs land in `seed-data/` ready for your seed script.
+
+### 6. Python dict schema
 
 ```python
 schema = misata.from_dict_schema({
@@ -419,7 +430,7 @@ schema = misata.from_dict_schema({
 
 `__rate_curves__` works the same way for per-period rate targets on boolean or categorical columns (fraud rates, churn flags, plan distributions).
 
-### 6. LLM-assisted generation, richer semantics, optional
+### 7. LLM-assisted generation, richer semantics, optional
 
 ```python
 from misata import LLMSchemaGenerator
@@ -438,7 +449,7 @@ Requires `pip install "misata[llm]"` plus one of `GROQ_API_KEY`, `OPENAI_API_KEY
 
 > **Groq model tip:** `llama-3.3-70b-versatile` is the reliable free-tier default. Larger models (e.g. `openai/gpt-oss-120b`) can return `413 Request too large` on Groq's free tier, so use them only on a paid tier. Whatever the model returns, generation never crashes on an imperfect schema: missing relationships, malformed probabilities, and out-of-range `time_unit`s are repaired automatically.
 
-### 7. Incremental generation, grow a dataset without re-seeding
+### 8. Incremental generation, grow a dataset without re-seeding
 
 ```python
 tables = misata.generate("A fintech company with 1000 customers", seed=1)
