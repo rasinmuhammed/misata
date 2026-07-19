@@ -177,7 +177,7 @@ def main() -> None:
     schema = misata.from_dict_schema(bank.schema_dict, seed=bank.SEED)
     tables = misata.generate_from_schema(
         schema,
-        capsule="examples/gcc_banking.capsule.json",
+        capsule=str(__import__("pathlib").Path(__file__).resolve().parent / "gcc_banking.capsule.json"),
         custom_generators={
             "transactions": {
                 "txn_ts": bank._txn_timestamps,

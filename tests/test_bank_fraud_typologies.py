@@ -37,8 +37,11 @@ def test_planting_adds_rows_and_answer_key():
     accounts, tx = _base_bank()
     plant = ft.plant_fraud_typologies(accounts=accounts, transactions=tx, seed=7)
     assert len(plant.transactions) > len(tx)  # rings add rows
-    assert len(plant.answer_key) == 12 + 15 + 10  # default case counts
-    assert set(plant.answer_key["typology"]) == {"mule_chain", "structuring", "card_bustout"}
+    # Default case counts come from the TYPOLOGIES registry itself, so the
+    # assertion tracks the source of truth instead of a hardcoded snapshot.
+    expected_cases = sum(default_n for _, _, _, default_n in ft.TYPOLOGIES)
+    assert len(plant.answer_key) == expected_cases
+    assert set(plant.answer_key["typology"]) == {name for name, *_ in ft.TYPOLOGIES}
 
 
 def test_answer_key_matches_planted_rows_exactly():

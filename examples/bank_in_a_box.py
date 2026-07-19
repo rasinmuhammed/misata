@@ -18,6 +18,9 @@ import os
 import sys
 import warnings
 
+from pathlib import Path as _Path
+CAPSULE_PATH = str(_Path(__file__).resolve().parent / "gcc_banking.capsule.json")
+
 warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # for fraud_typologies
 
@@ -144,7 +147,7 @@ schema_dict = {
 def _load_bands():
     import json
 
-    cap = json.load(open("examples/gcc_banking.capsule.json"))
+    cap = json.load(open(CAPSULE_PATH))
     return cap["price_bands"]["amount_aed"]["bands"]
 
 
@@ -277,7 +280,7 @@ def main() -> None:
     schema = misata.from_dict_schema(schema_dict, seed=SEED)
     tables = misata.generate_from_schema(
         schema,
-        capsule="examples/gcc_banking.capsule.json",
+        capsule=CAPSULE_PATH,
         custom_generators={
             "transactions": {
                 "txn_ts": _txn_timestamps,
@@ -369,7 +372,7 @@ def main() -> None:
     cat_map = {
         cat: set(names)
         for cat, names in __import__("json")
-        .load(open("examples/gcc_banking.capsule.json"))["conditional_vocabularies"]["merchant_name"]["map"]
+        .load(open(CAPSULE_PATH))["conditional_vocabularies"]["merchant_name"]["map"]
         .items()
     }
     in_map = txns.apply(lambda r: r["merchant_name"] in cat_map.get(r["merchant_category"], set()), axis=1)
@@ -381,7 +384,7 @@ def main() -> None:
     print()
 
     # ── Amounts inside per-category AED bands (capsule price bands) ──────
-    bands = __import__("json").load(open("examples/gcc_banking.capsule.json"))["price_bands"]["amount_aed"]["bands"]
+    bands = __import__("json").load(open(CAPSULE_PATH))["price_bands"]["amount_aed"]["bands"]
     ok = txns.apply(
         lambda r: bands[r["merchant_category"]][0] <= r["amount_aed"] <= bands[r["merchant_category"]][1]
         if r["merchant_category"] in bands else True,
