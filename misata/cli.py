@@ -1861,6 +1861,89 @@ def dbt_seed_cmd(
             )
 
 
+@main.command("prisma-seed")
+@click.option("--schema", "schema_path", type=click.Path(exists=True), default=None,
+              help="Path to schema.prisma (auto-detected: prisma/schema.prisma, ./schema.prisma).")
+@click.option("--out", "out_dir", type=click.Path(), default="seed-data",
+              help="Directory to write CSV seed files (default: seed-data/).")
+@click.option("--rows", "-n", type=int, default=200,
+              help="Row count per model (default: 200).")
+@click.option("--seed", type=int, default=42,
+              help="Random seed for reproducibility (default: 42).")
+@click.option("--force", is_flag=True, default=False,
+              help="Overwrite existing CSV files.")
+def prisma_seed_cmd(
+    schema_path: Optional[str],
+    out_dir: str,
+    rows: int,
+    seed: int,
+    force: bool,
+) -> None:
+    """Generate seed data from a Prisma schema.
+
+    \b
+    Reads the schema.prisma your app already maintains and generates CSVs that
+    respect it: @relation becomes foreign keys with zero orphans, enums become
+    the exact value pools, @id/@unique are honoured, @@id/@@unique become
+    composite-uniqueness, and optional fields may be null. Attributes misata
+    cannot honour are listed, never guessed at.
+
+    \b
+    Examples:
+        cd my-app && misata prisma-seed
+        misata prisma-seed --schema prisma/schema.prisma --rows 1000
+    """
+    print_banner()
+
+    from misata.dbt import write_seeds_with_report
+    from misata.prisma_import import build_schema_from_prisma, find_prisma_schema
+
+    path = Path(schema_path) if schema_path else find_prisma_schema()
+    if path is None:
+        console.print("[red]Error:[/red] no schema.prisma found (looked in "
+                      "./prisma/ and ./, walking upward). Pass --schema.")
+        raise SystemExit(1)
+    console.print(f"[dim]📁 Prisma schema:[/dim] [cyan]{path}[/cyan]")
+
+    try:
+        schema_config, report = build_schema_from_prisma(
+            path.read_text(encoding="utf-8"),
+            project_name=path.parent.parent.name or "prisma",
+            rows=rows, seed=seed,
+        )
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1)
+
+    console.print(f"[dim]{report.summary()}[/dim]")
+    for w in report.warnings:
+        console.print(f"  [yellow]⚠[/yellow] {w}")
+
+    from misata.simulator import DataSimulator
+
+    console.print(f"\n⚙️  Generating {len(schema_config.tables)} table(s)...")
+    sim = DataSimulator(schema_config)
+    tables: dict = {}
+    for name, batch in sim.generate_all():
+        if name in tables:
+            tables[name] = pd.concat([tables[name], batch], ignore_index=True)
+        else:
+            tables[name] = batch
+
+    out = Path(out_dir)
+    written, skipped, _ = write_seeds_with_report(tables, out, force=force)
+    console.print()
+    for table_name, row_count, p in written:
+        console.print(f"  [green]✓[/green] [bold]{table_name}[/bold] — "
+                      f"{row_count:,} rows → [cyan]{p}[/cyan]")
+    for table_name in skipped:
+        console.print(f"  [yellow]⚠[/yellow] [bold]{table_name}[/bold] — "
+                      f"skipped (file exists, use --force)")
+    if written:
+        console.print(f"\n[bold green]✓ Done.[/bold green] Load the CSVs in your "
+                      f"seed script, or import them with your database tool.")
+
+
 @main.command("dbt-fixture")
 @click.option("--story", "-s", type=str, default=None,
               help="Plain-English story to generate data from.")

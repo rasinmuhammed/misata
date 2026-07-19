@@ -5,6 +5,20 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.5] - 2026-07-19
+
+### Added
+
+- **`misata prisma-seed`: generate seed data from a Prisma schema.** Reads
+  the `schema.prisma` your app already maintains (auto-detected like Prisma
+  itself) and generates CSVs that respect it: `@relation` becomes foreign
+  keys with zero orphans, enums become the exact value pools, `@id` and
+  `@unique` are honoured, `@@id`/`@@unique` become composite-uniqueness
+  constraints (enforced by dropping duplicate combinations), optional fields
+  may be null, and string columns get semantic inference (emails that match
+  names, real cities). Attributes Misata cannot honour are reported, never
+  guessed at. New module: `misata/prisma_import.py`.
+
 ## [0.8.7.4] - 2026-07-17
 
 ### Added
