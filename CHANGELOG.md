@@ -5,6 +5,28 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.7] - 2026-07-20
+
+### Fixed
+
+Three fixes found by generating a full 6-table dataset from a field-reported
+spec and auditing it end to end:
+
+- **User-declared templates survive the review realism pass.** The
+  sentiment-rewrite pass regenerates review text from the rating by default;
+  it now skips columns with declared templates or couplings (the declaration
+  wins). Template and coupling columns are also protected from every other
+  mutating pass.
+- **Dependency-aware column generation.** A column whose templates or mapping
+  depend on another column is now generated after that column, even when the
+  schema declares it first (review_text before sentiment). Output column
+  order stays exactly as declared, and per-column anchored RNG streams are
+  unaffected.
+- **Coherence audit scale priors:** sentiment/polarity scores are -1..1 and
+  NPS is -100..100; they are no longer flagged as absurd by the generic
+  0-100 score envelope. Grouped templates plus depends_on now also count as
+  a valid coupling in `merge_refinements`.
+
 ## [0.8.7.6] - 2026-07-20
 
 ### Added

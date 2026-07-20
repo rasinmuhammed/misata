@@ -140,6 +140,14 @@ _SCALE_ENVELOPES = {
     "year_built": (1600, 2035),
     "rating": (0, 5),
     "stars": (0, 5),
+    # Specific score conventions must precede the generic "score" catchall
+    # (first match in dict order wins): sentiment/polarity scores are -1..1,
+    # NPS ranges -100..100.
+    "sentiment_score": (-1, 1),
+    "polarity_score": (-1, 1),
+    "polarity": (-1, 1),
+    "nps_score": (-100, 100),
+    "nps": (-100, 100),
     "score": (0, 100),
     "percentage": (0, 100),
     "percent": (0, 100),

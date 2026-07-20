@@ -474,6 +474,32 @@ class DataSimulator:
             return values
         return None
 
+    @staticmethod
+    def _dependency_order(columns):
+        """Stable generation order where a depends_on column comes after its
+        parent (a review_text grouped by sentiment must see sentiment already
+        generated, even if the schema declares it first). Output column order
+        is unaffected; callers restore the declared order afterwards. Cycles
+        fall back to declared order."""
+        names = {c.name for c in columns}
+        order, placed = [], set()
+        pending = list(columns)
+        while pending:
+            progressed = False
+            for c in list(pending):
+                dep = (c.distribution_params or {}).get("depends_on")
+                parent = str(dep).split(".")[0] if dep else None
+                if (not dep or parent == c.name or parent not in names
+                        or parent in placed):
+                    order.append(c)
+                    placed.add(c.name)
+                    pending.remove(c)
+                    progressed = True
+            if not progressed:
+                order.extend(pending)
+                break
+        return order
+
     def _generate_template_text(self, column, params, table_data, size: int) -> np.ndarray:
         """Fill user-declared sentence templates per row.
 
@@ -2235,7 +2261,7 @@ class DataSimulator:
 
         df_batch = self.fact_engine.generate(plan, column_map)
 
-        for column in columns:
+        for column in self._dependency_order(columns):
             if column.name in df_batch.columns:
                 continue
             values = self.generate_column(table_name, column, len(df_batch), df_batch)
@@ -2299,6 +2325,15 @@ class DataSimulator:
                 protected.add(constraint.column)
 
         protected.update(self._get_formula_columns(table_name))
+
+        # A column with user-declared templates or an explicit coupling is a
+        # declaration, not a draw — realism passes must not regenerate it.
+        for column in self.config.get_columns(table_name):
+            params = column.distribution_params or {}
+            if params.get("templates") or params.get("template"):
+                protected.add(column.name)
+            if params.get("depends_on") and params.get("mapping"):
+                protected.add(column.name)
         return protected
 
     def _get_protected_noise_columns(self, table_name: str, table: Any) -> set[str]:
@@ -2524,13 +2559,15 @@ class DataSimulator:
             data = {}
             df_batch = pd.DataFrame()
 
-            for column in columns:
+            for column in self._dependency_order(columns):
                 with self._anchor("column", table_name, column.name, rows_generated):
                     values = self.generate_column(table_name, column, batch_size, df_batch)
                 data[column.name] = values
                 df_batch[column.name] = values
 
-            df_batch = pd.DataFrame(data)
+            # Restore the declared column order (generation order may differ
+            # when depends_on forced a parent to be generated first).
+            df_batch = pd.DataFrame(data)[[c.name for c in columns]]
 
             # Apply formulas
             df_batch = self._run_pass("formulas", table_name, rows_generated,
@@ -4590,7 +4627,7 @@ class DataSimulator:
         # so denormalized parent copies agree regardless of code path.
         df = self._fix_denormalized_parent_columns(df, table_name)
 
-        df = apply_realism_rules(df, table_name, rng=self.rng)
+        df = apply_realism_rules(df, table_name, rng=self.rng, protected=protected_columns)
 
         realism = self._get_realism_config()
         if realism and realism.coherence != "off":

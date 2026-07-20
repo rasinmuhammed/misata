@@ -2057,6 +2057,7 @@ def apply_realism_rules(
     df: pd.DataFrame,
     table_name: str = "",
     rng: Optional[np.random.Generator] = None,
+    protected: Optional[set] = None,
 ) -> pd.DataFrame:
     """
     Apply cross-column realism rules to a DataFrame.
@@ -2109,7 +2110,7 @@ def apply_realism_rules(
     _fix_route_geo(df, columns, _rng)
 
     # ── Text/sentiment consistency ──
-    _fix_review_sentiment(df, columns, _rng)
+    _fix_review_sentiment(df, columns, _rng, protected or set())
 
     # ── Status consistency ──
     _apply_status_end_date(df, columns, _rng)
@@ -2123,24 +2124,35 @@ _REVIEW_TEXT_COLS = ("review", "review_text", "review_body", "feedback_text")
 _RATING_COLS = ("rating", "stars", "score", "rating_given")
 
 
-def _fix_review_sentiment(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
+def _fix_review_sentiment(
+    df: pd.DataFrame, columns: set[str], rng: np.random.Generator,
+    protected: Optional[set] = None,
+) -> None:
     """Make review text agree with the row's rating — regardless of the
     order columns were generated in.
 
     A five-star review that reads "disappointing" is both a realism tell and
     a conformance violation. Text is regenerated FROM the rating via the
     seeded grammar, making sentiment↔rating an invariant the Oracle layer
-    can verify with a lexicon check.
+    can verify with a lexicon check. Protected columns (user-declared
+    templates or couplings) are never rewritten — the declaration wins.
     """
+    protected = protected or set()
     rating_col = next((c for c in _RATING_COLS if c in columns), None)
     if rating_col is None:
         return
 
     from misata.microtext import MicrotextGenerator
 
-    text_col = next((c for c in _REVIEW_TEXT_COLS if c in columns), None)
+    text_col = next(
+        (c for c in _REVIEW_TEXT_COLS if c in columns and c not in protected), None
+    )
     # plain "title" is too generic to rewrite blindly; review_title is safe
-    title_col = "review_title" if "review_title" in columns else None
+    title_col = (
+        "review_title"
+        if "review_title" in columns and "review_title" not in protected
+        else None
+    )
     if text_col is None and title_col is None:
         return
 

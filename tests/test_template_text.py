@@ -113,6 +113,81 @@ def test_missing_pool_is_reported_not_guessed():
     assert not descs.str.contains("{error_code}", regex=False).any()
 
 
+def test_declared_templates_survive_review_realism_pass():
+    """A review table with a rating column triggers the sentiment-rewrite
+    realism pass; user-declared templates must survive it untouched."""
+    import pandas as pd
+    schema = SchemaConfig(
+        name="reviews", description="", seed=11,
+        tables=[Table(name="product_reviews", row_count=100,
+                      columns=["review_id", "rating", "sentiment", "review_text"])],
+        columns={"product_reviews": [
+            Column(name="review_id", type="int", unique=True,
+                   distribution_params={"min": 1, "max": 10000}),
+            Column(name="rating", type="int",
+                   distribution_params={"min": 1, "max": 5}),
+            Column(name="sentiment", type="categorical", distribution_params={
+                "depends_on": "rating",
+                "mapping": {"1": ["negative"], "2": ["negative"], "3": ["neutral"],
+                            "4": ["positive"], "5": ["positive"]}}),
+            Column(name="review_text", type="text", distribution_params={
+                "templates": {
+                    "positive": ["The {feature} exceeded expectations."],
+                    "neutral": ["The {feature} covers our basic needs."],
+                    "negative": ["We hit {error_code} in the {feature} repeatedly."],
+                },
+                "variables": {"feature": ["dashboard", "API"],
+                              "error_code": ["E-1", "E-2"]},
+                "depends_on": "sentiment"}),
+        ]},
+        relationships=[],
+    )
+    df = _generate(schema)
+    texts = df["review_text"].astype(str)
+    # Every row is template text, not the engine's generic review grammar
+    ok = texts.str.contains("exceeded expectations|basic needs|repeatedly", regex=True)
+    assert ok.all()
+    # And the grouping matches each row's sentiment
+    for _, row in df.iterrows():
+        t = str(row["review_text"])
+        if row["sentiment"] == "positive":
+            assert "exceeded expectations" in t
+        elif row["sentiment"] == "neutral":
+            assert "basic needs" in t
+        else:
+            assert "repeatedly" in t
+
+
+def test_template_column_declared_before_its_parent():
+    """The friend's spec declares review_text BEFORE sentiment; generation
+    must reorder internally so grouping still works, while the output keeps
+    the declared column order."""
+    schema = SchemaConfig(
+        name="reviews", description="", seed=3,
+        tables=[Table(name="product_reviews", row_count=120,
+                      columns=["review_id", "review_text", "sentiment"])],
+        columns={"product_reviews": [
+            Column(name="review_id", type="int", unique=True,
+                   distribution_params={"min": 1, "max": 10000}),
+            Column(name="review_text", type="text", distribution_params={
+                "templates": {"positive": ["Love the {feature}."],
+                              "negative": ["The {feature} keeps failing."]},
+                "variables": {"feature": ["dashboard", "API"]},
+                "depends_on": "sentiment"}),
+            Column(name="sentiment", type="categorical",
+                   distribution_params={"choices": ["positive", "negative"]}),
+        ]},
+        relationships=[],
+    )
+    df = _generate(schema)
+    assert list(df.columns) == ["review_id", "review_text", "sentiment"]
+    for _, row in df.iterrows():
+        if row["sentiment"] == "positive":
+            assert "Love the" in str(row["review_text"])
+        else:
+            assert "keeps failing" in str(row["review_text"])
+
+
 def test_seeded_reproducibility():
     params = {
         "templates": {"Integration": [INTEGRATION_TMPL], "Bug": [BUG_TMPL]},

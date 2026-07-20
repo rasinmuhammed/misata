@@ -475,9 +475,14 @@ def merge_refinements(
 
             dep = params.get("depends_on")
             mapping = params.get("mapping")
+            # A coupling is depends_on plus either a value mapping or a
+            # grouped templates dict (templates keyed by the parent's values).
             has_coupling = (
                 isinstance(dep, str) and dep in col_map and dep != cname
-                and isinstance(mapping, dict) and mapping
+                and (
+                    (isinstance(mapping, dict) and bool(mapping))
+                    or isinstance(params.get("templates"), dict)
+                )
             )
 
             if cname in locked.get(tname, set()):
