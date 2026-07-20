@@ -5,6 +5,25 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8] - 2026-07-20
+
+### Added
+
+- **`misata seed <db-url>`: fill a live database directly.** Point it at a
+  Postgres or SQLite connection string and it reads the tables, columns, and
+  foreign keys straight from the database, generates realistic data that
+  respects them, inserts parents before children, then verifies against the
+  database itself that every foreign key resolves — no schema file, no
+  codegen, no ORM. Safe by default: it refuses to touch tables that already
+  have rows unless you pass `--truncate`, and `--dry-run` prints the full
+  plan (tables, insert order, row counts) without writing. `--skip` leaves
+  named tables (migrations, auth) untouched and transitively skips any child
+  whose parent was skipped, so the zero-orphan guarantee always holds.
+  `--rows` sets the base count; reference and transaction tables scale from
+  it. New: `misata.db.verify_referential_integrity` and `table_row_counts`.
+  This is the free, open-source path for teams whose seeding tool was
+  discontinued.
+
 ## [0.8.7.8] - 2026-07-20
 
 ### Fixed

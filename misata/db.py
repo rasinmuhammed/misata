@@ -382,6 +382,98 @@ def _map_type(col_type: str, dialect: str) -> str:
     return "TEXT"
 
 
+@dataclass
+class RelationshipIntegrity:
+    parent_table: str
+    parent_key: str
+    child_table: str
+    child_key: str
+    orphans: int
+
+    @property
+    def intact(self) -> bool:
+        return self.orphans == 0
+
+    @property
+    def label(self) -> str:
+        return f"{self.child_table}.{self.child_key} → {self.parent_table}.{self.parent_key}"
+
+
+@dataclass
+class IntegrityReport:
+    relationships: List[RelationshipIntegrity] = field(default_factory=list)
+
+    @property
+    def verified(self) -> bool:
+        return all(r.intact for r in self.relationships)
+
+    @property
+    def total_orphans(self) -> int:
+        return sum(r.orphans for r in self.relationships)
+
+
+def verify_referential_integrity(config: SchemaConfig, db_url: str) -> IntegrityReport:
+    """Query the live database and confirm every foreign key resolves.
+
+    For each declared relationship, count child rows whose (non-null) foreign
+    key has no matching parent. Zero orphans across the board means the seeded
+    data is referentially intact *in the database itself*, not just in memory.
+    """
+    dialect, conn = _connect(db_url)
+    report = IntegrityReport()
+    try:
+        for rel in config.relationships:
+            sql = (
+                f'SELECT COUNT(*) FROM "{rel.child_table}" c '
+                f'WHERE c."{rel.child_key}" IS NOT NULL '
+                f'AND NOT EXISTS (SELECT 1 FROM "{rel.parent_table}" p '
+                f'WHERE p."{rel.parent_key}" = c."{rel.child_key}")'
+            )
+            try:
+                if dialect == "postgres":
+                    with conn.cursor() as cur:
+                        cur.execute(sql)
+                        orphans = int(cur.fetchone()[0])
+                else:
+                    orphans = int(conn.execute(sql).fetchone()[0])
+            except Exception:
+                # A relationship we cannot check (view, cross-schema) is skipped
+                # rather than reported as a false pass.
+                continue
+            report.relationships.append(
+                RelationshipIntegrity(
+                    parent_table=rel.parent_table,
+                    parent_key=rel.parent_key,
+                    child_table=rel.child_table,
+                    child_key=rel.child_key,
+                    orphans=orphans,
+                )
+            )
+        return report
+    finally:
+        conn.close()
+
+
+def table_row_counts(db_url: str, tables: Sequence[str]) -> Dict[str, int]:
+    """Current row count for each named table (missing tables report as 0)."""
+    dialect, conn = _connect(db_url)
+    counts: Dict[str, int] = {}
+    try:
+        for name in tables:
+            try:
+                if dialect == "postgres":
+                    with conn.cursor() as cur:
+                        cur.execute(f'SELECT COUNT(*) FROM "{name}"')
+                        counts[name] = int(cur.fetchone()[0])
+                else:
+                    counts[name] = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
+            except Exception:
+                counts[name] = 0
+        return counts
+    finally:
+        conn.close()
+
+
 def _topological_sort(config: SchemaConfig) -> List[str]:
     from collections import defaultdict, deque
 

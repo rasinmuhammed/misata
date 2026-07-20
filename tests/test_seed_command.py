@@ -1,0 +1,129 @@
+"""Tests for `misata seed`: introspect a live database, fill it with
+referentially-intact data, and verify every foreign key against the DB itself.
+
+SQLite is used as the live database (stdlib, no server needed); the code path
+is identical to Postgres apart from the driver.
+"""
+
+import sqlite3
+
+import pytest
+from click.testing import CliRunner
+
+from misata.cli import main, _prune_config_for_skip
+from misata.db import (
+    table_row_counts,
+    verify_referential_integrity,
+)
+from misata.introspect import schema_from_db
+
+
+SCHEMA = """
+CREATE TABLE customers (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  email TEXT,
+  country TEXT
+);
+CREATE TABLE products (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  price REAL,
+  category TEXT
+);
+CREATE TABLE orders (
+  id INTEGER PRIMARY KEY,
+  customer_id INTEGER REFERENCES customers(id),
+  product_id INTEGER REFERENCES products(id),
+  quantity INTEGER,
+  amount REAL,
+  status TEXT
+);
+CREATE TABLE schema_migrations (
+  version TEXT PRIMARY KEY
+);
+"""
+
+
+@pytest.fixture()
+def db(tmp_path):
+    path = tmp_path / "app.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    conn.execute("INSERT INTO schema_migrations VALUES ('20240101_init')")
+    conn.commit()
+    conn.close()
+    return f"sqlite:///{path}"
+
+
+def test_introspection_finds_foreign_keys(db):
+    config = schema_from_db(db, default_rows=20)
+    names = {t.name for t in config.tables}
+    assert {"customers", "products", "orders"} <= names
+    rels = {(r.child_table, r.child_key, r.parent_table) for r in config.relationships}
+    assert ("orders", "customer_id", "customers") in rels
+    assert ("orders", "product_id", "products") in rels
+
+
+def test_seed_fills_db_and_verifies_integrity(db):
+    result = CliRunner().invoke(
+        main,
+        ["seed", db, "--rows", "40", "--skip", "schema_migrations", "--yes"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Every foreign key resolves in the database" in result.output
+
+    counts = table_row_counts(db, ["customers", "products", "orders", "schema_migrations"])
+    assert counts["customers"] == 40
+    assert counts["products"] > 0
+    assert counts["orders"] > 0
+    # A skipped table is left exactly as it was.
+    assert counts["schema_migrations"] == 1
+
+    config = schema_from_db(db, default_rows=40, include_tables=["customers", "products", "orders"])
+    integrity = verify_referential_integrity(config, db)
+    assert integrity.verified
+    assert integrity.total_orphans == 0
+    assert len(integrity.relationships) == 2
+
+
+def test_dry_run_writes_nothing(db):
+    result = CliRunner().invoke(
+        main, ["seed", db, "--rows", "40", "--skip", "schema_migrations", "--dry-run"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Dry run: nothing was written" in result.output
+    assert table_row_counts(db, ["customers"])["customers"] == 0
+
+
+def test_refuses_nonempty_without_truncate(db):
+    args = ["seed", db, "--rows", "20", "--skip", "schema_migrations", "--yes"]
+    first = CliRunner().invoke(main, args)
+    assert first.exit_code == 0, first.output
+    # Second run must refuse rather than double-seed or silently skip.
+    second = CliRunner().invoke(main, args)
+    assert second.exit_code == 1
+    assert "already contain data" in second.output
+
+
+def test_truncate_reseeds_deterministically(db):
+    args = ["seed", db, "--rows", "20", "--skip", "schema_migrations", "--truncate", "--yes"]
+    CliRunner().invoke(main, args)
+    counts = table_row_counts(db, ["customers", "products", "orders"])
+    assert counts["customers"] == 20
+    # A second truncate+reseed lands on the same row counts (seed is fixed).
+    CliRunner().invoke(main, args)
+    counts2 = table_row_counts(db, ["customers", "products", "orders"])
+    assert counts == counts2
+
+
+def test_skip_cascades_to_dependent_children(db):
+    # Skipping a parent (customers) must also skip its child (orders), because
+    # orders.customer_id could not resolve without referencing existing rows.
+    config = schema_from_db(db, default_rows=10)
+    pruned, effective = _prune_config_for_skip(config, {"customers"})
+    assert "customers" in effective
+    assert "orders" in effective  # cascaded
+    assert "products" not in effective
+    kept = {t.name for t in pruned.tables}
+    assert "orders" not in kept and "products" in kept

@@ -1944,6 +1944,211 @@ def prisma_seed_cmd(
                       f"seed script, or import them with your database tool.")
 
 
+def _prune_config_for_skip(config, skip: set):
+    """Remove skipped tables from a SchemaConfig, transitively skipping any
+    kept child whose parent was skipped (its FK could not resolve, and
+    referencing existing parent rows is append-mode, not yet supported).
+
+    Returns (pruned_config, effective_skip) where effective_skip includes the
+    cascaded children so the caller can explain what happened.
+    """
+    from misata.schema import SchemaConfig
+
+    effective = set(skip)
+    changed = True
+    while changed:
+        changed = False
+        for rel in config.relationships:
+            if rel.parent_table in effective and rel.child_table not in effective:
+                effective.add(rel.child_table)
+                changed = True
+
+    kept = [t for t in config.tables if t.name not in effective]
+    kept_names = {t.name for t in kept}
+    pruned = SchemaConfig(
+        name=config.name,
+        description=getattr(config, "description", ""),
+        tables=kept,
+        columns={k: v for k, v in config.columns.items() if k in kept_names},
+        relationships=[
+            r for r in config.relationships
+            if r.parent_table in kept_names and r.child_table in kept_names
+        ],
+        seed=getattr(config, "seed", 42),
+    )
+    return pruned, effective
+
+
+@main.command("seed")
+@click.argument("db_url")
+@click.option("--rows", "-n", type=int, default=1000,
+              help="Base row count; reference/transaction tables scale from it.")
+@click.option("--tables", "table_filter", type=str, default=None,
+              help="Comma-separated tables to seed (default: every table).")
+@click.option("--skip", "skip_tables", type=str, default=None,
+              help="Comma-separated tables to leave untouched (e.g. schema_migrations).")
+@click.option("--truncate", is_flag=True, default=False,
+              help="Wipe target tables (children first) before seeding.")
+@click.option("--seed", "seed_value", type=int, default=42,
+              help="Random seed for reproducibility (default: 42).")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Print the plan (tables, insert order, row counts) and exit.")
+@click.option("--yes", "-y", is_flag=True, default=False,
+              help="Skip the confirmation prompt.")
+def seed_cmd(
+    db_url: str,
+    rows: int,
+    table_filter: Optional[str],
+    skip_tables: Optional[str],
+    truncate: bool,
+    seed_value: int,
+    dry_run: bool,
+    yes: bool,
+) -> None:
+    """Fill a live database with realistic, referentially-intact data.
+
+    \b
+    Reads the tables, columns, and foreign keys straight from your database,
+    generates data that respects them, inserts parents before children, then
+    verifies against the database itself that every foreign key resolves. No
+    schema file, no codegen, no ORM: point it at a connection string.
+
+    \b
+    Examples:
+        misata seed postgresql://localhost/myapp_dev
+        misata seed postgresql://localhost/myapp_dev --truncate --rows 500
+        misata seed sqlite:///dev.db --skip schema_migrations --dry-run
+    """
+    print_banner()
+
+    from misata.introspect import schema_from_db
+    from misata.db import (
+        seed_database, table_row_counts, verify_referential_integrity,
+        _topological_sort,
+    )
+
+    include = [t.strip() for t in table_filter.split(",")] if table_filter else None
+    skip = {t.strip() for t in (skip_tables.split(",") if skip_tables else [])}
+
+    console.print(f"[dim]🔌 Reading schema from:[/dim] [cyan]{db_url}[/cyan]")
+    try:
+        config = schema_from_db(db_url, default_rows=rows, include_tables=include)
+    except ImportError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1)
+    except Exception as exc:
+        console.print(f"[red]Could not read the database schema:[/red] {exc}")
+        raise SystemExit(1)
+
+    if not config.tables:
+        console.print("[yellow]No tables found to seed.[/yellow]")
+        raise SystemExit(1)
+
+    if skip:
+        config, effective_skip = _prune_config_for_skip(config, skip)
+        cascaded = effective_skip - skip
+        for name in sorted(cascaded):
+            console.print(
+                f"  [yellow]⚠[/yellow] skipping [bold]{name}[/bold] too — it "
+                f"references a table you skipped, so its foreign keys could not "
+                f"resolve (referencing existing rows is coming soon)."
+            )
+        if not config.tables:
+            console.print("[yellow]Nothing left to seed after --skip.[/yellow]")
+            raise SystemExit(1)
+
+    order = _topological_sort(config)
+    row_plan = {t.name: t.row_count for t in config.tables}
+    existing = table_row_counts(db_url, order)
+
+    # Plan table
+    plan = RichTable(show_header=True, header_style="bold", box=None)
+    plan.add_column("#", style="dim", justify="right")
+    plan.add_column("table")
+    plan.add_column("existing", justify="right", style="dim")
+    plan.add_column("will insert", justify="right")
+    for i, name in enumerate(order, 1):
+        plan.add_row(str(i), name, f"{existing.get(name, 0):,}", f"{row_plan.get(name, 0):,}")
+    console.print()
+    console.print(plan)
+    console.print(
+        f"\n[dim]{len(config.tables)} table(s), {len(config.relationships)} "
+        f"foreign key(s), inserted parents-first.[/dim]"
+    )
+
+    nonempty = [n for n in order if existing.get(n, 0) > 0]
+    if dry_run:
+        if nonempty and not truncate:
+            console.print(
+                f"\n[yellow]Note:[/yellow] {len(nonempty)} table(s) already have "
+                f"rows; a real run would need --truncate. "
+                f"({', '.join(nonempty[:6])}{'…' if len(nonempty) > 6 else ''})"
+            )
+        console.print("\n[dim]Dry run: nothing was written.[/dim]")
+        return
+
+    if nonempty and not truncate:
+        console.print(
+            f"\n[red]These tables already contain data:[/red] "
+            f"{', '.join(nonempty)}.\n"
+            f"Re-run with [bold]--truncate[/bold] to wipe and reseed them, or "
+            f"[bold]--skip {','.join(nonempty)}[/bold] to leave them alone."
+        )
+        raise SystemExit(1)
+
+    total_planned = sum(row_plan.values())
+    if not yes:
+        action = "TRUNCATE then insert" if truncate else "insert"
+        if not click.confirm(
+            f"\nAbout to {action} ~{total_planned:,} rows across "
+            f"{len(config.tables)} table(s) in this database. Continue?"
+        ):
+            console.print("[dim]Aborted.[/dim]")
+            return
+
+    config.seed = seed_value
+    console.print("\n⚙️  Generating and inserting…")
+    try:
+        # Introspection already supplied the full schema, so generation is
+        # purely deterministic — no story to parse, no model to call.
+        report = seed_database(
+            config, db_url, create=False, truncate=truncate,
+            smart_mode=False, use_llm=False,
+        )
+    except Exception as exc:
+        console.print(f"[red]Seeding failed:[/red] {exc}")
+        raise SystemExit(1)
+
+    for name in order:
+        n = report.table_rows.get(name, 0)
+        console.print(f"  [green]✓[/green] [bold]{name}[/bold] — {n:,} rows")
+
+    # The trust step: confirm integrity against the live database, not memory.
+    console.print("\n🔎 Verifying foreign keys against the database…")
+    integrity = verify_referential_integrity(config, db_url)
+    if not integrity.relationships:
+        console.print("  [dim]No foreign keys to verify.[/dim]")
+    else:
+        for r in integrity.relationships:
+            mark = "[green]✓[/green]" if r.intact else "[red]✗[/red]"
+            console.print(f"  {mark} {r.label} — {r.orphans} orphan(s)")
+
+    console.print()
+    if integrity.verified:
+        console.print(
+            f"[bold green]✓ Seeded {report.total_rows:,} rows in "
+            f"{report.duration_seconds:.1f}s.[/bold green] Every foreign key "
+            f"resolves in the database."
+        )
+    else:
+        console.print(
+            f"[bold yellow]Seeded {report.total_rows:,} rows, but "
+            f"{integrity.total_orphans} orphaned foreign key(s) remain.[/bold yellow] "
+            f"This usually means a relationship the introspector could not see; "
+            f"open an issue with your schema."
+        )
+
+
 @main.command("dbt-fixture")
 @click.option("--story", "-s", type=str, default=None,
               help="Plain-English story to generate data from.")

@@ -64,6 +64,7 @@ tests/*
 !tests/test_bank_evalpack.py
 !tests/test_prisma_import.py
 !tests/test_spec_prompt.py
+!tests/test_seed_command.py
 !tests/test_template_text.py
 jman_output/
 llm_test/
