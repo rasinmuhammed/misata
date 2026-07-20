@@ -100,6 +100,8 @@ _BOOL_LOW_TRUE = (       # ~20% true
 # exact name with an FK parent, the child's value is a copy of the parent's
 # (a line item's unit_price is the product's price). Kept deliberately small so
 # generic same-named columns (status, name, created_at) are never overwritten.
+_TEMPLATE_PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_][\w]*)\}")
+
 _PARENT_OWNED_ATTRS = {
     "unit_price", "price", "list_price", "category", "brand", "sku",
     "currency", "tax_rate", "product_name", "color", "size", "weight",
@@ -471,6 +473,74 @@ class DataSimulator:
         if any(getattr(p, "source_name", "") != "misata-defaults" for p in provenances):
             return values
         return None
+
+    def _generate_template_text(self, column, params, table_data, size: int) -> np.ndarray:
+        """Fill user-declared sentence templates per row.
+
+        ``templates`` is a list of template strings, or a dict grouping
+        template lists by the value of another column (``depends_on``; when
+        absent, the grouping column is auto-detected as the table column
+        whose values overlap the group keys). ``variables`` maps placeholder
+        names to value pools. Placeholders without a pool are left intact
+        and reported once, never guessed at.
+        """
+        tmpls = params.get("templates") or params.get("template")
+        variables = {
+            str(k).strip("{}").lower(): [str(v) for v in vs]
+            for k, vs in (params.get("variables") or {}).items()
+            if isinstance(vs, (list, tuple)) and vs
+        }
+
+        groups: Dict[str, List[str]] = {}
+        if isinstance(tmpls, dict):
+            groups = {
+                str(k): ([v] if isinstance(v, str) else [t for t in v if isinstance(t, str)])
+                for k, v in tmpls.items() if v
+            }
+            union = [t for ts in groups.values() for t in ts]
+        elif isinstance(tmpls, str):
+            union = [tmpls]
+        else:
+            union = [t for t in (tmpls or []) if isinstance(t, str)]
+        if not union:
+            return np.array([""] * size)
+
+        parent_vals = None
+        if groups and table_data is not None and not table_data.empty:
+            parent_col = params.get("depends_on")
+            if not (parent_col and parent_col in table_data.columns):
+                # Auto-detect: the column whose values best overlap group keys.
+                best, best_hits = None, 0
+                for c in table_data.columns:
+                    hits = len(set(table_data[c].astype(str).unique()) & set(groups))
+                    if hits > best_hits:
+                        best, best_hits = c, hits
+                parent_col = best
+            if parent_col:
+                parent_vals = table_data[parent_col].astype(str).values
+
+        missing: set = set()
+
+        def _fill(match: "re.Match") -> str:
+            pool = variables.get(match.group(1).lower())
+            if pool is None:
+                missing.add(match.group(1))
+                return match.group(0)
+            return pool[self.rng.integers(0, len(pool))]
+
+        out = []
+        for i in range(size):
+            pool_t = union
+            if parent_vals is not None and i < len(parent_vals):
+                pool_t = groups.get(parent_vals[i]) or union
+            t = pool_t[self.rng.integers(0, len(pool_t))]
+            out.append(_TEMPLATE_PLACEHOLDER_RE.sub(_fill, t))
+        if missing:
+            warnings.warn(
+                f"Column '{column.name}': no variable pool for placeholder(s) "
+                f"{sorted(missing)}; left intact."
+            )
+        return np.array(out)
 
     def _sample_unique_ints(self, low: int, high: int, count: int) -> np.ndarray:
         """Draw `count` distinct integers from [low, high] without materializing
@@ -1111,6 +1181,18 @@ class DataSimulator:
             )
 
         # ========== STANDARD COLUMN GENERATION ==========
+
+        # TEMPLATE TEXT — user-declared sentence templates with {placeholder}
+        # slots filled per row from declared variable pools. Two shapes:
+        #   templates: ["Our {connector} sync fails with {error_code}.", ...]
+        #   templates: {"Integration": [...], "Bug": [...]}   (grouped: each
+        #     row draws from the group matching another column's value, via
+        #     "depends_on"; an Integration sentence never lands on a Bug row)
+        # with variables: {"connector": ["Salesforce", "Snowflake", ...], ...}
+        # Placeholders without a pool are left intact and warned about once —
+        # reported, never guessed at.
+        if params.get("templates") or params.get("template"):
+            return self._generate_template_text(column, params, table_data, size)
 
         # CATEGORICAL
         if column.type == "categorical":
@@ -4326,6 +4408,16 @@ class DataSimulator:
             parent_idx = parent_df.set_index(rel.parent_key)
             for c in shared:
                 mapped = df[rel.child_key].map(parent_idx[c])
+                declared = col_params.get(c, {}).get("choices")
+                if declared:
+                    # The child declares its own vocabulary for this column.
+                    # If the parent's values fall outside it, this is NOT a
+                    # denormalized copy (a support ticket's category is not
+                    # the product's category); the declaration wins.
+                    allowed = {str(v) for v in declared}
+                    seen = {str(v) for v in mapped.dropna().unique()}
+                    if not seen.issubset(allowed):
+                        continue
                 df[c] = mapped.where(mapped.notna(), df[c])
         return df
 

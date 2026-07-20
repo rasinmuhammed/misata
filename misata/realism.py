@@ -723,6 +723,11 @@ class RealisticTextGenerator:
             return np.array([f"{left}-{right}" for left, right in words])
         if semantic == "category_label":
             return self._labels("category_label", CATEGORY_LABELS, size)
+        if semantic == "version":
+            majors = self.rng.integers(1, 6, size)
+            minors = self.rng.integers(0, 13, size)
+            patches = self.rng.integers(0, 10, size)
+            return np.array([f"{a}.{b}.{c}" for a, b, c in zip(majors, minors, patches)])
         if semantic in {"product_name", "product_description"}:
             return self._generate_product_text(size=size, semantic=semantic, table_data=table_data)
         if semantic == "bio":
@@ -1052,7 +1057,12 @@ class RealisticTextGenerator:
                 return "restaurant_name"
             if _q == "team":
                 return "team_name"
-        if "product" in table or "item" in table or "listing" in table:
+        if name in ("name", "title") and (
+            "product" in table or "item" in table or "listing" in table
+        ):
+            # Only the name-ish columns of a product table are product names.
+            # A blanket table catchall here used to turn EVERY unmatched text
+            # column (category, version, pricing_tier) into a product name.
             return "product_name"
         if name in ("name", "label") and table in ("departments", "department", "wards"):
             return "department"
@@ -1101,6 +1111,8 @@ class RealisticTextGenerator:
             return "department"
         if name in ("region", "territory", "zone", "district", "geo", "geography"):
             return "region"
+        if name == "version" or name.endswith("_version"):
+            return "version"
         if name in ("currency", "currency_code", "pay_currency", "invoice_currency"):
             return "currency"
         # Short categorical-label columns: a free-text status/type/tier should be
@@ -1110,6 +1122,9 @@ class RealisticTextGenerator:
             "status", "type", "category", "tier", "level", "kind", "stage",
             "label", "grade", "class", "mode", "priority", "severity", "plan",
             "source", "medium",
+        ) or name.endswith(
+            ("_status", "_type", "_category", "_tier", "_level", "_stage",
+             "_label", "_grade", "_class", "_priority", "_severity", "_plan")
         ):
             return "category_label"
         if name in ("industry", "sector", "vertical", "niche", "market", "segment"):

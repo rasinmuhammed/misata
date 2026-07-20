@@ -938,6 +938,15 @@ class StoryParser:
             ...     "A SaaS company with 50K users, 20% churn in Q3 2023"
             ... )
         """
+        # A structured spec (explicit tables, rows, columns, FK rules) is
+        # parsed deterministically, so "exactly 500 rows" means exactly 500.
+        from misata.spec_prompt import looks_like_spec, parse_spec
+        if looks_like_spec(story):
+            schema, report = parse_spec(story, default_rows=default_rows)
+            import warnings as _warnings
+            _warnings.warn(report.summary())
+            return schema
+
         # Extract information from story
         self.detected_domain = self._detect_domain(story)
 

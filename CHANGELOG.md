@@ -5,6 +5,55 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.6] - 2026-07-20
+
+### Added
+
+- **Structured spec prompts are now parsed deterministically.** A prompt that
+  is really a schema written in prose ("Table 1: customers / Rows: exactly
+  500 / Columns: ... / customer_id must match values from customers table")
+  no longer goes through an LLM at all. Both story paths (`StoryParser.parse`
+  and `generate_from_story`) detect the shape and hand it to the new
+  `misata/spec_prompt.py` parser: exact row counts are exact, FK rules in
+  both syntaxes ("must match values from" and `parent.col -> child.col`)
+  become enforced relationships, "must only be" lists become the exact value
+  pools, "must be 1 to 5" becomes hard bounds, and template-based text with
+  variable pools is realized into concrete sentence variants. Rules the
+  parser cannot translate are reported in a warning, never guessed at. This
+  also sidesteps token-cap truncation on long prompts.
+- **The LLM still gets used, properly: refinement within the locked
+  contract.** On the LLM path the parsed spec is not the end of the story.
+  The model receives a compact schema skeleton (not the full spec text, so
+  token-capped providers never truncate) plus the rules the parser left
+  open, and may refine unlocked columns and translate couplings like
+  "sentiment must match rating" into `depends_on` + `mapping` conditionals.
+  Its answer is merged under hard enforcement (`merge_refinements`): tables,
+  columns, row counts, FKs, and locked pools/bounds cannot change no matter
+  what the model returns, and a coupling on a locked column is accepted only
+  if every mapped value stays inside the declared pool. No key, model down,
+  or bad JSON: the deterministic parse stands on its own.
+- **Template text columns: bring your own templates.** A column can declare
+  `templates` (a list, or a dict grouped by another column's values) plus
+  `variables` pools, and the engine fills each `{placeholder}` per row,
+  seeded and deterministic. Grouped templates follow `depends_on` (or
+  auto-detect the grouping column), so an Integration ticket never carries a
+  Bug sentence. Placeholders without a declared pool are left intact and
+  warned about, never guessed at. The spec parser and the LLM schema
+  contract both emit this shape, so "use my TICKET_TEMPLATES with
+  {connector}/{error_code} variables" works end to end.
+
+### Fixed
+
+- A child column with explicitly declared choices is no longer overwritten by
+  the denormalized-parent-copy pass when the parent's vocabulary differs (a
+  support ticket's `category` is not the product's `category`).
+- Product tables no longer turn every unmatched text column into a product
+  name: only name-like columns (`name`, `title`) take the product-name pool,
+  so `category`, `version`, and `pricing_tier` get sane values.
+- Bare `*_tier`/`*_status`/`*_type`-style text columns fall back to short
+  labels instead of lorem sentences, and `version` columns generate semver
+  strings.
+
 ## [0.8.7.5] - 2026-07-19
 
 ### Added
