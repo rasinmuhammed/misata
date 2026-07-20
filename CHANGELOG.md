@@ -5,6 +5,23 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7.8] - 2026-07-20
+
+### Fixed
+
+- **A column named like "sentiment" no longer silently disables timestamp
+  ordering.** The lifecycle-chain fixer matches columns by name tokens, and
+  "sentiment" contains both "sent" and "time", so it joined the timestamp
+  chain as an unparseable candidate and the whole created-before-resolved
+  fix aborted (support tickets could resolve before they were created). The
+  audit's temporal detector went blind the same way, since the all-NaT
+  impostor sat between the two real dates in its adjacent-pair comparison.
+  Both now drop non-parsing candidates and keep going.
+- The spec-refinement whitelist now passes `formula` and `null_when`
+  through, so derived numerics (amount = quantity times seat price) and
+  conditional nulls (no resolved_date on open tickets) can be declared in
+  refinements.
+
 ## [0.8.7.7] - 2026-07-20
 
 ### Fixed

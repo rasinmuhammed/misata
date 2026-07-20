@@ -188,6 +188,35 @@ def test_template_column_declared_before_its_parent():
             assert "keeps failing" in str(row["review_text"])
 
 
+def test_time_chain_survives_sentiment_column():
+    """'sentiment' contains both 'sent' (a chain token) and 'time' (the
+    date-name filter), so it used to join the timestamp chain as all-NaT and
+    abort the created->resolved ordering fix entirely. The audit's temporal
+    detector went blind the same way (all-NaT column between the real pair)."""
+    import numpy as np
+    import pandas as pd
+    from misata.realism import _fix_time_chains
+
+    df = pd.DataFrame({
+        "created_date": pd.to_datetime(["2024-09-10", "2024-01-01"]),
+        "sentiment": ["negative", "positive"],
+        "resolved_date": pd.to_datetime(["2024-05-14", "2024-06-01"]),
+    })
+    _fix_time_chains(df, set(df.columns), np.random.default_rng(0))
+    assert (df["resolved_date"] >= df["created_date"]).all()
+    assert df["sentiment"].tolist() == ["negative", "positive"]
+
+    from misata.coherence import coherence_audit
+    bad = pd.DataFrame({
+        "created_date": pd.to_datetime(["2024-09-10"] * 5),
+        "sentiment": ["neutral"] * 5,
+        "resolved_date": pd.to_datetime(["2024-05-14"] * 5),
+    })
+    rep = coherence_audit({"tickets": bad})
+    kinds = {f["kind"] for f in rep.to_dict()["findings"]}
+    assert "temporal_disorder" in kinds
+
+
 def test_seeded_reproducibility():
     params = {
         "templates": {"Integration": [INTEGRATION_TMPL], "Bug": [BUG_TMPL]},

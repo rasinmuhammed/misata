@@ -1796,8 +1796,15 @@ def _fix_time_chains(df: pd.DataFrame, columns: set, rng: np.random.Generator) -
         vals = df[chain].apply(pd.to_datetime, errors="coerce")
     except Exception:
         return
-    if vals.isna().all().any():
+    # A name that merely contains chain tokens is not a date ("sentiment"
+    # contains both "sent" and "time"): drop candidates that do not parse,
+    # instead of aborting the whole chain because of them.
+    keep = [c for c in chain if not vals[c].isna().all()]
+    if len(keep) < 2:
         return
+    if keep != chain:
+        chain = keep
+        vals = vals[chain]
     ordered = np.sort(vals.values.astype("datetime64[ns]"), axis=1)
     ns = ordered.astype("int64")  # (n_rows, n_chain) epoch nanoseconds
     valid = ~np.isnan(vals.values.astype("datetime64[ns]")).any(axis=1)

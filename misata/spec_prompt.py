@@ -418,6 +418,7 @@ _SAFE_PARAMS = {
     "distribution", "mean", "std", "mu", "sigma", "min", "max", "decimals",
     "choices", "probabilities", "text_type", "start", "end",
     "depends_on", "mapping", "templates", "template", "variables",
+    "formula", "null_when",
 }
 
 

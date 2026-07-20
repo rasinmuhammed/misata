@@ -295,6 +295,13 @@ def _detect_and_repair_temporal(
         vals = df[chain].apply(pd.to_datetime, errors="coerce")
     except Exception:
         return []
+    # A name that merely contains chain tokens is not a date ("sentiment"
+    # contains both "sent" and "time"); an all-NaT candidate sitting between
+    # two real dates would otherwise break the adjacent-pair comparison.
+    chain = [c for c in chain if not vals[c].isna().all()]
+    if len(chain) < 2:
+        return []
+    vals = vals[chain]
     out: List[CoherenceFinding] = []
     for a, b in zip(chain, chain[1:]):
         both = vals[a].notna() & vals[b].notna()
