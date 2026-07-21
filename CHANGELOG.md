@@ -5,6 +5,28 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8.1] - 2026-07-21
+
+### Added
+
+- **`misata seed --append`: seed into a database that already has rows.**
+  Populated tables are left exactly as they are, and only the empty tables are
+  generated, drawing their foreign keys from the real existing rows rather than
+  inventing fresh keys. This is the common "my auth/users table is already
+  seeded, fill in the rest" case. Integrity is still verified against the
+  database afterwards. `--append` and `--truncate` are mutually exclusive.
+  Under the hood, `DataSimulator` gained optional `preloaded_context` and
+  `skip_tables` parameters (both default to current behaviour).
+
+### Fixed
+
+- **Postgres sequences are realigned after seeding.** Inserting explicit
+  primary-key values does not advance an identity/serial sequence, so the
+  application's next insert could collide with a seeded key. After a seed,
+  each table's sequence is now set to its column's current max. SQLite rowids
+  already advance on their own, so this is Postgres-only and best-effort (a
+  failure never fails the seed).
+
 ## [0.8.8] - 2026-07-20
 
 ### Added

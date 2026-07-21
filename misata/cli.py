@@ -1989,6 +1989,9 @@ def _prune_config_for_skip(config, skip: set):
               help="Comma-separated tables to leave untouched (e.g. schema_migrations).")
 @click.option("--truncate", is_flag=True, default=False,
               help="Wipe target tables (children first) before seeding.")
+@click.option("--append", is_flag=True, default=False,
+              help="Leave populated tables as-is; seed only empty tables, "
+                   "drawing foreign keys from the existing rows.")
 @click.option("--seed", "seed_value", type=int, default=42,
               help="Random seed for reproducibility (default: 42).")
 @click.option("--dry-run", is_flag=True, default=False,
@@ -2001,6 +2004,7 @@ def seed_cmd(
     table_filter: Optional[str],
     skip_tables: Optional[str],
     truncate: bool,
+    append: bool,
     seed_value: int,
     dry_run: bool,
     yes: bool,
@@ -2017,6 +2021,7 @@ def seed_cmd(
     Examples:
         misata seed postgresql://localhost/myapp_dev
         misata seed postgresql://localhost/myapp_dev --truncate --rows 500
+        misata seed postgresql://localhost/myapp_dev --append   # keep existing rows
         misata seed sqlite:///dev.db --skip schema_migrations --dry-run
     """
     print_banner()
@@ -2051,24 +2056,36 @@ def seed_cmd(
             console.print(
                 f"  [yellow]⚠[/yellow] skipping [bold]{name}[/bold] too — it "
                 f"references a table you skipped, so its foreign keys could not "
-                f"resolve (referencing existing rows is coming soon)."
+                f"resolve. (Use [bold]--append[/bold] instead of --skip to keep "
+                f"existing rows and reference them.)"
             )
         if not config.tables:
             console.print("[yellow]Nothing left to seed after --skip.[/yellow]")
             raise SystemExit(1)
 
+    if truncate and append:
+        console.print("[red]Error:[/red] --truncate and --append are mutually exclusive.")
+        raise SystemExit(1)
+
     order = _topological_sort(config)
     row_plan = {t.name: t.row_count for t in config.tables}
     existing = table_row_counts(db_url, order)
+    nonempty = [n for n in order if existing.get(n, 0) > 0]
 
-    # Plan table
+    # In append mode, already-populated tables are kept as-is and only empty
+    # tables are seeded (their children draw FKs from the existing rows).
+    def _insert_label(name: str) -> str:
+        if append and name in nonempty:
+            return "keep"
+        return f"{row_plan.get(name, 0):,}"
+
     plan = RichTable(show_header=True, header_style="bold", box=None)
     plan.add_column("#", style="dim", justify="right")
     plan.add_column("table")
     plan.add_column("existing", justify="right", style="dim")
     plan.add_column("will insert", justify="right")
     for i, name in enumerate(order, 1):
-        plan.add_row(str(i), name, f"{existing.get(name, 0):,}", f"{row_plan.get(name, 0):,}")
+        plan.add_row(str(i), name, f"{existing.get(name, 0):,}", _insert_label(name))
     console.print()
     console.print(plan)
     console.print(
@@ -2076,32 +2093,48 @@ def seed_cmd(
         f"foreign key(s), inserted parents-first.[/dim]"
     )
 
-    nonempty = [n for n in order if existing.get(n, 0) > 0]
     if dry_run:
-        if nonempty and not truncate:
+        if nonempty and not (truncate or append):
             console.print(
                 f"\n[yellow]Note:[/yellow] {len(nonempty)} table(s) already have "
-                f"rows; a real run would need --truncate. "
+                f"rows; a real run needs --truncate (wipe & reseed) or --append "
+                f"(keep them, seed only empty tables). "
                 f"({', '.join(nonempty[:6])}{'…' if len(nonempty) > 6 else ''})"
             )
         console.print("\n[dim]Dry run: nothing was written.[/dim]")
         return
 
-    if nonempty and not truncate:
+    if append and not [n for n in order if existing.get(n, 0) == 0]:
+        console.print(
+            "\n[yellow]Every table already has rows; nothing to append.[/yellow] "
+            "Use --truncate to wipe and reseed instead."
+        )
+        return
+
+    if nonempty and not (truncate or append):
         console.print(
             f"\n[red]These tables already contain data:[/red] "
             f"{', '.join(nonempty)}.\n"
-            f"Re-run with [bold]--truncate[/bold] to wipe and reseed them, or "
-            f"[bold]--skip {','.join(nonempty)}[/bold] to leave them alone."
+            f"Re-run with [bold]--truncate[/bold] to wipe and reseed them, "
+            f"[bold]--append[/bold] to keep them and seed only the empty tables, "
+            f"or [bold]--skip {','.join(nonempty)}[/bold] to leave them alone."
         )
         raise SystemExit(1)
 
-    total_planned = sum(row_plan.values())
+    empty_tables = [n for n in order if existing.get(n, 0) == 0]
+    total_planned = (
+        sum(row_plan.get(n, 0) for n in empty_tables) if append
+        else sum(row_plan.values())
+    )
     if not yes:
-        action = "TRUNCATE then insert" if truncate else "insert"
+        if append:
+            action = f"insert into {len(empty_tables)} empty table(s), keeping existing rows"
+        elif truncate:
+            action = f"TRUNCATE then insert across {len(config.tables)} table(s)"
+        else:
+            action = f"insert across {len(config.tables)} table(s)"
         if not click.confirm(
-            f"\nAbout to {action} ~{total_planned:,} rows across "
-            f"{len(config.tables)} table(s) in this database. Continue?"
+            f"\nAbout to {action} (~{total_planned:,} rows) in this database. Continue?"
         ):
             console.print("[dim]Aborted.[/dim]")
             return
@@ -2112,7 +2145,7 @@ def seed_cmd(
         # Introspection already supplied the full schema, so generation is
         # purely deterministic — no story to parse, no model to call.
         report = seed_database(
-            config, db_url, create=False, truncate=truncate,
+            config, db_url, create=False, truncate=truncate, append=append,
             smart_mode=False, use_llm=False,
         )
     except Exception as exc:
@@ -2120,6 +2153,9 @@ def seed_cmd(
         raise SystemExit(1)
 
     for name in order:
+        if append and name in nonempty:
+            console.print(f"  [dim]•[/dim] [bold]{name}[/bold] — kept ({existing.get(name, 0):,} existing)")
+            continue
         n = report.table_rows.get(name, 0)
         console.print(f"  [green]✓[/green] [bold]{name}[/bold] — {n:,} rows")
 

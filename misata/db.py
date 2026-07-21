@@ -39,6 +39,7 @@ def seed_database(
     batch_size: int = 10_000,
     smart_mode: bool = False,
     use_llm: bool = True,
+    append: bool = False,
 ) -> SeedReport:
     """
     Seed a database from a SchemaConfig.
@@ -51,6 +52,8 @@ def seed_database(
         batch_size: Batch size for generation/inserts
         smart_mode: Enable smart value generation
         use_llm: Use LLM-backed pools when smart_mode is True
+        append: Leave already-populated tables untouched and generate only the
+            empty ones, drawing their foreign keys from the existing rows.
     """
     start_time = time.time()
     dialect, conn = _connect(db_url)
@@ -66,11 +69,18 @@ def seed_database(
         else:
             truncated = []
 
+        preloaded_context = None
+        skip_tables = None
+        if append:
+            preloaded_context, skip_tables = _load_existing_context(conn, dialect, config)
+
         simulator = DataSimulator(
             config,
             batch_size=batch_size,
             smart_mode=smart_mode,
             use_llm=use_llm,
+            preloaded_context=preloaded_context,
+            skip_tables=skip_tables,
         )
 
         total_rows = 0
@@ -86,6 +96,13 @@ def seed_database(
             table_rows[table_name] = table_rows.get(table_name, 0) + rows_inserted
             total_rows += rows_inserted
 
+        # Postgres identity/serial sequences do not advance when explicit key
+        # values are inserted, so the app's next insert would collide. Realign
+        # each sequence to its column's current max. (SQLite rowids advance on
+        # their own.)
+        if dialect == "postgres" and table_rows:
+            _reset_postgres_sequences(conn, list(table_rows.keys()))
+
         duration = time.time() - start_time
         return SeedReport(
             db_url=db_url,
@@ -98,6 +115,75 @@ def seed_database(
         )
     finally:
         conn.close()
+
+
+def _load_existing_context(conn, dialect: str, config: SchemaConfig):
+    """For append mode: load the key columns of already-populated tables so
+    generated children can reference their real rows. Returns
+    (preloaded_context, skip_tables)."""
+    # Which key columns does each parent table expose to children?
+    keys_needed: Dict[str, set] = {}
+    for rel in config.relationships:
+        keys_needed.setdefault(rel.parent_table, set()).add(rel.parent_key)
+    preloaded: Dict[str, pd.DataFrame] = {}
+    skip: set = set()
+    for table in config.tables:
+        name = table.name
+        try:
+            if dialect == "postgres":
+                with conn.cursor() as cur:
+                    cur.execute(f'SELECT COUNT(*) FROM "{name}"')
+                    count = int(cur.fetchone()[0])
+            else:
+                count = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
+        except Exception:
+            count = 0
+        if count == 0:
+            continue
+        skip.add(name)
+        cols = set(keys_needed.get(name, set()))
+        cols.add("id")  # FK sampling fast-path uses "id"
+        col_list = ", ".join(f'"{c}"' for c in sorted(cols))
+        try:
+            preloaded[name] = pd.read_sql_query(f'SELECT {col_list} FROM "{name}"', conn)
+        except Exception:
+            # A key column that doesn't exist (composite/renamed PK) — load all.
+            try:
+                preloaded[name] = pd.read_sql_query(f'SELECT * FROM "{name}"', conn)
+            except Exception:
+                skip.discard(name)  # can't load it; let normal path handle
+    return preloaded, skip
+
+
+def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
+    """Advance each table's identity/serial sequence to its column max, so the
+    application's next INSERT does not collide with a seeded key."""
+    for name in tables:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT a.attname
+                    FROM pg_attribute a
+                    JOIN pg_class c ON c.oid = a.attrelid
+                    WHERE c.relname = %s
+                      AND a.attnum > 0
+                      AND NOT a.attisdropped
+                      AND pg_get_serial_sequence(%s, a.attname) IS NOT NULL
+                    """,
+                    (name, name),
+                )
+                cols = [r[0] for r in cur.fetchall()]
+                for col in cols:
+                    cur.execute(
+                        "SELECT setval(pg_get_serial_sequence(%s, %s), "
+                        f'COALESCE((SELECT MAX("{col}") FROM "{name}"), 1))',
+                        (name, col),
+                    )
+            conn.commit()
+        except Exception:
+            # Sequence realignment is best-effort; never fail the seed over it.
+            conn.rollback()
 
 
 def seed_database_sqlalchemy(

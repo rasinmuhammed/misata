@@ -117,6 +117,54 @@ def test_truncate_reseeds_deterministically(db):
     assert counts == counts2
 
 
+def test_append_references_existing_parent_rows(db, tmp_path):
+    # Pre-populate parents with distinctive ids; append must draw child FKs
+    # from those exact rows and leave the parents untouched.
+    import sqlite3
+    path = str(tmp_path / "app.db")
+    conn = sqlite3.connect(path)
+    conn.executemany(
+        "INSERT INTO customers(id,name,email,country) VALUES (?,?,?,?)",
+        [(101, "Alice", "a@x.com", "US"), (102, "Bob", "b@x.com", "UK")],
+    )
+    conn.executemany(
+        "INSERT INTO products(id,name,price,category) VALUES (?,?,?,?)",
+        [(9001, "Widget", 9.99, "A"), (9002, "Gadget", 19.99, "B")],
+    )
+    conn.commit()
+    conn.close()
+
+    result = CliRunner().invoke(
+        main, ["seed", db, "--rows", "30", "--skip", "schema_migrations", "--append", "--yes"]
+    )
+    assert result.exit_code == 0, result.output
+
+    counts = table_row_counts(db, ["customers", "products", "orders"])
+    assert counts["customers"] == 2  # untouched
+    assert counts["products"] == 2   # untouched
+    assert counts["orders"] > 0      # seeded
+
+    conn = sqlite3.connect(db.replace("sqlite:///", ""))
+    cust = {r[0] for r in conn.execute("SELECT DISTINCT customer_id FROM orders")}
+    prod = {r[0] for r in conn.execute("SELECT DISTINCT product_id FROM orders")}
+    conn.close()
+    assert cust <= {101, 102}
+    assert prod <= {9001, 9002}
+
+
+def test_append_refused_message_when_no_flag(db, tmp_path):
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "app.db"))
+    conn.execute("INSERT INTO customers(id,name) VALUES (1,'x')")
+    conn.commit()
+    conn.close()
+    result = CliRunner().invoke(
+        main, ["seed", db, "--rows", "10", "--skip", "schema_migrations", "--yes"]
+    )
+    assert result.exit_code == 1
+    assert "--append" in result.output  # the option is offered
+
+
 def test_skip_cascades_to_dependent_children(db):
     # Skipping a parent (customers) must also skip its child (orders), because
     # orders.customer_id could not resolve without referencing existing rows.

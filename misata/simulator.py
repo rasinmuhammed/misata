@@ -221,7 +221,9 @@ class DataSimulator:
     def __init__(self, config: SchemaConfig,
                  apply_semantic_fixes: bool = True, batch_size: int = 10_000,
                  smart_mode: bool = False, use_llm: bool = True,
-                 custom_generators: Optional[Dict[str, Dict[str, Any]]] = None):
+                 custom_generators: Optional[Dict[str, Dict[str, Any]]] = None,
+                 preloaded_context: Optional[Dict[str, pd.DataFrame]] = None,
+                 skip_tables: Optional[Any] = None):
         """
         Initialize the simulator.
 
@@ -319,7 +321,20 @@ class DataSimulator:
         except Exception:
             self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
-    
+
+        # Append mode: tables that already exist in a target database are not
+        # regenerated, but their primary keys are loaded so children can draw
+        # foreign keys from the real existing rows. FK sampling reads from
+        # self.context / self._pk_store, so seeding those is all it takes.
+        self._skip_tables: set = set(skip_tables or [])
+        if preloaded_context:
+            for _t, _df in preloaded_context.items():
+                if _df is None or _df.empty:
+                    continue
+                self.context[_t] = _df.copy()
+                if "id" in _df.columns:
+                    self._pk_store[_t] = _df["id"].dropna().values
+
     def _anchor(self, *parts):
         """Scoped anchored RNG for one generation site (no-op in legacy mode).
 
@@ -4723,6 +4738,11 @@ class DataSimulator:
 
         # Phase 1 — generate in dependency order
         for table_name in sorted_tables:
+            # Append mode: a preloaded table already exists in the target and
+            # is not regenerated. Its context (PKs) is already seeded so
+            # children can reference its rows.
+            if table_name in self._skip_tables:
+                continue
             if table_name in buffer_tables:
                 # Buffer: collect all batches for the post-generation passes
                 batches = []
