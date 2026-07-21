@@ -5,7 +5,20 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.8.3] - 2026-07-21
+## [0.8.8.4] - 2026-07-21
+
+### Fixed
+
+- **Re-release of 0.8.8.3, which never reached PyPI.** Its CI run failed
+  before the publish step: the new `seed_database` tests imported
+  `misata.mcp.server` unconditionally, but that module needs the optional
+  `[mcp]` extra, which CI does not install. `mcp` now ships in the `dev`
+  extra so those guardrail tests actually run in CI (they cover the only
+  tool that writes to a user's database, so running them matters more than
+  skipping them), and the tests also `importorskip` so a minimal install
+  skips rather than errors. No functional change to the engine.
+
+## [0.8.8.3] - 2026-07-21 (failed to publish, superseded by 0.8.8.4)
 
 ### Added
 
