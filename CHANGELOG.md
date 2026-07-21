@@ -5,6 +5,24 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8.3] - 2026-07-21
+
+### Added
+
+- **MCP: `seed_database`.** A coding agent can now fill a live Postgres or
+  SQLite development database from its own schema: it reads the tables,
+  columns, and foreign keys from the database, inserts parents before
+  children, and verifies every foreign key against the database afterwards.
+  This closes the gap between the engine's `misata seed` command and what
+  agents could reach over MCP.
+- **Guardrails, because this is the only Misata tool that writes to a user's
+  database.** It plans by default: the first call returns the table list,
+  insert order, existing row counts, and what would be inserted, and writes
+  nothing. Writing requires an explicit `apply=true` on a second call. If any
+  target table already holds rows, the write is refused with the options
+  spelled out rather than guessing between destructive truncate and additive
+  append. Connection strings are never echoed back with credentials.
+
 ## [0.8.8.2] - 2026-07-21
 
 ### Changed (reproducibility note, please read)

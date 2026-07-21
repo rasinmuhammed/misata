@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.8.2"
+__version__ = "0.8.8.3"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional

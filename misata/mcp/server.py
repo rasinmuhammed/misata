@@ -44,7 +44,13 @@ mcp = FastMCP(
         "tool, and it returns a per-relationship integrity verification you can show the "
         "user. Use generate_dataset(story) only for quick one-sentence requests where "
         "Misata's own parser should design the schema (18 curated domains + structural "
-        "composition for unknown ones; preview_story shows the interpretation first)."
+        "composition for unknown ones; preview_story shows the interpretation first). "
+        "To fill a real development database, use seed_database with a connection "
+        "string: it reads the schema from the database itself, inserts parents before "
+        "children, and verifies every foreign key against the database afterwards. It "
+        "PLANS BY DEFAULT — show the user the plan, and only re-call with apply=true "
+        "once they agree; never pass apply=true on a first call, and never choose "
+        "truncate (which destroys data) on the user's behalf."
     ),
 )
 
@@ -640,6 +646,188 @@ def generate_from_schema(
             "verified": all(v["intact"] for v in verification) if verification else True,
             "relationships": verification,
         },
+    }
+
+
+@mcp.tool()
+def seed_database(
+    db_url: str,
+    rows: int = 500,
+    apply: bool = False,
+    truncate: bool = False,
+    append: bool = False,
+    tables: Optional[List[str]] = None,
+    skip_tables: Optional[List[str]] = None,
+    seed: int = 42,
+) -> Dict[str, Any]:
+    """Fill a live Postgres or SQLite database with realistic, connected data,
+    read from the database's own schema.
+
+    Reads the tables, columns, and foreign keys directly from the target
+    database, generates data that respects them, inserts parents before
+    children, then queries the database back to confirm every foreign key
+    resolves. No schema file and no ORM are needed: a connection string is
+    enough.
+
+    SAFETY — this is the only Misata tool that writes to a user's database:
+      * It **plans by default**. With ``apply=False`` (the default) nothing is
+        written; you get the table list, insert order, existing row counts,
+        and what would be inserted. Show that plan to the user.
+      * Only call again with ``apply=True`` after the user has seen the plan
+        and agreed. Never pass ``apply=True`` on a first call.
+      * If any target table already has rows, the write is refused unless the
+        user chooses ``truncate=True`` (wipe and reseed) or ``append=True``
+        (keep existing rows, seed only empty tables, and draw foreign keys
+        from the rows already there). Never guess between these.
+      * ``truncate=True`` DESTROYS existing data. Only use it on a throwaway
+        development database and only when the user explicitly asks.
+
+    Args:
+        db_url: Connection string, e.g. ``postgresql://localhost/myapp_dev``
+            or ``sqlite:///dev.db``.
+        rows: Base row count; reference and transaction tables scale from it.
+        apply: False (default) plans only. True performs the write.
+        truncate: Wipe target tables (children first) before seeding.
+        append: Keep populated tables and seed only the empty ones.
+        tables: Optional allow-list of table names to seed.
+        skip_tables: Tables to leave untouched (migrations, auth, etc.).
+        seed: Random seed; the same seed reproduces the same data.
+
+    Returns:
+        A plan (``applied: false``) or a result with per-table row counts and
+        a per-relationship integrity proof (``integrity.verified``).
+    """
+    try:
+        from misata.db import (
+            seed_database as _seed_db,
+            table_row_counts,
+            verify_referential_integrity,
+            _topological_sort,
+        )
+        from misata.introspect import schema_from_db
+    except ImportError as exc:
+        return _tool_error(
+            exc, 'Install database support with: pip install "misata[db]"'
+        )
+
+    if truncate and append:
+        return {
+            "ok": False,
+            "error": "ConflictingOptions",
+            "message": "truncate and append are mutually exclusive.",
+            "suggestion": "Pick one: truncate wipes and reseeds, append keeps existing rows.",
+        }
+
+    try:
+        config = schema_from_db(db_url, default_rows=rows, include_tables=tables)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "Check the connection string and that the database is reachable. "
+            'Postgres needs: pip install "misata[db]"',
+        )
+
+    if not config.tables:
+        return {"ok": False, "error": "NoTables",
+                "message": "No tables found in that database.",
+                "suggestion": "Create the schema first (run your migrations), then seed."}
+
+    if skip_tables:
+        from misata.cli import _prune_config_for_skip
+        config, effective_skip = _prune_config_for_skip(config, set(skip_tables))
+        cascaded = sorted(effective_skip - set(skip_tables))
+        if not config.tables:
+            return {"ok": False, "error": "NothingToSeed",
+                    "message": "Every table was excluded by skip_tables.",
+                    "suggestion": "Skip fewer tables, or use append to reference existing rows."}
+    else:
+        cascaded = []
+
+    order = _topological_sort(config)
+    existing = table_row_counts(db_url, order)
+    nonempty = [t for t in order if existing.get(t, 0) > 0]
+    row_plan = {t.name: t.row_count for t in config.tables}
+
+    plan = {
+        "database": db_url.split("@")[-1],  # never echo credentials back
+        "insert_order": order,
+        "foreign_keys": len(config.relationships),
+        "tables": [
+            {
+                "name": t,
+                "existing_rows": existing.get(t, 0),
+                "will_insert": ("keep" if (append and t in nonempty)
+                                else row_plan.get(t, 0)),
+            }
+            for t in order
+        ],
+        "tables_with_existing_data": nonempty,
+        "also_skipped_because_their_parent_was_skipped": cascaded,
+    }
+
+    if not apply:
+        plan.update({
+            "ok": True,
+            "applied": False,
+            "note": (
+                "Plan only, nothing was written. Show this to the user. To "
+                "write, call again with apply=true"
+                + (
+                    f" plus either truncate=true (DESTROYS the {len(nonempty)} "
+                    "table(s) that already have rows) or append=true (keeps them)."
+                    if nonempty else "."
+                )
+            ),
+        })
+        return plan
+
+    if nonempty and not (truncate or append):
+        return {
+            "ok": False,
+            "error": "TablesNotEmpty",
+            "message": f"These tables already contain data: {', '.join(nonempty)}.",
+            "suggestion": (
+                "Ask the user which they want: truncate=true wipes and reseeds "
+                "them (destructive), append=true keeps them and seeds only the "
+                "empty tables, or skip_tables leaves them alone."
+            ),
+            "plan": plan,
+        }
+
+    config.seed = seed
+    try:
+        report = _seed_db(
+            config, db_url, create=False, truncate=truncate, append=append,
+            smart_mode=False, use_llm=False,
+        )
+        integrity = verify_referential_integrity(config, db_url)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "The schema was read but the write failed. Check that the "
+            "connection has INSERT permission and that column types are supported.",
+        )
+
+    return {
+        "ok": True,
+        "applied": True,
+        "mode": "truncate" if truncate else ("append" if append else "fresh"),
+        "total_rows": report.total_rows,
+        "table_rows": report.table_rows,
+        "duration_seconds": round(report.duration_seconds, 3),
+        "insert_order": order,
+        "integrity": {
+            "verified": integrity.verified,
+            "total_orphans": integrity.total_orphans,
+            "relationships": [
+                {"relationship": r.label, "orphans": r.orphans, "intact": r.intact}
+                for r in integrity.relationships
+            ],
+        },
+        "note": (
+            "Every foreign key was checked against the database itself, not "
+            "just in memory."
+        ),
     }
 
 

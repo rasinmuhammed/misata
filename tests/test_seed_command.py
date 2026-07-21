@@ -165,6 +165,50 @@ def test_append_refused_message_when_no_flag(db, tmp_path):
     assert "--append" in result.output  # the option is offered
 
 
+class TestMcpSeedTool:
+    """The MCP seed_database tool is the only Misata tool that writes to a
+    user's database, so its guardrails are part of the contract."""
+
+    def test_plans_by_default_and_writes_nothing(self, db):
+        from misata.mcp.server import seed_database as tool
+        r = tool(db_url=db, rows=20, skip_tables=["schema_migrations"])
+        assert r["applied"] is False
+        assert r["insert_order"][0] == "customers"  # parents first
+        assert table_row_counts(db, ["customers"])["customers"] == 0
+
+    def test_apply_writes_and_verifies_integrity(self, db):
+        from misata.mcp.server import seed_database as tool
+        r = tool(db_url=db, rows=20, apply=True, skip_tables=["schema_migrations"])
+        assert r["applied"] is True
+        assert r["total_rows"] > 0
+        assert r["integrity"]["verified"] is True
+        assert r["integrity"]["total_orphans"] == 0
+
+    def test_refuses_nonempty_rather_than_guessing(self, db):
+        from misata.mcp.server import seed_database as tool
+        tool(db_url=db, rows=20, apply=True, skip_tables=["schema_migrations"])
+        r = tool(db_url=db, rows=20, apply=True, skip_tables=["schema_migrations"])
+        assert r["ok"] is False
+        assert r["error"] == "TablesNotEmpty"
+        # It must offer the choice, never pick a destructive default.
+        assert "truncate" in r["suggestion"] and "append" in r["suggestion"]
+
+    def test_truncate_and_append_are_mutually_exclusive(self, db):
+        from misata.mcp.server import seed_database as tool
+        r = tool(db_url=db, apply=True, truncate=True, append=True)
+        assert r["ok"] is False
+        assert r["error"] == "ConflictingOptions"
+
+    def test_never_echoes_credentials(self, db):
+        import json
+        from misata.mcp.server import seed_database as tool
+        r = tool(db_url=db, rows=20, skip_tables=["schema_migrations"])
+        # The plan reports a database label; it must not carry a password.
+        assert "SUPERSECRET" not in json.dumps(r)
+        label = r["database"]
+        assert "://" not in label or label.count("@") == 0
+
+
 def test_skip_cascades_to_dependent_children(db):
     # Skipping a parent (customers) must also skip its child (orders), because
     # orders.customer_id could not resolve without referencing existing rows.
