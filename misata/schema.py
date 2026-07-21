@@ -593,12 +593,12 @@ class SchemaConfig(BaseModel):
     waterfalls: List[WaterfallIdentity] = Field(default_factory=list)
     stock_flows: List[StockFlowIdentity] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
-        default="legacy",
+        default="anchored",
         description=(
-            "\"anchored\" derives an independent RNG stream per column and "
-            "per pass, so schema edits change only what they touch (adding "
-            "a column leaves every other column byte-identical). "
-            "\"legacy\" is the sequential stream; bytes differ between "
+            "\"anchored\" (default) derives an independent RNG stream per "
+            "column and per pass, so schema edits change only what they touch "
+            "(adding a column leaves every other column byte-identical). "
+            "\"legacy\" is the old sequential stream; bytes differ between "
             "modes for the same seed."
         ),
     )

@@ -844,7 +844,7 @@ def from_dict_schema(
         waterfalls=waterfalls,
         stock_flows=stock_flows,
         generation_mode=(schemas.get("__generation_mode__")
-                         or schemas.get("generation_mode") or "legacy"),
+                         or schemas.get("generation_mode") or "anchored"),
         noise_config=noise_config,
         seed=seed,
         domain=domain,

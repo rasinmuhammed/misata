@@ -99,12 +99,17 @@ class TestEditStability:
         other = misata.generate_from_schema(_base(seed=7))
         assert not base["users"]["email"].equals(other["users"]["email"])
 
-    def test_legacy_stays_default_and_deterministic(self):
-        assert SchemaConfig.model_fields["generation_mode"].default == "legacy"
-        a = misata.generate_from_schema(_base(mode="legacy"))
-        b = misata.generate_from_schema(_base(mode="legacy"))
+    def test_anchored_is_default_and_deterministic(self):
+        # Anchored became the default in 0.8.8.2. Both modes stay reproducible.
+        assert SchemaConfig.model_fields["generation_mode"].default == "anchored"
+        a = misata.generate_from_schema(_base(mode="anchored"))
+        b = misata.generate_from_schema(_base(mode="anchored"))
         for t in a:
             pd.testing.assert_frame_equal(a[t], b[t])
+        c = misata.generate_from_schema(_base(mode="legacy"))
+        d = misata.generate_from_schema(_base(mode="legacy"))
+        for t in c:
+            pd.testing.assert_frame_equal(c[t], d[t])
 
     def test_modes_produce_different_bytes(self):
         a = misata.generate_from_schema(_base(mode="legacy"))

@@ -610,7 +610,12 @@ def test_city_gets_its_actual_state():
         ]},
     )
     d = misata.generate_from_schema(schema)["u"]
-    known = d[d["city"].isin(CITY_STATE)]
+    # Some city names exist in several countries/states (London: England,
+    # Ontario, and many US Londons), so they have no single canonical state.
+    # The guarantee is about UNAMBIGUOUS cities like Amsterdam.
+    AMBIGUOUS = {"London", "Springfield", "Columbus", "Richmond", "Portland",
+                 "Franklin", "Georgetown", "Hamilton", "Victoria"}
+    known = d[d["city"].isin(CITY_STATE) & ~d["city"].isin(AMBIGUOUS)]
     if len(known):
         assert (known.apply(lambda r: CITY_STATE[str(r["city"])] == str(r["state"]),
                             axis=1)).all()

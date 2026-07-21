@@ -175,7 +175,7 @@ class GenerationPlanner:
                         CARDINALITY_PATTERNS.get(("entity", self._classify_table(child_name).replace("reference", "entity")), (2.0, 5.0)),
                     )
                     if getattr(self.schema_config, "generation_mode",
-                               "legacy") == "anchored":
+                               "anchored") == "anchored":
                         # Anchored mode: the multiplier depends only on this
                         # relationship's name, so adding an unrelated table
                         # cannot shift another child's planned row count.

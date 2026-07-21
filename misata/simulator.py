@@ -346,7 +346,7 @@ class DataSimulator:
         """
         from contextlib import nullcontext
 
-        if getattr(self.config, "generation_mode", "legacy") != "anchored":
+        if getattr(self.config, "generation_mode", "anchored") != "anchored":
             return nullcontext(self.rng)
         from misata.anchor import anchored_rng
         holders = [self, self.fact_engine, self.realistic_text,

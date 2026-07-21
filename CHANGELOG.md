@@ -5,6 +5,23 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8.2] - 2026-07-21
+
+### Changed (reproducibility note, please read)
+
+- **Anchored generation is now the default.** Each column and pass draws from
+  its own RNG stream derived from its stable name, so editing one part of a
+  schema changes only that part and its true dependents. Adding a column
+  leaves every other column byte-identical; adding a table leaves every other
+  table byte-identical. This makes iterating on a schema far less disruptive.
+- **This changes the bytes for a given seed.** Same version + same seed +
+  same mode still yields the same bytes, but the default mode itself changed,
+  so `seed=42` produces different (equally valid) data than it did in 0.8.8.1
+  and earlier. Every structural guarantee is unchanged: exact row counts,
+  zero-orphan foreign keys, declared outcomes, ranges, and enums all still
+  hold. If you have pinned to specific byte output from an older version, set
+  `generation_mode: "legacy"` on your schema to keep the old stream.
+
 ## [0.8.8.1] - 2026-07-21
 
 ### Added
