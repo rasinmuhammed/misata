@@ -5,6 +5,20 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8.5] - 2026-07-21
+
+### Fixed
+
+- **An inferred roll-up no longer silently overwrites a declared outcome
+  curve.** In the canonical `orders` + `order_items` schema, a child carrying
+  `quantity` and `unit_price` makes Misata infer that the parent's
+  `order_total` is the sum of its line items. That roll-up runs after
+  generation, so it was overwriting a declared monthly revenue curve and
+  quietly breaking the exactness guarantee (measured 23% off, with no
+  warning). The declared target now wins, and Misata says so instead of
+  staying silent. Found by hostile-auditing a real dataset, not by a
+  synthetic test.
+
 ## [0.8.8.4] - 2026-07-21
 
 ### Fixed

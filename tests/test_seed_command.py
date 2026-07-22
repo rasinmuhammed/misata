@@ -7,6 +7,8 @@ is identical to Postgres apart from the driver.
 
 import sqlite3
 
+import pandas as pd
+
 import pytest
 from click.testing import CliRunner
 
@@ -224,3 +226,51 @@ def test_skip_cascades_to_dependent_children(db):
     assert "products" not in effective
     kept = {t.name for t in pruned.tables}
     assert "orders" not in kept and "products" in kept
+
+
+def test_inferred_rollup_never_overwrites_a_declared_outcome_curve():
+    """The canonical orders/order_items schema: a child with quantity+unit_price
+    makes Misata infer parent.order_total = sum(line items). That roll-up runs
+    after generation and used to silently clobber a declared monthly revenue
+    curve (23% off, no warning). The declared target must win."""
+    import warnings
+    import misata
+
+    targets = [120000.0, 118000.0, 135000.0]
+    schema = {
+        "name": "t", "seed": 7,
+        "tables": {
+            "orders": {"rows": 3000, "columns": {
+                "order_id": {"type": "integer", "unique": True, "min": 1, "max": 99999},
+                "order_date": {"type": "date", "min_date": "2025-01-01",
+                               "max_date": "2025-03-31"},
+                "order_total": {"type": "float", "min": 5.0, "max": 3000.0, "decimals": 2},
+            }},
+            "order_items": {"rows": 7000, "columns": {
+                "order_item_id": {"type": "integer", "unique": True, "min": 1, "max": 99999},
+                "order_id": {"type": "foreign_key",
+                             "foreign_key": {"table": "orders", "column": "order_id"}},
+                "quantity": {"type": "integer", "min": 1, "max": 5},
+                "unit_price": {"type": "float", "min": 4.99, "max": 899.99, "decimals": 2},
+            }},
+        },
+        "outcome_curves": [{
+            "table": "orders", "column": "order_total", "time_column": "order_date",
+            "time_unit": "month", "value_mode": "absolute", "start_date": "2025-01-01",
+            "curve_points": [{"month": i + 1, "target_value": v}
+                             for i, v in enumerate(targets)],
+        }],
+    }
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        orders = misata.generate_from_schema(misata.from_dict_schema(schema))["orders"]
+        notes = [str(w.message) for w in caught if "outcome curve" in str(w.message)]
+
+    orders["order_date"] = pd.to_datetime(orders["order_date"])
+    got = orders.groupby(orders.order_date.dt.month)["order_total"].sum()
+    for i, target in enumerate(targets):
+        assert abs(got.get(i + 1, 0.0) - target) < 0.01, (
+            f"month {i+1}: declared {target}, got {got.get(i+1, 0.0)}"
+        )
+    # and it must say so rather than dropping the roll-up silently
+    assert notes, "dropping the roll-up should emit a warning"

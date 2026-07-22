@@ -4691,6 +4691,31 @@ class DataSimulator:
             rollup_specs = rollup_specs + infer_rollups(self.config)
         except Exception:
             pass  # inference is best-effort; never block generation
+
+        # A declared outcome curve is an exact promise about a column. Roll-ups
+        # run after generation, so without this guard an *inferred* roll-up
+        # would silently overwrite the curve — the canonical orders/order_items
+        # schema would have order_total replaced by the sum of its line items
+        # and the declared monthly revenue would quietly stop adding up.
+        # The declared target wins; the roll-up on that column is dropped.
+        _curve_governed = {
+            (c.table, c.column)
+            for c in (getattr(self.config, "outcome_curves", None) or [])
+        }
+        if _curve_governed and rollup_specs:
+            _kept = []
+            for _s in rollup_specs:
+                if (_s.parent_table, _s.target_column) in _curve_governed:
+                    warnings.warn(
+                        f"{_s.parent_table}.{_s.target_column} is governed by a declared "
+                        f"outcome curve, so the roll-up from {_s.from_table} was not "
+                        f"applied to it (the declared aggregate takes precedence). "
+                        f"To have both hold, let the roll-up write a different column.",
+                        UserWarning,
+                    )
+                    continue
+                _kept.append(_s)
+            rollup_specs = _kept
         rollup_tables: set = set()
         for s in rollup_specs:
             rollup_tables.add(s.parent_table)
