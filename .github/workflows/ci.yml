@@ -37,6 +37,15 @@ jobs:
         run: |
           pytest tests/test_integration_scale.py -v -m slow --tb=short
 
+      # The Gauntlet: 11 tables, 99 independent SQL assertions run by DuckDB
+      # against the emitted frames. Known-red assertions (named roadmap items)
+      # are expected failures; any UNEXPECTED failure is a correctness
+      # regression and fails the build. A known-red that starts passing also
+      # fails, so the roadmap list can never go stale.
+      - name: Run the Gauntlet (relational-integrity release gate)
+        run: |
+          python -m benchmarks.gauntlet
+
       - name: Audit dependencies for known vulnerabilities
         if: matrix.python-version == '3.11'
         run: |
