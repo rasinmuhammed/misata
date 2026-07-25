@@ -394,6 +394,68 @@ STATES_BY_COUNTRY: Dict[str, List[str]] = {
     ],
 }
 
+# US cities as atomic address tuples: (state name, state code, ZIP3 prefix).
+# The three values are drawn AS ONE UNIT — a city determines its state and its
+# zip range, they are facts, not distributions. Every ZIP3 prefix here is real
+# and unique to its city, so "one state per city" and "one city per zip" both
+# hold by construction in any table built from this map.
+US_CITY_GEO: Dict[str, tuple] = {
+    "New York":       ("New York", "NY", "100"),
+    "Los Angeles":    ("California", "CA", "900"),
+    "Chicago":        ("Illinois", "IL", "606"),
+    "Houston":        ("Texas", "TX", "770"),
+    "Phoenix":        ("Arizona", "AZ", "850"),
+    "Philadelphia":   ("Pennsylvania", "PA", "191"),
+    "San Antonio":    ("Texas", "TX", "782"),
+    "San Diego":      ("California", "CA", "921"),
+    "Dallas":         ("Texas", "TX", "752"),
+    "San Jose":       ("California", "CA", "951"),
+    "Austin":         ("Texas", "TX", "787"),
+    "Jacksonville":   ("Florida", "FL", "322"),
+    "Fort Worth":     ("Texas", "TX", "761"),
+    "Columbus":       ("Ohio", "OH", "432"),
+    "Charlotte":      ("North Carolina", "NC", "282"),
+    "San Francisco":  ("California", "CA", "941"),
+    "Indianapolis":   ("Indiana", "IN", "462"),
+    "Seattle":        ("Washington", "WA", "981"),
+    "Denver":         ("Colorado", "CO", "802"),
+    "Boston":         ("Massachusetts", "MA", "021"),
+    "El Paso":        ("Texas", "TX", "799"),
+    "Nashville":      ("Tennessee", "TN", "372"),
+    "Detroit":        ("Michigan", "MI", "482"),
+    "Oklahoma City":  ("Oklahoma", "OK", "731"),
+    "Portland":       ("Oregon", "OR", "972"),
+    "Las Vegas":      ("Nevada", "NV", "891"),
+    "Memphis":        ("Tennessee", "TN", "381"),
+    "Louisville":     ("Kentucky", "KY", "402"),
+    "Baltimore":      ("Maryland", "MD", "212"),
+    "Milwaukee":      ("Wisconsin", "WI", "532"),
+    "Albuquerque":    ("New Mexico", "NM", "871"),
+    "Tucson":         ("Arizona", "AZ", "857"),
+    "Fresno":         ("California", "CA", "937"),
+    "Sacramento":     ("California", "CA", "958"),
+    "Kansas City":    ("Missouri", "MO", "641"),
+    "Atlanta":        ("Georgia", "GA", "303"),
+    "Miami":          ("Florida", "FL", "331"),
+    "Omaha":          ("Nebraska", "NE", "681"),
+    "Raleigh":        ("North Carolina", "NC", "276"),
+    "Minneapolis":    ("Minnesota", "MN", "554"),
+    "Tampa":          ("Florida", "FL", "336"),
+    "New Orleans":    ("Louisiana", "LA", "701"),
+    "Cleveland":      ("Ohio", "OH", "441"),
+    "Pittsburgh":     ("Pennsylvania", "PA", "152"),
+    "St. Louis":      ("Missouri", "MO", "631"),
+    "Cincinnati":     ("Ohio", "OH", "452"),
+    "Orlando":        ("Florida", "FL", "328"),
+    "Salt Lake City": ("Utah", "UT", "841"),
+    "Washington":     ("District of Columbia", "DC", "200"),
+    "Richmond":       ("Virginia", "VA", "232"),
+}
+
+assert len({v[2] for v in US_CITY_GEO.values()}) == len(US_CITY_GEO), \
+    "US_CITY_GEO ZIP3 prefixes must be unique per city"
+
+
 # City -> its actual state/province/region. Keeps a row's full address chain
 # consistent: São Paulo belongs in São Paulo state, not a random Brazilian one.
 CITY_STATE: Dict[str, str] = {

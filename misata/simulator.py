@@ -748,12 +748,17 @@ class DataSimulator:
              return np.array([])
 
         # Apply filters if defined (Logic Gap Fix)
-        # Apply filters if defined (Logic Gap Fix)
         if relationship.filters:
             mask = np.ones(len(parent_df), dtype=bool)
             for col, val in relationship.filters.items():
                 if col in parent_df.columns:
-                    mask &= (parent_df[col] == val)
+                    # A list/tuple/set means membership: {"status": ["shipped",
+                    # "completed"]} keeps parents in ANY of those states. A
+                    # scalar keeps exact equality, as before.
+                    if isinstance(val, (list, tuple, set)):
+                        mask &= parent_df[col].isin(list(val)).to_numpy()
+                    else:
+                        mask &= (parent_df[col] == val).to_numpy()
                 else:
                     # If filter column missing from context, can't filter.
                     # Assume mismatch if column missing.
@@ -764,6 +769,68 @@ class DataSimulator:
             valid_ids = parent_df[relationship.parent_key].values
 
         return valid_ids
+
+    def _ensure_min_children(
+        self,
+        values: np.ndarray,
+        parent_ids: np.ndarray,
+        relationship: Any,
+    ) -> np.ndarray:
+        """Guarantee every eligible parent at least ``min_children`` child rows.
+
+        An order with zero line items does not exist in real data, and a
+        zero-item order poisons everything downstream of it: its rolled-up
+        total is 0, so payments clamped against it collapse to 0 too. Rows are
+        reassigned only from parents holding MORE than the minimum, so no
+        covered parent is ever pushed back under it. When the child table is
+        simply too small to cover the parents, the shortfall warns — a partial
+        cover with a loud message beats silently inventing rows.
+        """
+        min_children = int(getattr(relationship, "min_children", 0) or 0)
+        if min_children <= 0 or len(values) == 0 or len(parent_ids) == 0:
+            return values
+
+        from collections import Counter
+        values = np.asarray(values).copy()
+        counts = Counter(values.tolist())
+        needed: list = []
+        for pid in parent_ids:
+            short = min_children - counts.get(pid, 0)
+            if short > 0:
+                needed.extend([pid] * short)
+        if not needed:
+            return values
+
+        if len(needed) > len(values):
+            warnings.warn(
+                f"Relationship {relationship.parent_table}->{relationship.child_table}: "
+                f"min_children={min_children} needs at least "
+                f"{min_children * len(parent_ids)} child rows but only "
+                f"{len(values)} exist; covering as many parents as possible."
+            )
+            needed = needed[: len(values)]
+
+        # Steal positions from over-covered parents, never dropping one to
+        # (or below) the minimum in the process.
+        positions = self.rng.permutation(len(values))
+        ni = 0
+        for pos in positions:
+            if ni >= len(needed):
+                break
+            donor = values[pos]
+            if counts[donor] > min_children:
+                counts[donor] -= 1
+                values[pos] = needed[ni]
+                counts[needed[ni]] = counts.get(needed[ni], 0) + 1
+                ni += 1
+        if ni < len(needed):
+            warnings.warn(
+                f"Relationship {relationship.parent_table}->{relationship.child_table}: "
+                f"{len(needed) - ni} parent(s) remain under min_children="
+                f"{min_children}; the child table cannot cover them without "
+                "starving other parents."
+            )
+        return values
 
     def _generate_self_referential_fk(
         self,
@@ -1863,11 +1930,12 @@ class DataSimulator:
                                     row_weights[valid_mask] = all_weights[id_indices[valid_mask]]
                                     probabilities = row_weights / row_weights.sum()
                                     values = self.rng.choice(parent_ids, size=size, p=probabilities)
-                                    return values
+                                    return self._ensure_min_children(
+                                        values, parent_ids, relationship)
                             except Exception:
                                 pass  # Fall through to uniform sampling on any error
                 values = self.rng.choice(parent_ids, size=size)
-            return values
+            return self._ensure_min_children(values, parent_ids, relationship)
 
         # TEXT
         elif column.type == "text":
@@ -3466,6 +3534,85 @@ class DataSimulator:
             # Double-entry invariant: per group, sum(debit) == sum(credit) exactly.
             df = self._apply_balanced_ledger(df, constraint)
 
+        elif constraint.type == "when_then":
+            # Conditional implication: a status gates its dependent columns.
+            df = self._apply_when_then(df, constraint)
+
+        # lte_parent / sum_lte_parent are cross-table: they need the parent
+        # materialised and run in the post-generation pass (generate_all),
+        # not here where only one table's batch is visible.
+
+        return df
+
+    def _apply_when_then(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
+        """Enforce ``when <condition> then <rule on another column>``.
+
+        The audit side (_detect_status_gating) has always been able to SEE an
+        active subscription carrying a cancellation date; this is the
+        generation side actually preventing it. Semantics:
+
+        - then="null":      force then_column to NULL where the condition holds.
+        - then="not_null":  fill missing values there — with then_value when
+          given, else by sampling the column's own non-null values, so fills
+          follow the column's real distribution instead of a constant.
+        - then="set":       write then_value outright where the condition holds.
+        """
+        wc, tc = constraint.when_column, constraint.then_column
+        if not wc or not tc or constraint.then is None:
+            warnings.warn(f"Constraint '{constraint.name}': when_then needs "
+                          "when_column, then_column and then. Skipping.")
+            return df
+        if wc not in df.columns or tc not in df.columns:
+            warnings.warn(f"Constraint '{constraint.name}': column '{wc}' or "
+                          f"'{tc}' not found. Skipping.")
+            return df
+
+        col = df[wc]
+        wv = constraint.when_value
+        op = constraint.when_op
+        if op == "==":
+            mask = col == wv
+        elif op == "!=":
+            mask = col != wv
+        elif op == "in":
+            mask = col.isin(wv if isinstance(wv, (list, tuple, set)) else [wv])
+        elif op == "not_in":
+            mask = ~col.isin(wv if isinstance(wv, (list, tuple, set)) else [wv])
+        elif op in (">", ">=", "<", "<="):
+            import operator as _op
+            ops = {">": _op.gt, ">=": _op.ge, "<": _op.lt, "<=": _op.le}
+            mask = ops[op](col, wv)
+        else:  # unreachable given the Literal, kept for dict-schema laxity
+            return df
+        mask = mask.fillna(False)
+        if not mask.any():
+            return df
+
+        if constraint.then == "null":
+            # Object/dtype-safe null: datetimes get NaT, everything else NaN.
+            if pd.api.types.is_datetime64_any_dtype(df[tc]):
+                df.loc[mask, tc] = pd.NaT
+            else:
+                if pd.api.types.is_integer_dtype(df[tc]):
+                    df[tc] = df[tc].astype("float64")
+                df.loc[mask, tc] = np.nan
+        elif constraint.then == "not_null":
+            need = mask & df[tc].isna()
+            if need.any():
+                if constraint.then_value is not None:
+                    df.loc[need, tc] = constraint.then_value
+                else:
+                    pool = df.loc[~df[tc].isna(), tc]
+                    if len(pool):
+                        df.loc[need, tc] = self.rng.choice(
+                            pool.to_numpy(), size=int(need.sum()))
+                    else:
+                        warnings.warn(
+                            f"Constraint '{constraint.name}': then=not_null has no "
+                            f"non-null values in '{tc}' to sample and no then_value; "
+                            "those rows stay null.")
+        elif constraint.then == "set":
+            df.loc[mask, tc] = constraint.then_value
         return df
 
     def _apply_balanced_ledger(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
@@ -4720,6 +4867,19 @@ class DataSimulator:
         for s in rollup_specs:
             rollup_tables.add(s.parent_table)
             rollup_tables.add(s.from_table)
+            # A multi-hop roll-up needs every intermediate table materialised
+            # to walk the fk chain (payments -> orders -> customers).
+            for hop in (s.via or []):
+                rollup_tables.add(hop)
+
+        # Cross-table clamps (refund <= its order's total; payments per order
+        # never exceed the order) need both sides materialised too.
+        from misata.crosstable import collect_cross_table_constraints
+        xt_constraints = collect_cross_table_constraints(self.config)
+        for child_name, c in xt_constraints:
+            rollup_tables.add(child_name)
+            if getattr(c, "parent_table", None):
+                rollup_tables.add(c.parent_table)
 
         # Exact group shares rewrite group labels and rescale the measure over
         # the whole table at once, so their tables buffer too.
@@ -4849,9 +5009,24 @@ class DataSimulator:
                         warnings.warn(
                             f"scd2 on {t_name} could not be applied; "
                             "leaving the table as generated")
-        if rollup_specs:
+        # Roll-ups and cross-table clamps interleave in dependency order:
+        # 1. roll-ups that produce a column some clamp reads (orders.total_amount
+        #    from line items) run first,
+        # 2. then the clamps (payments rescaled to never exceed that total),
+        # 3. then the remaining roll-ups, so an aggregate of clamped values
+        #    (customers.lifetime_value from payments) sums the final numbers.
+        if rollup_specs or xt_constraints:
             try:
-                apply_rollups(buffered, rollup_specs)
+                if xt_constraints:
+                    from misata.crosstable import apply_cross_table_constraints
+                    clamp_parents = {c.parent_table for _, c in xt_constraints}
+                    first = [s for s in rollup_specs if s.parent_table in clamp_parents]
+                    rest = [s for s in rollup_specs if s.parent_table not in clamp_parents]
+                    apply_rollups(buffered, first, self.config.relationships)
+                    apply_cross_table_constraints(buffered, xt_constraints, self.config)
+                    apply_rollups(buffered, rest, self.config.relationships)
+                else:
+                    apply_rollups(buffered, rollup_specs, self.config.relationships)
             except Exception:
                 pass  # a roll-up failure must never corrupt an otherwise-valid run
 

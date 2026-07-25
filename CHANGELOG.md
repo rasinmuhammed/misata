@@ -5,6 +5,71 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.9.2] - 2026-07-25
+
+### Added
+
+This release was built against a new internal acceptance test, the Gauntlet
+(`benchmarks/gauntlet.py`): an 11-table e-commerce schema — M:N junction,
+diamond dependency, status-gated children — checked by 99 SQL assertions that
+DuckDB runs against the emitted frames, so the verifier shares no code with the
+generator. The engine scored 77/99 before this release and 98/99 after it.
+Every feature below exists because an assertion failed.
+
+- **`when_then` constraints: a status gates its dependent columns.** The most
+  common realism failure in relational data is a violated implication nobody
+  declared: an "active" subscription carrying a cancellation date, an "open"
+  ticket with a `resolved_at`. Declare it and it is enforced at generation and
+  checked in `coherence_audit`:
+  `Constraint(type="when_then", when_column="status", when_op="in",
+  when_value=["active"], then_column="cancelled_at", then="null")`.
+  `then` supports `null`, `not_null` (fills from `then_value`, else by sampling
+  the column's own non-null values so fills follow its real distribution), and
+  `set`.
+- **Multi-hop roll-ups.** `customers.lifetime_value = sum(payments.amount)`
+  reached *through* orders now reconciles to the cent: declare
+  `{"rollup": {"from_table": "payments", "via": ["orders"], "fk":
+  "customer_id", "agg": "sum", "column": "amount"}}`. The chain is resolved
+  from declared relationships only; a chain that cannot resolve warns loudly
+  and leaves the column alone rather than aggregating a guessed path.
+- **Cross-table bounds.** `lte_parent` clamps a child value against its FK
+  parent (a refund never exceeds its order's total); `sum_lte_parent` rescales
+  a parent's child rows proportionally when their sum overshoots (payments
+  against one order never total more than the order). Both resolve the fk from
+  the declared relationship — never guessed — and both are audited under a
+  JOIN. Ordering is dependency-aware: roll-ups that produce a clamped-against
+  column run first, then the clamps, then the roll-ups that aggregate clamped
+  values upward.
+- **`min_children` on relationships.** An order with zero line items does not
+  exist in real data, and a zero-item order poisons everything downstream (its
+  rolled-up total is 0, so payments clamped against it collapse to 0).
+  `Relationship(..., min_children=1)` guarantees every parent at least N child
+  rows, reassigning only from parents holding more than the minimum, and warns
+  when the child table is too small to cover the parents.
+- **List filters on relationships.** `filters={"status": ["shipped",
+  "completed"]}` restricts FK sampling to parents in any of the allowed
+  states; a scalar still means equality. A shipment can now only ever
+  reference an order whose status makes shipping possible.
+- **US geo chains are atomic.** A city determines its state and its zip range;
+  they are facts, not distributions. Tables carrying city + state/zip with no
+  country column (the signature of a US address table) now draw all three as
+  one tuple from a 50-city map with a real, unique ZIP3 prefix per city.
+  Before: Charlotte appeared in 25 different states, zips came out in Canadian
+  format, and "Bavaria" showed up as a US state. After: one state per city and
+  one city per zip hold by construction, and the state column keeps whatever
+  format it already used (codes stay codes, names stay names).
+
+### Fixed
+
+- `coherence_audit` now verifies declared `when_then` rules, cross-table
+  bounds, and multi-hop roll-up chains, so every new declaration has a
+  matching independent check.
+
+The one assertion still red (an order line referencing a product created after
+the order was placed — FK sampling with temporal eligibility) is the next
+release's work, and it stays visibly red in the benchmark rather than being
+quietly dropped from it.
+
 ## [0.8.9.1] - 2026-07-24
 
 ### Fixed

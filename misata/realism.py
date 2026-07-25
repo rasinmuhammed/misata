@@ -2006,6 +2006,76 @@ def _fix_phone_country(df: pd.DataFrame, columns: set, rng: np.random.Generator)
     df[phone_col] = out
 
 
+def _fix_us_geo_chain(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> bool:
+    """Rewrite (city, state, zip) as atomic tuples from the US geography map.
+
+    Fires when the table carries a city column plus a state and/or zip column
+    and NO country column, and at least half of the known cities are US — the
+    signature of a US-locale address table. Independently drawn address
+    columns put Charlotte in 25 different states and a Canadian postcode on a
+    Texan row; a city determines its state and its zip range, so all three are
+    written from one draw:
+
+    - a city found in the map keeps itself and gets its true state + a zip in
+      its real ZIP3 range;
+    - a city NOT in the map (Tokyo in a US table, a filler value) is resampled
+      from the map, tuple and all;
+    - the state column keeps the format it already uses (codes stay codes,
+      full names stay full names).
+
+    Returns True when it fired, so the caller skips the piecemeal city/state
+    and postal fixes that would otherwise re-touch these columns.
+    """
+    from misata.vocab_seeds import US_CITY_GEO
+
+    city_col = next((c for c in df.columns
+                     if c.lower() == "city" or c.lower().endswith("_city")), None)
+    state_col = next(
+        (c for c in df.columns
+         if c.lower() in ("state", "province", "region", "state_province")
+         or c.lower().endswith("_state")), None)
+    postal_col = next(
+        (c for c in df.columns if c.lower() in
+         ("zip", "zip_code", "zipcode", "postal", "postal_code", "postcode")), None)
+    country_col = next(
+        (c for c in df.columns
+         if c.lower() == "country" or c.lower().endswith("_country")), None)
+
+    if city_col is None or country_col is not None:
+        return False
+    if state_col is None and postal_col is None:
+        return False
+
+    cities = df[city_col].astype(str)
+    known = cities.isin(US_CITY_GEO.keys())
+    # Locale inference: mostly-US cities means a US address table. A table of
+    # Tokyo/Osaka/Kyoto rows is not ours to rewrite.
+    if known.mean() < 0.5:
+        return False
+
+    # Preserve the state column's existing format: majority two-letter
+    # uppercase means codes, anything else means full names.
+    use_codes = False
+    if state_col is not None:
+        vals = df[state_col].dropna().astype(str)
+        if len(vals):
+            use_codes = (vals.str.fullmatch(r"[A-Z]{2}").mean()) >= 0.6
+
+    pool = list(US_CITY_GEO.keys())
+    resampled = rng.choice(pool, size=int((~known).sum()))
+    new_cities = cities.copy()
+    new_cities[~known] = resampled
+
+    geo = new_cities.map(US_CITY_GEO)
+    df[city_col] = new_cities.values
+    if state_col is not None:
+        df[state_col] = geo.map(lambda t: t[1] if use_codes else t[0]).values
+    if postal_col is not None:
+        suffix = rng.integers(0, 100, size=len(df))
+        df[postal_col] = [f"{t[2]}{s:02d}" for t, s in zip(geo, suffix)]
+    return True
+
+
 def _fix_state_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
     """Re-map state/province values so each row's state belongs to its country.
 
@@ -2080,12 +2150,16 @@ def apply_realism_rules(
     df = df.copy()
     columns = set(df.columns)
 
-    # ── Geographic coherence: a row's city must belong to its country ──
-    # (column generation order means the city may have been sampled before
-    # the country existed; this pass runs after the full table is built).
+    # ── Geographic coherence ──
+    # US-locale address tables (city + state/zip, no country column) get the
+    # whole chain written as atomic tuples from the US geography map; the
+    # piecemeal fixes below would only re-touch what it already made
+    # consistent. Everything else keeps the per-column repairs.
+    us_chain_done = _fix_us_geo_chain(df, columns, _rng)
     _fix_city_country(df, columns, _rng)
-    _fix_state_country(df, columns, _rng)
-    _fix_postal_from_city(df, columns, _rng)
+    if not us_chain_done:
+        _fix_state_country(df, columns, _rng)
+        _fix_postal_from_city(df, columns, _rng)
     _fix_phone_country(df, columns, _rng)
     _fix_time_chains(df, columns, _rng)
 

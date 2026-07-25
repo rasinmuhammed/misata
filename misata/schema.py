@@ -152,7 +152,13 @@ class Relationship(BaseModel):
     parent_key: str
     child_key: str
     temporal_constraint: bool = False
-    filters: Optional[Dict[str, Any]] = None  # e.g., {"status": "active"}
+    filters: Optional[Dict[str, Any]] = None  # e.g., {"status": "active"} — a
+    # list value means membership: {"status": ["shipped", "completed"]}
+    min_children: int = 0  # every (eligible) parent gets at least this many
+    # child rows. An order with zero line items does not exist in real data;
+    # min_children=1 on orders→order_items guarantees coverage. Only honoured
+    # when the child row_count can actually cover the parents; the shortfall
+    # warns rather than silently inventing extra rows.
 
 
 class Constraint(BaseModel):
@@ -199,6 +205,9 @@ class Constraint(BaseModel):
         "inequality",     # col_a OP col_b  (e.g. price > cost)
         "col_range",      # low_col <= col <= high_col
         "balanced_ledger",  # per group: sum(debit) == sum(credit), exactly
+        "when_then",      # if when_column OP when_value then a rule on then_column
+        "lte_parent",     # child column <= a column on its FK parent, row by row
+        "sum_lte_parent",  # per parent: sum of child column <= parent column
     ]
     group_by: List[str] = Field(default_factory=list)
     column: Optional[str] = None
@@ -220,6 +229,35 @@ class Constraint(BaseModel):
     debit_column: Optional[str] = None
     credit_column: Optional[str] = None
     decimals: int = 2
+    # when_then fields: a status gates its dependent columns. The single most
+    # common realism failure in relational data — an "active" subscription with
+    # a cancellation date, an "open" ticket with a resolved_at — is a violated
+    # implication nobody declared. Declaring it:
+    #   Constraint(type="when_then", when_column="status", when_op="in",
+    #              when_value=["active", "past_due"],
+    #              then_column="cancelled_at", then="null")
+    # `then` semantics: "null" forces then_column to NULL where the condition
+    # holds; "not_null" fills missing values there (from then_value when given,
+    # else by sampling the column's own non-null values so the fill matches the
+    # column's real distribution); "set" writes then_value outright.
+    when_column: Optional[str] = None
+    when_op: Literal["==", "!=", "in", "not_in", ">", ">=", "<", "<="] = "=="
+    when_value: Optional[Any] = None
+    then_column: Optional[str] = None
+    then: Optional[Literal["null", "not_null", "set"]] = None
+    then_value: Optional[Any] = None
+    # lte_parent / sum_lte_parent fields: declared on the CHILD table. The fk
+    # is resolved from the declared relationship between the two tables.
+    #   returns.refund_amount <= its order's total_amount:
+    #     Constraint(type="lte_parent", column="refund_amount",
+    #                parent_table="orders", parent_column="total_amount")
+    #   payments for one order never exceed the order's total:
+    #     Constraint(type="sum_lte_parent", column="amount",
+    #                parent_table="orders", parent_column="total_amount")
+    # Enforced with action="cap": lte_parent clamps each row; sum_lte_parent
+    # rescales a parent's child rows proportionally when their sum overshoots.
+    parent_table: Optional[str] = None
+    parent_column: Optional[str] = None
 
 
 class ScenarioEvent(BaseModel):

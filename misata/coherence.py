@@ -613,6 +613,15 @@ def _detect_rollup_mismatch(tables, schema) -> List[CoherenceFinding]:
         child = tables.get(s.from_table)
         if parent is None or child is None:
             continue
+        if s.via:
+            # Multi-hop: audit through the same declared chain the generator
+            # used — the DuckDB/SQL layer is the fully independent check; this
+            # one catches a declared chain the generator failed to honour.
+            from misata.rollups import resolve_via_frame
+            child = resolve_via_frame(
+                s, tables, getattr(schema, "relationships", []) or [])
+            if child is None:
+                continue
         needed = {s.fk} | ({s.column} if s.column else set())
         if (s.target_column not in parent.columns
                 or s.parent_key not in parent.columns
@@ -635,6 +644,90 @@ def _detect_rollup_mismatch(tables, schema) -> List[CoherenceFinding]:
                 table=s.parent_table, column=s.target_column,
                 message=(f"{bad} rows disagree with {s.agg}({s.from_table}"
                          f".{s.column or 'rows'}) over the relationship"),
+                rows_affected=bad,
+            ))
+    return out
+
+
+def _detect_when_then_violation(tables, schema) -> List[CoherenceFinding]:
+    """Every declared when_then implication must hold in the emitted rows."""
+    out: List[CoherenceFinding] = []
+    for table_cfg in getattr(schema, "tables", []) or []:
+        df = tables.get(table_cfg.name)
+        if df is None or df.empty:
+            continue
+        for c in getattr(table_cfg, "constraints", []) or []:
+            if getattr(c, "type", None) != "when_then":
+                continue
+            wc, tc = c.when_column, c.then_column
+            if wc not in df.columns or tc not in df.columns or c.then is None:
+                continue
+            col, wv, op = df[wc], c.when_value, c.when_op
+            if op == "==":
+                mask = col == wv
+            elif op == "!=":
+                mask = col != wv
+            elif op == "in":
+                mask = col.isin(wv if isinstance(wv, (list, tuple, set)) else [wv])
+            elif op == "not_in":
+                mask = ~col.isin(wv if isinstance(wv, (list, tuple, set)) else [wv])
+            else:
+                continue   # ordering ops: enforcement-only for now
+            mask = mask.fillna(False)
+            if c.then == "null":
+                bad = int((mask & df[tc].notna()).sum())
+            elif c.then == "not_null":
+                bad = int((mask & df[tc].isna()).sum())
+            elif c.then == "set":
+                bad = int((mask & (df[tc] != c.then_value)).sum())
+            else:
+                continue
+            if bad:
+                out.append(CoherenceFinding(
+                    kind="when_then_violation", severity="high",
+                    table=table_cfg.name, column=tc,
+                    message=(f"{bad} rows violate declared rule '{c.name}': "
+                             f"when {wc} {op} {wv!r} then {tc} is {c.then}"),
+                    rows_affected=bad,
+                ))
+    return out
+
+
+def _detect_cross_table_bound_violation(tables, schema) -> List[CoherenceFinding]:
+    """Declared lte_parent / sum_lte_parent bounds must hold under a JOIN."""
+    out: List[CoherenceFinding] = []
+    try:
+        from misata.crosstable import collect_cross_table_constraints, _find_fk
+    except Exception:
+        return out
+    for child_name, c in collect_cross_table_constraints(schema):
+        child = tables.get(child_name)
+        parent = tables.get(getattr(c, "parent_table", None))
+        if child is None or parent is None:
+            continue
+        col, pcol = getattr(c, "column", None), getattr(c, "parent_column", None)
+        link = _find_fk(schema, child_name, c.parent_table)
+        if (link is None or col not in child.columns or pcol not in parent.columns):
+            continue
+        child_key, parent_key = link
+        if child_key not in child.columns or parent_key not in parent.columns:
+            continue
+        parent_vals = (parent.drop_duplicates(subset=[parent_key])
+                       .set_index(parent_key)[pcol])
+        mapped = child[child_key].map(parent_vals)
+        if c.type == "lte_parent":
+            bad = int(((child[col] > mapped + 0.01) & mapped.notna()).sum())
+        else:
+            sums = child.groupby(child_key)[col].transform("sum")
+            bad_mask = (sums > mapped + 0.01) & mapped.notna()
+            bad = int(child.loc[bad_mask, child_key].nunique())
+        if bad:
+            out.append(CoherenceFinding(
+                kind="cross_table_bound", severity="high",
+                table=child_name, column=col,
+                message=(f"{bad} {'rows' if c.type == 'lte_parent' else 'parents'} "
+                         f"violate declared bound '{c.name}': {child_name}.{col} "
+                         f"vs {c.parent_table}.{pcol}"),
                 rows_affected=bad,
             ))
     return out
@@ -1108,6 +1201,8 @@ def coherence_audit(
         report.findings.extend(_detect_fk_orphans(tables, schema))
         report.findings.extend(_detect_cross_table_causality(tables, schema))
         report.findings.extend(_detect_rollup_mismatch(tables, schema))
+        report.findings.extend(_detect_when_then_violation(tables, schema))
+        report.findings.extend(_detect_cross_table_bound_violation(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
         report.findings.extend(_detect_waterfall_mismatch(tables, schema))
         report.findings.extend(_detect_scd2_violations(tables, schema))

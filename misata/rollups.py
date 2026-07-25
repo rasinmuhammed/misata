@@ -51,6 +51,15 @@ class RollupSpec:
     fillna: float = 0.0            # parents with no children get this
     where: Optional[Dict[str, Any]] = None   # equality filter on child rows, e.g.
     #                                          {"status": "completed"} or {"status": ["a","b"]}
+    via: Optional[List[str]] = None   # intermediate tables between from_table and the
+    #                                   parent, nearest first. customers.lifetime_value =
+    #                                   sum(payments.amount) reached through orders is
+    #                                   via=["orders"]: payments join orders on their
+    #                                   relationship, and `fk` names the column on the
+    #                                   LAST via table that references the parent
+    #                                   (orders.customer_id). Multi-hop facts are how
+    #                                   real schemas reconcile; a single fk cannot
+    #                                   express them.
 
 
 # --------------------------------------------------------------------------- #
@@ -74,6 +83,11 @@ def collect_declared_rollups(config: Any) -> List[RollupSpec]:
             if not fk or not from_table:
                 continue
             where = decl.get("where")
+            via = decl.get("via")
+            if via is not None and not (
+                isinstance(via, list) and all(isinstance(v, str) for v in via)
+            ):
+                via = None   # malformed via: fall back to single-hop semantics
             specs.append(RollupSpec(
                 parent_table=table_name,
                 target_column=col.name,
@@ -84,6 +98,7 @@ def collect_declared_rollups(config: Any) -> List[RollupSpec]:
                 column=decl.get("column"),
                 fillna=float(decl.get("fillna", 0.0)),
                 where=where if isinstance(where, dict) else None,
+                via=via,
             ))
     return specs
 
@@ -239,13 +254,74 @@ def _infer_line_item_totals(config: Any, existing: List[RollupSpec]) -> List[Rol
 # Application
 # --------------------------------------------------------------------------- #
 
-def apply_rollups(tables: Dict[str, pd.DataFrame], specs: List[RollupSpec]) -> Dict[str, pd.DataFrame]:
+def resolve_via_frame(
+    spec: RollupSpec,
+    tables: Dict[str, pd.DataFrame],
+    relationships: List[Any],
+) -> Optional[pd.DataFrame]:
+    """Annotate the leaf table's rows with the parent-referencing fk found at the
+    end of the ``via`` chain, so a multi-hop roll-up reduces to a plain groupby.
+
+    For customers.lifetime_value = sum(payments.amount) via ["orders"]:
+    payments rows are joined to orders on their declared relationship, which
+    puts ``customer_id`` on every payment row. Returns None (caller skips, with
+    a warning) when a hop's relationship is missing or a table is absent —
+    a declared multi-hop must never silently aggregate the wrong path.
+    """
+    # Resolve the relationship for every hop first, so a broken chain is
+    # detected before any merging happens.
+    chain: List[Any] = []
+    current = spec.from_table
+    for hop in spec.via or []:
+        rel = next((r for r in relationships
+                    if r.parent_table == hop and r.child_table == current), None)
+        if rel is None or hop not in tables:
+            return None
+        chain.append(rel)
+        current = hop
+
+    df = tables[spec.from_table]
+    for i, rel in enumerate(chain):
+        hop_df = tables[rel.parent_table]
+        last = i == len(chain) - 1
+        carry = spec.fk if last else chain[i + 1].child_key
+        if rel.parent_key not in hop_df.columns or carry not in hop_df.columns:
+            return None
+        if rel.child_key not in df.columns:
+            return None
+        link = hop_df[[rel.parent_key] + ([carry] if carry != rel.parent_key else [])]
+        link = link.drop_duplicates(subset=[rel.parent_key])
+        df = df.merge(link, left_on=rel.child_key, right_on=rel.parent_key,
+                      how="left", suffixes=("", "__misata_hop"))
+        if carry + "__misata_hop" in df.columns:
+            df[carry] = df[carry + "__misata_hop"]
+            df = df.drop(columns=[carry + "__misata_hop"])
+    return df
+
+
+def apply_rollups(
+    tables: Dict[str, pd.DataFrame],
+    specs: List[RollupSpec],
+    relationships: Optional[List[Any]] = None,
+) -> Dict[str, pd.DataFrame]:
     """Write each roll-up's aggregate into the parent column. Mutates and returns ``tables``."""
+    import warnings as _warnings
     for spec in specs:
         parent = tables.get(spec.parent_table)
         child = tables.get(spec.from_table)
         if parent is None or child is None:
             continue
+        if spec.via:
+            resolved = (resolve_via_frame(spec, tables, relationships)
+                        if relationships else None)
+            if resolved is None or spec.fk not in resolved.columns:
+                _warnings.warn(
+                    f"Roll-up '{spec.parent_table}.{spec.target_column}': the via chain "
+                    f"{spec.via} could not be resolved from the declared relationships; "
+                    f"the column keeps its generated values and will NOT reconcile."
+                )
+                continue
+            child = resolved
         if spec.parent_key not in parent.columns or spec.fk not in child.columns:
             continue
         if spec.agg != "count" and (spec.column is None or spec.column not in child.columns):
