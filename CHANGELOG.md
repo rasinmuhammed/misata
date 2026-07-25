@@ -5,6 +5,46 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.9] - 2026-07-24
+
+### Added
+
+- **`misata dbt-unit-test`: generate dbt unit test fixtures from your project's
+  own manifest.** dbt unit tests are the accepted way to prove a model's logic
+  is right, and adoption is blocked by one documented problem: the fixtures are
+  hand-authored and rot. The specific failure is that hand-written fixtures do
+  not agree with each other — `customers` has ids 1, 2, 3 and `orders`
+  references `customer_id` 7, so the join returns nothing and the test either
+  passes vacuously or fails for an unrelated reason.
+
+  This reads `target/manifest.json`, so nothing is guessed. Every ref and
+  source in `depends_on` is declared as an input (dbt fails compilation
+  otherwise), columns and warehouse types come from your schema.yml, and
+  foreign keys come from your own `relationships` tests. All inputs are
+  generated in one pass, so the keys resolve across fixtures by construction.
+
+  `--coverage` lists which models already have a unit test and which are ready
+  for one. `--write` emits CSV fixtures to `tests/fixtures/` and the
+  `unit_tests` block to `models/`, where dbt requires it. Verified end to end
+  against real dbt 1.9.10: the generated fixtures pass
+  `dbt test --select test_type:unit`.
+
+  **What it deliberately does not do:** invent the `expect` rows. Knowing the
+  correct output means knowing what the SQL should do; a fixture that asserts a
+  wrong answer is worse than none, because noisy tests get ignored, which is
+  the reason teams abandon unit tests in the first place. The `expect` block is
+  emitted with your model's real column names and the values left to you.
+
+### Fixed
+
+- **Fixtures are serialised against their declared type, not the generated
+  one.** The engine's `date` type yields a timestamp, so a column the warehouse
+  declares as `date` was getting `2024-07-09 15:24:55` written into its
+  fixture. Depending on the adapter that fails to cast or, worse, silently
+  changes what a date comparison in the model means. Dates now serialise as
+  dates, times as times, datetimes truncate to seconds, integers never render
+  as `1.0`, and booleans render lowercase.
+
 ## [0.8.8.5] - 2026-07-21
 
 ### Fixed

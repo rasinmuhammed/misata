@@ -2185,6 +2185,181 @@ def seed_cmd(
         )
 
 
+@main.command("dbt-unit-test")
+@click.option("--select", "model_name", type=str, default=None,
+              help="Model to generate a unit test for. Omit with --coverage.")
+@click.option("--coverage", "show_coverage", is_flag=True, default=False,
+              help="List models and whether they already have a unit test.")
+@click.option("--project-dir", type=click.Path(exists=True), default=None,
+              help="dbt project directory (default: search upward from here).")
+@click.option("--rows", "-n", type=int, default=5,
+              help="Rows per mocked input. Small is correct for unit tests (default: 5).")
+@click.option("--seed", "seed_value", type=int, default=42,
+              help="Random seed; the same seed reproduces the same fixtures.")
+@click.option("--write/--dry-run", default=False,
+              help="Write the files. Default is a dry run that prints them.")
+@click.option("--force", is_flag=True, default=False,
+              help="Overwrite existing fixture files.")
+def dbt_unit_test_cmd(
+    model_name: Optional[str],
+    show_coverage: bool,
+    project_dir: Optional[str],
+    rows: int,
+    seed_value: int,
+    write: bool,
+    force: bool,
+) -> None:
+    """Generate dbt unit test fixtures from your project's own manifest.
+
+    \b
+    Reads target/manifest.json, so the inputs are real: every ref and source the
+    model depends on is declared (dbt fails compilation otherwise), columns and
+    types come from your schema.yml, and foreign keys come from your own
+    relationships tests. All inputs are generated in one pass, so the keys
+    across the fixtures resolve and the model's joins actually produce rows.
+
+    \b
+    The `expect` block is emitted with your model's real column names but the
+    values are left to you: knowing the correct output means knowing what the
+    SQL should do, and a fixture that asserts the wrong answer is worse than
+    none.
+
+    \b
+    Examples:
+        misata dbt-unit-test --coverage
+        misata dbt-unit-test --select customer_orders
+        misata dbt-unit-test --select customer_orders --write
+    """
+    print_banner()
+
+    from misata.dbt_unit import (
+        ManifestError, build_plan, coverage, find_manifest, fixture_csv,
+        generate_fixtures, load_manifest, render_unit_test_yaml,
+    )
+
+    try:
+        manifest_path = find_manifest(Path(project_dir) if project_dir else None)
+        manifest = load_manifest(manifest_path)
+    except ManifestError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1)
+
+    root = manifest_path.parent.parent
+    console.print(f"[dim]📁 Manifest:[/dim] [cyan]{manifest_path}[/cyan]")
+
+    if show_coverage:
+        rowsc = coverage(manifest)
+        tbl = RichTable(show_header=True, header_style="bold", box=None)
+        tbl.add_column("model")
+        tbl.add_column("unit test", justify="center")
+        tbl.add_column("inputs", justify="right")
+        tbl.add_column("columns documented", justify="center")
+        for r in rowsc:
+            tbl.add_row(
+                r.name,
+                "[green]yes[/green]" if r.has_unit_test else "[red]no[/red]",
+                str(r.upstream_count),
+                "yes" if r.documented else "[yellow]no[/yellow]",
+            )
+        console.print()
+        console.print(tbl)
+        covered = sum(1 for r in rowsc if r.has_unit_test)
+        ready = [r for r in rowsc if not r.has_unit_test and r.documented and r.upstream_count]
+        console.print(
+            f"\n[dim]{covered}/{len(rowsc)} models have a unit test. "
+            f"{len(ready)} are ready to generate one.[/dim]"
+        )
+        if ready:
+            console.print(
+                f"[dim]Start with:[/dim] misata dbt-unit-test --select {ready[0].name}"
+            )
+        return
+
+    if not model_name:
+        console.print("[red]Error:[/red] pass --select MODEL, or --coverage to see options.")
+        raise SystemExit(1)
+
+    try:
+        plan = build_plan(manifest, model_name, rows=rows)
+    except ManifestError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1)
+
+    for warning in plan.warnings:
+        console.print(f"  [yellow]⚠[/yellow] {warning}")
+
+    if plan.skipped:
+        console.print(f"\n[yellow]Cannot generate:[/yellow] {plan.skipped}")
+        raise SystemExit(1)
+
+    if plan.has_existing_test:
+        console.print(
+            f"  [dim]Note: {model_name} already has a unit test. "
+            f"This adds another rather than replacing it.[/dim]"
+        )
+
+    fixtures = generate_fixtures(plan, seed=seed_value)
+    yaml_text = render_unit_test_yaml(plan)
+
+    console.print(f"\n[bold]{model_name}[/bold] — {len(plan.inputs)} input(s):")
+    for inp in plan.inputs:
+        marker = "[green]✓[/green]" if inp.documented else "[yellow]⚠[/yellow]"
+        fk_note = ""
+        if inp.foreign_keys:
+            fk_note = " [dim](" + ", ".join(
+                f"{c} → {pc}" for c, _, pc in inp.foreign_keys
+            ) + ")[/dim]"
+        console.print(f"  {marker} {inp.ref_expr} — {len(inp.columns)} column(s){fk_note}")
+
+    fixture_dir = root / "tests" / "fixtures"
+    yaml_path = root / "models" / f"_misata_unit_test_{model_name}.yml"
+
+    if not write:
+        console.print("\n[dim]── " + str(yaml_path.relative_to(root)) + " ──[/dim]")
+        console.print(yaml_text)
+        for name, df in fixtures.items():
+            console.print(f"[dim]── tests/fixtures/{name}.csv ──[/dim]")
+            cols = next((i.columns for i in plan.inputs if i.fixture_name == name), None)
+            console.print(fixture_csv(df, cols))
+        console.print("[dim]Dry run: nothing written. Re-run with --write.[/dim]")
+        return
+
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    yaml_path.parent.mkdir(parents=True, exist_ok=True)
+
+    written: List[str] = []
+    skipped: List[str] = []
+    for name, df in fixtures.items():
+        target = fixture_dir / f"{name}.csv"
+        if target.exists() and not force:
+            skipped.append(str(target.relative_to(root)))
+            continue
+        cols = next((i.columns for i in plan.inputs if i.fixture_name == name), None)
+        target.write_text(fixture_csv(df, cols), encoding="utf-8")
+        written.append(str(target.relative_to(root)))
+
+    if yaml_path.exists() and not force:
+        skipped.append(str(yaml_path.relative_to(root)))
+    else:
+        yaml_path.write_text(yaml_text, encoding="utf-8")
+        written.append(str(yaml_path.relative_to(root)))
+
+    console.print()
+    for w in written:
+        console.print(f"  [green]✓[/green] {w}")
+    for s in skipped:
+        console.print(f"  [yellow]⚠[/yellow] {s} — exists, use --force")
+
+    if written:
+        console.print(
+            f"\n[bold green]✓ Done.[/bold green] Fill in the [bold]expect[/bold] rows "
+            f"in {yaml_path.name}, then run:\n"
+            f"  [cyan]dbt build[/cyan]   [dim](once, if the upstream models are not "
+            f"in the warehouse yet)[/dim]\n"
+            f"  [cyan]dbt test --select test_type:unit[/cyan]"
+        )
+
+
 @main.command("dbt-fixture")
 @click.option("--story", "-s", type=str, default=None,
               help="Plain-English story to generate data from.")
