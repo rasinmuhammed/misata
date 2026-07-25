@@ -2234,18 +2234,24 @@ def dbt_unit_test_cmd(
 
     from misata.dbt_unit import (
         ManifestError, build_plan, coverage, find_manifest, fixture_csv,
-        generate_fixtures, load_manifest, render_unit_test_yaml,
+        generate_fixtures, load_catalog, load_manifest, render_unit_test_yaml,
     )
 
     try:
         manifest_path = find_manifest(Path(project_dir) if project_dir else None)
         manifest = load_manifest(manifest_path)
+        catalog = load_catalog(manifest_path)
     except ManifestError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1)
 
     root = manifest_path.parent.parent
     console.print(f"[dim]📁 Manifest:[/dim] [cyan]{manifest_path}[/cyan]")
+    if catalog:
+        console.print(
+            "[dim]📖 Using target/catalog.json for the real column list "
+            "and types.[/dim]"
+        )
 
     if show_coverage:
         rowsc = coverage(manifest)
@@ -2280,7 +2286,7 @@ def dbt_unit_test_cmd(
         raise SystemExit(1)
 
     try:
-        plan = build_plan(manifest, model_name, rows=rows)
+        plan = build_plan(manifest, model_name, rows=rows, catalog=catalog)
     except ManifestError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1)

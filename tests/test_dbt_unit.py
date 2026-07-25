@@ -444,3 +444,164 @@ def test_cli_errors_without_select_or_coverage(tmp_path):
     r = CliRunner().invoke(main, ["dbt-unit-test", "--project-dir", str(tmp_path)])
     assert r.exit_code == 1
     assert "--coverage" in r.output
+
+
+# ─── lessons from running against dbt-labs/jaffle_shop ─────────────────────
+#
+# Three defects only surfaced by running on a real project. jaffle_shop
+# documents ONLY the columns that carry tests (stg_customers documents
+# customer_id and nothing else, while the model selects three columns), it
+# declares no data types at all, and it has no relationships tests anywhere.
+
+
+def _partial_manifest() -> dict:
+    """A manifest shaped like jaffle_shop: partial docs, no types, no FK tests."""
+    return {
+        "unit_tests": {},
+        "sources": {},
+        "nodes": {
+            "model.jaffle_shop.stg_customers": {
+                "resource_type": "model",
+                "name": "stg_customers",
+                "language": "sql",
+                "config": {"materialized": "view"},
+                "depends_on": {"nodes": ["model.jaffle_shop.raw_customers"]},
+                "columns": {"customer_id": {}},          # no data_type, partial
+            },
+            "model.jaffle_shop.stg_orders": {
+                "resource_type": "model",
+                "name": "stg_orders",
+                "language": "sql",
+                "config": {"materialized": "view"},
+                "depends_on": {"nodes": ["model.jaffle_shop.raw_orders"]},
+                "columns": {"order_id": {}, "status": {}},
+            },
+            "model.jaffle_shop.raw_customers": {
+                "resource_type": "model", "name": "raw_customers", "language": "sql",
+                "config": {"materialized": "table"}, "depends_on": {"nodes": []},
+                "columns": {"id": {}},
+            },
+            "model.jaffle_shop.raw_orders": {
+                "resource_type": "model", "name": "raw_orders", "language": "sql",
+                "config": {"materialized": "table"}, "depends_on": {"nodes": []},
+                "columns": {"id": {}},
+            },
+            "model.jaffle_shop.customers": {
+                "resource_type": "model",
+                "name": "customers",
+                "language": "sql",
+                "config": {"materialized": "table"},
+                "depends_on": {
+                    "nodes": [
+                        "model.jaffle_shop.stg_customers",
+                        "model.jaffle_shop.stg_orders",
+                    ]
+                },
+                "columns": {"customer_id": {}},
+            },
+        },
+    }
+
+
+def _catalog() -> dict:
+    """The warehouse's real answer: every column, real types, real ordering."""
+    return {
+        "nodes": {
+            "model.jaffle_shop.stg_customers": {
+                "columns": {
+                    "customer_id": {"type": "INTEGER", "index": 1},
+                    "first_name": {"type": "VARCHAR", "index": 2},
+                    "last_name": {"type": "VARCHAR", "index": 3},
+                }
+            },
+            "model.jaffle_shop.stg_orders": {
+                "columns": {
+                    "order_id": {"type": "INTEGER", "index": 1},
+                    "customer_id": {"type": "INTEGER", "index": 2},
+                    "order_date": {"type": "DATE", "index": 3},
+                    "status": {"type": "VARCHAR", "index": 4},
+                }
+            },
+            "model.jaffle_shop.customers": {
+                "columns": {
+                    "customer_id": {"type": "INTEGER", "index": 1},
+                    "amount_total": {"type": "DOUBLE", "index": 2},
+                }
+            },
+        }
+    }
+
+
+def test_catalog_supplies_columns_the_manifest_omits():
+    """Without this the fixture is missing columns the model actually selects."""
+    plan = build_plan(_partial_manifest(), "customers", catalog=_catalog())
+    stg_customers = next(i for i in plan.inputs if i.name == "stg_customers")
+    # The manifest documents only customer_id; the catalog knows all three.
+    assert list(stg_customers.columns) == ["customer_id", "first_name", "last_name"]
+    assert stg_customers.columns["customer_id"] == "integer"
+
+
+def test_catalog_column_order_follows_warehouse_ordinal():
+    plan = build_plan(_partial_manifest(), "customers", catalog=_catalog())
+    stg_orders = next(i for i in plan.inputs if i.name == "stg_orders")
+    assert list(stg_orders.columns) == [
+        "order_id", "customer_id", "order_date", "status",
+    ]
+
+
+def test_warns_when_no_catalog_is_available():
+    plan = build_plan(_partial_manifest(), "customers")
+    assert any("catalog.json" in w for w in plan.warnings)
+
+
+def test_undeclared_id_columns_are_integers_not_text():
+    """An id column full of prose is useless for a join."""
+    plan = build_plan(_partial_manifest(), "customers")
+    stg_customers = next(i for i in plan.inputs if i.name == "stg_customers")
+    assert stg_customers.columns["customer_id"] == "integer"
+
+
+def test_foreign_keys_are_inferred_when_no_relationships_test_exists():
+    """jaffle_shop declares none, so without inference the join finds nothing."""
+    plan = build_plan(_partial_manifest(), "customers", catalog=_catalog())
+    stg_orders = next(i for i in plan.inputs if i.name == "stg_orders")
+    assert stg_orders.foreign_keys == [
+        ("customer_id", "model.jaffle_shop.stg_customers", "customer_id")
+    ]
+    assert any("inferred" in w for w in plan.warnings)
+
+
+def test_inferred_fixtures_actually_join():
+    plan = build_plan(_partial_manifest(), "customers", rows=5, catalog=_catalog())
+    fx = generate_fixtures(plan, seed=5)
+    customers = fx["customers__stg_customers"]
+    orders = fx["customers__stg_orders"]
+    assert set(orders["customer_id"]) <= set(customers["customer_id"])
+
+
+def test_inference_requires_the_stem_to_name_the_parent():
+    """Two tables sharing a column name is not a foreign key."""
+    from misata.dbt_unit import UnitTestInput, infer_foreign_keys_by_name
+
+    a = UnitTestInput("model.p.widgets", "widgets", "model", "ref('widgets')",
+                      {"tenant_id": "integer"}, 3, "f_a")
+    b = UnitTestInput("model.p.gadgets", "gadgets", "model", "ref('gadgets')",
+                      {"tenant_id": "integer"}, 3, "f_b")
+    # Neither table is named "tenant", so no key is claimed.
+    assert infer_foreign_keys_by_name([a, b]) == []
+
+
+def test_inference_never_self_references():
+    from misata.dbt_unit import UnitTestInput, infer_foreign_keys_by_name
+
+    orders = UnitTestInput("model.p.stg_orders", "stg_orders", "model",
+                           "ref('stg_orders')", {"order_id": "integer"}, 3, "f")
+    assert infer_foreign_keys_by_name([orders]) == []
+
+
+def test_money_columns_round_to_two_places():
+    """74.03978153304986 in an amount column is noise a reader must skip."""
+    df = pd.DataFrame({"amount": [74.03978153304986], "ratio": [0.123456789]})
+    out = coerce_to_declared_types(df, {"amount": "float", "ratio": "float"})
+    assert out["amount"].iloc[0] == 74.04
+    assert out["ratio"].iloc[0] == 0.1235

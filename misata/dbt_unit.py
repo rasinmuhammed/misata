@@ -124,6 +124,33 @@ def load_manifest(path: Path) -> Dict[str, Any]:
     return manifest
 
 
+def load_catalog(manifest_path: Path) -> Optional[Dict[str, Any]]:
+    """Load ``target/catalog.json`` beside the manifest, if it exists.
+
+    This matters much more than it first appears. A manifest's ``columns`` only
+    contains the columns somebody chose to *document*, which on real projects is
+    a subset — dbt's own jaffle_shop documents ``customer_id`` on
+    ``stg_customers`` and nothing else, while the model actually selects three
+    columns, and declares no data types at all.
+
+    Generating a fixture from that subset produces a test that is missing
+    columns the model reads, which fails or silently tests the wrong thing. The
+    catalog is the warehouse's own answer: every column, its real type, and its
+    real ordinal position. So when it is available it wins.
+
+    It is produced by ``dbt docs generate``. Returning None is normal.
+    """
+    catalog_path = manifest_path.parent / "catalog.json"
+    if not catalog_path.is_file():
+        return None
+    try:
+        with catalog_path.open(encoding="utf-8") as fh:
+            catalog = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return catalog if "nodes" in catalog else None
+
+
 # --------------------------------------------------------------------------- #
 # Model + input resolution
 # --------------------------------------------------------------------------- #
@@ -236,12 +263,109 @@ def extract_foreign_keys(
     return out
 
 
-def _columns_of(node: Dict[str, Any]) -> Dict[str, str]:
-    """Documented columns of a node, mapped to Misata types."""
-    return {
-        col_name: map_data_type((col or {}).get("data_type"))
-        for col_name, col in (node.get("columns") or {}).items()
-    }
+def _looks_like_id(name: str) -> bool:
+    return name == "id" or name.endswith("_id")
+
+
+_MONEY_HINTS = (
+    "amount", "price", "cost", "total", "revenue", "fee", "balance",
+    "payment", "spend", "value", "mrr", "arr", "subtotal", "discount",
+)
+
+
+def _looks_like_money(name: str) -> bool:
+    lowered = name.lower()
+    return any(hint in lowered for hint in _MONEY_HINTS)
+
+
+def infer_foreign_keys_by_name(
+    inputs: List["UnitTestInput"],
+) -> List[Tuple[str, str, str, str]]:
+    """Infer FKs from naming convention, for projects with no relationships tests.
+
+    Most real projects do not exhaustively declare ``relationships`` tests —
+    dbt's own jaffle_shop declares none — and without a foreign key the child
+    fixture points at parents that do not exist, the model's join returns no
+    rows, and the unit test passes while proving nothing. That vacuous pass is
+    the failure this whole module exists to prevent, so a conservative
+    inference is better than none.
+
+    The rules are deliberately narrow, and every hit is reported to the user as
+    *inferred* rather than declared:
+
+      - the child column must be id-shaped (``x_id``),
+      - a candidate parent must have a column of exactly that name,
+      - the column's stem must appear in the parent's name
+        (``customer_id`` → ``stg_customers``), which is what distinguishes a
+        real key from two tables that merely share a column name,
+      - never self-referential.
+
+    Returns ``(child_unique_id, child_column, parent_unique_id, parent_column)``.
+    """
+    out: List[Tuple[str, str, str, str]] = []
+    for child in inputs:
+        for col in child.columns:
+            if not _looks_like_id(col) or col == "id":
+                continue
+            stem = col[: -len("_id")]
+            if not stem:
+                continue
+            for parent in inputs:
+                if parent.unique_id == child.unique_id:
+                    continue
+                if col not in parent.columns:
+                    continue
+                # The stem must name the parent, so `stg_orders.customer_id`
+                # binds to `stg_customers` and not to some unrelated table that
+                # happens to carry a `customer_id`.
+                if stem.lower() in parent.name.lower():
+                    out.append((child.unique_id, col, parent.unique_id, col))
+                    break
+    return out
+
+
+def _columns_of(
+    node: Dict[str, Any],
+    unique_id: str,
+    catalog: Optional[Dict[str, Any]] = None,
+) -> Tuple[Dict[str, str], str]:
+    """Resolve a node's columns, preferring the warehouse's own answer.
+
+    Returns ``(columns, source)`` where source is "catalog" or "manifest", so
+    the caller can tell the user how much to trust the result.
+
+    The catalog wins because a manifest lists only documented columns, and
+    documentation is routinely partial. Where neither declares a type, an
+    id-shaped name is treated as an integer rather than defaulting to text: a
+    key column filled with prose is useless for a join, and that is the whole
+    point of these fixtures.
+    """
+    cat_node = None
+    if catalog:
+        cat_node = (catalog.get("nodes") or {}).get(unique_id) or (
+            catalog.get("sources") or {}
+        ).get(unique_id)
+
+    if cat_node and cat_node.get("columns"):
+        # Sort by the warehouse's ordinal position so the fixture's column
+        # order matches the real relation.
+        entries = sorted(
+            cat_node["columns"].items(),
+            key=lambda kv: (kv[1] or {}).get("index", 0),
+        )
+        return (
+            {name: map_data_type((col or {}).get("type")) for name, col in entries},
+            "catalog",
+        )
+
+    columns: Dict[str, str] = {}
+    for col_name, col in (node.get("columns") or {}).items():
+        declared = (col or {}).get("data_type")
+        if declared:
+            columns[col_name] = map_data_type(declared)
+        else:
+            columns[col_name] = "integer" if _looks_like_id(col_name) else _DEFAULT_TYPE
+    return columns, "manifest"
 
 
 def _ref_expression(unique_id: str, node: Dict[str, Any]) -> str:
@@ -273,16 +397,29 @@ def build_plan(
     model_name: str,
     *,
     rows: int = 5,
+    catalog: Optional[Dict[str, Any]] = None,
 ) -> UnitTestPlan:
-    """Resolve one model into a complete, emittable unit test plan."""
+    """Resolve one model into a complete, emittable unit test plan.
+
+    Pass ``catalog`` (from :func:`load_catalog`) whenever it is available: it is
+    the difference between a fixture that has every column the model reads and
+    one that only has the documented subset.
+    """
     model_uid, model = resolve_model(manifest, model_name)
+    model_columns, model_col_source = _columns_of(model, model_uid, catalog)
     plan = UnitTestPlan(
         model_name=model_name,
         model_unique_id=model_uid,
-        model_columns=list((model.get("columns") or {}).keys()),
+        model_columns=list(model_columns.keys()),
         inputs=[],
         has_existing_test=model_uid in _models_with_unit_tests(manifest),
     )
+    if catalog is None:
+        plan.warnings.append(
+            "No target/catalog.json found, so columns come from schema.yml "
+            "documentation only, which is often incomplete. Run "
+            "`dbt docs generate` for the warehouse's real column list and types."
+        )
 
     # dbt's own documented limits on unit tests. Refuse rather than emit
     # something that cannot run.
@@ -318,7 +455,12 @@ def build_plan(
             plan.warnings.append(f"Upstream {uid} is not in the manifest; skipped.")
             continue
         kind = uid.split(".", 1)[0]
-        columns = _columns_of(node)
+        columns, col_source = _columns_of(node, uid, catalog)
+        if col_source == "manifest" and columns:
+            plan.warnings.append(
+                f"'{node.get('name')}' columns came from schema.yml, which may "
+                "not list every column the model selects."
+            )
         inp = UnitTestInput(
             unique_id=uid,
             name=str(node.get("name")),
@@ -340,11 +482,33 @@ def build_plan(
     # key pointing outside the mocked set cannot be honoured in a fixture.
     input_ids = {i.unique_id for i in plan.inputs}
     by_uid = {i.unique_id: i for i in plan.inputs}
+    declared: set = set()
     for child_uid, child_col, parent_uid, parent_col in all_fks:
         if child_uid in input_ids and parent_uid in input_ids:
             child = by_uid[child_uid]
             if child_col in child.columns:
                 child.foreign_keys.append((child_col, parent_uid, parent_col))
+                declared.add((child_uid, child_col))
+
+    # Fall back to naming convention for keys the project never declared,
+    # otherwise the model's joins would find nothing to match.
+    inferred = 0
+    for child_uid, child_col, parent_uid, parent_col in infer_foreign_keys_by_name(
+        plan.inputs
+    ):
+        if (child_uid, child_col) in declared:
+            continue
+        child = by_uid[child_uid]
+        if any(c == child_col for c, _, _ in child.foreign_keys):
+            continue
+        child.foreign_keys.append((child_col, parent_uid, parent_col))
+        inferred += 1
+    if inferred:
+        plan.warnings.append(
+            f"{inferred} foreign key(s) were inferred from column naming because "
+            "the project has no relationships test for them. Check them, and add "
+            "relationships tests to make them explicit."
+        )
 
     if not any(i.documented for i in plan.inputs):
         plan.skipped = (
@@ -531,6 +695,13 @@ def coerce_to_declared_types(
             out[col] = series.map(
                 lambda v: "" if pd.isna(v) else ("true" if bool(v) else "false")
             )
+        elif misata_type == "float":
+            # A fixture is read by people. 74.03978153304986 in an `amount`
+            # column is noise, and full binary precision makes an
+            # expected-vs-actual diff harder to eyeball. Money-shaped names get
+            # 2dp; other floats get a readable 4.
+            places = 2 if _looks_like_money(col) else 4
+            out[col] = pd.to_numeric(series, errors="coerce").round(places)
     return out
 
 

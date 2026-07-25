@@ -5,6 +5,39 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.9.1] - 2026-07-24
+
+### Fixed
+
+Three defects that only surfaced by running 0.8.9 against a real project
+(dbt-labs/jaffle_shop_duckdb on dbt 1.11.12), each of which produced a fixture
+that would have tested the wrong thing:
+
+- **A manifest's `columns` is not the schema.** jaffle_shop documents only the
+  columns that carry tests: `stg_customers` documents `customer_id` while the
+  model actually selects three columns. Generating from that subset produces a
+  fixture missing columns the model reads. `target/catalog.json` is now
+  preferred when present — it is the warehouse's own answer, with every column,
+  its real type, and its real ordinal position — and its absence is reported so
+  you know the column list may be partial.
+- **Undeclared id columns were filled with prose.** jaffle_shop declares no
+  data types at all, so every column fell back to text and `customer_id` came
+  out containing product descriptions, which cannot be joined. An id-shaped
+  name with no declared type is now an integer.
+- **Foreign keys are inferred when the project declares none.** jaffle_shop has
+  no `relationships` tests, so the fixtures did not line up and the model's
+  joins would have returned nothing — a unit test that passes while proving
+  nothing, which is the exact failure this feature exists to prevent.
+  Inference is deliberately narrow: the column must be id-shaped, the candidate
+  parent must have that exact column, and the column's stem must name the
+  parent (`customer_id` → `stg_customers`), so two tables that merely share a
+  column name are not mistaken for a key. Every inferred key is reported as
+  inferred rather than presented as declared.
+
+- **Float columns round for readability.** `74.03978153304986` in an `amount`
+  column is noise in a file people have to read and diff. Money-shaped names
+  round to 2 places, other floats to 4.
+
 ## [0.8.9] - 2026-07-24
 
 ### Added
