@@ -146,6 +146,16 @@ def generate_with_faker() -> Dict[str, pd.DataFrame]:
         "status": rng.choice(ORDER_STATUSES, n,
                              p=[0.10, 0.15, 0.60, 0.03, 0.07, 0.05]),
         "total_amount": np.round(np.exp(rng.normal(4.5, 0.8, n)), 2),
+        # The four per-state timestamps the schema calls for. Faker has no
+        # concept of a state machine, so each is drawn independently with a
+        # plausible null rate, which is exactly what a careful script does when
+        # the tool offers nothing better. Including them keeps the comparison
+        # on the same 110 assertions rather than scoring Faker on columns it
+        # was never asked to produce.
+        "placed_at": dt("2022-07-01", "2025-06-30", n),
+        "shipped_at": dt("2022-07-01", "2025-06-30", n).where(rng.random(n) > 0.3, pd.NaT),
+        "completed_at": dt("2022-07-01", "2025-06-30", n).where(rng.random(n) > 0.4, pd.NaT),
+        "cancelled_at": dt("2022-07-01", "2025-06-30", n).where(rng.random(n) > 0.9, pd.NaT),
     })
 
     n = ROWS["order_items"]
