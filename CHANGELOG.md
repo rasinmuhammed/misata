@@ -5,6 +5,52 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.9.3] - 2026-07-26
+
+### Added
+
+- **`misata dbt-mutate`: mutation coverage for dbt models.** Line coverage is
+  meaningless for a data pipeline, because the SQL always runs. The question
+  that matters is whether the rows you test with could *reveal* an error, and
+  this measures it directly: each model is rewritten with a plausible mistake,
+  rebuilt, and its output compared to the baseline. A mutation whose output is
+  **identical** has survived, which means your data is blind to that entire
+  class of error no matter how many tests are green.
+
+  Five rules, each corresponding to a mistake that has actually shipped:
+  `left join` to `inner join`, dropping a `partition by` from a window,
+  `>` to `>=`, `min()` to `max()`, and `count(distinct x)` to `count(x)`.
+  The list is deliberately tiny; mutation testing's classic failure is the
+  equivalent mutant, and every extra rule is another chance to cry wolf.
+
+  Verified against two real projects, and in both cases it independently found
+  a blindness that had already been confirmed by hand:
+
+  - `dbt-labs/jaffle-shop`, model `customers`: **2/5**. `left join` to
+    `inner join` survives, because no customer in the warehouse has zero
+    orders. That is the exact gap covered by dbt-labs/jaffle-shop#131.
+  - `fivetran/dbt_stripe`, model `stripe__daily_overview`: **0/1**. Dropping
+    the window's `partition by` survives, because the integration seed data
+    holds exactly one account. That is fivetran/dbt_stripe#155, a real
+    cross-account revenue contamination bug, found here automatically.
+
+  Output comparison is order-independent (rows are canonicalised and sorted),
+  so a pure reordering is never reported as a difference. Mutations the
+  warehouse rejects are reported as `errored` and excluded from the score,
+  because a change SQL refuses to compile is not a change your data caught.
+  Model files are restored after every mutation, including when a build fails
+  or the process dies. `--fail-under` makes it a CI gate; `--json` writes the
+  full report.
+
+### Fixed
+
+- The dbt subprocess helpers now resolve the `dbt` executable next to the
+  running interpreter before falling back to `PATH`, so `dbt-mutate` works in
+  a virtualenv that has not been activated.
+- dbt errors surfaced by these commands report the line that names the problem
+  rather than the last line of output, which was often a bare `^` from a SQL
+  pointer.
+
 ## [0.8.9.2] - 2026-07-25
 
 ### Added

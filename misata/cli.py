@@ -2906,5 +2906,150 @@ def provenance_cmd(data_dir: Optional[str]) -> None:
     console.print(tbl)
 
 
+@main.command("dbt-mutate")
+@click.option("--select", "model_names", type=str, default=None,
+              help="Comma-separated models to mutate. Default: every model.")
+@click.option("--project-dir", type=click.Path(exists=True), default=None,
+              help="dbt project directory (default: search upward from here).")
+@click.option("--profiles-dir", type=click.Path(exists=True), default=None,
+              help="Passed through to dbt.")
+@click.option("--target", type=str, default=None, help="dbt target to use.")
+@click.option("--rule", "rule_keys", type=str, default=None,
+              help="Comma-separated rule keys to run. Default: all five.")
+@click.option("--json", "json_out", type=click.Path(), default=None,
+              help="Write the full report as JSON here.")
+@click.option("--fail-under", type=float, default=None,
+              help="Exit non-zero when the score is below this percentage (for CI).")
+@click.option("--dbt-bin", type=str, default=None,
+              help="Path to the dbt executable (default: the one beside this interpreter).")
+def dbt_mutate_cmd(
+    model_names: Optional[str],
+    project_dir: Optional[str],
+    profiles_dir: Optional[str],
+    target: Optional[str],
+    rule_keys: Optional[str],
+    json_out: Optional[str],
+    fail_under: Optional[float],
+    dbt_bin: Optional[str],
+) -> None:
+    """Measure whether your data can tell correct SQL from plausible wrong SQL.
+
+    \b
+    Line coverage means nothing for a data pipeline: the SQL always runs. The
+    real question is whether the rows you test with could reveal an error. This
+    rewrites each model with a plausible mistake, rebuilds it, and checks
+    whether the output actually changes.
+
+    \b
+    A mutation whose output is IDENTICAL is "survived": your data is blind to
+    that whole class of error, however many tests are green. A mutation that
+    changes the output is "caught".
+
+    \b
+    Your model files are restored after every mutation, including on failure.
+
+    \b
+      misata dbt-mutate --select customers
+      misata dbt-mutate --json report.json --fail-under 60
+    """
+    from misata.dbt_unit import find_manifest, load_manifest, ManifestError
+    from misata.mutate import (RULES, RULES_BY_KEY, DbtRunner, MutationReport,
+                               model_sql_path, mutate_model)
+
+    print_banner()
+    try:
+        manifest_path = find_manifest(Path(project_dir) if project_dir else None)
+        manifest = load_manifest(manifest_path)
+    except ManifestError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+    root = manifest_path.parent.parent
+    project = manifest.get("metadata", {}).get("project_name")
+    all_models = [
+        n for n in manifest.get("nodes", {}).values()
+        if n.get("resource_type") == "model"
+    ]
+    wanted = [m.strip() for m in model_names.split(",")] if model_names else None
+    if wanted:
+        # An explicitly named model is mutated wherever it lives, including in
+        # an installed package: testing a package you depend on is a real use.
+        selected = [(n["name"], n) for n in all_models if n["name"] in wanted]
+        missing = sorted(set(wanted) - {name for name, _ in selected})
+        if missing:
+            console.print(f"[yellow]Not found: {', '.join(missing)}[/yellow]")
+    else:
+        # Unqualified runs stay in your own project, so a bare `dbt-mutate`
+        # never spends an hour rebuilding somebody else's package.
+        selected = [(n["name"], n) for n in all_models
+                    if n.get("package_name") == project]
+    if not selected:
+        console.print("[red]No matching models in this project.[/red]")
+        sys.exit(1)
+
+    rules = RULES
+    if rule_keys:
+        keys = [k.strip() for k in rule_keys.split(",")]
+        unknown = [k for k in keys if k not in RULES_BY_KEY]
+        if unknown:
+            console.print(f"[red]Unknown rule(s): {', '.join(unknown)}. "
+                          f"Available: {', '.join(RULES_BY_KEY)}[/red]")
+            sys.exit(1)
+        rules = [RULES_BY_KEY[k] for k in keys]
+
+    runner = DbtRunner(
+        project_dir=root,
+        profiles_dir=Path(profiles_dir) if profiles_dir else None,
+        target=target,
+        dbt_bin=dbt_bin,
+    )
+
+    console.print(f"[dim]Mutating {len(selected)} model(s) with "
+                  f"{len(rules)} rule(s). Each mutation rebuilds the model, "
+                  f"so this is slow by nature.[/dim]\n")
+
+    report = MutationReport()
+    for name, node in sorted(selected):
+        path = model_sql_path(root, node)
+        if path is None:
+            continue
+        mr = mutate_model(runner, name, path, rules=rules)
+        report.models.append(mr)
+        if mr.baseline_error:
+            console.print(f"  [yellow]skip[/yellow] {name}: {mr.baseline_error}")
+            continue
+        if mr.total == 0:
+            console.print(f"  [dim]{name}: no rule applies[/dim]")
+            continue
+        colour = "green" if mr.caught == mr.total else "yellow"
+        console.print(f"  [{colour}]{mr.caught}/{mr.total}[/{colour}] {name}")
+        for r in mr.survived:
+            console.print(f"       [yellow]survived[/yellow]  {r.rule.label}")
+            console.print(f"                 {r.rule.why}")
+
+    console.print()
+    if report.total == 0:
+        console.print("[yellow]No mutations were applicable. Nothing measured.[/yellow]")
+        sys.exit(0)
+
+    console.print(f"  [bold]Mutation coverage: {report.caught}/{report.total} "
+                  f"({report.score:.0f}%)[/bold]")
+    blind = report.total - report.caught
+    if blind:
+        console.print(f"  {blind} mutation(s) survived: your data cannot "
+                      f"distinguish those errors from correct code.")
+        console.print("  [dim]A survived mutation is a question, not a verdict. "
+                      "Some are genuinely equivalent.[/dim]")
+
+    if json_out:
+        Path(json_out).write_text(json.dumps(report.to_dict(), indent=2))
+        console.print(f"  [dim]report written to {json_out}[/dim]")
+
+    if fail_under is not None and report.score < fail_under:
+        console.print(f"[red]Score {report.score:.0f}% is below "
+                      f"--fail-under {fail_under:.0f}%.[/red]")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
