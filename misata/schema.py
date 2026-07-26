@@ -6,7 +6,7 @@ including tables, columns, relationships, and scenario events.
 """
 
 import warnings
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -417,6 +417,148 @@ class GroupShares(BaseModel):
     description: Optional[str] = None
 
 
+class LifecycleState(BaseModel):
+    """One state an entity can occupy, and the column that records entering it.
+
+    Attributes:
+        name:      The value that appears in the lifecycle's ``state_column``.
+        timestamp: Optional column recording when the entity entered this
+                   state. When given, the column is NOT NULL for entities whose
+                   path reached this state and NULL for every entity that did
+                   not. Omit for states you do not timestamp.
+        terminal:  True when no transition leaves this state.
+    """
+
+    name: str
+    timestamp: Optional[str] = None
+    terminal: bool = False
+
+
+class Lifecycle(BaseModel):
+    """Declare the state machine an entity moves through, and prove it held.
+
+    A status column plus a scatter of per-state timestamps is the most common
+    shape in real operational data, and the most commonly wrong: an "active"
+    subscription carrying a cancellation date, a "cancelled" order with a
+    delivery time, a "shipped" row whose ship date precedes its order date.
+    Those are all the same defect — a row whose columns describe a history
+    that could not have happened.
+
+    Declaring the machine makes the whole class impossible. For a row in state
+    S, the engine derives the path from ``initial`` to S and guarantees:
+
+    1. ``state_column`` only ever holds a declared state name.
+    2. Every state on the path has its timestamp populated, in path order.
+    3. Every state off the path has its timestamp NULL.
+    4. The whole chain postdates ``start_column`` when one is given.
+
+    This subsumes hand-written ``when_then`` rules and status gating: instead
+    of enumerating "if cancelled then cancelled_at is not null" for every pair,
+    you declare the machine once and every implication follows from it.
+
+    Example, an order that ships then completes, or is cancelled outright::
+
+        Lifecycle(
+            name="order_lifecycle",
+            table="orders",
+            state_column="status",
+            start_column="order_date",
+            initial="placed",
+            states=[
+                LifecycleState(name="placed",    timestamp="placed_at"),
+                LifecycleState(name="shipped",   timestamp="shipped_at"),
+                LifecycleState(name="completed", timestamp="completed_at", terminal=True),
+                LifecycleState(name="cancelled", timestamp="cancelled_at", terminal=True),
+            ],
+            transitions=[
+                ("placed", "shipped"),
+                ("shipped", "completed"),
+                ("placed", "cancelled"),
+            ],
+            weights={"placed": 0.10, "shipped": 0.15,
+                     "completed": 0.60, "cancelled": 0.15},
+        )
+
+    Attributes:
+        name:         Identifier used in warnings and audit findings.
+        table:        Table whose rows are the entities.
+        state_column: Column holding the entity's current state.
+        states:       Every reachable state. Names must be unique.
+        transitions:  Legal (from_state, to_state) pairs.
+        initial:      The state every entity starts in.
+        weights:      Optional share of rows to place in each state. Normalised
+                      with a warning if the values do not sum to 1. States
+                      omitted get zero rows. Defaults to uniform over states
+                      that are reachable.
+        start_column: Optional existing timestamp the whole chain must postdate
+                      (an order's ``order_date``, a customer's ``signup_date``).
+        max_days_per_step: Upper bound on the gap between consecutive state
+                      timestamps, so a shipped-to-completed hop stays plausible.
+    """
+
+    name: str
+    table: str
+    state_column: str
+    states: List[LifecycleState]
+    transitions: List[Tuple[str, str]] = Field(default_factory=list)
+    initial: Optional[str] = None
+    weights: Optional[Dict[str, float]] = None
+    start_column: Optional[str] = None
+    max_days_per_step: int = 30
+    description: Optional[str] = None
+
+    @field_validator("states")
+    @classmethod
+    def _unique_state_names(cls, v: List["LifecycleState"]) -> List["LifecycleState"]:
+        names = [s.name for s in v]
+        if len(names) != len(set(names)):
+            raise ValueError("Lifecycle state names must be unique")
+        if not names:
+            raise ValueError("Lifecycle needs at least one state")
+        return v
+
+    def state_names(self) -> List[str]:
+        return [s.name for s in self.states]
+
+    def timestamp_of(self, state: str) -> Optional[str]:
+        for s in self.states:
+            if s.name == state:
+                return s.timestamp
+        return None
+
+    def timestamp_columns(self) -> List[str]:
+        return [s.timestamp for s in self.states if s.timestamp]
+
+    def path_to(self, target: str) -> Optional[List[str]]:
+        """Shortest legal path from ``initial`` to ``target``.
+
+        Returns None when the target is unreachable, which the caller reports
+        rather than silently generating an impossible row. Breadth-first, so
+        the path chosen is the shortest one; a state reachable two ways gets
+        the direct route.
+        """
+        start = self.initial or (self.states[0].name if self.states else None)
+        if start is None:
+            return None
+        if target == start:
+            return [start]
+        adjacency: Dict[str, List[str]] = {}
+        for a, b in self.transitions:
+            adjacency.setdefault(a, []).append(b)
+        queue: List[List[str]] = [[start]]
+        seen = {start}
+        while queue:
+            path = queue.pop(0)
+            for nxt in adjacency.get(path[-1], []):
+                if nxt in seen:
+                    continue
+                if nxt == target:
+                    return path + [nxt]
+                seen.add(nxt)
+                queue.append(path + [nxt])
+        return None
+
+
 class StockFlowIdentity(BaseModel):
     """Declare an inventory table whose stock ledger reconciles to the unit.
 
@@ -630,6 +772,7 @@ class SchemaConfig(BaseModel):
     group_shares: List[GroupShares] = Field(default_factory=list)
     waterfalls: List[WaterfallIdentity] = Field(default_factory=list)
     stock_flows: List[StockFlowIdentity] = Field(default_factory=list)
+    lifecycles: List[Lifecycle] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="anchored",
         description=(

@@ -693,6 +693,101 @@ def _detect_when_then_violation(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _detect_lifecycle_violation(tables, schema) -> List[CoherenceFinding]:
+    """Every row's state must imply a legal, fully-timestamped, ordered history.
+
+    Checked independently of the generator: the path is re-derived from the
+    declared transitions here, so a bug in the lifecycle pass surfaces as a
+    finding rather than being confirmed by the code that caused it.
+    """
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "lifecycles", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty or spec.state_column not in df.columns:
+            continue
+        states = set(spec.state_names())
+        status = df[spec.state_column]
+
+        undeclared = int((~status.isin(states)).sum())
+        if undeclared:
+            out.append(CoherenceFinding(
+                kind="lifecycle_illegal_state", severity="high",
+                table=spec.table, column=spec.state_column,
+                message=(f"{undeclared} rows hold a state not declared in "
+                         f"lifecycle '{spec.name}'"),
+                rows_affected=undeclared,
+            ))
+
+        for state in spec.state_names():
+            path = spec.path_to(state)
+            if path is None:
+                continue
+            on_path = {p for p in path}
+            in_state = status == state
+            if not in_state.any():
+                continue
+            for st in spec.state_names():
+                col = spec.timestamp_of(st)
+                if not col or col not in df.columns:
+                    continue
+                vals = df.loc[in_state, col]
+                if st in on_path:
+                    bad = int(vals.isna().sum())
+                    if bad:
+                        out.append(CoherenceFinding(
+                            kind="lifecycle_missing_timestamp", severity="high",
+                            table=spec.table, column=col,
+                            message=(f"{bad} rows in state '{state}' are missing "
+                                     f"'{col}', but '{st}' is on their path"),
+                            rows_affected=bad,
+                        ))
+                else:
+                    bad = int(vals.notna().sum())
+                    if bad:
+                        out.append(CoherenceFinding(
+                            kind="lifecycle_impossible_timestamp", severity="high",
+                            table=spec.table, column=col,
+                            message=(f"{bad} rows in state '{state}' carry '{col}', "
+                                     f"but '{st}' is not on their path"),
+                            rows_affected=bad,
+                        ))
+
+            # Path order: consecutive timestamped states must ascend.
+            stamped = [spec.timestamp_of(p) for p in path]
+            stamped = [c for c in stamped if c and c in df.columns]
+            for a_col, b_col in zip(stamped, stamped[1:]):
+                pair = df.loc[in_state, [a_col, b_col]].dropna()
+                if pair.empty:
+                    continue
+                bad = int((pair[b_col] < pair[a_col]).sum())
+                if bad:
+                    out.append(CoherenceFinding(
+                        kind="lifecycle_out_of_order", severity="high",
+                        table=spec.table, column=b_col,
+                        message=(f"{bad} rows in state '{state}' have {b_col} "
+                                 f"before {a_col}, against the declared path"),
+                        rows_affected=bad,
+                    ))
+
+        # The chain must postdate its declared start.
+        if spec.start_column and spec.start_column in df.columns:
+            start = pd.to_datetime(df[spec.start_column], errors="coerce")
+            for col in spec.timestamp_columns():
+                if col not in df.columns:
+                    continue
+                ts = pd.to_datetime(df[col], errors="coerce")
+                bad = int(((ts < start) & ts.notna() & start.notna()).sum())
+                if bad:
+                    out.append(CoherenceFinding(
+                        kind="lifecycle_precedes_start", severity="high",
+                        table=spec.table, column=col,
+                        message=(f"{bad} rows have {col} before "
+                                 f"{spec.start_column}"),
+                        rows_affected=bad,
+                    ))
+    return out
+
+
 def _detect_cross_table_bound_violation(tables, schema) -> List[CoherenceFinding]:
     """Declared lte_parent / sum_lte_parent bounds must hold under a JOIN."""
     out: List[CoherenceFinding] = []
@@ -1201,6 +1296,7 @@ def coherence_audit(
         report.findings.extend(_detect_fk_orphans(tables, schema))
         report.findings.extend(_detect_cross_table_causality(tables, schema))
         report.findings.extend(_detect_rollup_mismatch(tables, schema))
+        report.findings.extend(_detect_lifecycle_violation(tables, schema))
         report.findings.extend(_detect_when_then_violation(tables, schema))
         report.findings.extend(_detect_cross_table_bound_violation(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))

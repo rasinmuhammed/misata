@@ -770,6 +770,28 @@ class DataSimulator:
 
         return valid_ids
 
+    def _refresh_context(self, table_name: str, df: pd.DataFrame) -> None:
+        """Replace a table's cached context after a whole-table rewrite.
+
+        Context is normally accumulated batch by batch during generation. When
+        a pass rewrites columns over the finished table (a lifecycle rewriting
+        ``status``), the cache still holds the pre-rewrite values, and any child
+        whose relationship filters on those columns would be matched against
+        stale state. Rebuilding from the final frame keeps filters honest.
+
+        Primary keys are untouched by such passes, so ``_pk_store`` stays valid.
+        """
+        cols = self._collect_context_columns(table_name, df)
+        if not cols:
+            return
+        ctx_df = df[cols].copy()
+        if len(ctx_df) > self.MAX_CONTEXT_ROWS:
+            ctx_df = ctx_df.sample(
+                n=self.MAX_CONTEXT_ROWS,
+                random_state=int(self.rng.integers(0, 2**31)),
+            )
+        self.context[table_name] = ctx_df
+
     def _ensure_min_children(
         self,
         values: np.ndarray,
@@ -4872,6 +4894,13 @@ class DataSimulator:
             for hop in (s.via or []):
                 rollup_tables.add(hop)
 
+        # A lifecycle rewrites its table's state column and per-state
+        # timestamps over the whole table, so that table buffers.
+        lifecycle_tables = {
+            s.table for s in (getattr(self.config, "lifecycles", None) or [])
+            if s.table in set(sorted_tables)
+        }
+
         # Cross-table clamps (refund <= its order's total; payments per order
         # never exceed the order) need both sides materialised too.
         from misata.crosstable import collect_cross_table_constraints
@@ -4916,7 +4945,8 @@ class DataSimulator:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
         buffer_tables = (cascade_tables | rollup_tables | group_share_tables
-                         | waterfall_tables | scd2_tables | stock_flow_tables)
+                         | waterfall_tables | scd2_tables | stock_flow_tables
+                         | lifecycle_tables)
 
         buffered: Dict[str, pd.DataFrame] = {}
         streamed: list = []   # tables already yielded (order record for phase 3)
@@ -4935,6 +4965,23 @@ class DataSimulator:
                     batches.append(batch)
                 if batches:
                     buffered[table_name] = pd.concat(batches, ignore_index=True)
+                    # Lifecycles run HERE, not in phase 2: rewriting the state
+                    # column changes which parents a filtered relationship
+                    # considers eligible (shipments only attach to shipped
+                    # orders). Children are generated after this point, so they
+                    # must see the final states — hence the context refresh.
+                    if lifecycle_tables and table_name in lifecycle_tables:
+                        from misata.lifecycle import (apply_lifecycles,
+                                                      lifecycles_for_table)
+                        for _spec in lifecycles_for_table(self.config, table_name):
+                            with self._anchor("identity", "lifecycle",
+                                              table_name, _spec.state_column):
+                                apply_lifecycles(
+                                    {table_name: buffered[table_name]},
+                                    type("_One", (), {"lifecycles": [_spec]})(),
+                                    self.rng,
+                                )
+                        self._refresh_context(table_name, buffered[table_name])
             else:
                 # Stream immediately — no post-pass involvement
                 for batch in self.generate_batches(table_name):

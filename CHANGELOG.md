@@ -5,6 +5,67 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.9.4] - 2026-07-26
+
+### Added
+
+- **Declared entity lifecycles.** The most common shape in operational data is
+  a status column beside a scatter of per-state timestamps, and it is the most
+  commonly wrong: an "active" subscription carrying a cancellation date, a
+  "cancelled" order with a delivery time, a "returned" order missing the
+  shipment it must have passed through. Those are one defect, not three: a row
+  whose columns describe a history that could not have happened.
+
+  Declaring the machine makes the whole class impossible:
+
+      Lifecycle(
+          name="order_lifecycle", table="orders", state_column="status",
+          start_column="order_date", initial="placed",
+          states=[LifecycleState(name="placed", timestamp="placed_at"),
+                  LifecycleState(name="shipped", timestamp="shipped_at"),
+                  LifecycleState(name="completed", timestamp="completed_at"),
+                  LifecycleState(name="returned", terminal=True),
+                  LifecycleState(name="cancelled", timestamp="cancelled_at",
+                                 terminal=True)],
+          transitions=[("placed", "shipped"), ("shipped", "completed"),
+                       ("completed", "returned"), ("placed", "cancelled")],
+          weights={"placed": .10, "shipped": .15, "completed": .60,
+                   "returned": .10, "cancelled": .05},
+      )
+
+  For a row in state S the engine derives the path from `initial` to S and
+  guarantees: every state on the path has its timestamp populated, those
+  timestamps ascend in path order, every state off the path has its timestamp
+  NULL, and the whole chain postdates `start_column`. A returned order
+  therefore carries its shipment and completion, because it necessarily had
+  them. State shares are allocated by largest remainder, so a declared 60% is
+  exactly 60% of rows rather than 60% in expectation.
+
+  This **subsumes** hand-written `when_then` rules and status gating. Instead of
+  enumerating an implication per pair, which grows quadratically and still
+  cannot express ordering, you declare the machine once and every implication
+  follows. Three primitives collapse into one that is strictly stronger.
+
+  Unreachable states, missing columns, and weights on unreachable states all
+  warn rather than silently producing an impossible row. `coherence_audit`
+  re-derives the path independently and reports
+  `lifecycle_illegal_state`, `lifecycle_missing_timestamp`,
+  `lifecycle_impossible_timestamp`, `lifecycle_out_of_order`, and
+  `lifecycle_precedes_start`.
+
+- **Gauntlet category J, lifecycle legality**: 11 new assertions covering path
+  membership, path ordering, and chain start. The benchmark is now 110
+  assertions and the engine scores **109/110**, up from 98/99. The suite
+  previously had no coverage of the simulative axis at all.
+
+### Fixed
+
+- A whole-table rewrite now refreshes the owning table's generation context, so
+  a child whose relationship filters on a rewritten column matches the final
+  values rather than stale ones. Lifecycles run during their table's generation
+  for exactly this reason: rewriting `status` changes which parents a filtered
+  relationship considers eligible, and children are generated afterwards.
+
 ## [0.8.9.3] - 2026-07-26
 
 ### Added

@@ -25,6 +25,7 @@ Categories:
     G  geo               city/state/zip are internally consistent (G4)
     H  arithmetic        derived columns satisfy their formula
     I  distribution      the data is not degenerate (spread, degrees, zeros)
+    J  lifecycle         a row's state implies a legal, ordered history
 """
 
 from __future__ import annotations
@@ -38,7 +39,8 @@ from typing import Any, Dict, List, Tuple
 import duckdb
 
 import misata
-from misata.schema import SchemaConfig, Table, Column, Relationship, Constraint
+from misata.schema import (SchemaConfig, Table, Column, Relationship, Constraint,
+                          Lifecycle, LifecycleState)
 
 SEED = 7
 
@@ -218,9 +220,24 @@ def build_schema() -> SchemaConfig:
                                             "sampling": "pareto", "alpha": 1.2}),
                 Column(name="order_date", type="datetime",
                        distribution_params={"start": "2022-07-01", "end": "2025-06-30"}),
+                # Status and the four per-state timestamps are governed by the
+                # declared Lifecycle below, not by these params: the lifecycle
+                # pass overwrites both. The declarations stay so the columns
+                # exist with the right dtype.
                 Column(name="status", type="categorical",
                        distribution_params={"choices": ORDER_STATUSES,
                                             "weights": [0.10, 0.15, 0.60, 0.03, 0.07, 0.05]}),
+                Column(name="placed_at", type="datetime", nullable=True,
+                       distribution_params={"start": "2022-07-01", "end": "2025-06-30"}),
+                Column(name="shipped_at", type="datetime", nullable=True,
+                       distribution_params={"start": "2022-07-01", "end": "2025-06-30",
+                                            "null_probability": 0.3}),
+                Column(name="completed_at", type="datetime", nullable=True,
+                       distribution_params={"start": "2022-07-01", "end": "2025-06-30",
+                                            "null_probability": 0.4}),
+                Column(name="cancelled_at", type="datetime", nullable=True,
+                       distribution_params={"start": "2022-07-01", "end": "2025-06-30",
+                                            "null_probability": 0.9}),
                 # Reconciles with its own order_items rows.
                 Column(name="total_amount", type="float",
                        distribution_params={"rollup": {
@@ -324,6 +341,40 @@ def build_schema() -> SchemaConfig:
                          filters={"status": ["returned", "return_pending"]}),
             Relationship(parent_table="customers", child_table="support_tickets",
                          parent_key="customer_id", child_key="customer_id"),
+        ],
+        lifecycles=[
+            # One declaration replaces what would otherwise be eight when_then
+            # rules, and additionally guarantees path ordering, which no
+            # per-pair rule can express.
+            Lifecycle(
+                name="order_lifecycle",
+                table="orders",
+                state_column="status",
+                start_column="order_date",
+                initial="placed",
+                states=[
+                    LifecycleState(name="placed", timestamp="placed_at"),
+                    LifecycleState(name="shipped", timestamp="shipped_at"),
+                    LifecycleState(name="completed", timestamp="completed_at"),
+                    # A return is reached THROUGH completion: a returned order
+                    # was delivered first. Those states inherit the whole
+                    # upstream chain, which is the point of a path.
+                    LifecycleState(name="return_pending"),
+                    LifecycleState(name="returned", terminal=True),
+                    LifecycleState(name="cancelled", timestamp="cancelled_at",
+                                   terminal=True),
+                ],
+                transitions=[
+                    ("placed", "shipped"),
+                    ("shipped", "completed"),
+                    ("completed", "return_pending"),
+                    ("return_pending", "returned"),
+                    ("placed", "cancelled"),
+                ],
+                weights={"placed": 0.10, "shipped": 0.15, "completed": 0.60,
+                         "return_pending": 0.03, "returned": 0.07,
+                         "cancelled": 0.05},
+            ),
         ],
     )
 
@@ -561,6 +612,47 @@ def build_assertions() -> List[Tuple[str, str, str]]:
          "SELECT count(*) FROM products WHERE abs(price - cost * 1.65) > 0.01"),
     ]
 
+    # ---- J. lifecycle legality (declared state machine) ---------------------
+    # A row's state implies a whole history. These assertions test the *path*,
+    # which is what no per-pair `when_then` rule can express: a returned order
+    # must also carry its shipped and completed timestamps, because it was
+    # shipped and completed before it was returned.
+    SHIPPED_ON_PATH = "('shipped','completed','return_pending','returned')"
+    DONE_ON_PATH = "('completed','return_pending','returned')"
+    a += [
+        ("J", "orders.status is a declared lifecycle state",
+         "SELECT count(*) FROM orders WHERE status NOT IN "
+         "('placed','shipped','completed','return_pending','returned','cancelled')"),
+        ("J", "every order has placed_at (the initial state)",
+         "SELECT count(*) FROM orders WHERE placed_at IS NULL"),
+        ("J", "shipped_at present exactly when shipped is on the path",
+         f"SELECT count(*) FROM orders WHERE (status IN {SHIPPED_ON_PATH}) "
+         "!= (shipped_at IS NOT NULL)"),
+        ("J", "completed_at present exactly when completed is on the path",
+         f"SELECT count(*) FROM orders WHERE (status IN {DONE_ON_PATH}) "
+         "!= (completed_at IS NOT NULL)"),
+        ("J", "cancelled_at present exactly when cancelled",
+         "SELECT count(*) FROM orders WHERE (status = 'cancelled') "
+         "!= (cancelled_at IS NOT NULL)"),
+        ("J", "cancelled orders never carry a shipment timestamp",
+         "SELECT count(*) FROM orders WHERE status = 'cancelled' "
+         "AND (shipped_at IS NOT NULL OR completed_at IS NOT NULL)"),
+        ("J", "path order holds: placed <= shipped <= completed",
+         "SELECT count(*) FROM orders WHERE "
+         "(shipped_at IS NOT NULL AND shipped_at < placed_at) OR "
+         "(completed_at IS NOT NULL AND completed_at < shipped_at)"),
+        ("J", "cancellation never precedes placement",
+         "SELECT count(*) FROM orders "
+         "WHERE cancelled_at IS NOT NULL AND cancelled_at < placed_at"),
+        ("J", "the whole chain postdates order_date",
+         "SELECT count(*) FROM orders WHERE placed_at < order_date"),
+        ("J", "returned orders carry the full upstream chain",
+         "SELECT count(*) FROM orders WHERE status = 'returned' AND "
+         "(shipped_at IS NULL OR completed_at IS NULL)"),
+        ("J", "every declared state occurs (the machine is exercised)",
+         "SELECT CASE WHEN (SELECT count(DISTINCT status) FROM orders) = 6 THEN 0 ELSE 1 END"),
+    ]
+
     # ---- I. distribution sanity --------------------------------------------
     a += [
         ("I", "some customers have zero orders (1%-60%)",
@@ -626,7 +718,8 @@ def run(json_path: str | None = None) -> int:
     cats = sorted({r["category"] for r in results})
     cat_names = {"A": "structural", "B": "domain", "C": "temporal",
                  "D": "status-implies", "E": "reconciliation", "F": "diamond",
-                 "G": "geo", "H": "arithmetic", "I": "distribution"}
+                 "G": "geo", "H": "arithmetic", "I": "distribution",
+                 "J": "lifecycle"}
     passed = sum(1 for r in results if r["violations"] == 0)
     total = len(results)
 
