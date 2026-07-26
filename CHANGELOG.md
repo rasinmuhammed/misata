@@ -5,6 +5,70 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.9.5] - 2026-07-26
+
+### Added
+
+- **Contradictory declarations are now refused, with the arithmetic that proves
+  it.** This is the behaviour that separates a declarative engine from a
+  generator with a lot of options: when two declarations cannot both hold, the
+  engine owes a compiler error, not a warning followed by a specification it
+  substituted on your behalf.
+
+  The old behaviour, measured rather than assumed:
+
+      declared:  smb .6 / mid .6 / ent .3   (sums to 1.5)
+      realised:  smb .4 / mid .4 / ent .2   <- a spec nobody wrote
+
+      declared:  200 rows, unique id capped at 50
+      realised:  ids up to 301               <- the declared bound overridden
+
+  Both emitted a warning first, which is worse than it sounds rather than
+  better: you are still holding data that violates what you asked for, and the
+  file looks authoritative afterwards. 0.8.8.5 was this class of defect (an
+  inferred roll-up overwrote a declared curve, 23% off).
+
+  `misata.feasibility.check_feasibility` now runs before generation and raises
+  `InfeasibleSchema` naming every conflict at once, each with where it is, which
+  declarations clash, the arithmetic, and a remedy:
+
+      2 declarations cannot be satisfied together:
+        1. [orders.segment] group_shares on amount
+            declared shares sum to 1.500 (smb=0.6, mid=0.6, ent=0.3);
+            a share of a whole cannot exceed 1.0
+            -> Suggestion: scale the shares so they sum to 1.0, or drop a group.
+               Misata will not renormalise them for you, because the result
+               would be a specification you did not write
+        2. [orders.order_id] unique + min/max on order_id vs row_count on orders
+            200 unique values needed but the range [1, 50] holds only 50
+            -> Suggestion: raise max to at least 200, lower row_count to 50,
+               or drop unique
+
+  Checks: shares exceeding a whole or naming absent groups; inverted numeric
+  ranges; a unique integer column whose range cannot hold `row_count` distinct
+  values; an inequality constraint whose columns' declared ranges cannot satisfy
+  it; **an outcome curve and a roll-up both claiming the same column** (the
+  0.8.8.5 defect, now unrepresentable); two lifecycles governing one state
+  column; lifecycle weights on states no transition reaches; and `min_children`
+  needing more child rows than the child table has.
+
+  `InfeasibleSchema` subclasses `SchemaValidationError`, so existing handlers
+  keep working. Pass `strict=False` to `generate_from_schema` for the old
+  warn-and-override behaviour.
+
+  Scope discipline: a conflict is reported only when declarations are
+  *arithmetically* incompatible, never when they are merely unusual or when the
+  engine can satisfy both. Verified against the full suite: **zero false
+  refusals across ~1400 existing schemas.**
+
+### Changed
+
+- Two cases that previously warned at generation time are now refused up front,
+  because they are decidable from the schema alone: `min_children` exceeding the
+  child table's capacity, and lifecycle weights on unreachable states. The
+  runtime warnings remain as the backstop for shortfalls feasibility cannot
+  predict, such as a relationship filter shrinking the eligible parent pool.
+
 ## [0.8.9.4] - 2026-07-26
 
 ### Added

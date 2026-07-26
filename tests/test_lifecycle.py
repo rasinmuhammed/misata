@@ -194,8 +194,18 @@ class TestWeights:
 # --------------------------------------------------------------------------- #
 
 class TestRefusalAndAudit:
-    def test_unreachable_state_warns_and_is_unused(self):
+    def test_weighted_unreachable_state_is_refused_up_front(self):
+        """A weight on a state no transition reaches is a contradiction, so it
+        is refused before generation rather than warned about afterwards."""
+        from misata.feasibility import InfeasibleSchema
         lc = _order_lifecycle(transitions=[("placed", "shipped")])
+        with pytest.raises(InfeasibleSchema, match="cancelled|completed|returned"):
+            misata.generate_from_schema(_schema(lc))
+
+    def test_unreachable_state_warns_and_is_unused(self):
+        """With no weight attached, an unreachable state is not a contradiction,
+        only dead vocabulary: the run proceeds and warns."""
+        lc = _order_lifecycle(transitions=[("placed", "shipped")], weights=None)
         with pytest.warns(UserWarning, match="not reachable"):
             df = misata.generate_from_schema(_schema(lc))["orders"]
         assert "cancelled" not in set(df["status"])

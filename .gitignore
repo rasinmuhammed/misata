@@ -69,6 +69,7 @@ tests/*
 !tests/test_template_text.py
 !tests/test_cross_table_rules.py
 !tests/test_lifecycle.py
+!tests/test_feasibility.py
 !tests/test_mutate.py
 jman_output/
 llm_test/

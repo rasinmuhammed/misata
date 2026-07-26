@@ -351,10 +351,22 @@ class TestMinChildren:
         t = misata.generate_from_schema(schema)
         assert len(set(t["orders"]["order_id"]) - set(t["items"]["order_id"])) > 0
 
-    def test_impossible_coverage_warns(self):
-        with pytest.warns(UserWarning, match="min_children"):
+    def test_impossible_coverage_is_refused_up_front(self):
+        """Since 0.8.9.5 this is a feasibility conflict, not a runtime warning:
+        100 parents x 3 children needs 300 rows and only 120 exist, which is
+        arithmetic the engine can check before generating anything."""
+        from misata.feasibility import InfeasibleSchema
+        with pytest.raises(InfeasibleSchema, match="300"):
             misata.generate_from_schema(
                 _coverage_schema(min_children=3, child_rows=120))
+
+    def test_runtime_warning_still_guards_the_unpredictable_case(self):
+        """Feasibility cannot see every shortfall (filters can shrink the
+        eligible parent pool at generation time), so the runtime warning in
+        _ensure_min_children remains the backstop. Reached via strict=False."""
+        with pytest.warns(UserWarning, match="min_children"):
+            misata.generate_from_schema(
+                _coverage_schema(min_children=3, child_rows=120), strict=False)
 
     def test_fk_integrity_survives(self):
         t = misata.generate_from_schema(_coverage_schema(min_children=2))

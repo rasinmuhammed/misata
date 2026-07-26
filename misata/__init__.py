@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.8.9.4"
+__version__ = "0.8.9.5"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -276,6 +276,7 @@ def generate_from_schema(
     smart_correlations: bool = False,
     capsule: "Optional[str]" = None,
     verify: bool = False,
+    strict: bool = True,
 ) -> "Dict[str, Any]":
     """Generate data from an already-built SchemaConfig.
 
@@ -294,6 +295,12 @@ def generate_from_schema(
         verify:            If True, run :func:`misata.story_audit` on the result
                            and emit a warning for every unrepaired finding, so a
                            dataset that contradicts itself never ships silently.
+        strict:            When True (default), declarations that cannot all hold
+                           raise :class:`misata.feasibility.InfeasibleSchema`
+                           before generation, naming every conflict with the
+                           arithmetic that proves it. Set False for the older
+                           behaviour, where the engine warns and then resolves
+                           the conflict by overriding one of your declarations.
 
     Returns:
         Dict mapping table name → ``pd.DataFrame``.
@@ -304,6 +311,14 @@ def generate_from_schema(
         tables = misata.generate_from_schema(schema, min_quality_score=85)
     """
     import copy
+
+    # Refuse contradictory declarations before generating anything. A
+    # declarative engine owes the user a compiler error here, not a warning
+    # followed by a specification it substituted on their behalf. Set
+    # ``strict=False`` to fall back to the older warn-and-resolve behaviour.
+    if strict:
+        from misata.feasibility import check_feasibility
+        check_feasibility(schema)
 
     if smart_correlations:
         schema = copy.deepcopy(schema)
