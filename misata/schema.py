@@ -391,6 +391,152 @@ class RateCurve(BaseModel):
     rate_points: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class CohortRetention(BaseModel):
+    """Declare a retention curve, and have the cohort table actually show it.
+
+    "Of the customers who signed up in month M, 55% place an order in M+1 and
+    40% in M+2" is the most-quoted invariant in SaaS and ecommerce analytics,
+    and until now it was inexpressible here: you could control how many events
+    existed and what they summed to, but not *which* entities produced them
+    over time. So the cohort query every analyst runs first returned a shape
+    nobody chose.
+
+    Declaring it makes the cohort table exact. For every cohort period and
+    every declared offset k, exactly ``round(fraction × cohort_size)`` distinct
+    entities have at least one event in period ``cohort + k``.
+
+    This governs the event table's entity key and its timestamp, because those
+    are what a retention query reads. Every other column is left alone.
+
+    Example, a cohort that halves then flattens::
+
+        CohortRetention(
+            table="orders", event_time="order_date", cohort_key="customer_id",
+            cohort_table="customers", cohort_time="signup_date",
+            unit="month",
+            curve={0: 1.0, 1: 0.55, 2: 0.40, 3: 0.34},
+        )
+
+    Attributes:
+        table:        Event table whose rows are the activity.
+        event_time:   Timestamp column on the event table.
+        cohort_key:   Entity key present on both tables.
+        cohort_table: Entity table that defines cohort membership.
+        cohort_time:  Timestamp on the entity table that assigns its cohort.
+        unit:         Period granularity for both cohort and offset.
+        curve:        Offset (0 = the cohort's own period) to fraction of the
+                      cohort active in that period. Offset 0 is normally 1.0.
+                      Fractions must each be between 0 and 1.
+    """
+
+    table: str
+    event_time: str
+    cohort_key: str
+    cohort_table: str
+    cohort_time: str
+    unit: Literal["day", "week", "month"] = "month"
+    curve: Dict[int, float]
+    description: Optional[str] = None
+
+    @field_validator("curve")
+    @classmethod
+    def _fractions_in_range(cls, v: Dict[int, float]) -> Dict[int, float]:
+        if not v:
+            raise ValueError("CohortRetention.curve needs at least one offset")
+        for k, frac in v.items():
+            if int(k) < 0:
+                raise ValueError(f"retention offset {k} cannot be negative")
+            if not 0.0 <= float(frac) <= 1.0:
+                raise ValueError(
+                    f"retention fraction for offset {k} is {frac}; a share of a "
+                    f"cohort must be between 0 and 1"
+                )
+        return v
+
+
+class Missingness(BaseModel):
+    """Declare *why* values are missing, not just how often.
+
+    Real data is missing for a reason. Income is absent more often for younger
+    users; a satisfaction score is absent when nobody replied. That is MNAR
+    (missing not at random), and it is what breaks models and pipelines in
+    production. A flat ``null_rate`` produces MCAR, which is the one pattern
+    real data almost never has.
+
+    Declaring the mechanism makes the pattern exact: of the rows matching the
+    condition, exactly ``rate`` are null; of the rest, exactly ``else_rate``.
+    Counts use largest-remainder rounding, so a declared 40% is 40% of rows
+    rather than 40% in expectation.
+
+    Example, income missing far more often for the youngest band::
+
+        Missingness(
+            table="customers", column="income", rate=0.40, else_rate=0.05,
+            when_column="age_band", when_op="in", when_value=["18-24"],
+        )
+
+    Omit the condition for a plain unconditional rate.
+
+    Attributes:
+        table, column: What goes missing.
+        rate:          Fraction of matching rows set to NULL.
+        else_rate:     Fraction of non-matching rows set to NULL.
+        when_column, when_op, when_value: The condition selecting rows. When
+                       ``when_column`` is omitted, ``rate`` applies to the whole
+                       column and ``else_rate`` is ignored.
+    """
+
+    table: str
+    column: str
+    rate: float = Field(ge=0.0, le=1.0)
+    else_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    when_column: Optional[str] = None
+    when_op: Literal["==", "!=", "in", "not_in", ">", ">=", "<", "<="] = "=="
+    when_value: Optional[Any] = None
+    description: Optional[str] = None
+
+
+class LateArrival(BaseModel):
+    """Declare that some events land after the fact.
+
+    Every incremental model and every watermark assumes events arrive roughly
+    in order, and production quietly violates it: a mobile client syncs three
+    days later, a webhook retries, a batch job backfills. No generator produces
+    that, so the code path that handles it is never exercised until it fails on
+    real data.
+
+    Declaring it gives an ingest timestamp that is always at or after the event
+    timestamp, where exactly ``late_fraction`` of rows arrive in a *later*
+    period than the event, with delays bounded by ``max_delay_days``.
+
+    Example, 5% of events landing up to three days late::
+
+        LateArrival(
+            table="events", event_time="occurred_at",
+            ingest_time="ingested_at",
+            late_fraction=0.05, max_delay_days=3,
+        )
+
+    Attributes:
+        table:          Event table.
+        event_time:     When it happened. Never modified.
+        ingest_time:    When it was recorded. Written by this declaration.
+        late_fraction:  Fraction of rows whose ingest lands a full day or more
+                        after the event.
+        max_delay_days: Upper bound on the delay for those rows.
+        on_time_max_minutes: Upper bound on the delay for everything else, so
+                        punctual rows still are not simultaneous.
+    """
+
+    table: str
+    event_time: str
+    ingest_time: str
+    late_fraction: float = Field(default=0.05, ge=0.0, le=1.0)
+    max_delay_days: int = Field(default=3, ge=1)
+    on_time_max_minutes: int = Field(default=120, ge=1)
+    description: Optional[str] = None
+
+
 class GroupShares(BaseModel):
     """Declare exact shares of a measure across the values of a categorical
     column: "Electronics is 40% of revenue, Home 25%".
@@ -773,6 +919,9 @@ class SchemaConfig(BaseModel):
     waterfalls: List[WaterfallIdentity] = Field(default_factory=list)
     stock_flows: List[StockFlowIdentity] = Field(default_factory=list)
     lifecycles: List[Lifecycle] = Field(default_factory=list)
+    retention: List[CohortRetention] = Field(default_factory=list)
+    missingness: List[Missingness] = Field(default_factory=list)
+    late_arrivals: List[LateArrival] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="anchored",
         description=(

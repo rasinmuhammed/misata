@@ -788,6 +788,141 @@ def _detect_lifecycle_violation(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _detect_dynamics_violation(tables, schema) -> List[CoherenceFinding]:
+    """Verify declared retention, missingness, and late arrival independently.
+
+    Recomputed here from the emitted rows rather than trusting the pass that
+    wrote them, so a bug in the generator surfaces as a finding instead of being
+    confirmed by its own author.
+    """
+    out: List[CoherenceFinding] = []
+    from misata.dynamics import exact_count
+
+    # ---- cohort retention ------------------------------------------------
+    for spec in (getattr(schema, "retention", None) or []):
+        ev, co = tables.get(spec.table), tables.get(spec.cohort_table)
+        if ev is None or co is None or ev.empty or co.empty:
+            continue
+        need = {spec.cohort_key, spec.event_time}
+        if not need.issubset(ev.columns):
+            continue
+        if not {spec.cohort_key, spec.cohort_time}.issubset(co.columns):
+            continue
+        freq = {"day": "D", "week": "W", "month": "M"}[spec.unit]
+        c = co[[spec.cohort_key, spec.cohort_time]].dropna().copy()
+        c["_c"] = pd.to_datetime(c[spec.cohort_time]).dt.to_period(freq)
+        e = ev[[spec.cohort_key, spec.event_time]].dropna().copy()
+        e["_p"] = pd.to_datetime(e[spec.event_time]).dt.to_period(freq)
+        m = e.merge(c[[spec.cohort_key, "_c"]], on=spec.cohort_key, how="inner")
+        if m.empty:
+            continue
+        m["_off"] = (m["_p"] - m["_c"]).apply(lambda x: x.n)
+        sizes = c.groupby("_c")[spec.cohort_key].nunique()
+        for offset, frac in sorted(spec.curve.items()):
+            active = (m[m["_off"] == int(offset)]
+                      .groupby("_c")[spec.cohort_key].nunique())
+            bad = 0
+            for cohort, size in sizes.items():
+                if size <= 0:
+                    continue
+                want = exact_count(int(size), float(frac))
+                got = int(active.get(cohort, 0))
+                # One entity of slack absorbs period-boundary rounding; more
+                # than that is the curve not holding.
+                if abs(got - want) > 1:
+                    bad += 1
+            if bad:
+                out.append(CoherenceFinding(
+                    kind="retention_mismatch", severity="high",
+                    table=spec.table, column=spec.cohort_key,
+                    message=(f"{bad} cohort(s) miss the declared retention of "
+                             f"{frac:.0%} at offset {offset}"),
+                    rows_affected=bad,
+                ))
+
+    # ---- missingness -----------------------------------------------------
+    for spec in (getattr(schema, "missingness", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty or spec.column not in df.columns:
+            continue
+        if spec.when_column and spec.when_column in df.columns:
+            col = df[spec.when_column]
+            wv, op = spec.when_value, spec.when_op
+            if op == "==":
+                match = col == wv
+            elif op == "!=":
+                match = col != wv
+            elif op == "in":
+                match = col.isin(wv if isinstance(wv, (list, tuple, set)) else [wv])
+            elif op == "not_in":
+                match = ~col.isin(wv if isinstance(wv, (list, tuple, set)) else [wv])
+            else:
+                continue
+            match = match.fillna(False)
+        else:
+            match = pd.Series(True, index=df.index)
+        for label, mask, rate in (("matching", match, spec.rate),
+                                  ("non-matching", ~match, spec.else_rate)):
+            n = int(mask.sum())
+            if n == 0:
+                continue
+            want = exact_count(n, float(rate))
+            got = int(df.loc[mask, spec.column].isna().sum())
+            if abs(got - want) > 1:
+                out.append(CoherenceFinding(
+                    kind="missingness_mismatch", severity="medium",
+                    table=spec.table, column=spec.column,
+                    message=(f"{got} of {n} {label} rows are null, but "
+                             f"{rate:.0%} was declared ({want} rows)"),
+                    rows_affected=abs(got - want),
+                ))
+
+    # ---- late arrival ----------------------------------------------------
+    for spec in (getattr(schema, "late_arrivals", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty:
+            continue
+        if not {spec.event_time, spec.ingest_time}.issubset(df.columns):
+            continue
+        ev = pd.to_datetime(df[spec.event_time], errors="coerce")
+        ing = pd.to_datetime(df[spec.ingest_time], errors="coerce")
+        ok = ev.notna() & ing.notna()
+        if not ok.any():
+            continue
+        # Ingest before the event is impossible, whatever the fraction says.
+        impossible = int((ing[ok] < ev[ok]).sum())
+        if impossible:
+            out.append(CoherenceFinding(
+                kind="ingest_precedes_event", severity="high",
+                table=spec.table, column=spec.ingest_time,
+                message=(f"{impossible} rows were recorded before they "
+                         f"happened"),
+                rows_affected=impossible,
+            ))
+        delay_days = (ing[ok] - ev[ok]).dt.total_seconds() / 86400.0
+        over = int((delay_days > float(spec.max_delay_days) + 1e-9).sum())
+        if over:
+            out.append(CoherenceFinding(
+                kind="late_arrival_exceeds_bound", severity="medium",
+                table=spec.table, column=spec.ingest_time,
+                message=(f"{over} rows arrive later than the declared "
+                         f"{spec.max_delay_days}-day bound"),
+                rows_affected=over,
+            ))
+        n = int(ok.sum())
+        want = exact_count(n, float(spec.late_fraction))
+        got = int((delay_days >= 1.0).sum())
+        if abs(got - want) > 1:
+            out.append(CoherenceFinding(
+                kind="late_arrival_mismatch", severity="medium",
+                table=spec.table, column=spec.ingest_time,
+                message=(f"{got} of {n} rows arrive a day or more late, but "
+                         f"{spec.late_fraction:.0%} was declared ({want} rows)"),
+                rows_affected=abs(got - want),
+            ))
+    return out
+
+
 def _detect_cross_table_bound_violation(tables, schema) -> List[CoherenceFinding]:
     """Declared lte_parent / sum_lte_parent bounds must hold under a JOIN."""
     out: List[CoherenceFinding] = []
@@ -1297,6 +1432,7 @@ def coherence_audit(
         report.findings.extend(_detect_cross_table_causality(tables, schema))
         report.findings.extend(_detect_rollup_mismatch(tables, schema))
         report.findings.extend(_detect_lifecycle_violation(tables, schema))
+        report.findings.extend(_detect_dynamics_violation(tables, schema))
         report.findings.extend(_detect_when_then_violation(tables, schema))
         report.findings.extend(_detect_cross_table_bound_violation(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))

@@ -770,6 +770,24 @@ class DataSimulator:
 
         return valid_ids
 
+    def _derived_time_columns(self, table_name: str) -> set:
+        """Timestamps that are consequences rather than causes.
+
+        A causality pass asks "when did this parent come into existence" and
+        answers with its earliest date. That is wrong for any timestamp the row
+        acquires *later*: an ingest time written by a LateArrival declaration,
+        or a per-state lifecycle timestamp. Including them makes the parent look
+        older than it is and produces spurious "child precedes parent" findings.
+        """
+        derived: set = set()
+        for spec in (getattr(self.config, "late_arrivals", None) or []):
+            if spec.table == table_name:
+                derived.add(spec.ingest_time)
+        for spec in (getattr(self.config, "lifecycles", None) or []):
+            if spec.table == table_name:
+                derived.update(spec.timestamp_columns())
+        return derived
+
     def _refresh_context(self, table_name: str, df: pd.DataFrame) -> None:
         """Replace a table's cached context after a whole-table rewrite.
 
@@ -4490,7 +4508,15 @@ class DataSimulator:
             parent_df = self.context.get(rel.parent_table)
             if parent_df is None or rel.child_key not in df.columns:
                 continue
-            parent_dt = _dt_cols(parent_df, parent_df.columns)
+            # An ingest timestamp records when a row was *recorded*, not when
+            # anything happened, so it must never define a parent's birth. Left
+            # in, it drags the parent's earliest date backwards and lets genuine
+            # children appear to precede their parent. Same for lifecycle
+            # timestamps, which are consequences of the row, not its origin.
+            parent_dt = [c for c in _dt_cols(parent_df, parent_df.columns)
+                         if c not in self._derived_time_columns(rel.parent_table)]
+            if not parent_dt:
+                continue
             if not parent_dt:
                 continue
             parent_birth = parent_df.set_index(rel.parent_key)[parent_dt].min(axis=1)
@@ -4894,6 +4920,11 @@ class DataSimulator:
             for hop in (s.via or []):
                 rollup_tables.add(hop)
 
+        # Retention rewrites entity keys and event timestamps; missingness and
+        # late arrival rewrite whole columns. All need the finished table.
+        from misata.dynamics import dynamics_tables
+        dyn_tables = dynamics_tables(self.config)
+
         # A lifecycle rewrites its table's state column and per-state
         # timestamps over the whole table, so that table buffers.
         lifecycle_tables = {
@@ -4946,7 +4977,7 @@ class DataSimulator:
             cascade_tables.update(event.propagate_to.keys())
         buffer_tables = (cascade_tables | rollup_tables | group_share_tables
                          | waterfall_tables | scd2_tables | stock_flow_tables
-                         | lifecycle_tables)
+                         | lifecycle_tables | dyn_tables)
 
         buffered: Dict[str, pd.DataFrame] = {}
         streamed: list = []   # tables already yielded (order record for phase 3)
@@ -5076,6 +5107,14 @@ class DataSimulator:
                     apply_rollups(buffered, rollup_specs, self.config.relationships)
             except Exception:
                 pass  # a roll-up failure must never corrupt an otherwise-valid run
+
+        # Dynamics run last: retention reassigns event ownership, and
+        # missingness has to be the final word on which values are null or a
+        # later pass would fill them back in.
+        if dyn_tables:
+            from misata.dynamics import apply_dynamics
+            with self._anchor("identity", "dynamics"):
+                apply_dynamics(buffered, self.config, self.rng)
 
         # Phase 3 — yield buffered tables in original dependency order
         for table_name in sorted_tables:

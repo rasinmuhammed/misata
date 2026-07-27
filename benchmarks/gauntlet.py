@@ -26,6 +26,8 @@ Categories:
     H  arithmetic        derived columns satisfy their formula
     I  distribution      the data is not degenerate (spread, degrees, zeros)
     J  lifecycle         a row's state implies a legal, ordered history
+    K  missingness       values go missing for a declared reason (MNAR)
+    L  late arrival      some rows land in a later period than the event
 """
 
 from __future__ import annotations
@@ -40,7 +42,8 @@ import duckdb
 
 import misata
 from misata.schema import (SchemaConfig, Table, Column, Relationship, Constraint,
-                          Lifecycle, LifecycleState)
+                          Lifecycle, LifecycleState, CohortRetention, Missingness,
+                          LateArrival)
 
 SEED = 7
 
@@ -163,6 +166,10 @@ def build_schema() -> SchemaConfig:
                 Column(name="zip", type="text", distribution_params={"subtype": "zipcode"}),
                 Column(name="signup_date", type="datetime",
                        distribution_params={"start": "2022-06-01", "end": "2024-06-30"}),
+                Column(name="age_band", type="categorical",
+                       distribution_params={"choices": ["18-24", "25-44", "45+"]}),
+                Column(name="income", type="float", nullable=True,
+                       distribution_params={"min": 18000, "max": 240000}),
                 Column(name="status", type="categorical",
                        distribution_params={"choices": ["active", "churned"],
                                             "weights": [0.8, 0.2]}),
@@ -238,6 +245,8 @@ def build_schema() -> SchemaConfig:
                 Column(name="cancelled_at", type="datetime", nullable=True,
                        distribution_params={"start": "2022-07-01", "end": "2025-06-30",
                                             "null_probability": 0.9}),
+                Column(name="ingested_at", type="datetime", nullable=True,
+                       distribution_params={"start": "2022-07-01", "end": "2025-07-31"}),
                 # Reconciles with its own order_items rows.
                 Column(name="total_amount", type="float",
                        distribution_params={"rollup": {
@@ -341,6 +350,22 @@ def build_schema() -> SchemaConfig:
                          filters={"status": ["returned", "return_pending"]}),
             Relationship(parent_table="customers", child_table="support_tickets",
                          parent_key="customer_id", child_key="customer_id"),
+        ],
+        missingness=[
+            # MNAR: income is absent far more often for the youngest band,
+            # which is what real data looks like and what a flat null rate
+            # cannot express.
+            Missingness(table="customers", column="income",
+                        rate=0.40, else_rate=0.05,
+                        when_column="age_band", when_op="in",
+                        when_value=["18-24"]),
+        ],
+        late_arrivals=[
+            # 4% of orders are recorded at least a day after they happened,
+            # which is the case an incremental model can miss.
+            LateArrival(table="orders", event_time="order_date",
+                        ingest_time="ingested_at",
+                        late_fraction=0.04, max_delay_days=3),
         ],
         lifecycles=[
             # One declaration replaces what would otherwise be eight when_then
@@ -653,6 +678,52 @@ def build_assertions() -> List[Tuple[str, str, str]]:
          "SELECT CASE WHEN (SELECT count(DISTINCT status) FROM orders) = 6 THEN 0 ELSE 1 END"),
     ]
 
+    # ---- K. missingness mechanism (MNAR) ------------------------------------
+    # A flat null rate is MCAR, the one pattern real data almost never has.
+    # These assert the declared *mechanism*, not just the overall rate.
+    a += [
+        ("K", "income is missing for ~40% of the 18-24 band, as declared",
+         "SELECT CASE WHEN abs("
+         "  (SELECT count(*) FILTER (WHERE income IS NULL)::double / count(*) "
+         "   FROM customers WHERE age_band = '18-24') - 0.40) <= 0.02 "
+         "THEN 0 ELSE 1 END"),
+        ("K", "income is missing for ~5% of everyone else, as declared",
+         "SELECT CASE WHEN abs("
+         "  (SELECT count(*) FILTER (WHERE income IS NULL)::double / count(*) "
+         "   FROM customers WHERE age_band <> '18-24') - 0.05) <= 0.02 "
+         "THEN 0 ELSE 1 END"),
+        ("K", "missingness is conditional, not uniform (MNAR not MCAR)",
+         "SELECT CASE WHEN "
+         "  (SELECT count(*) FILTER (WHERE income IS NULL)::double / count(*) "
+         "   FROM customers WHERE age_band = '18-24') > "
+         "  2 * (SELECT count(*) FILTER (WHERE income IS NULL)::double / count(*) "
+         "       FROM customers WHERE age_band <> '18-24') "
+         "THEN 0 ELSE 1 END"),
+        ("K", "the column is not entirely null and not entirely present",
+         "SELECT CASE WHEN (SELECT count(*) FILTER (WHERE income IS NULL) FROM customers) "
+         "BETWEEN 1 AND (SELECT count(*) - 1 FROM customers) THEN 0 ELSE 1 END"),
+    ]
+
+    # ---- L. late arrival ----------------------------------------------------
+    # The case every incremental model assumes away and every production system
+    # produces: a row landing in a later partition than the event it describes.
+    a += [
+        ("L", "nothing is ingested before it happened",
+         "SELECT count(*) FROM orders WHERE ingested_at < order_date"),
+        ("L", "every order has an ingest timestamp",
+         "SELECT count(*) FROM orders WHERE ingested_at IS NULL"),
+        ("L", "~4% of orders arrive a day or more late, as declared",
+         "SELECT CASE WHEN abs("
+         "  (SELECT count(*) FILTER (WHERE date_diff('day', order_date, ingested_at) >= 1)"
+         "   ::double / count(*) FROM orders) - 0.04) <= 0.015 THEN 0 ELSE 1 END"),
+        ("L", "no delay exceeds the declared 3-day bound",
+         "SELECT count(*) FROM orders "
+         "WHERE date_diff('day', order_date, ingested_at) > 3"),
+        ("L", "late arrivals actually exist (the path is exercised)",
+         "SELECT CASE WHEN (SELECT count(*) FROM orders "
+         "WHERE date_diff('day', order_date, ingested_at) >= 1) > 0 THEN 0 ELSE 1 END"),
+    ]
+
     # ---- I. distribution sanity --------------------------------------------
     a += [
         ("I", "some customers have zero orders (1%-60%)",
@@ -719,7 +790,7 @@ def run(json_path: str | None = None) -> int:
     cat_names = {"A": "structural", "B": "domain", "C": "temporal",
                  "D": "status-implies", "E": "reconciliation", "F": "diamond",
                  "G": "geo", "H": "arithmetic", "I": "distribution",
-                 "J": "lifecycle"}
+                 "J": "lifecycle", "K": "missingness", "L": "late arrival"}
     passed = sum(1 for r in results if r["violations"] == 0)
     total = len(results)
 

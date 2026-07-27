@@ -353,7 +353,64 @@ def _check_min_children(config: Any) -> List[Conflict]:
     return out
 
 
+def _check_retention_budget(config: Any) -> List[Conflict]:
+    """A retention curve needs at least one event row per active entity-period."""
+    out: List[Conflict] = []
+    for spec in (getattr(config, "retention", None) or []):
+        cohort_rows = _row_count(config, spec.cohort_table)
+        event_rows = _row_count(config, spec.table)
+        if not cohort_rows or not event_rows:
+            continue
+        # Upper bound: every cohort member active at every declared offset.
+        needed = int(sum(cohort_rows * float(f) for f in spec.curve.values()))
+        if needed > event_rows:
+            out.append(Conflict(
+                kind="retention_exceeds_event_rows",
+                where=f"{spec.table}.{spec.event_time}",
+                declarations=[f"retention curve on {spec.table}",
+                              f"row_count on {spec.table}"],
+                arithmetic=(f"the curve needs about {needed} active "
+                            f"entity-periods across {cohort_rows} cohort members "
+                            f"but {spec.table} has only {event_rows} rows"),
+                remedy=(f"raise {spec.table}.row_count to at least {needed}, "
+                        f"lower the retention fractions, or shorten the curve"),
+            ))
+    return out
+
+
+def _check_curve_point_shape(config: Any) -> List[Conflict]:
+    """An absolute curve whose points carry `relative_value` is a silent 65,000x
+    error waiting to happen. Found the hard way: `value_mode="absolute"` with
+    `relative_value` keys produced totals in the billions against a declared
+    100,000, with no warning at all."""
+    out: List[Conflict] = []
+    for cur in (getattr(config, "outcome_curves", None) or []):
+        pts = [p for p in (cur.curve_points or []) if isinstance(p, dict)]
+        if not pts:
+            continue
+        has_target = any("target_value" in p for p in pts)
+        has_relative = any("relative_value" in p for p in pts)
+        mode = getattr(cur, "value_mode", "auto")
+        if mode == "absolute" and has_relative and not has_target:
+            out.append(Conflict(
+                kind="curve_point_shape_mismatch",
+                where=f"{cur.table}.{cur.column}",
+                declarations=[f'outcome_curve value_mode="absolute"',
+                              "curve_points using relative_value"],
+                arithmetic=("absolute mode reads `target_value`; these points "
+                            "only carry `relative_value`, so the numbers would "
+                            "be treated as multipliers and the totals would "
+                            "land orders of magnitude away from the intent"),
+                remedy=('rename the keys to `target_value` (and use `date` '
+                        'rather than `month` for the x axis), or switch to '
+                        'value_mode="relative"'),
+            ))
+    return out
+
+
 _CHECKS = (
+    _check_retention_budget,
+    _check_curve_point_shape,
     _check_group_shares,
     _check_numeric_ranges,
     _check_inequalities,

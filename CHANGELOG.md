@@ -5,6 +5,77 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-26
+
+The minor bump marks the language reaching a documented surface: seventeen
+declarations, each enforced and each independently verified, written down as a
+spec rather than a feature list.
+
+### Added
+
+- **`retention` — cohort curves that hold.** "Of the customers who signed up in
+  month M, 55% order again in M+1" is the most-quoted invariant in SaaS and
+  ecommerce analytics and was previously inexpressible: you could control how
+  many events existed, but not *which* entities produced them over time, so the
+  cohort query every analyst runs first returned a shape nobody chose.
+
+      CohortRetention(table="orders", event_time="order_date",
+                      cohort_key="customer_id", cohort_table="customers",
+                      cohort_time="signup_date", unit="month",
+                      curve={0: 1.0, 1: 0.55, 2: 0.40, 3: 0.34})
+
+  For every cohort and offset, exactly `round(fraction x cohort_size)` distinct
+  entities are active. Retention **nests** for a non-increasing curve, which is
+  what real curves do. Honest limit: the count per cohort is exact, so the
+  realised rate varies with cohort size (50 of 90 is 55.6%, not 55%).
+
+- **`missingness` — MNAR, not MCAR.** A flat null rate produces the one pattern
+  real data almost never has. Declaring the mechanism makes it exact: of rows
+  matching the condition, exactly `rate` are null; of the rest, exactly
+  `else_rate`. Integer columns widen rather than coerce.
+
+- **`late_arrivals` — rows that land in a later partition.** Every incremental
+  model assumes events arrive in order; every production system violates it.
+  Ingest is always at or after the event, exactly `late_fraction` of rows cross
+  into a later **calendar day**, and no delay exceeds `max_delay_days`.
+
+  "Late" deliberately means the partition boundary rather than 24 hours, because
+  the partition is what a watermark keys on. A row ingested 90 minutes after a
+  23:30 event is not late in any sense a warehouse cares about.
+
+- **Gauntlet categories K (missingness) and L (late arrival)**, 9 assertions.
+  The suite is now **119 assertions and the engine scores 118**, with the single
+  known-red unchanged. It previously had no coverage of the simulative axis.
+
+- **`LANGUAGE.md`**, the reference the category needed. For every declaration:
+  what it guarantees, which columns it owns, what it costs, and when it refuses.
+
+- **Two feasibility refusals.** A retention curve needing more active
+  entity-periods than the event table has rows. And an `outcome_curve` with
+  `value_mode="absolute"` whose points carry `relative_value` instead of
+  `target_value`, which silently produced totals four orders of magnitude off
+  target with no warning at all. Found by making that exact mistake.
+
+### Fixed
+
+- **Derived timestamps no longer define a parent's birth.** Cross-table
+  causality asks when a parent came into existence and answered with its
+  earliest date, including timestamps the row acquires *later*: an ingest time,
+  or a per-state lifecycle timestamp. That dragged the parent's apparent birth
+  backwards and made genuine children look like they preceded it. Three Gauntlet
+  temporal assertions were failing for this reason after 0.8.9.4 added lifecycle
+  timestamps; both classes are now excluded.
+
+### Not built, and why
+
+**Joint satisfaction was on the roadmap as the largest remaining gap. It turned
+out to already work.** An `OutcomeCurve` and `GroupShares` on the same measure
+compose exactly: every period hits its target to 0.00 error *and* the shares
+hold exactly within every period. That is the cross-classified exactness
+iterative proportional fitting would have been for, so no solver was written.
+The roadmap item was based on a wrong premise, and the honest fix was to measure
+before building rather than after.
+
 ## [0.8.9.5] - 2026-07-26
 
 ### Added
