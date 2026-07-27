@@ -43,6 +43,24 @@ NS_PER_MINUTE = 60_000_000_000
 # shared helpers
 # --------------------------------------------------------------------------- #
 
+def _to_ns(series: pd.Series) -> np.ndarray:
+    """Datetimes as int64 nanoseconds, whatever resolution pandas handed us.
+
+    ``Series.astype("int64")`` returns the underlying integers in the column's
+    own unit, and that unit is not always nanoseconds: newer pandas builds
+    hand back ``datetime64[us]`` from the same input older ones gave as
+    ``datetime64[ns]``. Reading those microseconds as nanoseconds is silently
+    wrong by a factor of 1000, which put a 2024 timestamp in January 1970 and
+    only showed up because CI runs interpreters this machine does not.
+    """
+    return series.to_numpy(dtype="datetime64[ns]").astype("int64")
+
+
+def _from_ns(values: np.ndarray) -> pd.Series:
+    """The inverse, pinned to nanoseconds so the round trip is exact."""
+    return pd.Series(np.asarray(values, dtype="int64").astype("datetime64[ns]"))
+
+
 def exact_count(n: int, fraction: float) -> int:
     """Rows that must satisfy a declared fraction, rounded half-up.
 
@@ -55,9 +73,9 @@ def _period_index(ts: pd.Series, unit: str) -> pd.Series:
     """Integer period number, so offsets are simple arithmetic."""
     t = pd.to_datetime(ts, errors="coerce")
     if unit == "day":
-        return (t.view("int64") // NS_PER_DAY).astype("Int64")
+        return pd.Series(_to_ns(t) // NS_PER_DAY, index=t.index).astype("Int64")
     if unit == "week":
-        return (t.view("int64") // (7 * NS_PER_DAY)).astype("Int64")
+        return pd.Series(_to_ns(t) // (7 * NS_PER_DAY), index=t.index).astype("Int64")
     return (t.dt.year.astype("Int64") * 12 + t.dt.month.astype("Int64") - 1)
 
 
@@ -274,7 +292,7 @@ def apply_late_arrival(
     event = pd.to_datetime(df[spec.event_time], errors="coerce")
     if event.isna().all():
         return tables
-    base = event.fillna(event.min()).astype("int64").to_numpy()
+    base = _to_ns(event.fillna(event.min()))
 
     n = len(df)
     k = exact_count(n, spec.late_fraction)
@@ -349,7 +367,7 @@ def apply_time_grid(
             f"a wider window; the column is left as generated.")
         return tables
 
-    ns = col.astype("int64").to_numpy()
+    ns = _to_ns(col)
     day = np.where(known, ns // NS_PER_DAY, 0)
     # Ceil in nanoseconds, not minutes. Rounding the minute up and then zeroing
     # the seconds looks forward-only and is not: 16:30:56 became 16:30:00 and
@@ -369,10 +387,9 @@ def apply_time_grid(
         sub = rng.integers(0, 60, size=len(slot)) * (NS_PER_MINUTE // 60)
 
     out = df.copy()
-    stamped = pd.to_datetime(
-        pd.Series(day * NS_PER_DAY + slot * NS_PER_MINUTE + sub))
+    stamped = _from_ns(day * NS_PER_DAY + slot * NS_PER_MINUTE + sub)
     stamped[~known] = pd.NaT
-    new_ns = stamped.astype("int64").to_numpy()
+    new_ns = _to_ns(stamped)
 
     # Carry the row's later timestamps along. A ticket created at 16:52 and
     # resolved at 16:58 must not come out created at 17:00 and resolved at
@@ -386,15 +403,15 @@ def apply_time_grid(
                 continue
             if not pd.api.types.is_datetime64_any_dtype(df[other]):
                 continue
-            o = df[other].astype("int64").to_numpy()
+            o = _to_ns(df[other])
             o_known = df[other].notna().to_numpy()
             follows = moved & o_known & (o >= ns) & (o < new_ns)
             if not follows.any():
                 continue
             shifted = df[other].copy()
             gap = o[follows] - ns[follows]
-            shifted.iloc[np.flatnonzero(follows)] = pd.to_datetime(
-                new_ns[follows] + gap)
+            shifted.iloc[np.flatnonzero(follows)] = _from_ns(
+                new_ns[follows] + gap).values
             out[other] = shifted
 
     out[spec.column] = stamped.values

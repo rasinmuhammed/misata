@@ -103,6 +103,14 @@ asserts the JSON Schema can never fall behind `SchemaConfig` again.
 - `Duplicates` copies column by column in each column's own dtype. Lifting the
   block into one 2-D array coerced every column to object and silently widened
   the integer columns on the way back in.
+- **Every datetime conversion in `misata.dynamics` is now resolution-independent.**
+  `Series.astype("int64")` returns the column's integers in the column's own
+  unit, and that unit is not always nanoseconds: newer pandas builds hand back
+  `datetime64[us]` from input older ones gave as `datetime64[ns]`. Reading
+  microseconds as nanoseconds is wrong by a factor of 1000, and it put a 2024
+  timestamp in January 1970 on three interpreters in CI and none on the machine
+  the code was written on. This also hardens `retention` and `late_arrivals`,
+  which shipped in 0.9.0 carrying the same latent assumption.
 
 ## [0.9.0] - 2026-07-26
 

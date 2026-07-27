@@ -135,6 +135,24 @@ class TestTimeGrid:
         # 23:58 has no slot left in the day, so it opens the next one.
         assert out["t"].iloc[2] == pd.Timestamp("2024-01-03 00:00:00")
 
+    @pytest.mark.parametrize("unit", ["ns", "us", "ms", "s"])
+    def test_result_does_not_depend_on_datetime_resolution(self, unit):
+        """Caught by CI, not by this machine.
+
+        `Series.astype("int64")` returns the column's integers in the column's
+        own unit, and newer pandas builds hand back `datetime64[us]` where
+        older ones gave `datetime64[ns]`. Reading microseconds as nanoseconds
+        is wrong by a factor of 1000, which put a 2024 timestamp in January
+        1970 on three interpreters and none locally.
+        """
+        base = pd.to_datetime(["2024-01-01 10:03:22", "2024-03-15 14:47:09"])
+        df = pd.DataFrame({"t": pd.Series(base).astype(f"datetime64[{unit}]")})
+        spec = TimeGrid(table="x", column="t", minute_grid=15)
+        out = apply_time_grid({"x": df}, spec, np.random.default_rng(0))["x"]
+        got = pd.to_datetime(out["t"]).tolist()
+        assert got == [pd.Timestamp("2024-01-01 10:15:00"),
+                       pd.Timestamp("2024-03-15 15:00:00")]
+
     def test_grid_with_no_slot_in_the_window_warns_and_leaves_it_alone(self):
         df = pd.DataFrame({"t": pd.to_datetime(["2024-01-01 10:03:22"])})
         spec = TimeGrid(table="x", column="t", minute_grid=1440, hours=(9, 10))
