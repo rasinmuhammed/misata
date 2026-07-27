@@ -963,6 +963,142 @@ def _detect_cross_table_bound_violation(tables, schema) -> List[CoherenceFinding
     return out
 
 
+def _detect_temporal_eligibility_violation(tables, schema) -> List[CoherenceFinding]:
+    """A declared temporal-eligibility edge must hold on the emitted rows.
+
+    Re-derived from the tables alone, by the same JOIN a human would write:
+    resolve each child row's moment, look up the referenced parent's birth, and
+    count the rows where the parent had not been born yet. The generator's
+    sampling logic is not consulted, which is the point.
+    """
+    out: List[CoherenceFinding] = []
+    for rel in (getattr(schema, "relationships", None) or []):
+        ptime = getattr(rel, "parent_time", None)
+        ctime = getattr(rel, "child_time", None)
+        if not ptime or not ctime:
+            continue
+        child = tables.get(rel.child_table)
+        parent = tables.get(rel.parent_table)
+        if child is None or parent is None or child.empty or parent.empty:
+            continue
+        if rel.child_key not in child.columns or rel.parent_key not in parent.columns:
+            continue
+        if ptime not in parent.columns:
+            continue
+
+        owner_name = getattr(rel, "child_time_table", None)
+        if owner_name:
+            owner = tables.get(owner_name)
+            via = next((r for r in schema.relationships
+                        if r.child_table == rel.child_table
+                        and r.parent_table == owner_name), None)
+            if owner is None or via is None or ctime not in owner.columns:
+                continue
+            if via.child_key not in child.columns or via.parent_key not in owner.columns:
+                continue
+            times = pd.Series(
+                pd.to_datetime(owner[ctime], errors="coerce").values,
+                index=owner[via.parent_key].values)
+            times = times[~times.index.duplicated(keep="first")]
+            child_when = pd.to_datetime(child[via.child_key].map(times), errors="coerce")
+        else:
+            if ctime not in child.columns:
+                continue
+            child_when = pd.to_datetime(child[ctime], errors="coerce")
+
+        births = pd.Series(
+            pd.to_datetime(parent[ptime], errors="coerce").values,
+            index=parent[rel.parent_key].values)
+        births = births[~births.index.duplicated(keep="first")]
+        parent_when = pd.to_datetime(child[rel.child_key].map(births), errors="coerce")
+
+        bad = int((child_when < parent_when).sum())
+        if bad:
+            out.append(CoherenceFinding(
+                kind="temporal_eligibility", severity="high",
+                table=rel.child_table, column=rel.child_key,
+                message=(f"{bad} row(s) reference a {rel.parent_table} whose "
+                         f"{ptime} is later than the row's own {ctime}: the "
+                         f"parent did not exist yet"),
+                rows_affected=bad,
+            ))
+    return out
+
+
+def _detect_time_grid_violation(tables, schema) -> List[CoherenceFinding]:
+    """Every value of a declared TimeGrid column must sit on the grid."""
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "time_grids", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty or spec.column not in df.columns:
+            continue
+        col = pd.to_datetime(df[spec.column], errors="coerce").dropna()
+        if col.empty:
+            continue
+        off_grid = int((col.dt.minute % int(spec.minute_grid) != 0).sum())
+        if spec.seconds == "zero":
+            off_grid += int(((col.dt.second != 0) | (col.dt.microsecond != 0)).sum())
+        if off_grid:
+            out.append(CoherenceFinding(
+                kind="time_grid", severity="medium",
+                table=spec.table, column=spec.column,
+                message=(f"{off_grid} value(s) do not sit on the declared "
+                         f"{spec.minute_grid}-minute grid"),
+                rows_affected=off_grid,
+            ))
+        if spec.hours:
+            lo, hi = spec.hours
+            outside = int(((col.dt.hour < lo) | (col.dt.hour >= hi)).sum())
+            if outside:
+                out.append(CoherenceFinding(
+                    kind="time_grid", severity="medium",
+                    table=spec.table, column=spec.column,
+                    message=(f"{outside} value(s) fall outside the declared "
+                             f"{lo:02d}:00-{hi:02d}:00 window"),
+                    rows_affected=outside,
+                ))
+    return out
+
+
+def _detect_duplicate_count_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """The number of duplicate rows must be exactly what was declared."""
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "duplicates", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty:
+            continue
+        keys = [k for k in (spec.keys or []) if k in df.columns]
+        subset = [c for c in (spec.subset
+                              or [c for c in df.columns if c not in keys])
+                  if c in df.columns]
+        if not subset:
+            continue
+        from misata.dynamics import exact_count
+        want = (int(spec.count) if spec.count is not None
+                else exact_count(len(df), spec.fraction))
+        got = len(df) - len(df[subset].drop_duplicates())
+        if got != want:
+            out.append(CoherenceFinding(
+                kind="duplicate_count", severity="high",
+                table=spec.table, column=None,
+                message=(f"declared {want} duplicate row(s) on {subset}, "
+                         f"found {got}"),
+                rows_affected=abs(got - want),
+            ))
+        # Overwriting must never have collided two surrogate keys.
+        for k in keys:
+            dup_keys = int(df[k].duplicated().sum())
+            if dup_keys:
+                out.append(CoherenceFinding(
+                    kind="duplicate_count", severity="high",
+                    table=spec.table, column=k,
+                    message=(f"{dup_keys} row(s) share a key that Duplicates "
+                             f"declared must stay distinct"),
+                    rows_affected=dup_keys,
+                ))
+    return out
+
+
 def _detect_group_share_mismatch(tables, schema) -> List[CoherenceFinding]:
     """Declared group shares must hold in the data: per declared period when
     an exact-target curve pairs with the spec, over the table total otherwise.
@@ -1435,6 +1571,9 @@ def coherence_audit(
         report.findings.extend(_detect_dynamics_violation(tables, schema))
         report.findings.extend(_detect_when_then_violation(tables, schema))
         report.findings.extend(_detect_cross_table_bound_violation(tables, schema))
+        report.findings.extend(_detect_temporal_eligibility_violation(tables, schema))
+        report.findings.extend(_detect_time_grid_violation(tables, schema))
+        report.findings.extend(_detect_duplicate_count_mismatch(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
         report.findings.extend(_detect_waterfall_mismatch(tables, schema))
         report.findings.extend(_detect_scd2_violations(tables, schema))

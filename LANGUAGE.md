@@ -173,6 +173,37 @@ declared relationship, never guessed.
 exist in real data, and a zero-item order poisons everything downstream of it.
 **Refuses** when the child table cannot cover the parents.
 
+### temporal FK eligibility — a parent that already existed
+
+```python
+Relationship(parent_table="products", child_table="order_items",
+             parent_key="product_id", child_key="product_id",
+             parent_time="created_at",
+             child_time="order_date", child_time_table="orders")
+```
+
+**Guarantees.** Every child row references a parent whose `parent_time` is at or
+before the child's own moment. That moment is `child_time` on the child, or on
+`child_time_table` when the moment belongs to another parent: an order line has
+no date of its own and inherits its order's.
+
+**Owns.** The foreign-key column. It outranks `sampling="pareto"` and temporal
+density weighting, because a popularity weight that picks a product which did
+not exist yet is still wrong. `min_children` respects it, so coverage cannot
+re-introduce the violation.
+
+**Costs.** One sort of the parents and one binary search per column, rather than
+a per-row filter.
+
+**Refuses.** When the parent's declared birth window starts after the child's
+window ends, so no assignment exists at all. A *partial* overlap warns instead
+and points the affected rows at the earliest parent, because the schema is still
+mostly satisfiable and there is something to land on.
+
+**Note.** When the child carries its own date this is already handled by the
+cross-table causality pass, which shifts that date to postdate the parent.
+Declare it for the junction case, where the child has no date to shift.
+
 ### `scd2` — versions tile a timeline
 
 No gaps, no overlaps, exactly one current version per entity.
@@ -247,6 +278,60 @@ a parent came into existence.
 
 ---
 
+### `time_grids` — a declared clock
+
+```python
+TimeGrid(table="support_tickets", column="created_at",
+         minute_grid=15, seconds="zero", hours=(9, 17))
+```
+
+**Guarantees.** Every value of the column sits on a multiple of `minute_grid`
+minutes, carries no seconds when `seconds="zero"`, and falls inside `hours`.
+No value is ever moved earlier than it was.
+
+**Owns.** The time of day of its column, and it may advance the date by one day
+for a value with no slot left in its window. When it moves a value forward, the
+row's later timestamps move with it and keep their exact gaps, so the row's
+internal ordering survives.
+
+**Costs.** Forward-only movement can push a value past a same-day *upper* bound.
+The audit reports that rather than hiding it. It cannot break a *lower* bound,
+by construction: causality is enforced before this pass runs and every causal
+guarantee in Misata is a lower bound, so lowering a timestamp here could
+silently undo one.
+
+**Refuses.** A grid with no slot inside its hour window (a 24-hour grid inside
+09:00–10:00).
+
+**Note.** Misata has snapped timestamps onto grids since early on, guessed from
+the column name. That guess is still the default and is still unverified. This
+is what you write when the grid matters and you want it proven.
+
+---
+
+### `duplicates` — an exact number of copies
+
+```python
+Duplicates(table="support_tickets", fraction=0.03, keys=["ticket_id"])
+```
+
+**Guarantees.** `len(df) - len(df[subset].drop_duplicates())` equals exactly the
+declared count. `keys` stay distinct. The row count does not move.
+
+**Owns.** The `subset` columns of the rows it selects. Rows are overwritten, not
+appended, which is what a real re-ingest looks like: the same record arriving
+twice under two surrogate keys.
+
+**Costs.** Duplicates are real rows, so any aggregate over the table counts them.
+Declare this on a table no roll-up or curve reconciles against, or expect those
+totals to include the copies, because they genuinely do.
+
+**Refuses.** Nothing statically. At generation time it warns and changes nothing
+if the table already holds more duplicates on `subset` than were declared, which
+means `subset` is not distinct enough to control.
+
+---
+
 ## Value and structural guarantees
 
 Not declarations, but always on:
@@ -257,7 +342,8 @@ Not declarations, but always on:
 | Determinism | same spec, same seed, identical bytes |
 | Anchored streams | edit one declaration and only it changes |
 | Atomic geo | city, state and zip drawn as one consistent tuple |
-| Temporal profiles | timestamps quantised to the granularity their semantics imply |
+| Temporal profiles | timestamps quantised by name-guess; the *default*, not a guarantee. Declare `time_grids` to make it one |
+| FK temporal eligibility | when declared on a relationship, a row can only reference a parent that already existed |
 
 ---
 
@@ -276,14 +362,15 @@ schema it is not language; if the audit cannot check it, it is not a guarantee.
 ## Conformance
 
 `benchmarks/gauntlet.py` is the conformance suite: 11 tables, an M:N junction, a
-diamond dependency, and 119 SQL assertions executed by DuckDB, which shares no
+diamond dependency, and 126 SQL assertions executed by DuckDB, which shares no
 code with the generator. It runs in CI on every push with a `KNOWN_RED` contract,
 so it cannot quietly shrink to fit the product.
 
 ```bash
-python -m benchmarks.gauntlet                        # 118/119
-python -m benchmarks.gauntlet_compare --tool faker   # for comparison
+python -m benchmarks.gauntlet                        # 126/126
+python -m benchmarks.gauntlet_compare --tool faker   # 72/126
 ```
 
-The single known-red is FK sampling with temporal eligibility, and it stays
-visible in every run until it is fixed.
+`KNOWN_RED` is empty as of 0.9.1. The mechanism stays: an assertion written
+before the capability exists goes in it with a roadmap note, shows red in every
+run, and fails the build the day it starts passing without being promoted out.

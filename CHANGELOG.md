@@ -5,6 +5,105 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-07-27
+
+The Gauntlet is 126/126. The last known-red is closed, and the two
+half-declared features left in the repo are now real declarations.
+
+### Temporal foreign-key eligibility
+
+A child row can only reference a parent that already existed. `Relationship`
+takes `parent_time`, `child_time`, and optionally `child_time_table`:
+
+```python
+Relationship(parent_table="products", child_table="order_items",
+             parent_key="product_id", child_key="product_id",
+             parent_time="created_at",
+             child_time="order_date", child_time_table="orders")
+```
+
+An order line has no date of its own, so the moment that matters is inherited
+from its order. Parents are sorted once by birth and `searchsorted` gives, per
+child row, how many existed at that moment; the draw is uniform over that
+prefix. One sort and one binary search per column, not a per-row filter.
+
+Measured honestly: the one-hop case, where the child carries its own date, was
+**already correct** without this. The cross-table causality pass shifts that
+date to postdate the parent. What was broken, and is what this fixes, is the
+junction case: a row with no date has nothing to shift, so `order_items` drew
+products from the whole catalogue. That was the Gauntlet's last known-red and
+`KNOWN_RED` is now empty.
+
+`min_children` learned about eligibility too, so coverage cannot re-introduce
+the violation the sampler just removed.
+
+### `TimeGrid` — a declared clock
+
+Misata has snapped timestamps onto grids since early on, guessed from the
+column name, because `2022-08-29 06:36:12.995319155` is the fastest tell that
+data is fake. The guess was load-bearing and never checkable. `TimeGrid` is the
+declared form; the guess stays on as a default.
+
+```python
+TimeGrid(table="support_tickets", column="created_at",
+         minute_grid=15, seconds="zero", hours=(9, 17))
+```
+
+**Forward-only, and that is the whole design.** The first implementation folded
+values into the hour window by remainder, which is prettier and wrong: it moved
+23:50 back to 16:50 and 86 support tickets ended up opened before their
+customer had signed up. Every causal guarantee in Misata is a lower bound, and
+causality is enforced before this pass runs, so a pass that lowers a timestamp
+afterwards can silently undo one. A second, subtler version of the same bug:
+rounding the minute up and then zeroing the seconds is not forward-only either,
+and four rows slid back by 56 seconds. The ceiling has to happen in nanoseconds.
+
+Where a value moves forward, the row's later timestamps move with it and keep
+their exact gaps, so a ticket created at 16:52 and resolved at 16:58 cannot come
+out created at 17:00 and resolved at 16:58.
+
+### `Duplicates` — an exact number of copies
+
+Deduplication is the most-written and least-tested logic in any pipeline, and
+it cannot be tested against data with no duplicates in it.
+`noise_config.duplicate_rate` sprayed copies at a probability and told you
+nothing afterwards, so a test written against it could not assert a number.
+
+```python
+Duplicates(table="support_tickets", fraction=0.03, keys=["ticket_id"])
+```
+
+Rows are overwritten, never appended: the declared `row_count` still holds and
+`keys` stay distinct, which is what a real re-ingest looks like — the same
+record arriving twice under two surrogate keys. Afterwards
+`len(df) - len(df[subset].drop_duplicates())` equals exactly what was declared.
+Only rows currently unique on `subset` are eligible as donor or recipient,
+which is what makes it exact rather than approximate.
+
+### The YAML surface caught up
+
+`lifecycles`, `retention`, `missingness` and `late_arrivals` all shipped
+between 0.8.9.4 and 0.9.0, all reachable from `SchemaConfig`, and none of them
+were in the JSON Schema. Since the top level sets
+`additionalProperties: false`, **`misata lint` rejected the exact YAML the docs
+told people to write.** All six declarations (those four plus `time_grids` and
+`duplicates`) are now lintable and carried through the dict path, and a test
+asserts the JSON Schema can never fall behind `SchemaConfig` again.
+
+### Also
+
+- Two new feasibility refusals: a parent whose declared birth window starts
+  after the child's window ends can never be referenced, and a time grid with
+  no slot inside its hour window.
+- Three new audit detectors, each re-deriving the fact from the tables alone:
+  `temporal_eligibility`, `time_grid`, `duplicate_count`.
+- Gauntlet category **M** (grid + duplicates, 7 assertions). 126 assertions
+  total; Misata **126/126**, Faker **72/126** on the same schema with the same
+  columns.
+- `Duplicates` copies column by column in each column's own dtype. Lifting the
+  block into one 2-D array coerced every column to object and silently widened
+  the integer columns on the way back in.
+
 ## [0.9.0] - 2026-07-26
 
 The minor bump marks the language reaching a documented surface: seventeen

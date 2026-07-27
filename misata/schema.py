@@ -8,7 +8,7 @@ including tables, columns, relationships, and scenario events.
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Column(BaseModel):
@@ -154,6 +154,16 @@ class Relationship(BaseModel):
     temporal_constraint: bool = False
     filters: Optional[Dict[str, Any]] = None  # e.g., {"status": "active"} — a
     # list value means membership: {"status": ["shipped", "completed"]}
+    # Temporal eligibility: a child may only reference a parent that already
+    # existed. An order line cannot contain a product created after the order
+    # was placed, which is the Gauntlet's longest-standing known-red.
+    # `parent_time` is the parent's creation timestamp. The child's effective
+    # time is `child_time`, read from the child itself, or from
+    # `child_time_table` when the moment that matters belongs to another parent
+    # (an order line inherits its order's date, not one of its own).
+    parent_time: Optional[str] = None
+    child_time: Optional[str] = None
+    child_time_table: Optional[str] = None
     min_children: int = 0  # every (eligible) parent gets at least this many
     # child rows. An order with zero line items does not exist in real data;
     # min_children=1 on orders→order_items guarantees coverage. Only honoured
@@ -844,6 +854,79 @@ class NoiseConfig(BaseModel):
     exact_duplicates: bool = True
 
 
+class TimeGrid(BaseModel):
+    """A timestamp column lands on a declared grid, in declared hours.
+
+    Misata has shaped timestamps by name-guess since early on: a column called
+    ``appointment_time`` was snapped to quarter hours inside business hours
+    because that is what appointments do. The guess is usually right and it is
+    the single biggest tell that separates plausible timestamps from
+    ``2022-08-29 06:36:12.995319155``. But a guess is not a guarantee: it was
+    never declarable, never overridable, and never checked.
+
+    ``TimeGrid`` is the declared form. The inference stays as a default; this
+    is what you write when the grid matters and you want it proven. Only the
+    time of day is touched, never the date, so no causal ordering between
+    tables can be disturbed by asking for tidier clocks.
+
+    Attributes:
+        minute_grid: every value falls on a multiple of this many minutes.
+        seconds: ``"zero"`` for a clean grid, ``"uniform"`` to keep seconds.
+        hours: inclusive-exclusive local hour window, e.g. ``(9, 17)``.
+    """
+
+    table: str
+    column: str
+    minute_grid: int = Field(default=15, ge=1, le=1440)
+    seconds: Literal["zero", "uniform"] = "zero"
+    hours: Optional[Tuple[int, int]] = None
+
+    @field_validator("hours")
+    @classmethod
+    def validate_hours(cls, v: Optional[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
+        if v is None:
+            return v
+        lo, hi = int(v[0]), int(v[1])
+        if not (0 <= lo < hi <= 24):
+            raise ValueError(
+                f"hours must be a window 0 <= start < end <= 24, got ({lo}, {hi})")
+        return (lo, hi)
+
+
+class Duplicates(BaseModel):
+    """Exactly this many rows are duplicates of another row.
+
+    Deduplication is the most-written and least-tested logic in any pipeline,
+    and it cannot be tested against data with no duplicates in it. The old
+    ``noise_config.duplicate_rate`` sprayed copies at a probability and told you
+    nothing afterwards, so a test written against it could not assert a number.
+
+    The declared form is a count. Rows are not appended, they are overwritten:
+    ``keys`` stay distinct and the row count never moves, which is what a real
+    re-ingest looks like — the same record arriving twice under two surrogate
+    keys. After generation, ``len(table) - len(table[subset].drop_duplicates())``
+    equals exactly what you declared.
+
+    Costs: duplicates are real rows, so any aggregate over ``table`` counts them.
+    Declare this on a table that no roll-up or curve reconciles against, or
+    expect those totals to include the copies, because they genuinely do.
+    """
+
+    table: str
+    count: Optional[int] = None
+    fraction: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    subset: Optional[List[str]] = None   # columns compared; default: all but keys
+    keys: List[str] = Field(default_factory=list)  # stay distinct (surrogate PKs)
+
+    @model_validator(mode="after")
+    def validate_one_of(self) -> "Duplicates":
+        # A field validator on `fraction` never fires when the field is simply
+        # absent, which is exactly the case this needs to catch.
+        if self.count is None and self.fraction is None:
+            raise ValueError("Duplicates needs either 'count' or 'fraction'")
+        return self
+
+
 class RealismConfig(BaseModel):
     """
     Configuration for advanced realism features.
@@ -922,6 +1005,8 @@ class SchemaConfig(BaseModel):
     retention: List[CohortRetention] = Field(default_factory=list)
     missingness: List[Missingness] = Field(default_factory=list)
     late_arrivals: List[LateArrival] = Field(default_factory=list)
+    time_grids: List[TimeGrid] = Field(default_factory=list)
+    duplicates: List[Duplicates] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="anchored",
         description=(

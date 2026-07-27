@@ -14,7 +14,7 @@ import warnings
 import zlib
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -810,11 +810,139 @@ class DataSimulator:
             )
         self.context[table_name] = ctx_df
 
+    # ----------------------------------------------------------------- #
+    # temporal eligibility
+    # ----------------------------------------------------------------- #
+
+    def _child_effective_time(
+        self,
+        relationship: Any,
+        table_data: Optional[pd.DataFrame],
+    ) -> Optional[pd.Series]:
+        """The moment a child row happened, for eligibility purposes.
+
+        Usually a column on the child itself. But the moment that matters is
+        not always the child's own: an order line has no date, it inherits its
+        order's. ``child_time_table`` names the table that owns the moment, and
+        it is reached through the child's existing foreign key to that table,
+        which by topological ordering is already populated.
+        """
+        if table_data is None:
+            return None
+        col = relationship.child_time
+        if not relationship.child_time_table:
+            if col not in table_data.columns:
+                return None
+            return pd.to_datetime(table_data[col], errors="coerce")
+
+        via = next(
+            (r for r in self.config.relationships
+             if r.child_table == relationship.child_table
+             and r.parent_table == relationship.child_time_table),
+            None,
+        )
+        owner = self.context.get(relationship.child_time_table)
+        if via is None or owner is None:
+            return None
+        if via.child_key not in table_data.columns:
+            return None
+        if col not in owner.columns or via.parent_key not in owner.columns:
+            return None
+        lookup = pd.Series(
+            pd.to_datetime(owner[col], errors="coerce").values,
+            index=owner[via.parent_key].values,
+        )
+        lookup = lookup[~lookup.index.duplicated(keep="first")]
+        return pd.to_datetime(
+            table_data[via.child_key].map(lookup), errors="coerce")
+
+    def _temporal_eligible_fk(
+        self,
+        relationship: Any,
+        table_data: Optional[pd.DataFrame],
+        parent_ids: np.ndarray,
+        size: int,
+    ) -> Optional[Tuple[np.ndarray, Tuple[Dict[Any, int], np.ndarray]]]:
+        """Draw each foreign key only from parents that already existed.
+
+        A row cannot reference something that did not exist when it happened.
+        Every generator gets this wrong by construction, because a foreign key
+        is drawn from the whole parent table without asking when the parent was
+        born, and the result is order lines containing products invented months
+        after the order was placed.
+
+        The parents are sorted once by birth time; ``searchsorted`` then gives,
+        per child row, how many parents were alive at that moment, and the draw
+        is uniform over that prefix. One sort and one binary search for the
+        whole column, so the guarantee costs O(n log n) rather than a per-row
+        filter.
+
+        Returns ``(values, eligibility)`` or ``None`` to fall through to
+        ordinary sampling when the declaration is absent or the columns it
+        names are not available yet.
+        """
+        if not relationship.parent_time or not relationship.child_time:
+            return None
+        parent_ctx = self.context.get(relationship.parent_table)
+        if parent_ctx is None or relationship.parent_time not in parent_ctx.columns:
+            return None
+        if relationship.parent_key not in parent_ctx.columns:
+            return None
+
+        child_time = self._child_effective_time(relationship, table_data)
+        if child_time is None or len(child_time) != size:
+            return None
+
+        births = pd.Series(
+            pd.to_datetime(parent_ctx[relationship.parent_time],
+                           errors="coerce").values,
+            index=parent_ctx[relationship.parent_key].values,
+        )
+        births = births[~births.index.duplicated(keep="first")]
+        ids = np.asarray(parent_ids)
+        birth_of = pd.to_datetime(pd.Series(ids).map(births), errors="coerce")
+        known = birth_of.notna().values
+        if not known.any():
+            return None
+
+        ids = ids[known]
+        birth_ns = birth_of[known].values.astype("datetime64[ns]").astype("int64")
+        order = np.argsort(birth_ns, kind="stable")
+        ids_sorted, birth_sorted = ids[order], birth_ns[order]
+
+        child_ns = child_time.values.astype("datetime64[ns]").astype("int64")
+        # A child with no known time is unconstrained: any parent will do.
+        undated = child_time.isna().values
+        child_ns = np.where(undated, birth_sorted[-1], child_ns)
+
+        alive = np.searchsorted(birth_sorted, child_ns, side="right")
+        orphaned = alive == 0
+        if orphaned.any():
+            first = pd.Timestamp(birth_sorted[0]).date()
+            warnings.warn(
+                f"Temporal eligibility {relationship.parent_table}->"
+                f"{relationship.child_table}.{relationship.child_key}: "
+                f"{int(orphaned.sum())} of {size} rows happened before the "
+                f"first {relationship.parent_table} row existed "
+                f"({relationship.parent_time} starts {first}); they reference "
+                f"the earliest parent, which violates the declaration. Move "
+                f"{relationship.parent_table}.{relationship.parent_time} "
+                f"earlier, or start {relationship.child_table} later."
+            )
+            alive = np.maximum(alive, 1)
+
+        draw = (self.rng.random(size) * alive).astype("int64")
+        draw = np.minimum(draw, alive - 1)
+        values = ids_sorted[draw]
+        birth_map = {pid: int(b) for pid, b in zip(ids_sorted, birth_sorted)}
+        return values, (birth_map, child_ns)
+
     def _ensure_min_children(
         self,
         values: np.ndarray,
         parent_ids: np.ndarray,
         relationship: Any,
+        eligibility: Optional[Tuple[Dict[Any, int], np.ndarray]] = None,
     ) -> np.ndarray:
         """Guarantee every eligible parent at least ``min_children`` child rows.
 
@@ -825,6 +953,13 @@ class DataSimulator:
         covered parent is ever pushed back under it. When the child table is
         simply too small to cover the parents, the shortfall warns — a partial
         cover with a loud message beats silently inventing rows.
+
+        ``eligibility`` carries temporal eligibility as (parent birth in ns,
+        child time in ns). When present, a row is only donated to a parent that
+        already existed at that row's moment, so coverage can never manufacture
+        the very violation :meth:`_temporal_eligible_fk` just removed. A parent
+        born after every child row is genuinely uncoverable, and that is a fact
+        about the declarations rather than a failure of the search.
         """
         min_children = int(getattr(relationship, "min_children", 0) or 0)
         if min_children <= 0 or len(values) == 0 or len(parent_ids) == 0:
@@ -858,11 +993,17 @@ class DataSimulator:
             if ni >= len(needed):
                 break
             donor = values[pos]
-            if counts[donor] > min_children:
-                counts[donor] -= 1
-                values[pos] = needed[ni]
-                counts[needed[ni]] = counts.get(needed[ni], 0) + 1
-                ni += 1
+            if counts[donor] <= min_children:
+                continue
+            if eligibility is not None:
+                born, child_ns = eligibility
+                b = born.get(needed[ni])
+                if b is not None and child_ns[pos] < b:
+                    continue      # that parent did not exist yet at this row
+            counts[donor] -= 1
+            values[pos] = needed[ni]
+            counts[needed[ni]] = counts.get(needed[ni], 0) + 1
+            ni += 1
         if ni < len(needed):
             warnings.warn(
                 f"Relationship {relationship.parent_table}->{relationship.child_table}: "
@@ -937,6 +1078,15 @@ class DataSimulator:
 
         _head = table_name.lower().rstrip("s")
         for rel in self.config.relationships:
+            # Temporal eligibility reads the parent's birth column, and reads
+            # the child's effective time off whichever table owns the moment.
+            # Both are looked up through the context, so both must survive
+            # trimming or the declaration silently degrades to plain sampling.
+            if rel.parent_time and rel.parent_table == table_name:
+                needed_cols.add(rel.parent_time)
+            if rel.child_time and rel.child_time_table == table_name:
+                needed_cols.add(rel.child_time)
+                needed_cols.add(rel.parent_key)
             if rel.parent_table == table_name:
                 needed_cols.add(rel.parent_key)
                 if rel.filters:
@@ -1940,6 +2090,17 @@ class DataSimulator:
                     f"'{column.name}' in '{table_name}' will be null (nothing to reference)."
                 )
                 return np.array([None] * size, dtype=object)
+
+            # Temporal eligibility outranks every other sampling strategy,
+            # because a popularity weight that picks a product which did not
+            # exist yet is still wrong. Declared, so it costs nothing when the
+            # schema does not ask for it.
+            eligible = self._temporal_eligible_fk(
+                relationship, table_data, parent_ids, size)
+            if eligible is not None:
+                values, elig = eligible
+                return self._ensure_min_children(
+                    values, parent_ids, relationship, eligibility=elig)
 
             sampling = params.get("sampling", "uniform")
             if sampling == "pareto":

@@ -43,7 +43,7 @@ import duckdb
 import misata
 from misata.schema import (SchemaConfig, Table, Column, Relationship, Constraint,
                           Lifecycle, LifecycleState, CohortRetention, Missingness,
-                          LateArrival)
+                          LateArrival, TimeGrid, Duplicates)
 
 SEED = 7
 
@@ -72,10 +72,11 @@ TICKET_STATUSES = ["open", "pending", "resolved", "closed"]
 # shrinks to fit is not an acceptance test. CI treats these as expected
 # failures; an UNEXPECTED failure (a regression) still fails the build, and a
 # known-red that starts passing is flagged for promotion out of this set.
-KNOWN_RED = {
-    "order_items never reference a product created after the order":
-        "FK sampling with temporal eligibility (planned)",
-}
+# Empty since 0.9.1, when temporal FK eligibility landed and the last red went
+# green. Keep the mechanism: the day a new assertion is written before the
+# capability exists, it goes here with a roadmap note, and the harness fails the
+# build if it starts passing without being promoted out.
+KNOWN_RED: dict = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -333,8 +334,13 @@ def build_schema() -> SchemaConfig:
             Relationship(parent_table="orders", child_table="order_items",
                          parent_key="order_id", child_key="order_id",
                          min_children=1),   # an order with zero items is not an order
+            # An order line can only contain a product that existed when the
+            # order was placed. The line has no date of its own, so the moment
+            # that matters is inherited from its order.
             Relationship(parent_table="products", child_table="order_items",
-                         parent_key="product_id", child_key="product_id"),
+                         parent_key="product_id", child_key="product_id",
+                         parent_time="created_at",
+                         child_time="order_date", child_time_table="orders"),
             # Status-gated children: a payment/shipment/return only ever
             # references an order whose status makes it possible.
             Relationship(parent_table="orders", child_table="payments",
@@ -359,6 +365,19 @@ def build_schema() -> SchemaConfig:
                         rate=0.40, else_rate=0.05,
                         when_column="age_band", when_op="in",
                         when_value=["18-24"]),
+        ],
+        # Support tickets are opened by a human on a quarter-hour, during
+        # business hours. Misata used to guess this from the column name; here
+        # it is declared, so it can be proven.
+        time_grids=[
+            TimeGrid(table="support_tickets", column="created_at",
+                     minute_grid=15, seconds="zero", hours=(9, 17)),
+        ],
+        # 3% of tickets are the same ticket filed twice under a new id, which
+        # is what a dedupe test needs and what no generator will give you.
+        duplicates=[
+            Duplicates(table="support_tickets", fraction=0.03,
+                       keys=["ticket_id"]),
         ],
         late_arrivals=[
             # 4% of orders are recorded at least a day after they happened,
@@ -722,6 +741,32 @@ def build_assertions() -> List[Tuple[str, str, str]]:
         ("L", "late arrivals actually exist (the path is exercised)",
          "SELECT CASE WHEN (SELECT count(*) FROM orders "
          "WHERE date_diff('day', order_date, ingested_at) >= 1) > 0 THEN 0 ELSE 1 END"),
+
+        # M — a declared clock and a declared number of duplicates. Both were
+        # behaviours before 0.9.1: the grid was guessed from the column name and
+        # duplicates were sprayed at a probability, so neither could be asserted.
+        ("M", "every ticket opens on the declared 15-minute grid",
+         "SELECT count(*) FROM support_tickets "
+         "WHERE minute(created_at) % 15 <> 0"),
+        ("M", "no ticket carries seconds or sub-seconds",
+         "SELECT count(*) FROM support_tickets "
+         "WHERE second(created_at) <> 0 OR microsecond(created_at) <> 0"),
+        ("M", "every ticket opens inside declared business hours",
+         "SELECT count(*) FROM support_tickets "
+         "WHERE hour(created_at) < 9 OR hour(created_at) >= 17"),
+        ("M", "the grid is exercised (more than one distinct slot in use)",
+         "SELECT CASE WHEN (SELECT count(DISTINCT minute(created_at)) "
+         "FROM support_tickets) BETWEEN 2 AND 4 THEN 0 ELSE 1 END"),
+        ("M", "exactly 24 duplicate tickets, as declared (3% of 800)",
+         "SELECT CASE WHEN (SELECT count(*) FROM support_tickets) - "
+         "(SELECT count(*) FROM (SELECT DISTINCT customer_id, created_at, "
+         "status, resolved_at FROM support_tickets)) = 24 THEN 0 ELSE 1 END"),
+        ("M", "duplicated tickets still carry distinct ids",
+         "SELECT count(*) FROM (SELECT ticket_id FROM support_tickets "
+         "GROUP BY ticket_id HAVING count(*) > 1)"),
+        ("M", "duplication did not change the declared row count",
+         "SELECT CASE WHEN (SELECT count(*) FROM support_tickets) = 800 "
+         "THEN 0 ELSE 1 END"),
     ]
 
     # ---- I. distribution sanity --------------------------------------------
@@ -790,7 +835,8 @@ def run(json_path: str | None = None) -> int:
     cat_names = {"A": "structural", "B": "domain", "C": "temporal",
                  "D": "status-implies", "E": "reconciliation", "F": "diamond",
                  "G": "geo", "H": "arithmetic", "I": "distribution",
-                 "J": "lifecycle", "K": "missingness", "L": "late arrival"}
+                 "J": "lifecycle", "K": "missingness", "L": "late arrival",
+                 "M": "grid + duplicates"}
     passed = sum(1 for r in results if r["violations"] == 0)
     total = len(results)
 

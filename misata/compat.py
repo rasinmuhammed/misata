@@ -486,6 +486,12 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
                             ("group_shares", "__group_shares__"),
                             ("waterfalls", "__waterfalls__"),
                             ("stock_flows", "__stock_flows__"),
+                            ("lifecycles", "__lifecycles__"),
+                            ("retention", "__retention__"),
+                            ("missingness", "__missingness__"),
+                            ("late_arrivals", "__late_arrivals__"),
+                            ("time_grids", "__time_grids__"),
+                            ("duplicates", "__duplicates__"),
                             ("noise", "__noise__"),
                             ("vocabulary", "__vocabulary__"),
                             ("vocabularies", "__vocabulary__")):
@@ -641,6 +647,26 @@ def from_dict_schema(
             stock_flows.append(StockFlowIdentity(**sf_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __stock_flows__[{i}]: {e}")
+
+    # Every declaration added since 0.8.9.4 was reachable from SchemaConfig but
+    # not from YAML, so `misata lint` rejected the very files the docs showed.
+    # One table, so the next declaration is one line rather than a new branch.
+    from misata.schema import (CohortRetention, Duplicates, LateArrival,
+                               Lifecycle, Missingness, TimeGrid)
+    declared: Dict[str, List[Any]] = {}
+    for key, model in (("lifecycles", Lifecycle),
+                       ("retention", CohortRetention),
+                       ("missingness", Missingness),
+                       ("late_arrivals", LateArrival),
+                       ("time_grids", TimeGrid),
+                       ("duplicates", Duplicates)):
+        out: List[Any] = []
+        for i, raw in enumerate(schemas.get(f"__{key}__") or []):
+            try:
+                out.append(model(**raw))
+            except Exception as e:
+                warnings.warn(f"Skipping invalid __{key}__[{i}]: {e}")
+        declared[key] = out
 
     # __noise__ injects declared data-quality defects (nulls, outliers, typos,
     # duplicates) at a known rate — so a data-cleaning / DQ pipeline can be
@@ -843,6 +869,12 @@ def from_dict_schema(
         group_shares=group_shares,
         waterfalls=waterfalls,
         stock_flows=stock_flows,
+        lifecycles=declared["lifecycles"],
+        retention=declared["retention"],
+        missingness=declared["missingness"],
+        late_arrivals=declared["late_arrivals"],
+        time_grids=declared["time_grids"],
+        duplicates=declared["duplicates"],
         generation_mode=(schemas.get("__generation_mode__")
                          or schemas.get("generation_mode") or "anchored"),
         noise_config=noise_config,

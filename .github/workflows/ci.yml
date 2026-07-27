@@ -37,7 +37,7 @@ jobs:
         run: |
           pytest tests/test_integration_scale.py -v -m slow --tb=short
 
-      # The Gauntlet: 11 tables, 99 independent SQL assertions run by DuckDB
+      # The Gauntlet: 11 tables, 126 independent SQL assertions run by DuckDB
       # against the emitted frames. Known-red assertions (named roadmap items)
       # are expected failures; any UNEXPECTED failure is a correctness
       # regression and fails the build. A known-red that starts passing also

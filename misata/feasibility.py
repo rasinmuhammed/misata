@@ -408,6 +408,55 @@ def _check_curve_point_shape(config: Any) -> List[Conflict]:
     return out
 
 
+def _date_window(config: Any, table: str, column: str) -> Optional[tuple]:
+    """(start, end) a declared date column can occupy, or None if unbounded."""
+    col = _columns_of(config, table).get(column)
+    if col is None or col.type not in ("date", "datetime"):
+        return None
+    p = col.distribution_params or {}
+    start, end = p.get("start"), p.get("end")
+    if not start or not end or p.get("relative_to"):
+        return None
+    return str(start), str(end)
+
+
+def _check_temporal_eligibility(config: Any) -> List[Conflict]:
+    """A parent born after every possible child moment can never be referenced.
+
+    The engine warns when *some* rows are orphaned in time, because the schema
+    is still mostly satisfiable and a warning plus the earliest parent is the
+    least-bad landing. When the windows do not overlap at all, no assignment
+    exists and there is nothing to land on, so this refuses instead.
+    """
+    out: List[Conflict] = []
+    for rel in (getattr(config, "relationships", None) or []):
+        ptime = getattr(rel, "parent_time", None)
+        ctime = getattr(rel, "child_time", None)
+        if not ptime or not ctime:
+            continue
+        owner = getattr(rel, "child_time_table", None) or rel.child_table
+        pwin = _date_window(config, rel.parent_table, ptime)
+        cwin = _date_window(config, owner, ctime)
+        if pwin is None or cwin is None:
+            continue
+        if pwin[0] > cwin[1]:
+            out.append(Conflict(
+                kind="temporal_eligibility_impossible",
+                where=f"{rel.child_table}.{rel.child_key}",
+                declarations=[f"temporal eligibility on "
+                              f"{rel.parent_table}→{rel.child_table}",
+                              f"{rel.parent_table}.{ptime} range",
+                              f"{owner}.{ctime} range"],
+                arithmetic=(f"the earliest {rel.parent_table}.{ptime} is "
+                            f"{pwin[0]}, after the latest {owner}.{ctime} "
+                            f"{cwin[1]}; no {rel.child_table} row can reference "
+                            f"a parent that already existed"),
+                remedy=(f"start {rel.parent_table}.{ptime} on or before "
+                        f"{cwin[0]}, or move {owner}.{ctime} later"),
+            ))
+    return out
+
+
 _CHECKS = (
     _check_retention_budget,
     _check_curve_point_shape,
@@ -417,6 +466,7 @@ _CHECKS = (
     _check_column_governance,
     _check_lifecycles,
     _check_min_children,
+    _check_temporal_eligibility,
 )
 
 

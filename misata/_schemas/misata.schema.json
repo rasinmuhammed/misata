@@ -314,6 +314,436 @@
           }
         }
       }
+    },
+    "lifecycles": {
+      "type": "array",
+      "description": "Entity lifecycles: a row's state implies a legal, ordered, fully-timestamped history through every state it must have passed.",
+      "items": {
+        "description": "Declare the state machine an entity moves through, and prove it held.\n\nA status column plus a scatter of per-state timestamps is the most common\nshape in real operational data, and the most commonly wrong: an \"active\"\nsubscription carrying a cancellation date, a \"cancelled\" order with a\ndelivery time, a \"shipped\" row whose ship date precedes its order date.\nThose are all the same defect \u2014 a row whose columns describe a history\nthat could not have happened.\n\nDeclaring the machine makes the whole class impossible. For a row in state\nS, the engine derives the path from ``initial`` to S and guarantees:\n\n1. ``state_column`` only ever holds a declared state name.\n2. Every state on the path has its timestamp populated, in path order.\n3. Every state off the path has its timestamp NULL.\n4. The whole chain postdates ``start_column`` when one is given.\n\nThis subsumes hand-written ``when_then`` rules and status gating: instead\nof enumerating \"if cancelled then cancelled_at is not null\" for every pair,\nyou declare the machine once and every implication follows from it.\n\nExample, an order that ships then completes, or is cancelled outright::\n\n    Lifecycle(\n        name=\"order_lifecycle\",\n        table=\"orders\",\n        state_column=\"status\",\n        start_column=\"order_date\",\n        initial=\"placed\",\n        states=[\n            LifecycleState(name=\"placed\",    timestamp=\"placed_at\"),\n            LifecycleState(name=\"shipped\",   timestamp=\"shipped_at\"),\n            LifecycleState(name=\"completed\", timestamp=\"completed_at\", terminal=True),\n            LifecycleState(name=\"cancelled\", timestamp=\"cancelled_at\", terminal=True),\n        ],\n        transitions=[\n            (\"placed\", \"shipped\"),\n            (\"shipped\", \"completed\"),\n            (\"placed\", \"cancelled\"),\n        ],\n        weights={\"placed\": 0.10, \"shipped\": 0.15,\n                 \"completed\": 0.60, \"cancelled\": 0.15},\n    )\n\nAttributes:\n    name:         Identifier used in warnings and audit findings.\n    table:        Table whose rows are the entities.\n    state_column: Column holding the entity's current state.\n    states:       Every reachable state. Names must be unique.\n    transitions:  Legal (from_state, to_state) pairs.\n    initial:      The state every entity starts in.\n    weights:      Optional share of rows to place in each state. Normalised\n                  with a warning if the values do not sum to 1. States\n                  omitted get zero rows. Defaults to uniform over states\n                  that are reachable.\n    start_column: Optional existing timestamp the whole chain must postdate\n                  (an order's ``order_date``, a customer's ``signup_date``).\n    max_days_per_step: Upper bound on the gap between consecutive state\n                  timestamps, so a shipped-to-completed hop stays plausible.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          },
+          "state_column": {
+            "type": "string"
+          },
+          "states": {
+            "items": {
+              "description": "One state an entity can occupy, and the column that records entering it.\n\nAttributes:\n    name:      The value that appears in the lifecycle's ``state_column``.\n    timestamp: Optional column recording when the entity entered this\n               state. When given, the column is NOT NULL for entities whose\n               path reached this state and NULL for every entity that did\n               not. Omit for states you do not timestamp.\n    terminal:  True when no transition leaves this state.",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "terminal": {
+                  "default": false,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "transitions": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "initial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "weights": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "start_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "max_days_per_step": {
+            "default": 30,
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "name",
+          "table",
+          "state_column",
+          "states"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    "retention": {
+      "type": "array",
+      "description": "Cohort retention curves: of the entities in a cohort, exactly this fraction are active k periods later.",
+      "items": {
+        "description": "Declare a retention curve, and have the cohort table actually show it.\n\n\"Of the customers who signed up in month M, 55% place an order in M+1 and\n40% in M+2\" is the most-quoted invariant in SaaS and ecommerce analytics,\nand until now it was inexpressible here: you could control how many events\nexisted and what they summed to, but not *which* entities produced them\nover time. So the cohort query every analyst runs first returned a shape\nnobody chose.\n\nDeclaring it makes the cohort table exact. For every cohort period and\nevery declared offset k, exactly ``round(fraction \u00d7 cohort_size)`` distinct\nentities have at least one event in period ``cohort + k``.\n\nThis governs the event table's entity key and its timestamp, because those\nare what a retention query reads. Every other column is left alone.\n\nExample, a cohort that halves then flattens::\n\n    CohortRetention(\n        table=\"orders\", event_time=\"order_date\", cohort_key=\"customer_id\",\n        cohort_table=\"customers\", cohort_time=\"signup_date\",\n        unit=\"month\",\n        curve={0: 1.0, 1: 0.55, 2: 0.40, 3: 0.34},\n    )\n\nAttributes:\n    table:        Event table whose rows are the activity.\n    event_time:   Timestamp column on the event table.\n    cohort_key:   Entity key present on both tables.\n    cohort_table: Entity table that defines cohort membership.\n    cohort_time:  Timestamp on the entity table that assigns its cohort.\n    unit:         Period granularity for both cohort and offset.\n    curve:        Offset (0 = the cohort's own period) to fraction of the\n                  cohort active in that period. Offset 0 is normally 1.0.\n                  Fractions must each be between 0 and 1.",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "event_time": {
+            "type": "string"
+          },
+          "cohort_key": {
+            "type": "string"
+          },
+          "cohort_table": {
+            "type": "string"
+          },
+          "cohort_time": {
+            "type": "string"
+          },
+          "unit": {
+            "default": "month",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "type": "string"
+          },
+          "curve": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "table",
+          "event_time",
+          "cohort_key",
+          "cohort_table",
+          "cohort_time",
+          "curve"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    "missingness": {
+      "type": "array",
+      "description": "Conditional missingness (MNAR): values go missing for a declared reason, not at a flat rate.",
+      "items": {
+        "description": "Declare *why* values are missing, not just how often.\n\nReal data is missing for a reason. Income is absent more often for younger\nusers; a satisfaction score is absent when nobody replied. That is MNAR\n(missing not at random), and it is what breaks models and pipelines in\nproduction. A flat ``null_rate`` produces MCAR, which is the one pattern\nreal data almost never has.\n\nDeclaring the mechanism makes the pattern exact: of the rows matching the\ncondition, exactly ``rate`` are null; of the rest, exactly ``else_rate``.\nCounts use largest-remainder rounding, so a declared 40% is 40% of rows\nrather than 40% in expectation.\n\nExample, income missing far more often for the youngest band::\n\n    Missingness(\n        table=\"customers\", column=\"income\", rate=0.40, else_rate=0.05,\n        when_column=\"age_band\", when_op=\"in\", when_value=[\"18-24\"],\n    )\n\nOmit the condition for a plain unconditional rate.\n\nAttributes:\n    table, column: What goes missing.\n    rate:          Fraction of matching rows set to NULL.\n    else_rate:     Fraction of non-matching rows set to NULL.\n    when_column, when_op, when_value: The condition selecting rows. When\n                   ``when_column`` is omitted, ``rate`` applies to the whole\n                   column and ``else_rate`` is ignored.",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "rate": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "else_rate": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "when_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "when_op": {
+            "default": "==",
+            "enum": [
+              "==",
+              "!=",
+              "in",
+              "not_in",
+              ">",
+              ">=",
+              "<",
+              "<="
+            ],
+            "type": "string"
+          },
+          "when_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "table",
+          "column",
+          "rate"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    "late_arrivals": {
+      "type": "array",
+      "description": "Late-arriving events: exactly this fraction land in a later period than they happened, bounded by a declared maximum delay.",
+      "items": {
+        "description": "Declare that some events land after the fact.\n\nEvery incremental model and every watermark assumes events arrive roughly\nin order, and production quietly violates it: a mobile client syncs three\ndays later, a webhook retries, a batch job backfills. No generator produces\nthat, so the code path that handles it is never exercised until it fails on\nreal data.\n\nDeclaring it gives an ingest timestamp that is always at or after the event\ntimestamp, where exactly ``late_fraction`` of rows arrive in a *later*\nperiod than the event, with delays bounded by ``max_delay_days``.\n\nExample, 5% of events landing up to three days late::\n\n    LateArrival(\n        table=\"events\", event_time=\"occurred_at\",\n        ingest_time=\"ingested_at\",\n        late_fraction=0.05, max_delay_days=3,\n    )\n\nAttributes:\n    table:          Event table.\n    event_time:     When it happened. Never modified.\n    ingest_time:    When it was recorded. Written by this declaration.\n    late_fraction:  Fraction of rows whose ingest lands a full day or more\n                    after the event.\n    max_delay_days: Upper bound on the delay for those rows.\n    on_time_max_minutes: Upper bound on the delay for everything else, so\n                    punctual rows still are not simultaneous.",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "event_time": {
+            "type": "string"
+          },
+          "ingest_time": {
+            "type": "string"
+          },
+          "late_fraction": {
+            "default": 0.05,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "max_delay_days": {
+            "default": 3,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "on_time_max_minutes": {
+            "default": 120,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "table",
+          "event_time",
+          "ingest_time"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    "time_grids": {
+      "type": "array",
+      "description": "Timestamp grids: a column lands on a declared minute grid, inside declared hours. Forward-only, so it can never break a causal lower bound.",
+      "items": {
+        "description": "A timestamp column lands on a declared grid, in declared hours.\n\nMisata has shaped timestamps by name-guess since early on: a column called\n``appointment_time`` was snapped to quarter hours inside business hours\nbecause that is what appointments do. The guess is usually right and it is\nthe single biggest tell that separates plausible timestamps from\n``2022-08-29 06:36:12.995319155``. But a guess is not a guarantee: it was\nnever declarable, never overridable, and never checked.\n\n``TimeGrid`` is the declared form. The inference stays as a default; this\nis what you write when the grid matters and you want it proven. Only the\ntime of day is touched, never the date, so no causal ordering between\ntables can be disturbed by asking for tidier clocks.\n\nAttributes:\n    minute_grid: every value falls on a multiple of this many minutes.\n    seconds: ``\"zero\"`` for a clean grid, ``\"uniform\"`` to keep seconds.\n    hours: inclusive-exclusive local hour window, e.g. ``(9, 17)``.",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "minute_grid": {
+            "default": 15,
+            "maximum": 1440,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "seconds": {
+            "default": "zero",
+            "enum": [
+              "zero",
+              "uniform"
+            ],
+            "type": "string"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "table",
+          "column"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    "duplicates": {
+      "type": "array",
+      "description": "Exact duplicate rows: exactly this many rows are copies of another row, with keys left distinct and the row count unmoved.",
+      "items": {
+        "description": "Exactly this many rows are duplicates of another row.\n\nDeduplication is the most-written and least-tested logic in any pipeline,\nand it cannot be tested against data with no duplicates in it. The old\n``noise_config.duplicate_rate`` sprayed copies at a probability and told you\nnothing afterwards, so a test written against it could not assert a number.\n\nThe declared form is a count. Rows are not appended, they are overwritten:\n``keys`` stay distinct and the row count never moves, which is what a real\nre-ingest looks like \u2014 the same record arriving twice under two surrogate\nkeys. After generation, ``len(table) - len(table[subset].drop_duplicates())``\nequals exactly what you declared.\n\nCosts: duplicates are real rows, so any aggregate over ``table`` counts them.\nDeclare this on a table that no roll-up or curve reconciles against, or\nexpect those totals to include the copies, because they genuinely do.",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "fraction": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "subset": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "table"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
     }
   },
   "$defs": {
@@ -536,7 +966,7 @@
         },
         "probabilities": {
           "type": "array",
-          "description": "Sampling weights for `choices`. Must sum to 1.0 (±0.02). Length must match `choices`.",
+          "description": "Sampling weights for `choices`. Must sum to 1.0 (\u00b10.02). Length must match `choices`.",
           "items": {
             "type": "number",
             "minimum": 0,
@@ -640,7 +1070,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 0.5,
-          "description": "Fraction of rows to inject as 3-6σ outliers (numeric) or '__anomaly__' (categorical)."
+          "description": "Fraction of rows to inject as 3-6\u03c3 outliers (numeric) or '__anomaly__' (categorical)."
         },
         "null_if": {
           "type": "object",
@@ -675,8 +1105,8 @@
       "oneOf": [
         {
           "type": "string",
-          "description": "Shorthand: 'parent_table.parent_col → child_table.child_col'.",
-          "pattern": ".+\\.[^\\s]+\\s*(→|->)\\s*.+\\.[^\\s]+"
+          "description": "Shorthand: 'parent_table.parent_col \u2192 child_table.child_col'.",
+          "pattern": ".+\\.[^\\s]+\\s*(\u2192|->)\\s*.+\\.[^\\s]+"
         },
         {
           "type": "object",

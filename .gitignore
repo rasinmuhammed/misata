@@ -71,6 +71,8 @@ tests/*
 !tests/test_lifecycle.py
 !tests/test_feasibility.py
 !tests/test_dynamics.py
+!tests/test_temporal_eligibility.py
+!tests/test_time_grid_duplicates.py
 !tests/test_mutate.py
 jman_output/
 llm_test/

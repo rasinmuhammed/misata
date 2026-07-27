@@ -1,6 +1,6 @@
 """How data behaves over time and where it goes missing.
 
-Three declarations the language could not previously express, each enforced
+Five declarations the language could not previously express, each enforced
 exactly and each re-checked independently by ``coherence_audit``:
 
 - :class:`~misata.schema.CohortRetention` — of the entities in a cohort, exactly
@@ -14,7 +14,15 @@ exactly and each re-checked independently by ``coherence_audit``:
   they happened. Every incremental model assumes this does not happen; every
   production system does it.
 
-All three use largest-remainder allocation, so a declared 40% is 40% of rows
+- :class:`~misata.schema.TimeGrid` — a timestamp lands on a declared grid, in
+  declared hours. Misata already guessed this from column names; the guess was
+  right often enough to be load-bearing and was never checkable. This is the
+  declared form, and the guess stays on as a default.
+- :class:`~misata.schema.Duplicates` — exactly this many rows are copies of
+  another row. Deduplication is the most-written, least-tested logic in any
+  pipeline, and it cannot be tested against data with no duplicates in it.
+
+All five use largest-remainder allocation, so a declared 40% is 40% of rows
 rather than 40% in expectation. That is the difference between a distribution
 and a guarantee, and the guarantee is the product.
 """
@@ -299,6 +307,174 @@ def apply_late_arrival(
 
 
 # --------------------------------------------------------------------------- #
+# time grids
+# --------------------------------------------------------------------------- #
+
+def apply_time_grid(
+    tables: Dict[str, pd.DataFrame],
+    spec: Any,
+    rng: np.random.Generator,
+) -> Dict[str, pd.DataFrame]:
+    """Move each timestamp to the next slot on its declared grid.
+
+    Forward-only, and that is the whole design. The first version folded values
+    into the hour window by remainder, which is prettier and wrong: it moved
+    23:50 back to 16:50 and 86 support tickets ended up opened before their
+    customer had signed up. Causality is enforced earlier in the run, so a pass
+    that lowers a timestamp afterwards can silently undo it, and every causal
+    guarantee in Misata is a lower bound.
+
+    Moving only forward cannot break a lower bound anywhere in the schema, by
+    construction rather than by luck. What it can do is push a value past a
+    same-day upper bound, and ``coherence_audit`` reports that rather than
+    hiding it. A value whose next slot is past the last slot of the day moves
+    to the first slot of the next day, so the date can advance by one.
+    """
+    df = tables.get(spec.table)
+    if df is None or df.empty or spec.column not in df.columns:
+        return tables
+    col = pd.to_datetime(df[spec.column], errors="coerce")
+    known = col.notna().values
+    if not known.any():
+        return tables
+
+    grid = int(spec.minute_grid)
+    lo, hi = (spec.hours if spec.hours else (0, 24))
+    first = -(-(lo * 60) // grid) * grid          # first slot at or after open
+    last = ((hi * 60 - 1) // grid) * grid          # last slot strictly inside
+    if first > last:
+        warnings.warn(
+            f"TimeGrid on '{spec.table}.{spec.column}': a {grid}-minute grid "
+            f"has no slot inside {lo:02d}:00-{hi:02d}:00. Use a finer grid or "
+            f"a wider window; the column is left as generated.")
+        return tables
+
+    ns = col.astype("int64").to_numpy()
+    day = np.where(known, ns // NS_PER_DAY, 0)
+    # Ceil in nanoseconds, not minutes. Rounding the minute up and then zeroing
+    # the seconds looks forward-only and is not: 16:30:56 became 16:30:00 and
+    # four tickets slid back behind their customer's signup. The ceiling has to
+    # happen at the resolution the value is actually carrying.
+    within = np.where(known, ns - day * NS_PER_DAY, 0)
+    grid_ns = grid * NS_PER_MINUTE
+    slot = (-(-within // grid_ns) * grid_ns) // NS_PER_MINUTE
+    slot = np.maximum(slot, first)
+    rolled = slot > last                           # nothing left today
+    slot = np.where(rolled, first, slot)
+    day = day + rolled.astype("int64")
+
+    if spec.seconds == "zero":
+        sub = np.zeros(len(slot), dtype="int64")
+    else:
+        sub = rng.integers(0, 60, size=len(slot)) * (NS_PER_MINUTE // 60)
+
+    out = df.copy()
+    stamped = pd.to_datetime(
+        pd.Series(day * NS_PER_DAY + slot * NS_PER_MINUTE + sub))
+    stamped[~known] = pd.NaT
+    new_ns = stamped.astype("int64").to_numpy()
+
+    # Carry the row's later timestamps along. A ticket created at 16:52 and
+    # resolved at 16:58 must not come out created at 17:00 and resolved at
+    # 16:58: moving one column of a row forward past another one silently
+    # inverts the row. Columns that already sat at or after this one keep the
+    # exact gap they had, so the row's internal shape survives the grid.
+    moved = known & (new_ns > ns)
+    if moved.any():
+        for other in df.columns:
+            if other == spec.column:
+                continue
+            if not pd.api.types.is_datetime64_any_dtype(df[other]):
+                continue
+            o = df[other].astype("int64").to_numpy()
+            o_known = df[other].notna().to_numpy()
+            follows = moved & o_known & (o >= ns) & (o < new_ns)
+            if not follows.any():
+                continue
+            shifted = df[other].copy()
+            gap = o[follows] - ns[follows]
+            shifted.iloc[np.flatnonzero(follows)] = pd.to_datetime(
+                new_ns[follows] + gap)
+            out[other] = shifted
+
+    out[spec.column] = stamped.values
+    tables[spec.table] = out
+    return tables
+
+
+# --------------------------------------------------------------------------- #
+# duplicates
+# --------------------------------------------------------------------------- #
+
+def apply_duplicates(
+    tables: Dict[str, pd.DataFrame],
+    spec: Any,
+    rng: np.random.Generator,
+) -> Dict[str, pd.DataFrame]:
+    """Make exactly the declared number of rows duplicates of another row.
+
+    Rows are overwritten, never appended, so the declared ``row_count`` still
+    holds and ``keys`` stay unique. Only rows whose ``subset`` value is
+    currently unique are eligible as donor or recipient, which is what makes
+    the final excess exact rather than approximate: each copy raises
+    ``len(df) - len(df[subset].drop_duplicates())`` by exactly one.
+    """
+    df = tables.get(spec.table)
+    if df is None or df.empty:
+        return tables
+
+    keys = [k for k in (spec.keys or []) if k in df.columns]
+    subset = [c for c in (spec.subset or [c for c in df.columns if c not in keys])
+              if c in df.columns]
+    if not subset:
+        warnings.warn(
+            f"Duplicates on '{spec.table}': no comparable columns left after "
+            f"excluding keys {keys}. Skipping.")
+        return tables
+
+    n = int(spec.count) if spec.count is not None else exact_count(len(df), spec.fraction)
+    if n <= 0:
+        return tables
+
+    existing = len(df) - len(df[subset].drop_duplicates())
+    if existing > n:
+        warnings.warn(
+            f"Duplicates on '{spec.table}': the table already contains "
+            f"{existing} duplicate row(s) on {subset}, more than the {n} "
+            f"declared. The subset is not distinct enough to control; add a "
+            f"high-cardinality column to 'subset' or raise 'count'.")
+        return tables
+    need = n - existing
+    if need == 0:
+        return tables
+
+    counts = df.groupby(subset, dropna=False, sort=False)[subset[0]].transform("size")
+    unique_pos = np.flatnonzero((counts == 1).to_numpy())
+    if len(unique_pos) < 2 * need:
+        warnings.warn(
+            f"Duplicates on '{spec.table}': {need} more duplicate(s) declared "
+            f"but only {len(unique_pos)} row(s) are currently unique on "
+            f"{subset}, so at most {len(unique_pos) // 2} can be made. Lower "
+            f"'count', or widen 'subset'.")
+        need = len(unique_pos) // 2
+        if need == 0:
+            return tables
+
+    picked = rng.permutation(unique_pos)[: 2 * need]
+    donors, recipients = picked[:need], picked[need:]
+    out = df.copy()
+    # Column by column, in each column's own dtype. Lifting the block into a
+    # single 2-D array would coerce every column to object and silently widen
+    # the integer columns on the way back in.
+    for col in subset:
+        vals = out[col].to_numpy(copy=True)
+        vals[recipients] = vals[donors]
+        out[col] = vals
+    tables[spec.table] = out
+    return tables
+
+
+# --------------------------------------------------------------------------- #
 # entry point
 # --------------------------------------------------------------------------- #
 
@@ -326,12 +502,26 @@ def apply_dynamics(
         except Exception as e:
             warnings.warn(f"LateArrival on '{spec.table}' failed ({e}); "
                           f"table left as generated.")
+    for spec in (getattr(config, "time_grids", None) or []):
+        try:
+            apply_time_grid(tables, spec, rng)
+        except Exception as e:
+            warnings.warn(f"TimeGrid on '{spec.table}.{spec.column}' failed "
+                          f"({e}); column left as generated.")
     for spec in (getattr(config, "missingness", None) or []):
         try:
             apply_missingness(tables, spec, rng)
         except Exception as e:
             warnings.warn(f"Missingness on '{spec.table}.{spec.column}' failed "
                           f"({e}); table left as generated.")
+    # Duplicates are last on purpose. A copy made before missingness ran would
+    # have its nulls redrawn independently and stop being a copy.
+    for spec in (getattr(config, "duplicates", None) or []):
+        try:
+            apply_duplicates(tables, spec, rng)
+        except Exception as e:
+            warnings.warn(f"Duplicates on '{spec.table}' failed ({e}); "
+                          f"table left as generated.")
     return tables
 
 
@@ -342,6 +532,10 @@ def dynamics_tables(config: Any) -> set:
         out.add(spec.table)
         out.add(spec.cohort_table)
     for spec in (getattr(config, "missingness", None) or []):
+        out.add(spec.table)
+    for spec in (getattr(config, "time_grids", None) or []):
+        out.add(spec.table)
+    for spec in (getattr(config, "duplicates", None) or []):
         out.add(spec.table)
     for spec in (getattr(config, "late_arrivals", None) or []):
         out.add(spec.table)

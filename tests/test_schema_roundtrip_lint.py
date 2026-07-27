@@ -299,3 +299,62 @@ class TestPublishedSchema:
         public = (root / "schema" / "misata.schema.json").read_text()
         source = (root / "misata" / "_schemas" / "misata.schema.json").read_text()
         assert public == source
+
+
+class TestSchemaCoversEveryDeclaration:
+    """The JSON Schema must not fall behind the models.
+
+    It silently had, for four releases: ``lifecycles``, ``retention``,
+    ``missingness`` and ``late_arrivals`` all shipped between 0.8.9.4 and
+    0.9.0, all reachable from ``SchemaConfig``, and none of them present here.
+    Because the top level sets ``additionalProperties: false``, ``misata lint``
+    rejected the exact YAML the docs told people to write. A test is the only
+    thing that catches that, since nothing else reads both files.
+    """
+
+    # SchemaConfig fields that are engine internals rather than declarations.
+    NOT_DECLARATIONS = {"tables", "columns", "events", "constraints"}
+
+    def _declaration_fields(self):
+        import typing
+        from misata.schema import SchemaConfig
+        out = set()
+        for name, field in SchemaConfig.model_fields.items():
+            if name in self.NOT_DECLARATIONS:
+                continue
+            ann = field.annotation
+            if typing.get_origin(ann) is list:
+                out.add(name)
+        return out
+
+    def test_every_declaration_list_is_lintable(self):
+        import json
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        schema = json.loads(
+            (root / "misata" / "_schemas" / "misata.schema.json").read_text())
+        assert schema.get("additionalProperties") is False, (
+            "this test only means something while unknown keys are rejected")
+        missing = sorted(self._declaration_fields() - set(schema["properties"]))
+        assert not missing, (
+            f"declarations reachable from SchemaConfig but rejected by "
+            f"`misata lint`: {missing}. Add them to "
+            f"misata/_schemas/misata.schema.json and schema/misata.schema.json.")
+
+    def test_declarations_survive_the_dict_path(self):
+        """Lintable is not enough; the dict path has to carry them through."""
+        from misata.compat import from_dict_schema
+        spec = {
+            "name": "carry", "seed": 1,
+            "tables": {"t": {"rows": 50, "columns": {
+                "id": {"type": "int", "unique": True, "min": 1, "max": 50},
+                "at": {"type": "datetime", "start": "2024-01-01",
+                       "end": "2024-03-31"}}}},
+            "time_grids": [{"table": "t", "column": "at", "minute_grid": 30}],
+            "duplicates": [{"table": "t", "count": 4, "keys": ["id"]}],
+        }
+        cfg = from_dict_schema(spec)
+        assert len(cfg.time_grids) == 1
+        assert cfg.time_grids[0].minute_grid == 30
+        assert len(cfg.duplicates) == 1
+        assert cfg.duplicates[0].count == 4
