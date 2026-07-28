@@ -55,6 +55,13 @@ jobs:
         run: |
           python -m benchmarks.warren
 
+      # The Ledger: bitemporal (two independent time axes) and graph-shaped
+      # (a DAG edge table plus its transitive closure). Third shape, same
+      # contract. Together the three suites cover 284 assertions.
+      - name: Run the Ledger (bitemporal + graph release gate)
+        run: |
+          python -m benchmarks.ledger
+
       - name: Audit dependencies for known vulnerabilities
         if: matrix.python-version == '3.11'
         run: |

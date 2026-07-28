@@ -2816,9 +2816,30 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
     console.print(f"Linting [cyan]{schema_config.name}[/cyan] "
                   f"({n_tables} table{'s' if n_tables != 1 else ''})")
 
+    # Feasibility asks whether declarations can all hold. Composition asks a
+    # different question: when two of them write the same column, which one
+    # writes last. Compatible declarations can still fight over that, and four
+    # shipped defects came from exactly it, so lint reports both.
+    from misata.composition import find_overlaps
+    overlaps = [o for o in find_overlaps(schema_config)
+                if "may or may not be what was intended" not in o.note]
+    if overlaps:
+        console.print(f"\n[yellow]{len(overlaps)} column(s) are written by more "
+                      f"than one declaration:[/yellow]")
+        for o in overlaps:
+            console.print(f"  [yellow]•[/yellow] [bold]{o.table}.{o.column}[/bold]"
+                          f" — {o.later} runs after {o.earlier}")
+            console.print(f"      [dim]{o.note}[/dim]")
+
     if not findings:
-        console.print("\n[green]\u2713 Lint clean: every declaration is "
-                      "feasible as written.[/green]")
+        if overlaps:
+            console.print("\n[green]\u2713 Every declaration is feasible as "
+                          "written.[/green] [dim]The overlaps above are not "
+                          "errors; check the later pass gives what you "
+                          "declared.[/dim]")
+        else:
+            console.print("\n[green]\u2713 Lint clean: every declaration is "
+                          "feasible as written.[/green]")
         sys.exit(0)
 
     tbl = RichTable(show_header=True, header_style="bold cyan", box=None,

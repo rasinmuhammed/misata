@@ -444,13 +444,36 @@ class TestTypos:
         bad = df.loc[~df["grade"].isin(["a", "b", "c"]), "grade"]
         assert bad.notna().all() and (bad.str.len() > 0).all()
 
-    def test_a_free_text_column_is_refused_rather_than_faked(self):
+    def test_a_column_with_no_vocabulary_is_refused_rather_than_faked(self):
         """A typo nobody can verify is not a guarantee."""
         cfg = _dirty(typos=[Typos(table="readings", column="value", count=5)])
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             misata.generate_from_schema(cfg)
-        assert any("declares no 'choices'" in str(w.message) for w in caught)
+        assert any("neither 'choices' nor 'pattern'" in str(w.message)
+                   for w in caught)
+
+    def test_a_patterned_column_is_verifiable_and_accepted(self):
+        """`pattern` describes legality where `choices` enumerates it."""
+        import re
+        cfg = SchemaConfig(
+            name="patterned", seed=6,
+            tables=[Table(name="items", row_count=300)],
+            columns={"items": [
+                Column(name="item_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 300}),
+                Column(name="sku", type="text",
+                       distribution_params={"pattern": "SKU-[0-9]{4}"}),
+            ]},
+            typos=[Typos(table="items", column="sku", count=7)],
+        )
+        df = misata.generate_from_schema(cfg)["items"]
+        pat = re.compile("SKU-[0-9]{4}")
+        bad = [v for v in df["sku"] if not pat.fullmatch(str(v))]
+        assert len(bad) == 7
+        assert all(v and str(v).strip() for v in bad)
+        assert not [f for f in coherence_audit({"items": df}, schema=cfg).findings
+                    if f.kind == "typo_count"]
 
     def test_audit_catches_a_wrong_count(self):
         cfg = _dirty(typos=[Typos(table="readings", column="grade", count=9)])

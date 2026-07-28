@@ -33,6 +33,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import warnings
+
 import yaml
 
 from misata.compat import _TYPE_MAP
@@ -262,8 +264,16 @@ def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
 
     # Generation features that may appear on any column type (0.8.0.2): pass them through
     # so they survive load. These are validated at generation time, not here.
+    #
+    # `null_rate` and `pattern` were missing from this list, which meant the
+    # documented YAML form accepted both and then discarded them: a declared
+    # null rate did nothing, and a declared pattern was ignored in favour of
+    # semantic text. Anything the engine reads from `distribution_params` has to
+    # be listed here or it does not survive the file it was written in.
     for k in ("rollup", "zero_inflate", "depends_on", "mapping", "formula",
-              "inherits_curve_from", "quantize"):
+              "inherits_curve_from", "quantize", "null_rate", "pattern",
+              "pattern_weights", "anomaly_rate", "references", "sampling",
+              "missing_if", "unit", "true_probability"):
         if col_def.get(k) is not None:
             params[k] = col_def[k]
 
@@ -429,6 +439,37 @@ def load_yaml_schema(
     # Stock-flow identities
     stock_flows = [StockFlowIdentity(**s) for s in (raw.get("stock_flows") or [])]
 
+    # Every declaration added since 0.8.9.4. This loader handles the documented
+    # `tables: {name: {...}}` YAML form and is a SEPARATE path from
+    # `compat.from_dict_schema`, which was fixed in 0.9.1. Fixing one and not
+    # the other meant a lifecycle written in the documented format was parsed,
+    # validated, and then silently dropped on the floor. One table, so the next
+    # declaration is one line rather than another forgotten branch.
+    from misata.schema import (Bitemporal, CohortRetention, DagEdges,
+                               Duplicates, EventLog, LateArrival, Lifecycle,
+                               Missingness, Outliers, TimeGrid,
+                               TransitiveClosure, Typos)
+    _declared: Dict[str, List[Any]] = {}
+    for key, model in (("lifecycles", Lifecycle),
+                       ("retention", CohortRetention),
+                       ("missingness", Missingness),
+                       ("late_arrivals", LateArrival),
+                       ("time_grids", TimeGrid),
+                       ("duplicates", Duplicates),
+                       ("event_logs", EventLog),
+                       ("outliers", Outliers),
+                       ("typos", Typos),
+                       ("bitemporal", Bitemporal),
+                       ("dag_edges", DagEdges),
+                       ("closures", TransitiveClosure)):
+        parsed: List[Any] = []
+        for i, item in enumerate(raw.get(key) or []):
+            try:
+                parsed.append(model(**item))
+            except Exception as e:
+                warnings.warn(f"Skipping invalid {key}[{i}] in {path.name}: {e}")
+        _declared[key] = parsed
+
     # Declared data-quality defects
     noise_raw = raw.get("noise")
     noise_config = NoiseConfig(**noise_raw) if noise_raw else None
@@ -460,6 +501,18 @@ def load_yaml_schema(
         group_shares=group_shares,
         waterfalls=waterfalls,
         stock_flows=stock_flows,
+        lifecycles=_declared["lifecycles"],
+        retention=_declared["retention"],
+        missingness=_declared["missingness"],
+        late_arrivals=_declared["late_arrivals"],
+        time_grids=_declared["time_grids"],
+        duplicates=_declared["duplicates"],
+        event_logs=_declared["event_logs"],
+        outliers=_declared["outliers"],
+        typos=_declared["typos"],
+        bitemporal=_declared["bitemporal"],
+        dag_edges=_declared["dag_edges"],
+        closures=_declared["closures"],
         noise_config=noise_config,
         vocabularies=vocabularies,
         realism=realism,

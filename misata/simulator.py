@@ -5382,13 +5382,21 @@ class DataSimulator:
 
         # Retention rewrites entity keys and event timestamps; missingness and
         # late arrival rewrite whole columns. All need the finished table.
+        from misata.bitemporal import bitemporal_tables
         from misata.eventlog import event_log_tables
+        from misata.graphs import graph_tables
         from misata.dynamics import dynamics_tables
         dyn_tables = dynamics_tables(self.config)
 
         # An event log rewrites the whole child table from its entities' states,
         # so both sides buffer.
         dyn_tables |= {t for t in event_log_tables(self.config)
+                       if t in set(sorted_tables)}
+        # Graph and bitemporal passes rewrite whole tables from a structure, so
+        # every table they read or write must be materialised at once.
+        dyn_tables |= {t for t in graph_tables(self.config)
+                       if t in set(sorted_tables)}
+        dyn_tables |= {t for t in bitemporal_tables(self.config)
                        if t in set(sorted_tables)}
 
         # A lifecycle rewrites its table's state column and per-state
@@ -5577,6 +5585,20 @@ class DataSimulator:
         # Dynamics run last: retention reassigns event ownership, and
         # missingness has to be the final word on which values are null or a
         # later pass would fill them back in.
+        # Graphs and bitemporal histories run before event logs: both rewrite
+        # whole tables from a structure, and the later passes only ever adjust
+        # clocks and values on rows that already exist.
+        if getattr(self.config, "dag_edges", None) or getattr(
+                self.config, "closures", None):
+            from misata.graphs import apply_graphs
+            with self._anchor("identity", "graphs"):
+                apply_graphs(buffered, self.config, self.rng)
+
+        if getattr(self.config, "bitemporal", None):
+            from misata.bitemporal import apply_bitemporals
+            with self._anchor("identity", "bitemporal"):
+                apply_bitemporals(buffered, self.config, self.rng)
+
         # Event logs run before dynamics: they rewrite event types and times
         # from the entity's lifecycle, and a grid or a late-arrival pass should
         # get the last word on the clock.

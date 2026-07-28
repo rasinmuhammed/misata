@@ -1273,18 +1273,13 @@ def _detect_typo_count_mismatch(tables, schema) -> List[CoherenceFinding]:
         df = tables.get(spec.table)
         if df is None or df.empty or spec.column not in df.columns:
             continue
-        choices = None
-        for c in (getattr(schema, "columns", {}) or {}).get(spec.table, []) or []:
-            if c.name == spec.column:
-                raw = (c.distribution_params or {}).get("choices")
-                if raw:
-                    choices = {str(x) for x in raw}
-                break
-        if not choices:
+        from misata.dynamics import _typo_clean_mask, _typo_vocabulary
+        choices, pattern = _typo_vocabulary(schema, spec.table, spec.column)
+        if choices is None and pattern is None:
             continue
         as_str = df[spec.column].astype("string")
-        got = int(len(df) - int(as_str.isin(choices).sum())
-                  - int(as_str.isna().sum()))
+        clean = int(_typo_clean_mask(as_str, choices, pattern).sum())
+        got = int(len(df) - clean - int(as_str.isna().sum()))
         want = (int(spec.count) if spec.count is not None
                 else exact_count(len(df), spec.fraction))
         if got != want:
@@ -1292,8 +1287,148 @@ def _detect_typo_count_mismatch(tables, schema) -> List[CoherenceFinding]:
                 kind="typo_count", severity="high",
                 table=spec.table, column=spec.column,
                 message=(f"declared {want} value(s) outside the column's "
-                         f"choices, found {got}"),
+                         f"{'choices' if choices is not None else 'pattern'}, "
+                         f"found {got}"),
                 rows_affected=abs(got - want),
+            ))
+    return out
+
+
+def _detect_bitemporal_violation(tables, schema) -> List[CoherenceFinding]:
+    """Both time axes must tile, and exactly one version may be current."""
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "bitemporal", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty:
+            continue
+        cols = [*spec.entity_columns, spec.valid_from, spec.valid_to,
+                spec.recorded_at, spec.superseded_at]
+        if any(c not in df.columns for c in cols):
+            continue
+        rec = pd.to_datetime(df[spec.recorded_at], errors="coerce")
+        sup = pd.to_datetime(df[spec.superseded_at], errors="coerce")
+        vf = pd.to_datetime(df[spec.valid_from], errors="coerce")
+        vt = pd.to_datetime(df[spec.valid_to], errors="coerce")
+
+        inverted = int(((sup.notna()) & (sup <= rec)).sum()
+                       + ((vt.notna()) & (vt <= vf)).sum())
+        if inverted:
+            out.append(CoherenceFinding(
+                kind="bitemporal", severity="high",
+                table=spec.table, column=spec.superseded_at,
+                message=(f"{inverted} row(s) close a time interval at or before "
+                         f"it opens"),
+                rows_affected=inverted,
+            ))
+
+        grouped = df.groupby(spec.entity_columns, dropna=False)
+        current = grouped[spec.superseded_at].apply(lambda s: int(s.isna().sum()))
+        bad = int((current != 1).sum())
+        if bad:
+            out.append(CoherenceFinding(
+                kind="bitemporal", severity="high",
+                table=spec.table, column=spec.superseded_at,
+                message=(f"{bad} entity(ies) do not have exactly one current "
+                         f"version; an as-of query cannot return one row"),
+                rows_affected=bad,
+            ))
+
+        # System time must hand over without a gap: every supersede instant is
+        # some sibling's recorded_at.
+        pairs = set(zip(*(df[c] for c in spec.entity_columns), rec)) \
+            if len(spec.entity_columns) > 1 else set(zip(df[spec.entity_columns[0]], rec))
+        if len(spec.entity_columns) == 1:
+            handover = [(e, t) for e, t in zip(df[spec.entity_columns[0]], sup)
+                        if pd.notna(t)]
+        else:
+            handover = [(tuple(r), t) for r, t in
+                        zip(df[spec.entity_columns].itertuples(index=False), sup)
+                        if pd.notna(t)]
+            pairs = {(tuple(r), t) for r, t in
+                     zip(df[spec.entity_columns].itertuples(index=False), rec)}
+        orphaned = sum(1 for k in handover if k not in pairs)
+        if orphaned:
+            out.append(CoherenceFinding(
+                kind="bitemporal", severity="high",
+                table=spec.table, column=spec.superseded_at,
+                message=(f"{orphaned} version(s) are superseded at an instant no "
+                         f"successor was recorded at: system time has a gap"),
+                rows_affected=orphaned,
+            ))
+    return out
+
+
+def _detect_graph_violation(tables, schema) -> List[CoherenceFinding]:
+    """A declared DAG must be acyclic; a declared closure must equal its edges."""
+    out: List[CoherenceFinding] = []
+    from misata.graphs import _closure_of
+
+    for spec in (getattr(schema, "dag_edges", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty:
+            continue
+        if spec.from_column not in df.columns or spec.to_column not in df.columns:
+            continue
+        frm = df[spec.from_column].to_numpy()
+        to = df[spec.to_column].to_numpy()
+        anc, des, _ = _closure_of(frm, to)
+        cyclic = int(np.sum(anc == des))
+        selfish = int(np.sum(frm == to))
+        dupes = int(len(df) - len(df[[spec.from_column, spec.to_column]]
+                                  .drop_duplicates()))
+        if cyclic or selfish:
+            out.append(CoherenceFinding(
+                kind="dag_cycle", severity="high",
+                table=spec.table, column=spec.from_column,
+                message=(f"{cyclic + selfish} node(s) reach themselves: the "
+                         f"edge table is not acyclic"),
+                rows_affected=cyclic + selfish,
+            ))
+        if dupes:
+            out.append(CoherenceFinding(
+                kind="dag_cycle", severity="medium",
+                table=spec.table, column=spec.from_column,
+                message=f"{dupes} duplicate edge pair(s)",
+                rows_affected=dupes,
+            ))
+
+    for spec in (getattr(schema, "closures", None) or []):
+        clo = tables.get(spec.table)
+        edges = tables.get(spec.edge_table)
+        if clo is None or edges is None or edges.empty:
+            continue
+        if (spec.ancestor_column not in clo.columns
+                or spec.descendant_column not in clo.columns):
+            continue
+        anc, des, dep = _closure_of(edges[spec.edge_from].to_numpy(),
+                                    edges[spec.edge_to].to_numpy())
+        truth = dict(zip(zip(anc.tolist(), des.tolist()), dep.tolist()))
+        have = set(zip(clo[spec.ancestor_column].tolist(),
+                       clo[spec.descendant_column].tolist()))
+        missing = len(set(truth) - have)
+        spurious = len(have - set(truth))
+        wrong_depth = 0
+        if spec.depth_column and spec.depth_column in clo.columns:
+            for a, d, k in zip(clo[spec.ancestor_column], clo[spec.descendant_column],
+                               clo[spec.depth_column]):
+                t = truth.get((a, d))
+                if t is not None and int(k) != t:
+                    wrong_depth += 1
+        if missing or spurious:
+            out.append(CoherenceFinding(
+                kind="closure_mismatch", severity="high",
+                table=spec.table, column=spec.ancestor_column,
+                message=(f"closure disagrees with its edges: {missing} reachable "
+                         f"pair(s) absent, {spurious} unreachable pair(s) present"),
+                rows_affected=missing + spurious,
+            ))
+        if wrong_depth:
+            out.append(CoherenceFinding(
+                kind="closure_mismatch", severity="high",
+                table=spec.table, column=spec.depth_column,
+                message=(f"{wrong_depth} row(s) carry a depth that is not the "
+                         f"shortest path"),
+                rows_affected=wrong_depth,
             ))
     return out
 
@@ -1778,6 +1913,8 @@ def coherence_audit(
         report.findings.extend(_detect_event_log_mismatch(tables, schema))
         report.findings.extend(_detect_outlier_count_mismatch(tables, schema))
         report.findings.extend(_detect_typo_count_mismatch(tables, schema))
+        report.findings.extend(_detect_bitemporal_violation(tables, schema))
+        report.findings.extend(_detect_graph_violation(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
         report.findings.extend(_detect_waterfall_mismatch(tables, schema))
         report.findings.extend(_detect_scd2_violations(tables, schema))

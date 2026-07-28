@@ -1031,6 +1031,78 @@ class Typos(BaseModel):
         return self
 
 
+class Bitemporal(BaseModel):
+    """A fact with two independent time axes: when it was true, and when we knew.
+
+    ``scd2`` tiles ONE axis. Bitemporal data has two, and they are genuinely
+    independent: a correction recorded today can change what was true last
+    March, without destroying the record of what we believed in between. That is
+    the whole point of the shape, and "as of last Tuesday, what did we think the
+    position was?" is the query it exists to answer.
+
+    After generation, per entity:
+
+    * exactly one row is current in system time (``superseded_at`` is null), and
+      that row leaves valid time open,
+    * system time tiles: every ``superseded_at`` equals the ``recorded_at`` of
+      the version that replaced it, with no gap and no overlap,
+    * an as-of query at any instant returns exactly one row per entity,
+    * ``valid_to > valid_from`` and ``superseded_at > recorded_at`` everywhere.
+    """
+
+    name: str
+    table: str
+    entity_columns: List[str]
+    valid_from: str
+    valid_to: str
+    recorded_at: str
+    superseded_at: str
+    avg_versions: float = Field(default=3.0, ge=1.0)
+
+
+class DagEdges(BaseModel):
+    """An edge table that is a directed acyclic graph.
+
+    The forest rule added in 0.9.2 keeps a self-referential *column* acyclic. It
+    says nothing about a join table, where the same guarantee needs a different
+    construction: edges are drawn between nodes ordered by a topological rank, so
+    an edge always points from lower rank to higher and a cycle cannot close.
+
+    Guarantees no self-edges, no duplicate pairs, and no cycle at any depth.
+    """
+
+    name: str
+    table: str
+    node_table: str
+    node_key: str
+    from_column: str
+    to_column: str
+
+
+class TransitiveClosure(BaseModel):
+    """A closure table that actually equals the closure of its edges.
+
+    Warehouses materialise reachability so queries do not need a recursive CTE.
+    Generated naively the closure and the edges are two unrelated random tables,
+    and every question asked through the closure gets a different answer from the
+    same question asked through the edges. Nothing row-level catches that.
+
+    Afterwards the table contains exactly the reachable pairs of ``edge_table``,
+    each once, with ``depth_column`` equal to the true shortest path length.
+    Costs: the row count is whatever the closure actually is, so the declared
+    ``row_count`` is advisory and the table is resized to fit the graph.
+    """
+
+    name: str
+    table: str
+    edge_table: str
+    edge_from: str
+    edge_to: str
+    ancestor_column: str
+    descendant_column: str
+    depth_column: Optional[str] = None
+
+
 class RealismConfig(BaseModel):
     """
     Configuration for advanced realism features.
@@ -1114,6 +1186,9 @@ class SchemaConfig(BaseModel):
     event_logs: List[EventLog] = Field(default_factory=list)
     outliers: List[Outliers] = Field(default_factory=list)
     typos: List[Typos] = Field(default_factory=list)
+    bitemporal: List[Bitemporal] = Field(default_factory=list)
+    dag_edges: List[DagEdges] = Field(default_factory=list)
+    closures: List[TransitiveClosure] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="anchored",
         description=(

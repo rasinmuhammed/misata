@@ -1380,8 +1380,10 @@ class RealisticTextGenerator:
         """Expand the limited locale-pack regex patterns into deterministic strings."""
         output = ""
         i = 0
+        members: Optional[List[str]] = None
         while i < len(pattern):
             token = pattern[i]
+            members = None
             if pattern.startswith(r"\d", i):
                 char_type = "digit"
                 i += 2
@@ -1397,12 +1399,21 @@ class RealisticTextGenerator:
             elif token == "[":
                 end = pattern.find("]", i)
                 body = pattern[i + 1:end] if end != -1 else "A-Z"
+                members = None
                 if "A-Z" in body:
                     char_type = "letter"
                 elif "a-z" in body:
                     char_type = "lower"
+                elif "0-9" in body:
+                    # The most obvious way to write a digit class. It used to
+                    # fall through to "literal", which emitted nothing at all,
+                    # so `SKU-[0-9]{4}` came out as the string "SKU-".
+                    char_type = "digit"
                 else:
-                    char_type = "literal"
+                    # An explicit set, `[ABC]` or `[xyz1]`: draw one member per
+                    # repeat rather than dropping the whole group.
+                    members = [c for c in body if c not in "^-"]
+                    char_type = "set" if members else "literal"
                 i = end + 1 if end != -1 else i + 1
             elif token == "\\" and i + 1 < len(pattern):
                 output += pattern[i + 1]
@@ -1429,6 +1440,10 @@ class RealisticTextGenerator:
                 output += "".join(chr(int(self.rng.integers(65, 91))) for _ in range(repeat))
             elif char_type == "lower":
                 output += "".join(chr(int(self.rng.integers(97, 123))) for _ in range(repeat))
+            elif char_type == "set" and members:
+                output += "".join(
+                    members[int(self.rng.integers(0, len(members)))]
+                    for _ in range(repeat))
 
         return output
 

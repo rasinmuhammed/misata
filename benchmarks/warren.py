@@ -168,6 +168,11 @@ def build_schema() -> SchemaConfig:
                            "choices": ["open", "in_progress", "blocked",
                                        "done", "cancelled"],
                            "probabilities": [0.2, 0.2, 0.1, 0.4, 0.1]}),
+                # These three null rates are chosen to AGREE with the
+                # lifecycle weights below (open .20 + in_progress .20 +
+                # blocked .10 + done .40 + cancelled .10). The lifecycle writes
+                # them last, so a rate that disagreed would simply be ignored;
+                # `misata.composition` flags the overlap for exactly this reason.
                 Column(name="started_at", type="datetime", nullable=True,
                        distribution_params={"start": "2022-07-01",
                                             "end": "2025-06-30",

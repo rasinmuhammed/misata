@@ -495,6 +495,9 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
                             ("event_logs", "__event_logs__"),
                             ("outliers", "__outliers__"),
                             ("typos", "__typos__"),
+                            ("bitemporal", "__bitemporal__"),
+                            ("dag_edges", "__dag_edges__"),
+                            ("closures", "__closures__"),
                             ("noise", "__noise__"),
                             ("vocabulary", "__vocabulary__"),
                             ("vocabularies", "__vocabulary__")):
@@ -654,9 +657,10 @@ def from_dict_schema(
     # Every declaration added since 0.8.9.4 was reachable from SchemaConfig but
     # not from YAML, so `misata lint` rejected the very files the docs showed.
     # One table, so the next declaration is one line rather than a new branch.
-    from misata.schema import (CohortRetention, Duplicates, EventLog,
-                               LateArrival, Lifecycle, Missingness, Outliers,
-                               TimeGrid, Typos)
+    from misata.schema import (Bitemporal, CohortRetention, DagEdges,
+                               Duplicates, EventLog, LateArrival, Lifecycle,
+                               Missingness, Outliers, TimeGrid,
+                               TransitiveClosure, Typos)
     declared: Dict[str, List[Any]] = {}
     for key, model in (("lifecycles", Lifecycle),
                        ("retention", CohortRetention),
@@ -666,7 +670,10 @@ def from_dict_schema(
                        ("duplicates", Duplicates),
                        ("event_logs", EventLog),
                        ("outliers", Outliers),
-                       ("typos", Typos)):
+                       ("typos", Typos),
+                       ("bitemporal", Bitemporal),
+                       ("dag_edges", DagEdges),
+                       ("closures", TransitiveClosure)):
         out: List[Any] = []
         for i, raw in enumerate(schemas.get(f"__{key}__") or []):
             try:
@@ -885,6 +892,9 @@ def from_dict_schema(
         event_logs=declared["event_logs"],
         outliers=declared["outliers"],
         typos=declared["typos"],
+        bitemporal=declared["bitemporal"],
+        dag_edges=declared["dag_edges"],
+        closures=declared["closures"],
         generation_mode=(schemas.get("__generation_mode__")
                          or schemas.get("generation_mode") or "anchored"),
         noise_config=noise_config,

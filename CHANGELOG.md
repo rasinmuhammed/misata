@@ -5,6 +5,85 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2026-07-28
+
+The three follow-ups named at the end of 0.9.2, and the four defects they
+exposed on the way.
+
+### A third shape: the Ledger
+
+`benchmarks/ledger.py`, 48 assertions, awkward in two new ways.
+
+**Bitemporal.** A fact has two independent time axes: when it was true
+(`valid_from`/`valid_to`) and when the system was told
+(`recorded_at`/`superseded_at`). `scd2` tiles one. The `Bitemporal` declaration
+tiles both, independently, so a correction recorded today can restate last March
+without destroying what we believed in between. Exactly one version is current,
+system time hands over with no gap, and an as-of query at any instant returns
+exactly one row per entity.
+
+**Graph-shaped.** `DagEdges` keeps an edge *table* acyclic at any depth by
+ranking nodes topologically and only ever drawing low rank to high. The forest
+rule from 0.9.2 could not do this: it relies on insertion order, and an edge
+table has none. `TransitiveClosure` does not generate a closure at all, it
+computes one from the edges, because a closure that disagrees with its own edges
+is exactly the defect.
+
+Fifteen of the 48 assertions fail with the declarations removed. That control is
+asserted in `tests/test_ledger_composition.py`, because a suite that passes with
+the feature switched off is decorative.
+
+### The composition audit
+
+Every declaration is verified individually, and nothing checked that several on
+one table compose. Four shipped defects had already come from precisely that:
+the 0.8.8.5 roll-up overwriting a curve, `null_rate` undoing a `when_then`,
+`TimeGrid` moving a timestamp behind causality, `EventLog` leaving a key in the
+previous tenant. All four found by accident.
+
+`misata.composition` looks on purpose. It reports which declarations write the
+same column and in what order, and `misata lint` now shows it.
+
+**It is deliberately static, and it says so.** The first version announced that
+three declared null rates "will not hold" on a schema where all three held
+exactly, because they had been chosen to match the lifecycle's weights. A static
+reader cannot know whether the later pass happens to produce the same result, so
+it reports the fact (who writes last) and leaves the outcome to the audit. Its
+`PASS_ORDER` is read off `simulator.py` rather than remembered, after the first
+attempt put `lifecycle` before `null_rate` and produced four confident false
+positives.
+
+### `typos` beyond categoricals
+
+Restricted to declared `choices` in 0.9.2, which is what made it verifiable. It
+now also accepts `pattern`: `choices` enumerates legal values, `pattern`
+describes them, and Misata's pattern syntax is regex-shaped already, so it
+doubles as the checker. A column with neither is still refused, because a typo
+nobody can describe is unfalsifiable.
+
+### Four defects found while doing the above
+
+- **`[0-9]` in a pattern silently produced nothing.** The expander recognised
+  `\d`, `[A-Z]` and `[a-z]`, and fell through to "literal" for everything else,
+  emitting an empty string. `SKU-[0-9]{4}` came out as `SKU-`. Digit ranges and
+  explicit sets like `[ABC]` now work.
+- **The documented YAML form dropped every declaration added since 0.8.9.4.**
+  There are two dict paths into `SchemaConfig`; 0.9.1 fixed
+  `compat.from_dict_schema` and left `yaml_schema.load_yaml_schema` untouched, so
+  a lifecycle written exactly as the docs show was parsed, validated, and
+  discarded. All twelve declarations now load, with a test asserting the loader
+  can produce every list field on `SchemaConfig`.
+- **`null_rate` and `pattern` did not survive that loader either**, because the
+  column parser's passthrough list never included them.
+- **Resizing a closure table duplicated its primary key.** Recycling rows to fill
+  a larger closure repeated their keys; unique columns are now rebuilt.
+
+### Also
+
+- Two new audit detectors: `bitemporal`, and `dag_cycle` / `closure_mismatch`.
+- The Ledger is in CI beside the Gauntlet and the Warren. Three suites, 284
+  assertions, all green, all with an empty `KNOWN_RED` and the mechanism intact.
+
 ## [0.9.2] - 2026-07-28
 
 A second conformance suite, and the four declarations it forced.

@@ -898,6 +898,144 @@
         "type": "object",
         "additionalProperties": false
       }
+    },
+    "bitemporal": {
+      "type": "array",
+      "description": "Two independent time axes on one fact: business validity and system recording. Exactly one version is current, system time tiles without gaps, and an as-of query returns one row per entity.",
+      "items": {
+        "description": "A fact with two independent time axes: when it was true, and when we knew.\n\n``scd2`` tiles ONE axis. Bitemporal data has two, and they are genuinely\nindependent: a correction recorded today can change what was true last\nMarch, without destroying the record of what we believed in between. That is\nthe whole point of the shape, and \"as of last Tuesday, what did we think the\nposition was?\" is the query it exists to answer.\n\nAfter generation, per entity:\n\n* exactly one row is current in system time (``superseded_at`` is null), and\n  that row leaves valid time open,\n* system time tiles: every ``superseded_at`` equals the ``recorded_at`` of\n  the version that replaced it, with no gap and no overlap,\n* an as-of query at any instant returns exactly one row per entity,\n* ``valid_to > valid_from`` and ``superseded_at > recorded_at`` everywhere.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          },
+          "entity_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "valid_from": {
+            "type": "string"
+          },
+          "valid_to": {
+            "type": "string"
+          },
+          "recorded_at": {
+            "type": "string"
+          },
+          "superseded_at": {
+            "type": "string"
+          },
+          "avg_versions": {
+            "default": 3.0,
+            "minimum": 1.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "table",
+          "entity_columns",
+          "valid_from",
+          "valid_to",
+          "recorded_at",
+          "superseded_at"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    "dag_edges": {
+      "type": "array",
+      "description": "An edge table that is a directed acyclic graph: no self-edges, no duplicate pairs, no cycle at any depth.",
+      "items": {
+        "description": "An edge table that is a directed acyclic graph.\n\nThe forest rule added in 0.9.2 keeps a self-referential *column* acyclic. It\nsays nothing about a join table, where the same guarantee needs a different\nconstruction: edges are drawn between nodes ordered by a topological rank, so\nan edge always points from lower rank to higher and a cycle cannot close.\n\nGuarantees no self-edges, no duplicate pairs, and no cycle at any depth.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          },
+          "node_table": {
+            "type": "string"
+          },
+          "node_key": {
+            "type": "string"
+          },
+          "from_column": {
+            "type": "string"
+          },
+          "to_column": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "table",
+          "node_table",
+          "node_key",
+          "from_column",
+          "to_column"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
+    },
+    "closures": {
+      "type": "array",
+      "description": "A closure table that equals the transitive closure of its edge table, with depth equal to the true shortest path.",
+      "items": {
+        "description": "A closure table that actually equals the closure of its edges.\n\nWarehouses materialise reachability so queries do not need a recursive CTE.\nGenerated naively the closure and the edges are two unrelated random tables,\nand every question asked through the closure gets a different answer from the\nsame question asked through the edges. Nothing row-level catches that.\n\nAfterwards the table contains exactly the reachable pairs of ``edge_table``,\neach once, with ``depth_column`` equal to the true shortest path length.\nCosts: the row count is whatever the closure actually is, so the declared\n``row_count`` is advisory and the table is resized to fit the graph.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          },
+          "edge_table": {
+            "type": "string"
+          },
+          "edge_from": {
+            "type": "string"
+          },
+          "edge_to": {
+            "type": "string"
+          },
+          "ancestor_column": {
+            "type": "string"
+          },
+          "descendant_column": {
+            "type": "string"
+          },
+          "depth_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "name",
+          "table",
+          "edge_table",
+          "edge_from",
+          "edge_to",
+          "ancestor_column",
+          "descendant_column"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      }
     }
   },
   "$defs": {

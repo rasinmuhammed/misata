@@ -29,6 +29,7 @@ and a guarantee, and the guarantee is the product.
 
 from __future__ import annotations
 
+import re
 import warnings
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -639,18 +640,13 @@ def apply_typos(
     if df is None or df.empty or spec.column not in df.columns:
         return tables
 
-    choices = None
-    for c in (config.columns.get(spec.table, []) or []):
-        if c.name == spec.column:
-            raw = (c.distribution_params or {}).get("choices")
-            if raw:
-                choices = {str(x) for x in raw}
-            break
-    if not choices:
+    choices, pattern = _typo_vocabulary(config, spec.table, spec.column)
+    if choices is None and pattern is None:
         warnings.warn(
-            f"Typos on '{spec.table}.{spec.column}': the column declares no "
-            f"'choices', so a typo in it is unfalsifiable and the audit could "
-            f"not check the count. Declare choices, or drop this typos entry.")
+            f"Typos on '{spec.table}.{spec.column}': the column declares "
+            f"neither 'choices' nor 'pattern', so a typo in it is "
+            f"unfalsifiable and the audit could not check the count. Declare "
+            f"one of them, or drop this typos entry.")
         return tables
 
     n = int(spec.count) if spec.count is not None else exact_count(len(df), spec.fraction)
@@ -658,7 +654,8 @@ def apply_typos(
         return tables
 
     as_str = df[spec.column].astype("string")
-    clean = np.flatnonzero(as_str.isin(choices).to_numpy())
+    ok = _typo_clean_mask(as_str, choices, pattern)
+    clean = np.flatnonzero(ok.to_numpy())
     dirty_now = int(len(df) - len(clean) - int(as_str.isna().sum()))
     if dirty_now > n:
         warnings.warn(
@@ -679,17 +676,72 @@ def apply_typos(
     values = df[spec.column].astype(object).to_numpy().copy()
     for i in picked:
         original = str(values[i])
-        for _ in range(8):                      # a slip that lands back on a
-            candidate = _corrupt(original, rng)  # real value is not a typo
-            if candidate not in choices and candidate != original:
+        for _ in range(8):                       # a slip that lands back on a
+            candidate = _corrupt(original, rng)  # legal value is not a typo
+            if candidate != original and not _typo_is_clean(
+                    candidate, choices, pattern):
                 values[i] = candidate
                 break
         else:
+            # Guaranteed illegal for both vocabularies: '?' is outside every
+            # declared choice set, and outside any pattern that did not ask
+            # for it.
             values[i] = original + "?"
     out = df.copy()
     out[spec.column] = values
     tables[spec.table] = out
     return tables
+
+
+def _typo_vocabulary(config: Any, table: str, column: str):
+    """(choices, compiled pattern) for a column, whichever it declares.
+
+    A typo is only a guarantee if something can say what a legal value looks
+    like. `choices` enumerates them; `pattern` describes them, and Misata's
+    pattern syntax is regex-shaped already, so it doubles as the checker. A
+    free-text column has neither, and a typo in it is unfalsifiable.
+    """
+    for c in (config.columns.get(table, []) or []):
+        if c.name != column:
+            continue
+        p = c.distribution_params or {}
+        raw = p.get("choices")
+        if raw:
+            return {str(x) for x in raw}, None
+        pat = p.get("pattern")
+        if isinstance(pat, (list, tuple)):
+            pat = [str(x) for x in pat if str(x)]
+            if not pat:
+                return None, None
+            joined = "|".join(f"(?:{x})" for x in pat)
+        elif pat:
+            joined = str(pat)
+        else:
+            return None, None
+        try:
+            return None, re.compile(joined)
+        except re.error:
+            return None, None
+    return None, None
+
+
+def _typo_is_clean(value: Any, choices, pattern) -> bool:
+    if value is None:
+        return True
+    text = str(value)
+    if choices is not None:
+        return text in choices
+    if pattern is not None:
+        return pattern.fullmatch(text) is not None
+    return True
+
+
+def _typo_clean_mask(as_str: pd.Series, choices, pattern) -> pd.Series:
+    if choices is not None:
+        return as_str.isin(choices).fillna(False)
+    return as_str.map(
+        lambda v: pattern.fullmatch(str(v)) is not None
+        if v is not None and v is not pd.NA else False).fillna(False)
 
 
 # --------------------------------------------------------------------------- #

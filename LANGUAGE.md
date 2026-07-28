@@ -430,9 +430,70 @@ can be *scored*, which is impossible against a probabilistic rate.
 and MAD: those do not drift as outliers are added, so the audit recomputes the
 same threshold the generator used.
 
-**Refuses.** `typos` refuses a column with no declared `choices`, because a typo
-nobody can enumerate is unfalsifiable. Both warn, and change nothing, when the
+**Refuses.** `typos` refuses a column that declares neither `choices` nor
+`pattern`, because a typo nobody can describe is unfalsifiable. `choices`
+enumerates legal values; `pattern` describes them, and Misata's pattern
+syntax is regex-shaped already, so it doubles as the checker. Both warn, and change nothing, when the
 column already contains more dirt than was declared.
+
+---
+
+### `bitemporal` — two independent time axes
+
+```python
+Bitemporal(name="position_history", table="positions",
+           entity_columns=["party_id", "instrument_id"],
+           valid_from="valid_from", valid_to="valid_to",
+           recorded_at="recorded_at", superseded_at="superseded_at")
+```
+
+**Guarantees.** Per entity: exactly one version is current in system time and
+leaves valid time open; system time tiles, so every `superseded_at` is the
+`recorded_at` of the version that replaced it; an as-of query at any instant
+returns exactly one row. Intervals never close before they open on either axis.
+
+**Owns.** All four timestamp columns. Nothing else on the row is touched, so
+foreign keys and any partition survive.
+
+**Costs.** The whole table is rewritten. Business time is written *inside* each
+system-time version, which is what lets a later correction restate an earlier
+period. That overlap across versions is correct rather than a defect: it is what
+a correction looks like.
+
+**Note.** `scd2` tiles one axis. This is not a bigger `scd2`, it is a different
+shape, and the query it exists to answer is "as of last Tuesday, what did we
+think this was?"
+
+---
+
+### `dag_edges` / `closures` — a graph that stays a graph
+
+```python
+DagEdges(name="task_dag", table="dependencies", node_table="tasks",
+         node_key="task_id", from_column="from_task_id", to_column="to_task_id")
+TransitiveClosure(name="task_closure", table="closure",
+                  edge_table="dependencies",
+                  edge_from="from_task_id", edge_to="to_task_id",
+                  ancestor_column="ancestor_id",
+                  descendant_column="descendant_id", depth_column="depth")
+```
+
+**Guarantees.** The edge table has no self-edges, no duplicate pairs, and no
+cycle at any depth. The closure table contains exactly the reachable pairs of the
+edge table, each once, with `depth` equal to the true shortest path.
+
+**Owns.** The edge columns; and for a closure, the whole table. A closure is not
+generated and then checked, it is *computed* from the edges, because a closure
+that disagrees with its own edges is precisely the defect.
+
+**Costs.** The declared `row_count` on a closure table is advisory: the closure
+is whatever the graph makes it, so the table is resized to fit. Columns the
+declaration does not own keep their generated values, and any column declared
+`unique` is rebuilt as a fresh run so resizing cannot break the key.
+
+**Note.** The forest rule for self-referential *columns* does not extend to an
+edge table, because there is no insertion order to point backwards along. Nodes
+get a topological rank instead and edges only run low rank to high.
 
 ---
 
@@ -480,12 +541,22 @@ reached 100%. A suite at 100% has stopped being able to find anything, so the
 Warren is deliberately the wrong shape: multi-tenant, self-referential,
 event-sourced, 10 tables and 110 assertions. It found 22 failures on its first
 run, four of which were real gaps in the language rather than mistakes in the
-schema, and every declaration in the four sections above exists because of it.
+schema.
+
+`benchmarks/ledger.py` is the third: bitemporal and graph-shaped, 48 assertions.
+Fifteen of them fail with its declarations removed, which is the control that
+keeps a suite from being decorative.
+
+Alongside them, `misata.composition` answers a question none of the suites do:
+when two declarations write the same column, which one writes last. Every
+declaration is verified individually and nothing checked that several compose,
+which is where four shipped defects came from. `misata lint` reports it.
 
 ```bash
 python -m benchmarks.gauntlet                        # 126/126
 python -m benchmarks.gauntlet_compare --tool faker   # 72/126
 python -m benchmarks.warren                          # 110/110
+python -m benchmarks.ledger                          # 48/48
 python -m benchmarks.bench_dynamics --big            # what the passes cost
 ```
 

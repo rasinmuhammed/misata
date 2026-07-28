@@ -358,3 +358,91 @@ class TestSchemaCoversEveryDeclaration:
         assert cfg.time_grids[0].minute_grid == 30
         assert len(cfg.duplicates) == 1
         assert cfg.duplicates[0].count == 4
+
+
+class TestYamlLoaderCarriesEveryDeclaration:
+    """The documented YAML form must not silently drop what it accepts.
+
+    There are two dict paths into `SchemaConfig`: `compat.from_dict_schema` and
+    `yaml_schema.load_yaml_schema`. 0.9.1 fixed the first. The second kept
+    accepting `lifecycles`, `null_rate` and `pattern` and then discarding them,
+    so a schema written exactly as the docs show was parsed, validated, and
+    quietly stripped. Fixing one path and not the other is the failure mode
+    this guards.
+    """
+
+    def _write(self, tmp_path, body):
+        p = tmp_path / "s.yaml"
+        p.write_text(body)
+        return p
+
+    def test_lifecycles_survive_the_documented_yaml_form(self, tmp_path):
+        from misata.yaml_schema import load_yaml_schema
+        path = self._write(tmp_path, """
+name: lc_yaml
+seed: 1
+tables:
+  t:
+    rows: 40
+    columns:
+      id: {type: int, unique: true, min: 1, max: 40}
+      created_at: {type: datetime, start: '2024-01-01', end: '2024-06-30'}
+      state: {type: categorical, choices: [open, done]}
+      done_at: {type: datetime, start: '2024-01-01', end: '2024-12-31'}
+lifecycles:
+  - name: lc
+    table: t
+    state_column: state
+    start_column: created_at
+    initial: open
+    states:
+      - {name: open}
+      - {name: done, timestamp: done_at, terminal: true}
+    transitions: [[open, done]]
+    weights: {open: 0.5, done: 0.5}
+""")
+        cfg = load_yaml_schema(path, rows=40)
+        assert len(cfg.lifecycles) == 1
+        assert cfg.lifecycles[0].state_column == "state"
+
+    def test_column_params_survive_the_documented_yaml_form(self, tmp_path):
+        from misata.yaml_schema import load_yaml_schema
+        path = self._write(tmp_path, """
+name: params_yaml
+seed: 1
+tables:
+  t:
+    rows: 40
+    columns:
+      id: {type: int, unique: true, min: 1, max: 40}
+      sku: {type: text, pattern: 'SKU-[0-9]{4}'}
+      note: {type: text, null_rate: 0.4}
+""")
+        cfg = load_yaml_schema(path, rows=40)
+        params = {c.name: c.distribution_params for c in cfg.columns["t"]}
+        assert params["sku"].get("pattern") == "SKU-[0-9]{4}"
+        assert params["note"].get("null_rate") == 0.4
+
+    def test_every_declaration_list_survives_a_round_trip(self, tmp_path):
+        """Any list on SchemaConfig must be loadable from YAML, not just some."""
+        import typing
+        from misata.yaml_schema import load_yaml_schema
+        from misata.schema import SchemaConfig
+
+        skip = {"tables", "columns", "events", "constraints"}
+        declared = {
+            name for name, f in SchemaConfig.model_fields.items()
+            if name not in skip and typing.get_origin(f.annotation) is list
+        }
+        path = self._write(tmp_path, """
+name: empty
+seed: 1
+tables:
+  t:
+    rows: 5
+    columns:
+      id: {type: int, unique: true, min: 1, max: 5}
+""")
+        cfg = load_yaml_schema(path, rows=5)
+        missing = sorted(d for d in declared if not hasattr(cfg, d))
+        assert not missing, f"SchemaConfig fields the loader cannot produce: {missing}"
