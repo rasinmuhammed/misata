@@ -164,6 +164,15 @@ class Relationship(BaseModel):
     parent_time: Optional[str] = None
     child_time: Optional[str] = None
     child_time_table: Optional[str] = None
+    # Partition isolation: the key must resolve to a parent that agrees with the
+    # child on every one of these columns. Multi-tenancy is the usual reason
+    # (`partition_by=["tenant_id"]`), and it is the same idea as the `partition
+    # by` a window function needs: a value that crosses the boundary is not
+    # merely unrealistic, it is a leak. Named after the SQL clause on purpose,
+    # because the bug this prevents is the one a missing `partition by` causes.
+    # The columns must exist on BOTH tables, and the child's copy must be
+    # generated before this key, which column order already guarantees.
+    partition_by: List[str] = Field(default_factory=list)
     min_children: int = 0  # every (eligible) parent gets at least this many
     # child rows. An order with zero line items does not exist in real data;
     # min_children=1 on orders→order_items guarantees coverage. Only honoured
@@ -715,6 +724,45 @@ class Lifecycle(BaseModel):
         return None
 
 
+class EventLog(BaseModel):
+    """An entity's state implies exactly which events its log contains.
+
+    ``lifecycles`` made a status column trustworthy: a row in state S carries
+    the timestamps of every state on the path to S, and nulls elsewhere. In an
+    event-sourced system the same fact lives in a child table instead, and
+    nothing tied the two together. The Warren suite measured the result: 602
+    done tasks with no completion event, 332 open tasks that had somehow been
+    completed, and 667 completion events that happened before work started.
+
+    This is the same guarantee, projected onto the log. For each entity, the
+    lifecycle already knows the ordered path its state implies. ``state_events``
+    names the event type that records arriving at each state, and afterwards:
+
+    * every state on the entity's path with a mapped event type has exactly one
+      such event,
+    * no event names a state the entity never reached,
+    * those events ascend in path order, and agree with the entity's own
+      timestamps where the lifecycle wrote them.
+
+    Rows left over after the required events are filler, drawn only from event
+    types that are legal for that entity. Costs: the whole event table is
+    rewritten, so it needs at least one row per required event, and refuses
+    with the arithmetic when it does not have them.
+    """
+
+    name: str
+    table: str                      # the event table
+    entity_table: str               # whose lifecycle the log explains
+    entity_key: str                 # FK on the event table
+    event_type_column: str
+    event_time_column: str
+    # state name -> the event type that records entering it
+    state_events: Dict[str, str]
+    # event types that may appear any number of times, in any order, as long as
+    # the entity actually reached the state they belong to
+    filler_events: List[str] = Field(default_factory=list)
+
+
 class StockFlowIdentity(BaseModel):
     """Declare an inventory table whose stock ledger reconciles to the unit.
 
@@ -927,6 +975,62 @@ class Duplicates(BaseModel):
         return self
 
 
+class Outliers(BaseModel):
+    """Exactly this many rows are outliers, at a declared distance.
+
+    ``noise_config.outlier_rate`` sprayed extreme values at a probability and
+    told you nothing afterwards, so a test written against it could assert
+    nothing. An anomaly detector evaluated on that data has no answer key.
+
+    The declared form is a count and a distance, both measured with median and
+    MAD rather than mean and standard deviation. That matters: outliers inflate
+    the standard deviation they are measured against, so a mean-based threshold
+    moves as you add them and the guarantee stops being checkable. Median and
+    MAD do not move, so ``coherence_audit`` recomputes the same number from the
+    emitted rows that the generator used to write them.
+    """
+
+    table: str
+    column: str
+    count: Optional[int] = None
+    fraction: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    sigma: float = Field(default=6.0, gt=0.0)   # robust deviations from median
+    direction: Literal["both", "high", "low"] = "both"
+
+    @model_validator(mode="after")
+    def validate_one_of(self) -> "Outliers":
+        if self.count is None and self.fraction is None:
+            raise ValueError("Outliers needs either 'count' or 'fraction'")
+        return self
+
+
+class Typos(BaseModel):
+    """Exactly this many values are corrupted versions of a legal value.
+
+    Fuzzy matching, deduplication and validation logic all need dirty input to
+    be tested, and all of it is untestable against data whose every value is
+    clean. ``noise_config.typo_rate`` produced dirt at a probability; this
+    produces a known number of it.
+
+    Restricted to columns with a declared ``choices`` set, because that is what
+    makes the result verifiable: afterwards, exactly ``count`` values are NOT
+    members of the declared vocabulary, and the audit checks precisely that. A
+    typo in a free-text column is unfalsifiable, so the declaration refuses it
+    rather than pretending.
+    """
+
+    table: str
+    column: str
+    count: Optional[int] = None
+    fraction: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_one_of(self) -> "Typos":
+        if self.count is None and self.fraction is None:
+            raise ValueError("Typos needs either 'count' or 'fraction'")
+        return self
+
+
 class RealismConfig(BaseModel):
     """
     Configuration for advanced realism features.
@@ -1007,6 +1111,9 @@ class SchemaConfig(BaseModel):
     late_arrivals: List[LateArrival] = Field(default_factory=list)
     time_grids: List[TimeGrid] = Field(default_factory=list)
     duplicates: List[Duplicates] = Field(default_factory=list)
+    event_logs: List[EventLog] = Field(default_factory=list)
+    outliers: List[Outliers] = Field(default_factory=list)
+    typos: List[Typos] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="anchored",
         description=(

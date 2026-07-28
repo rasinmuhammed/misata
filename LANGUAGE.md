@@ -332,6 +332,110 @@ means `subset` is not distinct enough to control.
 
 ---
 
+### `partition_by` — a key that stays inside its tenant
+
+```python
+Relationship(parent_table="projects", child_table="tasks",
+             parent_key="project_id", child_key="project_id",
+             partition_by=["tenant_id"])
+```
+
+**Guarantees.** Every child row references a parent that agrees with it on every
+named column. Named after the SQL clause deliberately: the bug it prevents is the
+one a missing `partition by` causes.
+
+**Owns.** The foreign-key column. It outranks temporal eligibility and every
+sampling weight, and composes with eligibility rather than replacing it: inside
+the partition, the parent must also already have existed. `min_children`
+respects it, so coverage cannot re-open the leak.
+
+**Costs.** One factorisation and a loop over partitions, vectorised inside each.
+Partitions are normally few, so this is cheaper than a per-row filter.
+
+**Refuses.** Nothing statically. At generation time it warns, naming the count,
+when a child's partition holds no parent at all.
+
+**Note.** This is the highest-value check in the language for multi-tenant data,
+and the only one whose absence is invisible on single-tenant fixtures. That is
+not hypothetical: `fivetran/dbt_stripe` shipped a rolling total with no
+`partition by` to production, and the reason no test caught it is that its
+fixture contained exactly one account.
+
+---
+
+### self-referential keys — a forest, not a graph
+
+`Relationship(parent_table="orgs", child_table="orgs", parent_key="org_id",
+child_key="parent_org_id")`
+
+**Guarantees.** No cycles at any depth, no row its own parent, at least one root,
+and no row predating the row it nests inside. Acyclicity is by construction, not
+by repair: a row may only reference a row earlier in insertion order.
+
+**Owns.** The key, and the anchor date when the hierarchy would otherwise invert.
+With `partition_by`, the forest nests inside each partition independently.
+
+**Costs.** Nothing measurable. Roots come from a declared `null_rate` on the
+column, which is the one case where a foreign key may be null: an absent optional
+reference is not a broken one.
+
+---
+
+### `event_logs` — the log says what the state says
+
+```python
+EventLog(name="task_log", table="task_events", entity_table="tasks",
+         entity_key="task_id", event_type_column="event_type",
+         event_time_column="occurred_at",
+         state_events={"open": "created", "in_progress": "started",
+                       "done": "completed"},
+         filler_events=["unblocked"])
+```
+
+**Guarantees.** For every entity: exactly one event for each state on the path
+its own status implies, no event for a state it never reached, in path order, and
+agreeing with the timestamps the lifecycle wrote. `lifecycles` makes a status
+column trustworthy; this makes its log trustworthy too.
+
+**Owns.** The event table's type and time columns, *and* which entity each row
+belongs to. Ownership of the key is necessary rather than convenient: a done task
+needs three events and `min_children` can only promise one, so rows are allocated
+by requirement. Reassigning a row also moves its partition columns and re-draws
+its other partitioned keys, because a row that changes tenant cannot keep
+references to the old one.
+
+**Costs.** The whole event table is rewritten, and it must be large enough.
+
+**Refuses.** When the declared state mix implies more events than the table has
+rows, with the arithmetic. Computable before generation because lifecycle
+weights are declared.
+
+---
+
+### `outliers` / `typos` — dirt with an answer key
+
+```python
+Outliers(table="readings", column="value", count=30, sigma=6.0, direction="high")
+Typos(table="invoices", column="status", count=18)
+```
+
+**Guarantees.** Exactly `count` values sit beyond `sigma` robust deviations from
+the median; exactly `count` values fall outside a categorical column's declared
+`choices`. Both are answer keys: an anomaly detector or a deduplication routine
+can be *scored*, which is impossible against a probabilistic rate.
+
+**Owns.** The column's values on the rows it picks.
+
+**Costs.** Outliers move the mean, which is why the guarantee is stated in median
+and MAD: those do not drift as outliers are added, so the audit recomputes the
+same threshold the generator used.
+
+**Refuses.** `typos` refuses a column with no declared `choices`, because a typo
+nobody can enumerate is unfalsifiable. Both warn, and change nothing, when the
+column already contains more dirt than was declared.
+
+---
+
 ## Value and structural guarantees
 
 Not declarations, but always on:
@@ -343,6 +447,7 @@ Not declarations, but always on:
 | Anchored streams | edit one declaration and only it changes |
 | Atomic geo | city, state and zip drawn as one consistent tuple |
 | Temporal profiles | timestamps quantised by name-guess; the *default*, not a guarantee. Declare `time_grids` to make it one |
+| Forest hierarchies | a self-referential key is always acyclic, with roots |
 | FK temporal eligibility | when declared on a relationship, a row can only reference a parent that already existed |
 
 ---
@@ -351,7 +456,11 @@ Not declarations, but always on:
 
 Kept in the codebase, deliberately outside the contract, because they cannot be
 both declared and verified: the LLM story parser, vocabulary and capsule
-enrichment, PDF export, Spark output, fidelity/TSTR scoring.
+enrichment, PDF export, Spark output, fidelity/TSTR scoring, and the last of
+`noise_config`'s probabilistic rates. `null_rate` graduated into `missingness`,
+`duplicate_rate` into `duplicates`, `outlier_rate` into `outliers` and
+`typo_rate` into `typos`; what remains of `noise_config` is a convenience, not a
+guarantee, and the README says so.
 
 They are conveniences. The rule that decides: **a capability earns a place in the
 language only if it can be declared and verified.** If you cannot state it in the
@@ -366,9 +475,18 @@ diamond dependency, and 126 SQL assertions executed by DuckDB, which shares no
 code with the generator. It runs in CI on every push with a `KNOWN_RED` contract,
 so it cannot quietly shrink to fit the product.
 
+`benchmarks/warren.py` is the second suite, and it exists because the first one
+reached 100%. A suite at 100% has stopped being able to find anything, so the
+Warren is deliberately the wrong shape: multi-tenant, self-referential,
+event-sourced, 10 tables and 110 assertions. It found 22 failures on its first
+run, four of which were real gaps in the language rather than mistakes in the
+schema, and every declaration in the four sections above exists because of it.
+
 ```bash
 python -m benchmarks.gauntlet                        # 126/126
 python -m benchmarks.gauntlet_compare --tool faker   # 72/126
+python -m benchmarks.warren                          # 110/110
+python -m benchmarks.bench_dynamics --big            # what the passes cost
 ```
 
 `KNOWN_RED` is empty as of 0.9.1. The mechanism stays: an assertion written

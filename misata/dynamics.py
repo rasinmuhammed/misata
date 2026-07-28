@@ -91,6 +91,30 @@ def _period_start_ns(period: int, unit: str) -> Tuple[int, int]:
     return start.value, end.value - start.value
 
 
+def _period_bounds(periods: np.ndarray, unit: str) -> Tuple[np.ndarray, np.ndarray]:
+    """(start_ns, length_ns) for a whole array of period indices at once.
+
+    The scalar :func:`_period_start_ns` built two ``pd.Timestamp`` objects per
+    call, which is fine once and ruinous per row: it made ``apply_retention``
+    100x slower than every other pass in the module (147k rows/sec against
+    2.4M-18M). Months are resolved by casting months-since-epoch straight to
+    ``datetime64[M]``, which numpy does exactly and without pandas' deprecation
+    churn around ``PeriodIndex`` ordinals.
+    """
+    p = np.asarray(periods, dtype="int64")
+    if unit == "day":
+        return p * NS_PER_DAY, np.full(p.shape, NS_PER_DAY, dtype="int64")
+    if unit == "week":
+        return (p * 7 * NS_PER_DAY,
+                np.full(p.shape, 7 * NS_PER_DAY, dtype="int64"))
+    # `_period_index` encodes months as year*12 + month - 1, i.e. months since
+    # year 0; numpy counts from 1970.
+    m = p - 1970 * 12
+    starts = m.astype("datetime64[M]").astype("datetime64[ns]").astype("int64")
+    nexts = (m + 1).astype("datetime64[M]").astype("datetime64[ns]").astype("int64")
+    return starts, nexts - starts
+
+
 def _condition_mask(df: pd.DataFrame, column: str, op: str, value: Any) -> pd.Series:
     col = df[column]
     if op == "==":
@@ -154,28 +178,33 @@ def apply_retention(
         return tables
 
     # (entity, period) cells that must contain at least one event.
-    cells: List[Tuple[Any, int]] = []
+    parts_entity: List[np.ndarray] = []
+    parts_period: List[np.ndarray] = []
+    offsets = sorted(spec.curve)
     for cohort_period, grp in c.groupby("_p", sort=True):
-        members = grp[spec.cohort_key].tolist()
+        members = grp[spec.cohort_key].to_numpy()
         # Stable order, shuffled once per cohort so membership is not tied to
         # insertion order, then reused across offsets to give nested retention.
-        order = rng.permutation(len(members))
-        members = [members[i] for i in order]
+        members = members[rng.permutation(len(members))]
         size = len(members)
-        for offset in sorted(spec.curve):
+        for offset in offsets:
             keep = exact_count(size, spec.curve[offset])
-            target_period = int(cohort_period) + int(offset)
-            for entity in members[:keep]:
-                cells.append((entity, target_period))
+            if keep <= 0:
+                continue
+            parts_entity.append(members[:keep])
+            parts_period.append(np.full(
+                keep, int(cohort_period) + int(offset), dtype="int64"))
 
-    if not cells:
+    if not parts_entity:
         return tables
-    if len(cells) > len(events):
+    cell_entity = np.concatenate(parts_entity)
+    cell_period = np.concatenate(parts_period)
+    if len(cell_entity) > len(events):
         warnings.warn(
-            f"CohortRetention on '{spec.table}': the curve needs {len(cells)} "
-            f"active entity-periods but the table has only {len(events)} rows. "
-            f"Raise {spec.table}.row_count to at least {len(cells)}; the curve "
-            f"cannot be honoured as declared."
+            f"CohortRetention on '{spec.table}': the curve needs "
+            f"{len(cell_entity)} active entity-periods but the table has only "
+            f"{len(events)} rows. Raise {spec.table}.row_count to at least "
+            f"{len(cell_entity)}; the curve cannot be honoured as declared."
         )
         return tables
 
@@ -183,23 +212,27 @@ def apply_retention(
     n = len(ev)
     # One row per required cell first, then spread the surplus over the cells so
     # busy entities look busy rather than every entity having exactly one event.
-    assign = list(cells)
-    surplus = n - len(cells)
+    surplus = n - len(cell_entity)
     if surplus > 0:
-        idx = rng.integers(0, len(cells), size=surplus)
-        assign.extend(cells[i] for i in idx)
+        idx = rng.integers(0, len(cell_entity), size=surplus)
+        cell_entity = np.concatenate([cell_entity, cell_entity[idx]])
+        cell_period = np.concatenate([cell_period, cell_period[idx]])
 
     order = rng.permutation(n)
-    keys = np.empty(n, dtype=object)
-    stamps = np.empty(n, dtype="int64")
-    for slot, row in enumerate(order):
-        entity, period = assign[slot]
-        keys[row] = entity
-        start, length = _period_start_ns(period, spec.unit)
-        stamps[row] = start + int(rng.integers(0, max(length, 1)))
+    # The key keeps the cohort table's own dtype. Building it as an object array
+    # turned an int64 foreign key into object, which survives a groupby and
+    # then breaks the first join someone writes against it.
+    keys = np.empty(n, dtype=cell_entity.dtype)
+    keys[order] = cell_entity
+    periods = np.empty(n, dtype="int64")
+    periods[order] = cell_period
+
+    starts, lengths = _period_bounds(periods, spec.unit)
+    within = (rng.random(n) * np.maximum(lengths, 1)).astype("int64")
+    stamps = starts + np.minimum(within, np.maximum(lengths - 1, 0))
 
     ev[spec.cohort_key] = keys
-    ev[spec.event_time] = pd.to_datetime(stamps)
+    ev[spec.event_time] = stamps.astype("datetime64[ns]")
     tables[spec.table] = ev
     return tables
 
@@ -453,7 +486,11 @@ def apply_duplicates(
     if n <= 0:
         return tables
 
-    existing = len(df) - len(df[subset].drop_duplicates())
+    # `duplicated` is one hash pass. `len(df) - len(df[subset].drop_duplicates())`
+    # is the same number but materialises a deduplicated copy of every column,
+    # and the groupby-transform this replaced was the slowest thing in the
+    # module at scale.
+    existing = int(df.duplicated(subset=subset).sum())
     if existing > n:
         warnings.warn(
             f"Duplicates on '{spec.table}': the table already contains "
@@ -465,8 +502,9 @@ def apply_duplicates(
     if need == 0:
         return tables
 
-    counts = df.groupby(subset, dropna=False, sort=False)[subset[0]].transform("size")
-    unique_pos = np.flatnonzero((counts == 1).to_numpy())
+    # Rows currently alone on `subset`: not a member of any duplicated group.
+    in_dup_group = df.duplicated(subset=subset, keep=False).to_numpy()
+    unique_pos = np.flatnonzero(~in_dup_group)
     if len(unique_pos) < 2 * need:
         warnings.warn(
             f"Duplicates on '{spec.table}': {need} more duplicate(s) declared "
@@ -487,6 +525,169 @@ def apply_duplicates(
         vals = out[col].to_numpy(copy=True)
         vals[recipients] = vals[donors]
         out[col] = vals
+    tables[spec.table] = out
+    return tables
+
+
+# --------------------------------------------------------------------------- #
+# outliers and typos: dirt with an answer key
+# --------------------------------------------------------------------------- #
+
+def robust_scale(values: np.ndarray) -> Tuple[float, float]:
+    """(median, robust sigma) via MAD, scaled so it matches std for normal data.
+
+    Used by both the generator and the audit, so they cannot disagree about what
+    "six sigma out" means. Mean and standard deviation would be wrong here: the
+    outliers being placed inflate the very scale they are measured against, so
+    the threshold would drift as the count rose.
+    """
+    v = np.asarray(values, dtype=float)
+    v = v[np.isfinite(v)]
+    if v.size == 0:
+        return 0.0, 1.0
+    med = float(np.median(v))
+    mad = float(np.median(np.abs(v - med)))
+    return med, (mad * 1.4826) or (float(np.std(v)) or 1.0)
+
+
+def apply_outliers(
+    tables: Dict[str, pd.DataFrame],
+    spec: Any,
+    rng: np.random.Generator,
+) -> Dict[str, pd.DataFrame]:
+    """Push exactly the declared number of rows past the declared distance."""
+    df = tables.get(spec.table)
+    if df is None or df.empty or spec.column not in df.columns:
+        return tables
+    col = pd.to_numeric(df[spec.column], errors="coerce")
+    if col.notna().sum() < 4:
+        warnings.warn(
+            f"Outliers on '{spec.table}.{spec.column}': needs at least 4 numeric "
+            f"values to have a scale at all. Skipping.")
+        return tables
+
+    n = int(spec.count) if spec.count is not None else exact_count(len(df), spec.fraction)
+    if n <= 0:
+        return tables
+
+    med, sigma = robust_scale(col.to_numpy())
+    already = np.flatnonzero(
+        (np.abs(col.to_numpy(dtype=float) - med) / sigma >= spec.sigma))
+    eligible = np.flatnonzero(col.notna().to_numpy())
+    eligible = np.setdiff1d(eligible, already, assume_unique=False)
+    if n < len(already):
+        warnings.warn(
+            f"Outliers on '{spec.table}.{spec.column}': the column already holds "
+            f"{len(already)} value(s) beyond {spec.sigma:g} robust sigma, more "
+            f"than the {n} declared. Raise 'count', or raise 'sigma' so the "
+            f"declaration is about values you actually placed.")
+        return tables
+    need = n - len(already)
+    if need > len(eligible):
+        warnings.warn(
+            f"Outliers on '{spec.table}.{spec.column}': {need} more outlier(s) "
+            f"declared but only {len(eligible)} row(s) are available. Lower "
+            f"'count'.")
+        need = len(eligible)
+    if need <= 0:
+        return tables
+
+    picked = rng.permutation(eligible)[:need]
+    # Comfortably past the line, so a later rounding pass cannot pull one back
+    # under it and turn an exact count into an off-by-a-few.
+    dist = (spec.sigma + 1.0 + rng.random(need) * 3.0) * sigma
+    if spec.direction == "high":
+        sign = np.ones(need)
+    elif spec.direction == "low":
+        sign = -np.ones(need)
+    else:
+        sign = rng.choice([-1.0, 1.0], size=need)
+
+    out = df.copy()
+    # copy=True matters: to_numpy can hand back a read-only view of the block,
+    # and the write then raises inside the generic handler, so the pass appears
+    # to do nothing while reporting success.
+    vals = pd.to_numeric(out[spec.column],
+                         errors="coerce").to_numpy(dtype=float, copy=True)
+    vals[picked] = med + sign * dist
+    out[spec.column] = vals
+    tables[spec.table] = out
+    return tables
+
+
+def _corrupt(text: str, rng: np.random.Generator) -> str:
+    """One plausible keyboard slip: transpose, double, or drop a character."""
+    if len(text) < 2:
+        return text + text[-1:]
+    kind = int(rng.integers(0, 3))
+    i = int(rng.integers(0, len(text) - 1))
+    if kind == 0:                                   # transpose
+        return text[:i] + text[i + 1] + text[i] + text[i + 2:]
+    if kind == 1:                                   # double a character
+        return text[:i] + text[i] + text[i:]
+    return text[:i] + text[i + 1:]                  # drop a character
+
+
+def apply_typos(
+    tables: Dict[str, pd.DataFrame],
+    spec: Any,
+    config: Any,
+    rng: np.random.Generator,
+) -> Dict[str, pd.DataFrame]:
+    """Corrupt exactly the declared number of values away from the vocabulary."""
+    df = tables.get(spec.table)
+    if df is None or df.empty or spec.column not in df.columns:
+        return tables
+
+    choices = None
+    for c in (config.columns.get(spec.table, []) or []):
+        if c.name == spec.column:
+            raw = (c.distribution_params or {}).get("choices")
+            if raw:
+                choices = {str(x) for x in raw}
+            break
+    if not choices:
+        warnings.warn(
+            f"Typos on '{spec.table}.{spec.column}': the column declares no "
+            f"'choices', so a typo in it is unfalsifiable and the audit could "
+            f"not check the count. Declare choices, or drop this typos entry.")
+        return tables
+
+    n = int(spec.count) if spec.count is not None else exact_count(len(df), spec.fraction)
+    if n <= 0:
+        return tables
+
+    as_str = df[spec.column].astype("string")
+    clean = np.flatnonzero(as_str.isin(choices).to_numpy())
+    dirty_now = int(len(df) - len(clean) - int(as_str.isna().sum()))
+    if dirty_now > n:
+        warnings.warn(
+            f"Typos on '{spec.table}.{spec.column}': {dirty_now} value(s) are "
+            f"already outside the declared choices, more than the {n} asked "
+            f"for. Raise 'count'.")
+        return tables
+    need = n - dirty_now
+    if need > len(clean):
+        warnings.warn(
+            f"Typos on '{spec.table}.{spec.column}': {need} typo(s) declared but "
+            f"only {len(clean)} clean value(s) exist. Lower 'count'.")
+        need = len(clean)
+    if need <= 0:
+        return tables
+
+    picked = rng.permutation(clean)[:need]
+    values = df[spec.column].astype(object).to_numpy().copy()
+    for i in picked:
+        original = str(values[i])
+        for _ in range(8):                      # a slip that lands back on a
+            candidate = _corrupt(original, rng)  # real value is not a typo
+            if candidate not in choices and candidate != original:
+                values[i] = candidate
+                break
+        else:
+            values[i] = original + "?"
+    out = df.copy()
+    out[spec.column] = values
     tables[spec.table] = out
     return tables
 
@@ -531,6 +732,19 @@ def apply_dynamics(
         except Exception as e:
             warnings.warn(f"Missingness on '{spec.table}.{spec.column}' failed "
                           f"({e}); table left as generated.")
+    for spec in (getattr(config, "outliers", None) or []):
+        try:
+            apply_outliers(tables, spec, rng)
+        except Exception as e:
+            warnings.warn(f"Outliers on '{spec.table}.{spec.column}' failed "
+                          f"({e}); column left as generated.")
+    for spec in (getattr(config, "typos", None) or []):
+        try:
+            apply_typos(tables, spec, config, rng)
+        except Exception as e:
+            warnings.warn(f"Typos on '{spec.table}.{spec.column}' failed "
+                          f"({e}); column left as generated.")
+
     # Duplicates are last on purpose. A copy made before missingness ran would
     # have its nulls redrawn independently and stop being a copy.
     for spec in (getattr(config, "duplicates", None) or []):
@@ -553,6 +767,10 @@ def dynamics_tables(config: Any) -> set:
     for spec in (getattr(config, "time_grids", None) or []):
         out.add(spec.table)
     for spec in (getattr(config, "duplicates", None) or []):
+        out.add(spec.table)
+    for spec in (getattr(config, "outliers", None) or []):
+        out.add(spec.table)
+    for spec in (getattr(config, "typos", None) or []):
         out.add(spec.table)
     for spec in (getattr(config, "late_arrivals", None) or []):
         out.add(spec.table)

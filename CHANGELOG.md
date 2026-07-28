@@ -5,6 +5,132 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-07-28
+
+A second conformance suite, and the four declarations it forced.
+
+The Gauntlet reached 126/126 in 0.9.1, which sounds like a finish line and is
+actually a warning: a suite at 100% has stopped being able to find anything. So
+this release starts by building a suite designed to be awkward.
+
+### The Warren
+
+`benchmarks/warren.py`: 10 tables, 110 DuckDB assertions, deliberately the wrong
+shape. Multi-tenant, self-referential hierarchy, event-sourced state, two-hop
+money. **It scored 83/105 on its first run.** Twenty-two failures, of which four
+were my own schema's mistakes and the rest were real. Now 110/110, wired into CI
+on the same `KNOWN_RED` contract as the Gauntlet, with `tests/test_warren.py`
+enforcing it in pytest too.
+
+### `partition_by` — the Fivetran bug, made unrepresentable
+
+A foreign key that must resolve inside the child's own partition:
+
+```python
+Relationship(parent_table="projects", child_table="tasks",
+             parent_key="project_id", child_key="project_id",
+             partition_by=["tenant_id"])
+```
+
+Tenant isolation scored **0/12** before this existed. An ordinary foreign key
+drawn from the whole parent table crossed the tenant boundary on 2,494 of 3,000
+task rows. Named after the SQL clause on purpose: this is the defect confirmed in
+`fivetran/dbt_stripe`, where a rolling total with no `partition by` reached
+production because the test fixture had exactly one account.
+
+It outranks every sampling strategy and composes with temporal eligibility rather
+than replacing it. `min_children` learned it too, so coverage cannot re-open the
+leak.
+
+### Self-referential keys form a forest
+
+Two defects, both found by the Warren:
+
+- **Cycles.** "Any row may point at any row minus itself" permits them, and duly
+  produced two orgs naming each other as parent plus a four-hop loop. Rows now
+  reference only *earlier* rows in insertion order, so acyclicity holds by
+  construction at any depth, per partition.
+- **No roots could exist.** Foreign keys were unconditionally exempt from
+  nulling, so every node had a parent and a cycle was arithmetically unavoidable.
+  A foreign key declared both `nullable` and with an explicit `null_rate` is now
+  an *optional* reference, and a null there is an absent reference rather than a
+  broken one.
+
+Plus a self-referential causality pass, since a row cannot predate the row it
+nests inside.
+
+### `event_logs` — the log says what the state says
+
+`lifecycles` made a status column trustworthy. In an event-sourced system the
+history lives in a child table, and nothing tied the two together: 602 done tasks
+with no completion event, 332 open tasks that had somehow been completed, 667
+completions dated before work started.
+
+```python
+EventLog(name="task_log", table="task_events", entity_table="tasks",
+         entity_key="task_id", event_type_column="event_type",
+         event_time_column="occurred_at",
+         state_events={"open": "created", "done": "completed"})
+```
+
+It owns which entity each event belongs to, and that is necessary rather than
+convenient: a done task needs three events and `min_children` can only promise
+one, so rows are allocated by requirement. Reassigning a row moves its partition
+columns and re-draws its other partitioned keys with it, because a row that
+changes tenant cannot keep a reference to the old one.
+
+### `outliers` and `typos` — the last of `noise` graduates
+
+`noise_config`'s remaining probabilistic rates now have exact declared forms, so
+§4 of `FOCUS.md` has nothing left half-way:
+
+```python
+Outliers(table="readings", column="value", count=30, sigma=6.0, direction="high")
+Typos(table="invoices", column="status", count=18)
+```
+
+Both are answer keys rather than noise: an anomaly detector or a deduplication
+routine can be scored against an exact count, which is impossible against a rate.
+Outliers are measured in median and MAD, not mean and standard deviation, because
+outliers inflate the very scale they would be measured against and the threshold
+would drift as the count rose. `typos` refuses a column with no declared
+`choices`, because a typo nobody can enumerate is unfalsifiable.
+
+### Performance: retention was 100x slower than everything else
+
+Nobody had profiled the post-generation passes. `benchmarks/bench_dynamics`
+now does, and the first run was unambiguous: every pass ran at 2.4M-18M rows/sec
+except `retention`, at **147k**.
+
+The cause was a per-row Python loop that built two `pd.Timestamp` objects per row
+to resolve a month boundary. Vectorised: **147k → 8.0M rows/sec**, 6.84s to 0.12s
+at a million rows. `duplicates` also went from 9.3s to 5.4s at 10M rows by
+replacing a groupby-transform over every column with two hash passes.
+
+The same rewrite fixed a defect nobody had noticed: retention built its key array
+as `dtype=object`, so an integer foreign key came out as object and stayed that
+way through every downstream join.
+
+### Also
+
+- **A declared `when_then ... not_null` is no longer undone by `null_rate`.**
+  The nulling pass runs after constraints, so the later declaration silently
+  overwrote the earlier one on 77 rows. Both are satisfiable whenever the rate
+  fits in the unprotected rows, so the engine now satisfies both and warns with
+  the arithmetic when it cannot.
+- **A pass registered on only one pipeline is dead code.** The self-referential
+  causality fix first shipped wired into the legacy path while `anchored` is the
+  default, so it did nothing at all. Both are wired now.
+- Five new audit detectors: `partition_leak`, `hierarchy_cycle`, `event_log`,
+  `outlier_count`, `typo_count`.
+- Two new feasibility refusals: an event log whose declared state mix needs more
+  events than its table has rows, and the capacity arithmetic to prove it.
+- `event_logs`, `outliers` and `typos` are lintable and carried through the dict
+  path, caught by the schema-coverage test added in 0.9.1 rather than by hand.
+- The scaling verdict in `bench_dynamics` measures across the two largest sizes
+  only. Including the smallest made it report 3.22x "superlinear" for a pass
+  whose throughput was flat, because fixed costs dominate at 100k rows.
+
 ## [0.9.1] - 2026-07-27
 
 The Gauntlet is 126/126. The last known-red is closed, and the two

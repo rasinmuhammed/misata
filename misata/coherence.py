@@ -1099,6 +1099,205 @@ def _detect_duplicate_count_mismatch(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _detect_partition_leak(tables, schema) -> List[CoherenceFinding]:
+    """A declared partitioned key must not cross its partition.
+
+    Re-derived by the JOIN a reviewer would write, not by asking the sampler
+    what it did. This is the single most valuable check in the module for
+    multi-tenant data: a leak here is a row of one customer's data attributed to
+    another, and it is invisible on single-tenant test fixtures.
+    """
+    out: List[CoherenceFinding] = []
+    for rel in (getattr(schema, "relationships", None) or []):
+        cols = list(getattr(rel, "partition_by", None) or [])
+        if not cols:
+            continue
+        child = tables.get(rel.child_table)
+        parent = tables.get(rel.parent_table)
+        if child is None or parent is None or child.empty or parent.empty:
+            continue
+        if rel.child_key not in child.columns or rel.parent_key not in parent.columns:
+            continue
+        if any(c not in child.columns or c not in parent.columns for c in cols):
+            continue
+        pmap = parent.drop_duplicates(subset=[rel.parent_key]).set_index(rel.parent_key)
+        bad = None
+        for c in cols:
+            mapped = child[rel.child_key].map(pmap[c])
+            mism = (child[c] != mapped) & mapped.notna() & child[rel.child_key].notna()
+            bad = mism if bad is None else (bad | mism)
+        n = int(bad.sum()) if bad is not None else 0
+        if n:
+            out.append(CoherenceFinding(
+                kind="partition_leak", severity="high",
+                table=rel.child_table, column=rel.child_key,
+                message=(f"{n} row(s) reference a {rel.parent_table} in a "
+                         f"different {', '.join(cols)}: the key crosses its "
+                         f"declared partition"),
+                rows_affected=n,
+            ))
+    return out
+
+
+def _detect_hierarchy_violation(tables, schema) -> List[CoherenceFinding]:
+    """A self-referential key must describe a forest: no cycles, and roots exist."""
+    out: List[CoherenceFinding] = []
+    for rel in (getattr(schema, "relationships", None) or []):
+        if rel.parent_table != rel.child_table:
+            continue
+        df = tables.get(rel.child_table)
+        if df is None or df.empty:
+            continue
+        if rel.child_key not in df.columns or rel.parent_key not in df.columns:
+            continue
+        parent_of = dict(zip(df[rel.parent_key], df[rel.child_key]))
+        cyclic = 0
+        for start in parent_of:
+            seen = {start}
+            node = parent_of.get(start)
+            while node is not None and not (isinstance(node, float) and node != node):
+                if node in seen:
+                    cyclic += 1
+                    break
+                seen.add(node)
+                node = parent_of.get(node)
+        if cyclic:
+            out.append(CoherenceFinding(
+                kind="hierarchy_cycle", severity="high",
+                table=rel.child_table, column=rel.child_key,
+                message=(f"{cyclic} row(s) sit on a cycle in "
+                         f"{rel.child_table}.{rel.child_key}: the hierarchy is "
+                         f"not a forest"),
+                rows_affected=cyclic,
+            ))
+        roots = int(df[rel.child_key].isna().sum())
+        if roots == 0 and len(df) > 1:
+            out.append(CoherenceFinding(
+                kind="hierarchy_cycle", severity="medium",
+                table=rel.child_table, column=rel.child_key,
+                message=(f"no row has a null {rel.child_key}, so the hierarchy "
+                         f"has no root; declare a null_rate on it"),
+                rows_affected=len(df),
+            ))
+    return out
+
+
+def _detect_event_log_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """A declared event log must say what its entity's state says."""
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "event_logs", None) or []):
+        events = tables.get(spec.table)
+        entities = tables.get(spec.entity_table)
+        if events is None or entities is None or events.empty or entities.empty:
+            continue
+        lc = next((l for l in (getattr(schema, "lifecycles", None) or [])
+                   if l.table == spec.entity_table), None)
+        if lc is None or lc.state_column not in entities.columns:
+            continue
+        pk = next((r.parent_key for r in (schema.relationships or [])
+                   if r.child_table == spec.table
+                   and r.child_key == spec.entity_key
+                   and r.parent_table == spec.entity_table), None)
+        if pk is None or pk not in entities.columns:
+            continue
+        if (spec.entity_key not in events.columns
+                or spec.event_type_column not in events.columns):
+            continue
+
+        ent = entities.drop_duplicates(subset=[pk]).set_index(pk)
+        state_of = ent[lc.state_column]
+        by_entity = events.groupby(spec.entity_key)[spec.event_type_column].agg(set)
+
+        missing = extra = 0
+        for key, st in state_of.items():
+            path = lc.path_to(st) or [st]
+            required = {spec.state_events[s] for s in path
+                        if s in spec.state_events}
+            allowed = required | set(spec.filler_events or [])
+            have = by_entity.get(key, set())
+            if required - have:
+                missing += 1
+            if have - allowed:
+                extra += 1
+        if missing:
+            out.append(CoherenceFinding(
+                kind="event_log", severity="high",
+                table=spec.table, column=spec.event_type_column,
+                message=(f"{missing} {spec.entity_table} row(s) are missing an "
+                         f"event their own state implies"),
+                rows_affected=missing,
+            ))
+        if extra:
+            out.append(CoherenceFinding(
+                kind="event_log", severity="high",
+                table=spec.table, column=spec.event_type_column,
+                message=(f"{extra} {spec.entity_table} row(s) carry an event "
+                         f"for a state they never reached"),
+                rows_affected=extra,
+            ))
+    return out
+
+
+def _detect_outlier_count_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Exactly the declared number of rows must sit beyond the declared distance."""
+    out: List[CoherenceFinding] = []
+    from misata.dynamics import exact_count, robust_scale
+    for spec in (getattr(schema, "outliers", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty or spec.column not in df.columns:
+            continue
+        col = pd.to_numeric(df[spec.column], errors="coerce")
+        if col.notna().sum() < 4:
+            continue
+        med, sigma = robust_scale(col.to_numpy())
+        z = (col.to_numpy(dtype=float) - med) / sigma
+        got = int(np.sum(np.abs(z) >= spec.sigma))
+        want = (int(spec.count) if spec.count is not None
+                else exact_count(len(df), spec.fraction))
+        if got != want:
+            out.append(CoherenceFinding(
+                kind="outlier_count", severity="high",
+                table=spec.table, column=spec.column,
+                message=(f"declared {want} value(s) beyond {spec.sigma:g} robust "
+                         f"sigma, found {got}"),
+                rows_affected=abs(got - want),
+            ))
+    return out
+
+
+def _detect_typo_count_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Exactly the declared number of values must fall outside the vocabulary."""
+    out: List[CoherenceFinding] = []
+    from misata.dynamics import exact_count
+    for spec in (getattr(schema, "typos", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty or spec.column not in df.columns:
+            continue
+        choices = None
+        for c in (getattr(schema, "columns", {}) or {}).get(spec.table, []) or []:
+            if c.name == spec.column:
+                raw = (c.distribution_params or {}).get("choices")
+                if raw:
+                    choices = {str(x) for x in raw}
+                break
+        if not choices:
+            continue
+        as_str = df[spec.column].astype("string")
+        got = int(len(df) - int(as_str.isin(choices).sum())
+                  - int(as_str.isna().sum()))
+        want = (int(spec.count) if spec.count is not None
+                else exact_count(len(df), spec.fraction))
+        if got != want:
+            out.append(CoherenceFinding(
+                kind="typo_count", severity="high",
+                table=spec.table, column=spec.column,
+                message=(f"declared {want} value(s) outside the column's "
+                         f"choices, found {got}"),
+                rows_affected=abs(got - want),
+            ))
+    return out
+
+
 def _detect_group_share_mismatch(tables, schema) -> List[CoherenceFinding]:
     """Declared group shares must hold in the data: per declared period when
     an exact-target curve pairs with the spec, over the table total otherwise.
@@ -1574,6 +1773,11 @@ def coherence_audit(
         report.findings.extend(_detect_temporal_eligibility_violation(tables, schema))
         report.findings.extend(_detect_time_grid_violation(tables, schema))
         report.findings.extend(_detect_duplicate_count_mismatch(tables, schema))
+        report.findings.extend(_detect_partition_leak(tables, schema))
+        report.findings.extend(_detect_hierarchy_violation(tables, schema))
+        report.findings.extend(_detect_event_log_mismatch(tables, schema))
+        report.findings.extend(_detect_outlier_count_mismatch(tables, schema))
+        report.findings.extend(_detect_typo_count_mismatch(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
         report.findings.extend(_detect_waterfall_mismatch(tables, schema))
         report.findings.extend(_detect_scd2_violations(tables, schema))

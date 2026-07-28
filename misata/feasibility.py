@@ -457,6 +457,54 @@ def _check_temporal_eligibility(config: Any) -> List[Conflict]:
     return out
 
 
+def _check_event_log_capacity(config: Any) -> List[Conflict]:
+    """An event log needs a row for every event its entities' states imply.
+
+    Computable before generation, because lifecycle weights are declared: the
+    state mix is a set of exact counts, and each state's path length is the
+    number of events it requires. Refusing here beats warning at the end, when
+    the user is already holding an incomplete log.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "event_logs", None) or []):
+        lc = next((l for l in (getattr(config, "lifecycles", None) or [])
+                   if l.table == spec.entity_table), None)
+        if lc is None:
+            continue
+        entities = _row_count(config, spec.entity_table)
+        rows = _row_count(config, spec.table)
+        if not entities or not rows:
+            continue
+        weights = dict(getattr(lc, "weights", None) or {})
+        if not weights:
+            # No mix declared: the cheapest possible state still needs its path.
+            lengths = [len([s for s in (lc.path_to(st.name) or [st.name])
+                            if s in spec.state_events]) for st in lc.states]
+            needed = entities * (min(lengths) if lengths else 1)
+        else:
+            total_w = sum(float(v) for v in weights.values()) or 1.0
+            needed = 0
+            for st in lc.states:
+                share = float(weights.get(st.name, 0.0)) / total_w
+                path = lc.path_to(st.name) or [st.name]
+                per = len([x for x in path if x in spec.state_events])
+                needed += int(round(entities * share)) * per
+        if needed > rows:
+            out.append(Conflict(
+                kind="event_log_capacity",
+                where=f"{spec.table}.{spec.event_type_column}",
+                declarations=[f"event_log '{spec.name}'",
+                              f"lifecycle '{getattr(lc, 'name', lc.table)}'",
+                              f"row_count on {spec.table}"],
+                arithmetic=(f"the declared state mix over {entities} "
+                            f"{spec.entity_table} rows implies {needed} events, "
+                            f"but {spec.table} has only {rows} rows"),
+                remedy=(f"raise {spec.table}.row_count to at least {needed}, or "
+                        f"shorten the lifecycle paths that need the most events"),
+            ))
+    return out
+
+
 _CHECKS = (
     _check_retention_budget,
     _check_curve_point_shape,
@@ -467,6 +515,7 @@ _CHECKS = (
     _check_lifecycles,
     _check_min_children,
     _check_temporal_eligibility,
+    _check_event_log_capacity,
 )
 
 

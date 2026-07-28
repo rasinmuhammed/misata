@@ -492,6 +492,9 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
                             ("late_arrivals", "__late_arrivals__"),
                             ("time_grids", "__time_grids__"),
                             ("duplicates", "__duplicates__"),
+                            ("event_logs", "__event_logs__"),
+                            ("outliers", "__outliers__"),
+                            ("typos", "__typos__"),
                             ("noise", "__noise__"),
                             ("vocabulary", "__vocabulary__"),
                             ("vocabularies", "__vocabulary__")):
@@ -651,15 +654,19 @@ def from_dict_schema(
     # Every declaration added since 0.8.9.4 was reachable from SchemaConfig but
     # not from YAML, so `misata lint` rejected the very files the docs showed.
     # One table, so the next declaration is one line rather than a new branch.
-    from misata.schema import (CohortRetention, Duplicates, LateArrival,
-                               Lifecycle, Missingness, TimeGrid)
+    from misata.schema import (CohortRetention, Duplicates, EventLog,
+                               LateArrival, Lifecycle, Missingness, Outliers,
+                               TimeGrid, Typos)
     declared: Dict[str, List[Any]] = {}
     for key, model in (("lifecycles", Lifecycle),
                        ("retention", CohortRetention),
                        ("missingness", Missingness),
                        ("late_arrivals", LateArrival),
                        ("time_grids", TimeGrid),
-                       ("duplicates", Duplicates)):
+                       ("duplicates", Duplicates),
+                       ("event_logs", EventLog),
+                       ("outliers", Outliers),
+                       ("typos", Typos)):
         out: List[Any] = []
         for i, raw in enumerate(schemas.get(f"__{key}__") or []):
             try:
@@ -875,6 +882,9 @@ def from_dict_schema(
         late_arrivals=declared["late_arrivals"],
         time_grids=declared["time_grids"],
         duplicates=declared["duplicates"],
+        event_logs=declared["event_logs"],
+        outliers=declared["outliers"],
+        typos=declared["typos"],
         generation_mode=(schemas.get("__generation_mode__")
                          or schemas.get("generation_mode") or "anchored"),
         noise_config=noise_config,

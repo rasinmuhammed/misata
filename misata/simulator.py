@@ -200,6 +200,9 @@ class GenerationResult:
     table_row_counts: Dict[str, int] = field(default_factory=dict)
 
 
+_MISSING = object()
+
+
 class DataSimulator:
     """
     High-performance synthetic data simulator.
@@ -937,12 +940,126 @@ class DataSimulator:
         birth_map = {pid: int(b) for pid, b in zip(ids_sorted, birth_sorted)}
         return values, (birth_map, child_ns)
 
+    def _partitioned_fk(
+        self,
+        relationship: Any,
+        table_data: Optional[pd.DataFrame],
+        parent_ids: np.ndarray,
+        size: int,
+    ) -> Optional[Tuple[np.ndarray,
+                        Optional[Tuple[Dict[Any, int], np.ndarray]],
+                        Tuple[Dict[Any, Any], np.ndarray]]]:
+        """Draw each key from parents inside the child's own partition.
+
+        Multi-tenancy is the case that matters: a task must belong to a project
+        in its own tenant, and an ordinary foreign key drawn from the whole
+        parent table crosses that line about (1 - 1/tenants) of the time. The
+        Warren suite measured it at 2,494 of 3,000 rows.
+
+        Partitions are usually few (tenants, regions), so the loop is over
+        partitions and every row inside one is handled vectorised. That also
+        makes composing with temporal eligibility straightforward: inside a
+        partition, the same births-sorted binary search applies.
+
+        Returns ``(values, eligibility_or_None)``, or ``None`` to fall through
+        when the declaration is absent or its columns are not available yet.
+        """
+        cols = list(getattr(relationship, "partition_by", None) or [])
+        if not cols or table_data is None:
+            return None
+        parent_ctx = self.context.get(relationship.parent_table)
+        if parent_ctx is None or relationship.parent_key not in parent_ctx.columns:
+            return None
+        if any(c not in parent_ctx.columns for c in cols):
+            return None
+        if any(c not in table_data.columns for c in cols):
+            return None
+
+        allowed = pd.Index(np.asarray(parent_ids))
+        pdf = parent_ctx[parent_ctx[relationship.parent_key].isin(allowed)]
+        if pdf.empty:
+            return None
+
+        # One factorisation across both sides so the codes are comparable.
+        if len(cols) == 1:
+            p_key = pd.Index(pdf[cols[0]])
+            c_key = pd.Index(table_data[cols[0]])
+        else:
+            p_key = pd.MultiIndex.from_frame(pdf[cols])
+            c_key = pd.MultiIndex.from_frame(table_data[cols])
+        codes, _ = pd.factorize(p_key.append(c_key))
+        p_codes, c_codes = codes[: len(p_key)], codes[len(p_key):]
+        p_pids = pdf[relationship.parent_key].to_numpy()
+
+        # Temporal eligibility, if this relationship also declares it, applies
+        # within the partition rather than instead of it.
+        births = None
+        child_ns = None
+        ptime = getattr(relationship, "parent_time", None)
+        if ptime and getattr(relationship, "child_time", None):
+            if ptime in pdf.columns:
+                ct = self._child_effective_time(relationship, table_data)
+                if ct is not None and len(ct) == size:
+                    births = pd.to_datetime(
+                        pdf[ptime], errors="coerce"
+                    ).to_numpy(dtype="datetime64[ns]").astype("int64")
+                    child_ns = ct.to_numpy(dtype="datetime64[ns]").astype("int64")
+                    undated = ct.isna().to_numpy()
+                    child_ns = np.where(undated, np.iinfo("int64").max, child_ns)
+
+        values = np.empty(size, dtype=p_pids.dtype)
+        stranded = 0
+        for code in np.unique(c_codes):
+            rows = np.flatnonzero(c_codes == code)
+            in_part = np.flatnonzero(p_codes == code)
+            if in_part.size == 0:
+                # No parent shares this child's partition. Falling back to a
+                # cross-partition parent would be the very leak this prevents,
+                # so these rows keep an arbitrary in-partition-less parent and
+                # the warning names the fix.
+                stranded += rows.size
+                values[rows] = p_pids[0]
+                continue
+            ids = p_pids[in_part]
+            if births is not None:
+                b = births[in_part]
+                order = np.argsort(b, kind="stable")
+                ids, b = ids[order], b[order]
+                alive = np.searchsorted(b, child_ns[rows], side="right")
+                alive = np.maximum(alive, 1)
+                draw = (self.rng.random(rows.size) * alive).astype("int64")
+                draw = np.minimum(draw, alive - 1)
+            else:
+                draw = (self.rng.random(rows.size) * ids.size).astype("int64")
+                draw = np.minimum(draw, ids.size - 1)
+            values[rows] = ids[draw]
+
+        if stranded:
+            warnings.warn(
+                f"Partitioned foreign key {relationship.parent_table}->"
+                f"{relationship.child_table}.{relationship.child_key}: "
+                f"{stranded} of {size} rows are in a partition "
+                f"({', '.join(cols)}) that has no {relationship.parent_table} "
+                f"row at all, so they cannot stay inside it. Give every "
+                f"partition at least one {relationship.parent_table} row, or "
+                f"raise {relationship.parent_table}.row_count."
+            )
+
+        eligibility = None
+        if births is not None:
+            eligibility = ({pid: int(b) for pid, b in zip(p_pids, births)},
+                           child_ns)
+        partition = ({pid: int(code) for pid, code in zip(p_pids, p_codes)},
+                     c_codes)
+        return values, eligibility, partition
+
     def _ensure_min_children(
         self,
         values: np.ndarray,
         parent_ids: np.ndarray,
         relationship: Any,
         eligibility: Optional[Tuple[Dict[Any, int], np.ndarray]] = None,
+        partition: Optional[Tuple[Dict[Any, Any], np.ndarray]] = None,
     ) -> np.ndarray:
         """Guarantee every eligible parent at least ``min_children`` child rows.
 
@@ -960,6 +1077,12 @@ class DataSimulator:
         the very violation :meth:`_temporal_eligible_fk` just removed. A parent
         born after every child row is genuinely uncoverable, and that is a fact
         about the declarations rather than a failure of the search.
+
+        ``partition`` does the same job for partition isolation as (parent
+        partition per id, child partition per row). Coverage that reassigned a
+        row to a parent in another tenant would re-open the leak
+        :meth:`_partitioned_fk` just closed, so a parent is only ever covered
+        from inside its own partition.
         """
         min_children = int(getattr(relationship, "min_children", 0) or 0)
         if min_children <= 0 or len(values) == 0 or len(parent_ids) == 0:
@@ -1000,6 +1123,11 @@ class DataSimulator:
                 b = born.get(needed[ni])
                 if b is not None and child_ns[pos] < b:
                     continue      # that parent did not exist yet at this row
+            if partition is not None:
+                parent_part, child_part = partition
+                want = parent_part.get(needed[ni], _MISSING)
+                if want is not _MISSING and child_part[pos] != want:
+                    continue      # that parent lives in another partition
             counts[donor] -= 1
             values[pos] = needed[ni]
             counts[needed[ni]] = counts.get(needed[ni], 0) + 1
@@ -1019,48 +1147,79 @@ class DataSimulator:
         table_data: Optional[pd.DataFrame],
         size: int,
     ) -> np.ndarray:
-        """Generate a self-referential FK (employees.manager_id → employees.id).
+        """Generate a self-referential FK as a forest (orgs.parent_org_id → orgs.org_id).
 
-        Candidates are PKs that already exist: earlier batches (context) plus
-        PKs generated earlier in the current batch. A row is never allowed to
-        reference itself; when a row has no other candidate (e.g. a 1-row
-        table) it gets NULL — the natural root of the hierarchy.
+        A hierarchy is not "any row may point at any row minus itself". That
+        rule permits cycles, and the Warren suite duly found them: two orgs
+        naming each other as parent, and a four-hop loop. It also produced no
+        roots at all, because foreign keys were exempt from nulling, so every
+        node had a parent and a cycle was arithmetically unavoidable.
+
+        This builds a forest instead, and does it by construction rather than by
+        repair: rows are given a fixed order, and a row may only reference a row
+        EARLIER in that order. Backwards-only references cannot form a cycle, at
+        any depth, without a check. Rows from previous batches count as earlier,
+        which keeps the guarantee across batches.
+
+        Roots come from two places: the first row has nothing earlier to point
+        at, and a declared ``null_rate`` on the column makes as many more as
+        asked for. The column keeps its own dtype, so an integer hierarchy stays
+        integer instead of decaying to object.
         """
-        pools: List[np.ndarray] = []
-
-        context_ids = self._get_parent_ids(relationship)
-        if len(context_ids):
-            pools.append(np.asarray(context_ids))
+        context_ids = np.asarray(self._get_parent_ids(relationship))
 
         own_ids: Optional[np.ndarray] = None
         if table_data is not None and relationship.parent_key in table_data.columns:
-            own_series = pd.Series(table_data[relationship.parent_key])
-            own_ids = own_series.to_numpy()
-            batch_ids = own_series.dropna().to_numpy()
-            if len(batch_ids):
-                pools.append(batch_ids)
+            own_ids = pd.Series(table_data[relationship.parent_key]).to_numpy()
 
-        if not pools:
-            warnings.warn(
-                f"Self-referential foreign key '{relationship.child_key}' in "
-                f"'{relationship.child_table}': no '{relationship.parent_key}' values "
-                f"available yet (declare '{relationship.parent_key}' before "
-                f"'{relationship.child_key}'). Emitting NULLs to preserve integrity."
-            )
-            return np.array([None] * size, dtype=object)
+        if own_ids is None or len(own_ids) != size:
+            # Without the row's own key there is no order to reference
+            # backwards along, so fall back to whatever already exists.
+            if len(context_ids) == 0:
+                warnings.warn(
+                    f"Self-referential foreign key '{relationship.child_key}' in "
+                    f"'{relationship.child_table}': no '{relationship.parent_key}' "
+                    f"values available yet (declare '{relationship.parent_key}' "
+                    f"before '{relationship.child_key}'). Emitting NULLs to "
+                    f"preserve integrity."
+                )
+                return np.array([None] * size, dtype=object)
+            return self.rng.choice(context_ids, size=size)
 
-        pool = pd.unique(np.concatenate(pools))
-        values = self.rng.choice(pool, size=size)
+        # A partitioned hierarchy nests inside its partition: an org's parent
+        # org belongs to the same tenant. Backwards-only references still give
+        # acyclicity, now within each partition independently.
+        cols = [c for c in (getattr(relationship, "partition_by", None) or [])
+                if table_data is not None and c in table_data.columns]
+        if cols:
+            groups = (table_data[cols[0]] if len(cols) == 1
+                      else pd.MultiIndex.from_frame(table_data[cols]))
+            codes, _ = pd.factorize(pd.Index(groups))
+        else:
+            codes = np.zeros(size, dtype="int64")
 
-        # Exclude self: a row must never be its own parent.
-        if own_ids is not None and len(own_ids) == size:
-            self_mask = np.asarray(values == own_ids)
-            if self_mask.any():
-                values = values.astype(object)
-                for idx in np.where(self_mask)[0]:
-                    alternatives = pool[pool != own_ids[idx]]
-                    values[idx] = self.rng.choice(alternatives) if len(alternatives) else None
+        values = np.empty(size, dtype=own_ids.dtype)
+        roots = np.zeros(size, dtype=bool)
+        for code in np.unique(codes):
+            rows = np.flatnonzero(codes == code)
+            # Earlier rows of the same partition, in insertion order.
+            rank = np.arange(rows.size)
+            first = rank == 0
+            roots[rows[first]] = True
+            pick = (self.rng.random(rows.size) * np.maximum(rank, 1)).astype("int64")
+            pick = np.minimum(pick, np.maximum(rank - 1, 0))
+            values[rows] = own_ids[rows][pick]
+        if not cols and len(context_ids):
+            # No partition declared: rows from earlier batches are all older, so
+            # the first row of this batch may reference them instead of rooting.
+            fill = self.rng.choice(context_ids, size=int(roots.sum()))
+            values[roots] = fill
+            roots[:] = False
 
+        if roots.any():
+            # Object is the only dtype that can hold a null next to an int.
+            values = values.astype(object)
+            values[roots] = None
         return values
 
     def _collect_context_columns(self, table_name: str, df: pd.DataFrame) -> List[str]:
@@ -1087,6 +1246,11 @@ class DataSimulator:
             if rel.child_time and rel.child_time_table == table_name:
                 needed_cols.add(rel.child_time)
                 needed_cols.add(rel.parent_key)
+            # A partitioned key reads the parent's partition columns through the
+            # context, so they must survive trimming or the declaration quietly
+            # degrades to ordinary sampling.
+            if rel.partition_by and rel.parent_table == table_name:
+                needed_cols.update(rel.partition_by)
             if rel.parent_table == table_name:
                 needed_cols.add(rel.parent_key)
                 if rel.filters:
@@ -2091,6 +2255,18 @@ class DataSimulator:
                 )
                 return np.array([None] * size, dtype=object)
 
+            # Partition isolation outranks everything, including temporal
+            # eligibility, which it composes with rather than replaces: a
+            # parent that existed at the right time but belongs to another
+            # tenant is a data leak, not a near miss.
+            partitioned = self._partitioned_fk(
+                relationship, table_data, parent_ids, size)
+            if partitioned is not None:
+                values, elig, part = partitioned
+                return self._ensure_min_children(
+                    values, parent_ids, relationship,
+                    eligibility=elig, partition=part)
+
             # Temporal eligibility outranks every other sampling strategy,
             # because a popularity weight that picks a product which did not
             # exist yet is still wrong. Declared, so it costs nothing when the
@@ -2573,6 +2749,7 @@ class DataSimulator:
         # after, so the declared per-period sums survive both fixes.
         df_batch = self._fix_denormalized_parent_columns(df_batch, table_name)
         df_batch = self._fix_cross_table_temporal(df_batch, table_name)
+        df_batch = self._fix_self_referential_temporal(df_batch, table_name)
         df_batch = self.fact_engine.rebalance(df_batch, plan, column_map)
         df_batch = self.fact_engine.drop_internal_columns(df_batch)
 
@@ -2890,6 +3067,14 @@ class DataSimulator:
             # before the customer signed up).
             df_batch = self._run_pass("causality", table_name, rows_generated,
                                       self._fix_cross_table_temporal, df_batch, table_name)
+
+            # And a row in a self-referential hierarchy cannot predate the row
+            # it nests inside. Registered on BOTH pipelines: `anchored` is the
+            # default, so a pass wired only into the legacy path is dead code,
+            # which is how this one first shipped doing nothing.
+            df_batch = self._run_pass("self_causality", table_name, rows_generated,
+                                      self._fix_self_referential_temporal,
+                                      df_batch, table_name)
 
             # Apply column correlations (Iman-Conover)
             df_batch = self._run_pass("correlations", table_name, rows_generated,
@@ -4349,17 +4534,36 @@ class DataSimulator:
         control missingness explicitly (or use ``__noise__`` for table-wide
         rates).
 
-        Primary-key, unique, and foreign-key columns are always skipped —
-        nulling those would break referential integrity.
+        Primary-key and unique columns are always skipped. Foreign keys are
+        skipped too, with one exception: a foreign key declared BOTH
+        ``nullable`` and with an explicit ``null_rate`` is an *optional*
+        reference, and a null there is an absent reference rather than a broken
+        one. The blanket skip made that unexpressible, and for a
+        self-referential hierarchy it was worse than pedantic: with no nulls
+        possible, no row can be a root, so the hierarchy is forced to contain a
+        cycle. Found by the Warren suite, which is what a second shape is for.
         """
         pk_cols = {
             c.name for c in self.config.get_columns(table_name)
             if c.name == "id" or getattr(c, "unique", False)
         }
+        optional_fk = {
+            c.name for c in self.config.get_columns(table_name)
+            if c.nullable and (c.distribution_params or {}).get("null_rate")
+        }
         fk_cols = {
-            r.child_key for r in self.config.relationships if r.child_table == table_name
+            r.child_key for r in self.config.relationships
+            if r.child_table == table_name and r.child_key not in optional_fk
         }
         protected = pk_cols | fk_cols
+
+        # Rows a `when_then ... not_null` protects must survive this pass. It
+        # runs after `apply_constraints`, so without this the later declaration
+        # silently undoes the earlier one: 77 deactivated users lost the
+        # timestamp their own status was declared to require. The two are
+        # jointly satisfiable whenever the rate fits in the unprotected rows,
+        # so the answer is to satisfy both rather than to refuse either.
+        keep_filled = self._when_then_protected_rows(df, table_name)
 
         for col in self.config.get_columns(table_name):
             if col.name not in df.columns or col.name in protected:
@@ -4375,8 +4579,57 @@ class DataSimulator:
             if null_rate <= 0:
                 continue
             mask = pd.Series(self.rng.random(len(df)) < null_rate, index=df.index)
+            keep = keep_filled.get(col.name)
+            if keep is not None and keep.any():
+                room = int((~keep).sum())
+                wanted = int(round(null_rate * len(df)))
+                if wanted > room:
+                    warnings.warn(
+                        f"Column '{table_name}.{col.name}': null_rate="
+                        f"{null_rate:g} asks for {wanted} nulls but a declared "
+                        f"when_then requires {int(keep.sum())} rows to stay "
+                        f"filled, leaving room for {room}. The when_then wins; "
+                        f"lower null_rate to {room / max(len(df), 1):.2f} or "
+                        f"below to make both hold."
+                    )
+                mask = mask & ~keep
             _null_column(df, col.name, mask)
         return df
+
+    def _when_then_protected_rows(
+        self, df: pd.DataFrame, table_name: str
+    ) -> Dict[str, pd.Series]:
+        """Rows whose value a declared ``when_then ... not_null`` requires.
+
+        Keyed by the governed column, so the nulling pass can exclude them.
+        """
+        out: Dict[str, pd.Series] = {}
+        table = self.config.get_table(table_name)
+        for c in (getattr(table, "constraints", None) or []):
+            if c.type != "when_then" or getattr(c, "then", None) != "not_null":
+                continue
+            when_col = getattr(c, "when_column", None)
+            then_col = getattr(c, "then_column", None)
+            if not when_col or not then_col:
+                continue
+            if when_col not in df.columns or then_col not in df.columns:
+                continue
+            op = getattr(c, "when_op", "==")
+            val = getattr(c, "when_value", None)
+            series = df[when_col]
+            if op == "==":
+                m = series == val
+            elif op == "!=":
+                m = series != val
+            elif op == "in":
+                m = series.isin(val if isinstance(val, (list, tuple, set)) else [val])
+            elif op == "not_in":
+                m = ~series.isin(val if isinstance(val, (list, tuple, set)) else [val])
+            else:
+                continue
+            m = m.fillna(False)
+            out[then_col] = (out[then_col] | m) if then_col in out else m
+        return out
 
     # ------------------------------------------------------------------
     # Informative missingness (#3): MAR / conditional null
@@ -4612,6 +4865,52 @@ class DataSimulator:
     # ------------------------------------------------------------------
     # State machine (#9)
     # ------------------------------------------------------------------
+
+    def _fix_self_referential_temporal(
+        self, df: pd.DataFrame, table_name: str
+    ) -> pd.DataFrame:
+        """A row in a self-referential hierarchy cannot predate its own parent.
+
+        :meth:`_fix_cross_table_temporal` deliberately skips self-references,
+        because the parent is in the same frame and a naive pass could chase its
+        own tail. That left an org created before the org it nests inside, which
+        the Warren suite found 20 times.
+
+        Safe here because :meth:`_generate_self_referential_fk` only ever points
+        backwards in insertion order: one forward sweep in that order is a
+        topological order, so a parent is already final by the time its children
+        are read.
+        """
+        rels = [r for r in self.config.relationships
+                if r.child_table == table_name and r.parent_table == table_name]
+        if not rels:
+            return df
+        for rel in rels:
+            if rel.child_key not in df.columns or rel.parent_key not in df.columns:
+                continue
+            dt_cols = [c for c in df.columns
+                       if pd.api.types.is_datetime64_any_dtype(df[c])]
+            if not dt_cols:
+                continue
+            anchor = dt_cols[0]
+            pos = {k: i for i, k in enumerate(df[rel.parent_key].to_numpy())}
+            stamps = df[anchor].to_numpy(dtype="datetime64[ns]").astype("int64")
+            parents = df[rel.child_key].to_numpy()
+            one_day = 86_400_000_000_000
+            moved = 0
+            for i in range(len(df)):
+                p = parents[i]
+                if p is None or (isinstance(p, float) and np.isnan(p)):
+                    continue
+                j = pos.get(p)
+                if j is None or j == i:
+                    continue
+                if stamps[i] < stamps[j]:
+                    stamps[i] = stamps[j] + one_day
+                    moved += 1
+            if moved:
+                df[anchor] = stamps.astype("datetime64[ns]")
+        return df
 
     def _fix_cross_table_temporal(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """A child row's events cannot predate the parent it belongs to.
@@ -5083,8 +5382,14 @@ class DataSimulator:
 
         # Retention rewrites entity keys and event timestamps; missingness and
         # late arrival rewrite whole columns. All need the finished table.
+        from misata.eventlog import event_log_tables
         from misata.dynamics import dynamics_tables
         dyn_tables = dynamics_tables(self.config)
+
+        # An event log rewrites the whole child table from its entities' states,
+        # so both sides buffer.
+        dyn_tables |= {t for t in event_log_tables(self.config)
+                       if t in set(sorted_tables)}
 
         # A lifecycle rewrites its table's state column and per-state
         # timestamps over the whole table, so that table buffers.
@@ -5272,6 +5577,14 @@ class DataSimulator:
         # Dynamics run last: retention reassigns event ownership, and
         # missingness has to be the final word on which values are null or a
         # later pass would fill them back in.
+        # Event logs run before dynamics: they rewrite event types and times
+        # from the entity's lifecycle, and a grid or a late-arrival pass should
+        # get the last word on the clock.
+        if getattr(self.config, "event_logs", None):
+            from misata.eventlog import apply_event_logs
+            with self._anchor("identity", "event_logs"):
+                apply_event_logs(buffered, self.config, self.rng)
+
         if dyn_tables:
             from misata.dynamics import apply_dynamics
             with self._anchor("identity", "dynamics"):

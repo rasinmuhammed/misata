@@ -46,6 +46,15 @@ jobs:
         run: |
           python -m benchmarks.gauntlet
 
+      # The Warren: a second conformance suite with a deliberately different
+      # shape (multi-tenant, self-referential hierarchy, event-sourced). It
+      # exists because the Gauntlet hit 100% and a suite at 100% has stopped
+      # being able to find anything; the Warren found 22 failures on its first
+      # run, four of which were real engine gaps.
+      - name: Run the Warren (multi-tenant + hierarchy release gate)
+        run: |
+          python -m benchmarks.warren
+
       - name: Audit dependencies for known vulnerabilities
         if: matrix.python-version == '3.11'
         run: |
