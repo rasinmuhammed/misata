@@ -83,6 +83,12 @@ nobody can describe is unfalsifiable.
 - Two new audit detectors: `bitemporal`, and `dag_cycle` / `closure_mismatch`.
 - The Ledger is in CI beside the Gauntlet and the Warren. Three suites, 284
   assertions, all green, all with an empty `KNOWN_RED` and the mechanism intact.
+- **`mcp` is pinned below 2.0.** mcp 2.0.0 removed `mcp.server.fastmcp` and took
+  CI down on all four interpreters the day it shipped. The MCP server targets the
+  FastMCP API as it exists in the 1.x line, so the bound is honest rather than
+  defensive; it lifts when the server is ported. The import tolerates both 1.x
+  layouts, and the tests skip rather than error when FastMCP is absent, because a
+  dependency tidying its namespace should not fail an unrelated build.
 
 ## [0.9.2] - 2026-07-28
 
