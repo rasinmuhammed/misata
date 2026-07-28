@@ -483,3 +483,56 @@ class TestTypos:
         tables["readings"].loc[tables["readings"].index[0], "grade"] = "zzz"
         assert [f for f in coherence_audit(tables, schema=cfg).findings
                 if f.kind == "typo_count"]
+
+
+class TestRelationshipDeduplication:
+    """One relationship per edge, keeping whichever description says more.
+
+    A schema can describe the same edge twice: inline on the column, and
+    explicitly in `__relationships__`. Only the explicit form can carry
+    `partition_by`, and the FK generator takes the FIRST relationship matching a
+    column — so a declaration could be silently shadowed by an inferred
+    duplicate of itself, depending on which happened to be built first. Found
+    while wiring the studio canvas, which emits both.
+    """
+
+    def _flat(self, **rel_extra):
+        rel = {"parent_table": "a", "child_table": "b",
+               "parent_key": "a_id", "child_key": "a_id"}
+        rel.update(rel_extra)
+        return {
+            "__name__": "dup", "__seed__": 1,
+            "a": {"__rows__": 6,
+                  "a_id": {"type": "int", "unique": True, "min": 1, "max": 6},
+                  "tenant_id": {"type": "int", "min": 1, "max": 3}},
+            "b": {"__rows__": 60,
+                  "b_id": {"type": "int", "unique": True, "min": 1, "max": 60},
+                  "tenant_id": {"type": "int", "min": 1, "max": 3},
+                  "a_id": {"type": "foreign_key",
+                           "foreign_key": {"table": "a", "column": "a_id"}}},
+            "__relationships__": [rel],
+        }
+
+    def test_the_same_edge_is_not_added_twice(self):
+        cfg = misata.from_dict_schema(self._flat())
+        edges = [(r.parent_table, r.child_table, r.parent_key, r.child_key)
+                 for r in cfg.relationships]
+        assert len(edges) == len(set(edges)) == 1
+
+    def test_the_richer_description_survives(self):
+        """The whole point: an inline FK must not shadow a declaration."""
+        cfg = misata.from_dict_schema(
+            self._flat(partition_by=["tenant_id"], min_children=2))
+        assert len(cfg.relationships) == 1
+        rel = cfg.relationships[0]
+        assert rel.partition_by == ["tenant_id"]
+        assert rel.min_children == 2
+
+    def test_distinct_edges_are_left_alone(self):
+        """Deduping must not merge two genuinely different keys."""
+        flat = self._flat()
+        flat["b"]["other_id"] = {"type": "foreign_key",
+                                 "foreign_key": {"table": "a", "column": "a_id"}}
+        cfg = misata.from_dict_schema(flat)
+        child_keys = {r.child_key for r in cfg.relationships}
+        assert child_keys == {"a_id", "other_id"}

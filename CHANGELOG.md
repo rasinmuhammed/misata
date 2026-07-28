@@ -5,6 +5,20 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] - 2026-07-28
+
+### Relationships describing the same edge are merged, not duplicated
+
+A dict schema can describe one edge twice: inline on the column
+(`foreign_key: {...}`) and explicitly in `__relationships__`. Only the explicit
+form can carry `partition_by`, `min_children`, temporal eligibility or filters,
+and the foreign-key generator takes the **first** relationship matching a
+column. So a declaration could be silently shadowed by an inferred duplicate of
+itself, depending on which happened to be built first.
+
+`from_dict_schema` now merges them field by field, keeping whichever says more.
+Found while wiring the studio canvas, which emits both.
+
 ## [0.9.3] - 2026-07-28
 
 The three follow-ups named at the end of 0.9.2, and the four defects they

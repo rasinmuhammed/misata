@@ -520,6 +520,39 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
     return flat
 
 
+def _dedupe_relationships(rels: List[Relationship]) -> List[Relationship]:
+    """One relationship per edge, keeping the one that says the most.
+
+    A schema can describe the same edge twice: inline on the column
+    (`foreign_key: {...}`) and explicitly in `__relationships__`. Only the
+    explicit form can carry `partition_by`, `min_children`, temporal
+    eligibility or filters, and the FK generator takes the FIRST relationship
+    matching a column — so whichever landed first won, and a declaration could
+    be silently shadowed by an inferred duplicate of itself.
+
+    Merging rather than dropping: the richer entry wins field by field, so an
+    inline FK plus an explicit `partition_by` produces one edge carrying both.
+    """
+    merged: Dict[tuple, Relationship] = {}
+    order: List[tuple] = []
+    for rel in rels:
+        key = (rel.parent_table, rel.child_table, rel.parent_key, rel.child_key)
+        prior = merged.get(key)
+        if prior is None:
+            merged[key] = rel
+            order.append(key)
+            continue
+        # Keep every non-default the pair carries between them.
+        data = prior.model_dump()
+        for field, value in rel.model_dump().items():
+            if value in (None, [], {}, 0, False):
+                continue
+            if data.get(field) in (None, [], {}, 0, False):
+                data[field] = value
+        merged[key] = Relationship(**data)
+    return [merged[k] for k in order]
+
+
 def from_dict_schema(
     schemas: Dict[str, Any],
     row_count: int = 1000,
@@ -877,7 +910,7 @@ def from_dict_schema(
         name=schema_name,
         tables=tables,
         columns=columns_map,
-        relationships=relationships,
+        relationships=_dedupe_relationships(relationships),
         outcome_curves=outcome_curves,
         rate_curves=rate_curves,
         group_shares=group_shares,
