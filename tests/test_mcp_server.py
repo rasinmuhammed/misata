@@ -15,16 +15,26 @@ from pathlib import Path
 import pytest
 
 # The mcp extra is an optional dependency; skip the whole module if missing.
+#
+# `importorskip("mcp")` is not enough on its own: `mcp` can be installed and
+# still not expose what the server needs, which is exactly what happened when an
+# upstream release moved `FastMCP` out of `mcp.server.fastmcp`. That took CI down
+# on all four interpreters over a dependency change, so the guard covers the
+# import that actually matters rather than the package name.
 pytest.importorskip("mcp")
 pytest.importorskip("jsonschema")
 
-from misata.mcp.server import (
-    generate_dataset,
-    inspect_schema,
-    list_domains,
-    preview_story,
-    validate_yaml,
-)
+try:
+    from misata.mcp.server import (
+        generate_dataset,
+        inspect_schema,
+        list_domains,
+        preview_story,
+        validate_yaml,
+    )
+except ImportError as exc:  # pragma: no cover - environment guard
+    pytest.skip(f"misata.mcp.server is not importable here: {exc}",
+                allow_module_level=True)
 
 
 # ---------------------------------------------------------------------------

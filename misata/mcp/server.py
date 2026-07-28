@@ -19,12 +19,21 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# FastMCP has lived in two places across `mcp` releases. Pin to neither: a
+# server that stops importing because an upstream package tidied its namespace
+# is a packaging failure, not a Misata one, and it took CI down on all four
+# interpreters while the local environment still had the older layout.
 try:
     from mcp.server.fastmcp import FastMCP
-except ImportError as exc:  # pragma: no cover - import-time guard
-    raise ImportError(
-        "The MCP extra is not installed. Install with: pip install \"misata[mcp]\""
-    ) from exc
+except ImportError:  # pragma: no cover - import-time guard
+    try:
+        from mcp.server import FastMCP
+    except ImportError as exc:
+        raise ImportError(
+            "The MCP extra is not installed, or this version of `mcp` does not "
+            "expose FastMCP at mcp.server.fastmcp or mcp.server. Install with: "
+            "pip install \"misata[mcp]\""
+        ) from exc
 
 import misata
 from misata.story_parser import StoryParser
