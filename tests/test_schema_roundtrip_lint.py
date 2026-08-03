@@ -446,3 +446,66 @@ tables:
         cfg = load_yaml_schema(path, rows=5)
         missing = sorted(d for d in declared if not hasattr(cfg, d))
         assert not missing, f"SchemaConfig fields the loader cannot produce: {missing}"
+
+
+class TestRelationshipSpellings:
+    """The YAML loader accepts the names used everywhere else in the language.
+
+    Its dict form only understood `parent`/`child`/`parent_col`/`child_col`.
+    Every other surface -- the Python API, the JSON Schema, the dict path, every
+    example in LANGUAGE.md -- uses `parent_table`/`child_table`/`parent_key`/
+    `child_key`, so the names a reader would naturally reach for died on a bare
+    `KeyError: 'parent'` with nothing to explain it. Found by writing a schema
+    for the public sample datasets and watching it fail to parse.
+    """
+
+    def _load(self, tmp_path, rel_line):
+        from misata.yaml_schema import load_yaml_schema
+        p = tmp_path / "s.yaml"
+        p.write_text(f"""
+name: spellings
+tables:
+  orders:
+    rows: 10
+    columns:
+      order_id: {{type: int, unique: true, min: 1, max: 10}}
+  order_items:
+    rows: 40
+    columns:
+      item_id: {{type: int, unique: true, min: 1, max: 40}}
+      order_id: {{type: foreign_key}}
+relationships:
+  - {rel_line}
+""")
+        return load_yaml_schema(p, rows=10)
+
+    def test_the_long_spelling_works(self, tmp_path):
+        cfg = self._load(tmp_path, "{parent_table: orders, child_table: order_items, "
+                                   "parent_key: order_id, child_key: order_id}")
+        r = cfg.relationships[0]
+        assert (r.parent_table, r.child_table) == ("orders", "order_items")
+        assert (r.parent_key, r.child_key) == ("order_id", "order_id")
+
+    def test_the_short_spelling_still_works(self, tmp_path):
+        """Files already written against the old dialect must keep loading."""
+        cfg = self._load(tmp_path, "{parent: orders, child: order_items, "
+                                   "parent_col: order_id, child_col: order_id}")
+        r = cfg.relationships[0]
+        assert (r.parent_table, r.child_table) == ("orders", "order_items")
+        assert (r.parent_key, r.child_key) == ("order_id", "order_id")
+
+    def test_the_long_spelling_carries_its_extras(self, tmp_path):
+        """Only the long form can say partition_by; it must not be dropped."""
+        cfg = self._load(tmp_path, "{parent_table: orders, child_table: order_items, "
+                                   "parent_key: order_id, child_key: order_id, "
+                                   "partition_by: [tenant_id], min_children: 2}")
+        r = cfg.relationships[0]
+        assert r.partition_by == ["tenant_id"]
+        assert r.min_children == 2
+
+    def test_a_missing_table_says_what_to_write(self, tmp_path):
+        """A bare KeyError is not an error message."""
+        import pytest
+        with pytest.raises(ValueError) as exc:
+            self._load(tmp_path, "{parent_key: order_id, child_key: order_id}")
+        assert "parent_table" in str(exc.value)

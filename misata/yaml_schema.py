@@ -215,13 +215,34 @@ def _parse_relationship(raw: Union[str, Dict[str, Any]]) -> Relationship:
             child_table=c_table.strip(),
             child_key=c_col.strip(),
         )
-    # dict form
+    # Dict form, in either spelling. The short one (`parent`/`child_col`) is
+    # this loader's own dialect; the long one (`parent_table`/`child_key`) is
+    # what every other surface uses -- the Python API, the JSON Schema, the dict
+    # path, and every example in LANGUAGE.md. Accepting only the short form
+    # meant the names people would naturally reach for died on a bare
+    # `KeyError: 'parent'` with nothing explaining why.
+    parent = raw.get("parent") or raw.get("parent_table")
+    child = raw.get("child") or raw.get("child_table")
+    if not parent or not child:
+        raise ValueError(
+            "Relationship needs a parent and a child table. Use "
+            "{parent_table: orders, child_table: order_items, "
+            "parent_key: order_id, child_key: order_id}; got: "
+            f"{sorted(raw)}"
+        )
     return Relationship(
-        parent_table=raw["parent"],
-        parent_key=raw.get("parent_col", "id"),
-        child_table=raw["child"],
-        child_key=raw.get("child_col", raw["parent"] + "_id"),
+        parent_table=parent,
+        parent_key=raw.get("parent_col") or raw.get("parent_key") or "id",
+        child_table=child,
+        child_key=(raw.get("child_col") or raw.get("child_key")
+                   or f"{parent}_id"),
         temporal_constraint=bool(raw.get("temporal", False)),
+        # Attributes only the long form can carry; ignored when absent.
+        partition_by=list(raw.get("partition_by") or []),
+        min_children=int(raw.get("min_children") or 0),
+        parent_time=raw.get("parent_time"),
+        child_time=raw.get("child_time"),
+        child_time_table=raw.get("child_time_table"),
     )
 
 

@@ -5,6 +5,24 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] - 2026-08-02
+
+### The YAML loader accepts the names the rest of the language uses
+
+`relationships:` in its dict form only understood
+`parent`/`child`/`parent_col`/`child_col`. Every other surface, the Python API,
+the JSON Schema, the dict path and every example in `LANGUAGE.md`, uses
+`parent_table`/`child_table`/`parent_key`/`child_key` -- so the names a reader
+naturally reaches for died on a bare `KeyError: 'parent'` with nothing to
+explain it.
+
+Both spellings now work, the long one also carries `partition_by`,
+`min_children` and temporal eligibility (which the short form cannot express at
+all), and a relationship missing a table gets a message naming what to write.
+
+Found by generating a `schema.yaml` to ship inside the public sample datasets
+and watching it fail to parse on a clean install.
+
 ## [0.9.4] - 2026-07-28
 
 ### Relationships describing the same edge are merged, not duplicated
