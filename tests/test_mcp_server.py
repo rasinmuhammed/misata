@@ -450,3 +450,122 @@ class TestDesktopBundle:
         assert listed == actual, (
             f"manifest and server disagree: only in manifest {listed - actual}, "
             f"only on server {actual - listed}")
+
+
+class TestOptionalExtraIsGuarded:
+    """`mcp` is an optional extra, so importing it must never be unguarded.
+
+    A reviewer following the bundle README runs one pip command and launches
+    the server. When `mcp.types` was imported at module top, outside the
+    try/except that was written precisely to explain this, that reviewer got
+
+        ModuleNotFoundError: No module named 'mcp'
+
+    naming a package they never asked for, with no hint that `misata[mcp]`
+    installs it. The guard existed; one import had simply escaped it, which is
+    not something reading the file reliably catches. So assert it structurally.
+    """
+
+    def _tree(self):
+        import ast
+        from pathlib import Path
+        src = Path(__file__).resolve().parents[1] / "misata" / "mcp" / "server.py"
+        return ast.parse(src.read_text()), src
+
+    def test_every_mcp_import_sits_inside_a_try(self):
+        import ast
+        tree, src = self._tree()
+
+        guarded = {
+            id(node)
+            for handler in ast.walk(tree)
+            if isinstance(handler, ast.Try)
+            for stmt in handler.body
+            for node in ast.walk(stmt)
+        }
+
+        escaped = [
+            f"line {node.lineno}: {ast.unparse(node)}"
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            and (getattr(node, "module", "") or "").split(".")[0] == "mcp"
+            and id(node) not in guarded
+        ]
+        assert not escaped, (
+            f"{src.name} imports `mcp` outside the try/except that explains how "
+            "to install it. Without the extra these fail with a bare "
+            "ModuleNotFoundError:\n  " + "\n  ".join(escaped))
+
+    def test_the_guard_names_the_extra(self):
+        """The message has to carry the command, not just the diagnosis."""
+        from misata.mcp import server
+        assert 'pip install "misata[mcp]"' in server._INSTALL_HINT
+
+
+class TestValidateYamlRefusesTheImpossible:
+    """`validate_yaml` has to answer the same question generation answers.
+
+    Its promise is "will this generate?". Shares of 0.6, 0.6 and 0.3 parse as
+    perfectly good floats, satisfy the JSON Schema, and satisfy every semantic
+    rule; only their sum is impossible. So it reported valid for a schema that
+    `generate_from_schema` refuses outright, which is the worst answer of the
+    three available: an agent trusts it and hits the wall one call later.
+
+    Found by running the reviewer script from `mcpb/SUBMISSION.md` against the
+    published package, which is the point of writing the script down.
+    """
+
+    IMPOSSIBLE = """
+name: shares
+tables:
+  orders:
+    rows: 100
+    columns:
+      order_id: {type: int, unique: true}
+      segment: {type: categorical, choices: ["a", "b", "c"]}
+      revenue: {type: float, min: 10, max: 500}
+group_shares:
+  - table: orders
+    measure: revenue
+    group_column: segment
+    shares: {a: 0.6, b: 0.6, c: 0.3}
+"""
+
+    def test_it_refuses_shares_that_cannot_sum_to_one(self):
+        from misata.mcp.server import validate_yaml
+        result = validate_yaml(self.IMPOSSIBLE)
+
+        assert result["valid"] is False
+        assert result["stage"] == "feasibility"
+        assert result["error_count"] == 1
+
+    def test_the_refusal_shows_the_arithmetic(self):
+        """A refusal an agent cannot act on is barely better than a crash."""
+        from misata.mcp.server import validate_yaml
+        conflict = validate_yaml(self.IMPOSSIBLE)["errors"][0]
+
+        assert "1.5" in conflict["arithmetic"], conflict
+        assert conflict["where"] == "orders.segment"
+        assert conflict["remedy"]
+
+    def test_a_satisfiable_schema_still_passes(self):
+        """The guard must refuse the impossible, not everything."""
+        from misata.mcp.server import validate_yaml
+        ok = self.IMPOSSIBLE.replace("{a: 0.6, b: 0.6, c: 0.3}",
+                                     "{a: 0.5, b: 0.3, c: 0.2}")
+        assert validate_yaml(ok)["valid"] is True
+
+    def test_it_agrees_with_what_generation_does(self):
+        """The two answers must not diverge; that divergence was the bug."""
+        import pytest, tempfile, pathlib
+        import misata
+        from misata.feasibility import InfeasibleSchema
+        from misata.mcp.server import validate_yaml
+
+        path = pathlib.Path(tempfile.mkdtemp()) / "s.yaml"
+        path.write_text(self.IMPOSSIBLE)
+        schema = misata.load_yaml_schema(path)
+
+        with pytest.raises(InfeasibleSchema):
+            misata.generate_from_schema(schema)
+        assert validate_yaml(self.IMPOSSIBLE)["valid"] is False

@@ -57,9 +57,11 @@ a table unless you ask.
 ## Requirements
 
 - Python 3.10 or newer on your machine
-- `pip install misata`
+- `pip install "misata[mcp]"`
 
-The extension runs `misata-mcp`, which is installed with the package.
+The extension runs `misata-mcp`, which that install puts on your PATH. The
+`[mcp]` part matters: the protocol library is an optional extra, and a plain
+`pip install misata` gives you the engine without the server.
 
 ## Privacy Policy
 

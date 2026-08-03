@@ -23,19 +23,27 @@ from typing import Any, Dict, List, Optional
 # server that stops importing because an upstream package tidied its namespace
 # is a packaging failure, not a Misata one, and it took CI down on all four
 # interpreters while the local environment still had the older layout.
-from mcp.types import ToolAnnotations
+#
+# Every `mcp` import sits inside this guard, including `mcp.types`. `mcp` is an
+# optional extra, so a plain `pip install misata` leaves it absent, and an
+# unguarded import there meant `misata-mcp` died on a bare ModuleNotFoundError
+# naming a package the reader never asked for. The message below is the one
+# thing a person in that position can act on, so nothing may import ahead of it.
+_INSTALL_HINT = (
+    "The MCP extra is not installed, or this version of `mcp` does not expose "
+    "FastMCP at mcp.server.fastmcp or mcp.server. Install it with:\n\n"
+    "    pip install \"misata[mcp]\"\n"
+)
 
 try:
-    from mcp.server.fastmcp import FastMCP
-except ImportError:  # pragma: no cover - import-time guard
+    from mcp.types import ToolAnnotations
+
     try:
+        from mcp.server.fastmcp import FastMCP
+    except ImportError:  # pragma: no cover - import-time guard
         from mcp.server import FastMCP
-    except ImportError as exc:
-        raise ImportError(
-            "The MCP extra is not installed, or this version of `mcp` does not "
-            "expose FastMCP at mcp.server.fastmcp or mcp.server. Install with: "
-            "pip install \"misata[mcp]\""
-        ) from exc
+except ImportError as exc:  # pragma: no cover - import-time guard
+    raise ImportError(_INSTALL_HINT) from exc
 
 import misata
 from misata.story_parser import StoryParser
@@ -1004,6 +1012,39 @@ def validate_yaml(yaml_text: str) -> Dict[str, Any]:
             tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
+
+    # Stage 3 — feasibility (declarations that parse, and contradict each
+    # other). `generate_from_schema` refuses these, so a tool whose whole
+    # question is "will this generate?" has to ask the same one. Shares summing
+    # to 1.5 pass every check above: each is a well-formed float in a
+    # well-formed mapping, and only their sum is impossible.
+    try:
+        from misata.feasibility import check_feasibility, InfeasibleSchema
+    except ImportError:
+        return {"ok": True, "valid": True, "errors": [], "stage": "ok"}
+
+    try:
+        check_feasibility(schema)
+    except InfeasibleSchema as exc:
+        # Each conflict carries its own arithmetic and a suggested fix. Pass
+        # them through rather than collapsing to a message: showing the sum
+        # that cannot hold is what lets the agent repair the schema itself
+        # instead of guessing at what offended.
+        return {
+            "valid": False,
+            "stage": "feasibility",
+            "errors": [
+                {
+                    "kind": c.kind,
+                    "where": c.where,
+                    "declarations": c.declarations,
+                    "arithmetic": c.arithmetic,
+                    "remedy": c.remedy,
+                }
+                for c in exc.conflicts
+            ],
+            "error_count": len(exc.conflicts),
+        }
 
     return {"ok": True, "valid": True, "errors": [], "stage": "ok"}
 

@@ -117,7 +117,7 @@ or a SQL agent can be scored rather than eyeballed.
 **What a user needs before connecting**
 
 ```
-Python 3.10 or newer, and `pip install misata`. No account, no API key and no
+Python 3.10 or newer, and `pip install "misata[mcp]"`. No account, no API key and no
 signup. To use the AI schema-design step you supply your own LLM API key; every
 other tool works without one.
 ```
@@ -179,7 +179,7 @@ No account or credentials are needed. The extension runs entirely locally.
 
 Setup:
   1. Python 3.10 or newer must be available.
-  2. pip install misata
+  2. pip install "misata[mcp]"
   3. Install the extension. It launches `misata-mcp` over stdio.
 
 To exercise the read-only tools, ask Claude:
@@ -195,12 +195,27 @@ To exercise the read-only tools, ask Claude:
       -> generate_dataset or generate_from_schema. The response includes a
          per-relationship orphan count; every one should read 0.
 
-  "Here is a schema where I declare that three group shares are 0.6, 0.6
-   and 0.3. Will that work?"
-      -> validate_yaml. It should REFUSE, and show the arithmetic: the shares
-         sum to 1.5, and a share of a whole cannot exceed 1.0. Refusing
-         impossible declarations rather than silently picking one is the
-         intended behaviour and worth seeing.
+  "Will this generate?
+
+     name: shares
+     tables:
+       orders:
+         rows: 100
+         columns:
+           order_id: {type: int, unique: true}
+           segment: {type: categorical, choices: [a, b, c]}
+           revenue: {type: float, min: 10, max: 500}
+     group_shares:
+       - table: orders
+         measure: revenue
+         group_column: segment
+         shares: {a: 0.6, b: 0.6, c: 0.3}"
+
+      -> validate_yaml. It should REFUSE at stage "feasibility" and show the
+         arithmetic: the shares sum to 1.500, and a share of a whole cannot
+         exceed 1.0. It also says what to change. Refusing an impossible
+         declaration rather than quietly renormalising it into a spec the user
+         did not write is the intended behaviour and the thing worth seeing.
 
 To exercise the one writing tool without a database, ask:
 

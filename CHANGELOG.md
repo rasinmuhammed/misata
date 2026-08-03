@@ -5,6 +5,43 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.2] - 2026-08-03
+
+### The extension would not have started for a reviewer
+
+`mcp` is an optional extra. `misata/mcp/server.py` had a try/except around its
+imports written specifically to say so, and one import had escaped it, so a
+plain install died on
+
+    ModuleNotFoundError: No module named 'mcp'
+
+naming a package the reader never asked for. Found by installing 0.9.6.1 from
+PyPI into an empty virtualenv and following the bundle README literally, which
+is what a directory reviewer does. Every `mcp` import now sits inside the guard,
+and the error names the command that fixes it.
+
+The bundle README and the submission dossier said `pip install misata`. They now
+say `pip install "misata[mcp]"`, which is the one that yields a working server.
+
+A structural test asserts no `mcp` import escapes the guard again; reading the
+file was what missed it the first time.
+
+### validate_yaml said yes to a schema generation refuses
+
+`validate_yaml` exists to answer "will this generate?" and it was not asking the
+question generation asks. Declare group shares of 0.6, 0.6 and 0.3 and it
+returned valid: each share is a well-formed float in a well-formed mapping, so
+the JSON Schema pass and the semantic pass both had nothing to object to. Only
+the sum is impossible, and the feasibility check that knows this ran on the
+generate path only. An agent got a green light and hit the wall one call later.
+
+It now runs the same check, and passes the conflicts through whole, with the
+sum that cannot hold and the suggested remedy, so the caller can repair the
+schema instead of guessing what offended.
+
+Found by running the reviewer script from `mcpb/SUBMISSION.md` against the
+package as published, rather than against the working tree.
+
 ## [0.9.6.1] - 2026-08-02
 
 Fourth-segment bumps from here. Six third-segment releases in a week made the
