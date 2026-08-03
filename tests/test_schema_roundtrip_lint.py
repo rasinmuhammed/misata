@@ -271,7 +271,13 @@ class TestLintCLI:
         r = self._run(path)
         assert r.returncode == 1, r.stdout + r.stderr
         # Rich wraps table cells, so normalise whitespace before matching.
-        assert "outside 0..1" in " ".join(r.stdout.split())
+        # The exact wording moved when lint started running the same validation
+        # generation runs: a rate outside the unit interval is now reported as a
+        # blocking issue with a suggested fix, rather than as a lint finding.
+        # Assert the substance, not the phrasing.
+        out = " ".join(r.stdout.split())
+        assert "1.7" in out
+        assert "outside 0..1" in out or "outside [0, 1]" in out
 
     def test_strict_fails_on_warnings(self, tmp_path):
         path = tmp_path / "warn.yaml"
@@ -509,3 +515,70 @@ relationships:
         with pytest.raises(ValueError) as exc:
             self._load(tmp_path, "{parent_key: order_id, child_key: order_id}")
         assert "parent_table" in str(exc.value)
+
+
+class TestTheFirstFiveMinutes:
+    """`misata init` then `misata generate` is what the scaffold itself tells
+    you to do. It did not work.
+
+    The template's country probabilities summed to 0.85, so generation refused
+    on the very first run, and `misata lint` called the same file clean because
+    it never ran the check generation runs. Two failures in the shortest path a
+    new user takes.
+    """
+
+    def _scaffold(self, tmp_path):
+        from click.testing import CliRunner
+        from misata.cli import main
+        runner = CliRunner()
+        with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
+            assert runner.invoke(main, ["init"]).exit_code == 0
+            yield fs, runner, main
+
+    def test_the_scaffold_generates(self, tmp_path):
+        """Scaffold, generate. The path the scaffold's own comment prescribes."""
+        for fs, runner, main in self._scaffold(tmp_path):
+            result = runner.invoke(
+                main, ["generate", "--config", "misata.yaml", "--output-dir", "out"])
+            assert result.exit_code == 0, result.output
+
+    def test_the_scaffold_lints_clean(self, tmp_path):
+        for fs, runner, main in self._scaffold(tmp_path):
+            result = runner.invoke(main, ["lint", "misata.yaml"])
+            assert result.exit_code == 0, result.output
+
+    def test_lint_refuses_what_generate_refuses(self, tmp_path):
+        """Lint's promise is "will this generate?", so the answers must agree.
+
+        Probabilities that do not sum to 1 are the case that shipped: lint
+        passed, generate raised.
+        """
+        import pathlib
+        for fs, runner, main in self._scaffold(tmp_path):
+            path = pathlib.Path(fs) / "misata.yaml"
+            path.write_text(path.read_text().replace(
+                "probabilities: [0.45, 0.20, 0.15, 0.12, 0.08]",
+                "probabilities: [0.40, 0.15, 0.12, 0.10, 0.08]", 1))
+
+            lint = runner.invoke(main, ["lint", "misata.yaml"])
+            gen = runner.invoke(
+                main, ["generate", "--config", "misata.yaml", "--output-dir", "out"])
+
+            assert gen.exit_code != 0, "generate should refuse this"
+            assert lint.exit_code != 0, (
+                "lint passed a schema generate refuses:\n" + lint.output)
+            assert "0.8500" in lint.output
+
+    def test_every_probability_list_in_the_scaffold_sums_to_one(self):
+        """Guard the template itself, not just the one list that was wrong."""
+        import re
+        from misata import yaml_schema
+        import pathlib
+
+        src = pathlib.Path(yaml_schema.__file__).read_text()
+        bad = []
+        for m in re.finditer(r"probabilities: \[([0-9.,\s]+)\]", src):
+            values = [float(v) for v in m.group(1).split(",")]
+            if abs(sum(values) - 1.0) > 0.02:
+                bad.append(f"{m.group(0)} sums to {sum(values):.4f}")
+        assert not bad, "scaffolded probabilities must sum to 1.0:\n  " + "\n  ".join(bad)

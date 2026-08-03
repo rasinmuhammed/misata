@@ -5,6 +5,34 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.4] - 2026-08-03
+
+### The scaffold did not generate
+
+`misata init` writes a starter `misata.yaml` whose own comment says to run
+`misata generate` next. That refused: the template's country probabilities summed
+to 0.85, and generation requires 1.0. The first two commands a new user runs, in
+the order the tool tells them to, ended in a stack trace.
+
+`misata lint` called the same file clean, because it never ran the validation
+generation runs. Lint's entire promise is "will this generate?", so it now asks
+that question, reports anything blocking as an error, and exits non-zero. A test
+asserts lint and generate agree, and another guards every probability list in
+the scaffold.
+
+### An agent skill
+
+`skills/misata/SKILL.md` teaches an agent which entry point fits which request,
+what is worth declaring, and when to refuse rather than guess. It also says not
+to reach for `--truncate` unprompted, and to show a `--dry-run` plan before
+writing to anyone's database.
+
+`tests/test_skill.py` checks every command, flag and declaration key it mentions
+against the running package. Written because the first draft claimed
+`misata generate --from-project` (that flag is on `dbt-seed`) and a top-level
+`rollups:` key (roll-ups are inferred, never declared). Both read perfectly
+plausibly, and an agent acting on either would have reported Misata as broken.
+
 ## [0.9.6.3] - 2026-08-03
 
 ### `misata seed` never wrote a row to Postgres

@@ -2822,6 +2822,22 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
         console.print(f"[red]Schema could not be parsed: {e}[/red]")
         sys.exit(2)
 
+    # Lint's whole promise is "will this generate?", so it has to run the check
+    # generation runs. It did not, and so it passed schemas `misata generate`
+    # rejects outright: the scaffold `misata init` writes had probabilities
+    # summing to 0.85, lint called it clean, and generate refused. Whatever
+    # stops generation is an error here too, reported the same way.
+    from misata.validation import SchemaValidationError, validate_schema
+
+    try:
+        validate_schema(schema_config)
+    except SchemaValidationError as exc:
+        console.print(f"\n[red]{len(exc.issues)} issue(s) would stop "
+                      f"generation:[/red]")
+        for issue in exc.issues:
+            console.print(f"  [red]•[/red] {issue}")
+        sys.exit(1)
+
     findings = lint_schema(schema_config)
     n_tables = len(schema_config.tables)
     console.print(f"Linting [cyan]{schema_config.name}[/cyan] "

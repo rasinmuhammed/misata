@@ -94,7 +94,7 @@ tables:
       country:
         type: categorical
         choices: [United States, United Kingdom, Canada, Germany, France]
-        probabilities: [0.40, 0.15, 0.12, 0.10, 0.08]
+        probabilities: [0.45, 0.20, 0.15, 0.12, 0.08]
       plan:
         type: categorical
         choices: [free, pro, enterprise]
