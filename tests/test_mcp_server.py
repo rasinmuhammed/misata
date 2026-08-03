@@ -408,3 +408,45 @@ class TestDirectoryAnnotations:
             ann = tools[name].annotations
             assert ann.readOnlyHint is True, f"{name} should be read-only"
             assert ann.destructiveHint is False, f"{name} should not be destructive"
+
+
+class TestDesktopBundle:
+    """The MCPB manifest must stay true, or the directory listing lies.
+
+    Anthropic requires a `privacy_policies` array and a README with a Privacy
+    Policy section for local connectors, and rejects submissions without them.
+    The version and tool list are checked against the package because a
+    manifest that drifts is worse than no manifest: it describes a connector
+    that no longer exists.
+    """
+
+    def _manifest(self):
+        import json
+        from pathlib import Path
+        return json.loads(
+            (Path(__file__).resolve().parents[1] / "mcpb" / "manifest.json").read_text())
+
+    def test_version_matches_the_package(self):
+        import misata
+        assert self._manifest()["version"] == misata.__version__, (
+            "bump mcpb/manifest.json alongside misata.__version__")
+
+    def test_it_declares_a_privacy_policy(self):
+        policies = self._manifest().get("privacy_policies") or []
+        assert policies, "a local connector without a privacy policy is rejected outright"
+        assert all(u.startswith("https://") for u in policies)
+
+    def test_the_readme_has_a_privacy_policy_section(self):
+        from pathlib import Path
+        readme = (Path(__file__).resolve().parents[1] / "mcpb" / "README.md").read_text()
+        assert "## Privacy Policy" in readme
+        assert "https://www.misata.studio/privacy" in readme
+
+    def test_it_lists_exactly_the_tools_the_server_exposes(self):
+        import asyncio
+        from misata.mcp.server import mcp
+        listed = {t["name"] for t in self._manifest()["tools"]}
+        actual = {t.name for t in asyncio.run(mcp.list_tools())}
+        assert listed == actual, (
+            f"manifest and server disagree: only in manifest {listed - actual}, "
+            f"only on server {actual - listed}")

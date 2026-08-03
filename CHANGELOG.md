@@ -5,6 +5,26 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.1] - 2026-08-02
+
+Fourth-segment bumps from here. Six third-segment releases in a week made the
+version number read as churn; the cadence is the same, the headline number stops
+inflating.
+
+### A desktop extension, ready to submit
+
+`mcpb/` holds what Anthropic's Connectors Directory asks for: a `manifest.json`
+declaring the seven tools and a privacy policy URL, a README whose Privacy
+Policy section states plainly that the package contains no telemetry, and a
+submission dossier with every portal answer drafted.
+
+The manifest is checked against the running server by
+`tests/test_mcp_server.py`, so it cannot drift into describing a connector that
+no longer exists. That test caught this very release: the manifest said 0.9.6.1
+while the package still said 0.9.6.
+
+Nothing about the engine changed.
+
 ## [0.9.6] - 2026-08-02
 
 ### Every MCP tool declares what it does to your data
