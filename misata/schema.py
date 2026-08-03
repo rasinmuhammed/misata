@@ -101,6 +101,10 @@ class Table(BaseModel):
     constraints: List["Constraint"] = Field(default_factory=list)
     workflow_preset: Optional[str] = None
     workflow_config: Optional[Dict[str, Any]] = None
+    # Set when this table lives in another schema and is owned by something
+    # else: Supabase's `auth.users` is the motivating case. Such a table is
+    # read so its children can reference real rows, and never written to.
+    external_schema: Optional[str] = None
     correlations: List[Dict[str, Any]] = Field(
         default_factory=list,
         description=(

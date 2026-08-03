@@ -73,7 +73,10 @@ def test_seed_fills_db_and_verifies_integrity(db):
         ["seed", db, "--rows", "40", "--skip", "schema_migrations", "--yes"],
     )
     assert result.exit_code == 0, result.output
-    assert "Every foreign key resolves in the database" in result.output
+    # The success line now states how many keys were actually checked. It used
+    # to read "Every foreign key resolves" even when none had been.
+    assert "foreign key(s) resolve in the database" in result.output
+    assert "All 2 foreign key(s)" in result.output
 
     counts = table_row_counts(db, ["customers", "products", "orders", "schema_migrations"])
     assert counts["customers"] == 40
@@ -278,3 +281,126 @@ def test_inferred_rollup_never_overwrites_a_declared_outcome_curve():
         )
     # and it must say so rather than dropping the roll-up silently
     assert notes, "dropping the roll-up should emit a warning"
+
+
+class TestPostgresWritePath:
+    """The Postgres path was never exercised against a real Postgres.
+
+    Every test here covers a defect found by pointing `misata seed` at a live
+    database shaped like a Supabase project. The suite ran green throughout,
+    because it only ever seeded SQLite, where none of these code paths run.
+    """
+
+    def test_copy_is_entered_as_a_context_manager(self):
+        """`cur.copy(sql, buf)` writes nothing and raises nothing.
+
+        psycopg3's second positional argument is query *parameters*, not data,
+        and the return value must be entered before a byte moves. Called the
+        wrong way it silently inserted zero rows, the `except` fallback never
+        fired, and the caller was told every row landed. `misata seed` reported
+        success against Postgres while leaving the tables empty.
+        """
+        import ast
+        from pathlib import Path
+
+        src = Path(__file__).resolve().parents[1] / "misata" / "db.py"
+        tree = ast.parse(src.read_text())
+
+        bare_calls = []
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "copy"):
+                continue
+            if len(node.args) > 1:
+                bare_calls.append(
+                    f"line {node.lineno}: copy() given {len(node.args)} positional "
+                    f"args; the second is query parameters, not data")
+
+        entered = {
+            id(item.context_expr)
+            for node in ast.walk(tree) if isinstance(node, ast.With)
+            for item in node.items
+        }
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "copy"
+                    and id(node) not in entered):
+                bare_calls.append(
+                    f"line {node.lineno}: copy() result never entered as a "
+                    f"context manager, so nothing is written")
+
+        assert not bare_calls, "\n  ".join(bare_calls)
+
+    def test_an_empty_integrity_report_is_not_a_pass(self):
+        """`all([])` is True. That is how it claimed to verify nothing."""
+        from misata.db import IntegrityReport, RelationshipIntegrity
+
+        assert IntegrityReport().verified is False
+        assert IntegrityReport().complete is False
+
+        checked = IntegrityReport(relationships=[
+            RelationshipIntegrity(parent_table="a", parent_key="id",
+                                  child_table="b", child_key="a_id", orphans=0)])
+        assert checked.verified is True
+        assert checked.complete is True
+
+    def test_a_skipped_check_is_not_a_complete_one(self):
+        from misata.db import IntegrityReport, RelationshipIntegrity
+
+        partial = IntegrityReport(
+            relationships=[RelationshipIntegrity(
+                parent_table="a", parent_key="id",
+                child_table="b", child_key="a_id", orphans=0)],
+            skipped=["c.a_id -> a.id: could not query"])
+        assert partial.verified is True     # what ran, passed
+        assert partial.complete is False    # but not everything ran
+
+
+class TestUniqueForeignKey:
+    """A unique FK is one-to-one, so it must be drawn without replacement.
+
+    Supabase's `profiles.id -> auth.users.id` is the shape: the foreign key IS
+    the primary key. Sampling with replacement produced duplicate ids and
+    Postgres rejected the insert on `profiles_pkey`.
+    """
+
+    def _schema(self, child_rows: int):
+        from misata.schema import Column, Relationship, SchemaConfig, Table
+        return SchemaConfig(
+            name="one_to_one",
+            tables=[Table(name="users", row_count=25),
+                    Table(name="profiles", row_count=child_rows)],
+            columns={
+                "users": [Column(name="id", type="int", distribution_params={},
+                                 unique=True)],
+                "profiles": [
+                    Column(name="id", type="foreign_key", unique=True,
+                           distribution_params={"references": "users.id"}),
+                    Column(name="username", type="text", distribution_params={}),
+                ],
+            },
+            relationships=[Relationship(parent_table="users", child_table="profiles",
+                                        parent_key="id", child_key="id")],
+            seed=7,
+        )
+
+    def test_values_are_distinct(self):
+        import misata
+        tables = misata.generate_from_schema(self._schema(25))
+        ids = tables["profiles"]["id"]
+        assert ids.is_unique, f"{len(ids) - ids.nunique()} duplicate(s)"
+        assert set(ids).issubset(set(tables["users"]["id"]))
+
+    def test_fewer_children_than_parents_still_distinct(self):
+        import misata
+        ids = misata.generate_from_schema(self._schema(10))["profiles"]["id"]
+        assert len(ids) == 10 and ids.is_unique
+
+    def test_asking_for_more_than_exist_is_refused(self):
+        """There is no valid answer, so inventing one would be the bug."""
+        import pytest
+        import misata
+        with pytest.raises(ValueError, match="at most one row per parent"):
+            misata.generate_from_schema(self._schema(40))

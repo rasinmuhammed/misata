@@ -2255,6 +2255,23 @@ class DataSimulator:
                 )
                 return np.array([None] * size, dtype=object)
 
+            # A unique foreign key is one-to-one with its parent, so it must be
+            # drawn without replacement. This outranks every weighting strategy
+            # below: a popularity weight that picks the same parent twice
+            # violates the column's own uniqueness, and the database rejects the
+            # insert. Supabase's `profiles.id -> auth.users.id` is the canonical
+            # shape, where the FK column IS the primary key.
+            if column.unique:
+                if size > len(parent_ids):
+                    raise ValueError(
+                        f"{table_name}.{column.name} is unique and references "
+                        f"{relationship.parent_table}.{relationship.parent_key}, so it can "
+                        f"hold at most one row per parent: {len(parent_ids):,} available, "
+                        f"{size:,} requested. Lower {table_name}'s row count to "
+                        f"{len(parent_ids):,} or fewer."
+                    )
+                return self.rng.choice(parent_ids, size=size, replace=False)
+
             # Partition isolation outranks everything, including temporal
             # eligibility, which it composes with rather than replaces: a
             # parent that existed at the right time but belongs to another

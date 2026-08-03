@@ -24,13 +24,39 @@ def schema_from_db(
         if dialect == "sqlite":
             tables = _sqlite_list_tables(conn, include_tables)
             columns_map, relationships = _sqlite_introspect(conn, tables)
+            external = {}
         else:
             tables = _postgres_list_tables(conn, include_tables)
-            columns_map, relationships = _postgres_introspect(conn, tables)
+            columns_map, relationships, external = _postgres_introspect(conn, tables)
     finally:
         conn.close()
 
     table_defs = [Table(name=t, row_count=default_rows) for t in tables]
+
+    # A foreign key can point out of `public` at a table somebody else owns.
+    # Supabase is the common case: every project's `public.profiles.id`
+    # references `auth.users.id`, and auth rows are created by the auth service,
+    # not by us. Carry such a parent in the config so the relationship resolves,
+    # with row_count 0 so nothing is generated for it. The seeder reads its real
+    # keys and draws children from those.
+    external_counts = {}
+    for name, (schema_name, key_col, existing) in external.items():
+        if name in tables:
+            continue
+        external_counts[name] = existing
+        table_defs.append(
+            Table(
+                name=name,
+                row_count=0,
+                external_schema=schema_name,
+                description=(f"Read-only: owned by the {schema_name} schema, "
+                             f"{existing:,} existing row(s)."),
+            )
+        )
+        columns_map.setdefault(
+            name,
+            [Column(name=key_col, type="text", distribution_params={}, unique=True)],
+        )
 
     config = SchemaConfig(
         name="IntrospectedSchema",
@@ -40,14 +66,18 @@ def schema_from_db(
     )
 
     # Auto-assign proportional row counts based on FK graph
-    assign_proportional_row_counts(config, default_rows)
+    assign_proportional_row_counts(config, default_rows, external_counts)
 
     # Auto-enrich with realistic column constraints
     enrich_introspected_schema(config)
     return config
 
 
-def assign_proportional_row_counts(config: SchemaConfig, base_rows: int) -> None:
+def assign_proportional_row_counts(
+    config: SchemaConfig,
+    base_rows: int,
+    external_counts: Optional[Dict[str, int]] = None,
+) -> None:
     """
     Assign realistic, proportional row counts to tables based on the FK graph
     and table name semantics.
@@ -148,10 +178,35 @@ def assign_proportional_row_counts(config: SchemaConfig, base_rows: int) -> None
     }
 
     for table in config.tables:
+        if table.external_schema:
+            # Somebody else's table. We read it, we never fill it.
+            table.row_count = 0
+            continue
         tier = tier_map.get(table.name, 1)
         multiplier = TIER_MULTIPLIERS[tier]
         row_count = max(5, int(base_rows * multiplier))  # Minimum 5 rows
         table.row_count = row_count
+
+    # A child whose foreign key is also its own primary key is one-to-one with
+    # its parent, so it cannot have more rows than the parent has. Supabase's
+    # `profiles.id -> auth.users.id` is exactly this, and asking for 2,500
+    # profiles against 25 auth users is not a shortfall to be filled in later,
+    # it is arithmetic that cannot hold.
+    by_name = {t.name: t for t in config.tables}
+    unique_cols = {
+        (t, c.name) for t, cols in config.columns.items() for c in cols if c.unique
+    }
+    for rel in config.relationships:
+        child, parent = by_name.get(rel.child_table), by_name.get(rel.parent_table)
+        if not child or not parent or child.row_count == 0:
+            continue
+        if (rel.child_table, rel.child_key) not in unique_cols:
+            continue
+        # An external parent's ceiling is the rows it already has, not the
+        # zero we will generate for it.
+        ceiling = (external_counts or {}).get(rel.parent_table, parent.row_count)
+        if ceiling:
+            child.row_count = min(child.row_count, ceiling)
 
 
 def enrich_introspected_schema(config: SchemaConfig) -> None:
@@ -561,9 +616,11 @@ def _postgres_list_tables(conn, include_tables: Optional[List[str]]) -> List[str
     return tables
 
 
-def _postgres_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column]], List[Relationship]]:
+def _postgres_introspect(conn, tables: List[str]):
     columns_map: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []
+    # parent table name -> (schema, referenced column) for FKs that leave `public`
+    external: Dict[str, Tuple[str, str]] = {}
 
     col_sql = """
         SELECT column_name, data_type, is_nullable
@@ -585,7 +642,8 @@ def _postgres_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column
             tc.table_name AS child_table,
             kcu.column_name AS child_column,
             ccu.table_name AS parent_table,
-            ccu.column_name AS parent_column
+            ccu.column_name AS parent_column,
+            ccu.table_schema AS parent_schema
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage kcu
           ON tc.constraint_name = kcu.constraint_name
@@ -617,8 +675,21 @@ def _postgres_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column
             columns_map[table] = cols
 
             cur.execute(fk_sql, (table,))
-            for child_table, child_col, parent_table, parent_col in cur.fetchall():
+            for row in cur.fetchall():
+                child_table, child_col, parent_table, parent_col, parent_schema = row
                 _mark_fk_column(columns_map[child_table], child_col)
+                if parent_schema != "public":
+                    # Owned by another schema (Supabase keeps accounts in
+                    # `auth.users`). Record it so the caller can read its real
+                    # rows; we must never generate or insert into it. The count
+                    # is taken now, while the connection is open: it is the
+                    # ceiling on any child keyed one-to-one off this table.
+                    if parent_table not in external:
+                        with conn.cursor() as ccur:
+                            ccur.execute(
+                                f'SELECT COUNT(*) FROM "{parent_schema}"."{parent_table}"')
+                            n = int(ccur.fetchone()[0])
+                        external[parent_table] = (parent_schema, parent_col, n)
                 relationships.append(
                     Relationship(
                         parent_table=parent_table,
@@ -628,7 +699,7 @@ def _postgres_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column
                     )
                 )
 
-    return columns_map, relationships
+    return columns_map, relationships, external
 
 
 def _map_sql_type(sql_type: str) -> str:

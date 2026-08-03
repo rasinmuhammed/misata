@@ -74,6 +74,14 @@ def seed_database(
         if append:
             preloaded_context, skip_tables = _load_existing_context(conn, dialect, config)
 
+        # Tables owned by another schema are read, never written. This is not
+        # append mode; it applies always, because generating rows for
+        # Supabase's `auth.users` would be both wrong and rejected.
+        ext_context, ext_skip = _load_external_context(conn, dialect, config)
+        if ext_context:
+            preloaded_context = {**(preloaded_context or {}), **ext_context}
+            skip_tables = (skip_tables or set()) | ext_skip
+
         simulator = DataSimulator(
             config,
             batch_size=batch_size,
@@ -115,6 +123,50 @@ def seed_database(
         )
     finally:
         conn.close()
+
+
+def _load_external_context(conn, dialect: str, config: SchemaConfig):
+    """Read the real keys of tables owned by another schema.
+
+    Supabase is the case this exists for. Every project has
+    ``public.profiles.id`` referencing ``auth.users.id``, and auth rows belong
+    to the auth service: you cannot invent them, and inserting a profile whose
+    id is not already an auth user fails the foreign key. So read the ids that
+    exist and let children draw from those.
+
+    Raises if such a table is empty, because there is no honest way to continue:
+    every child row would violate its foreign key.
+    """
+    external = [t for t in config.tables if t.external_schema]
+    if not external:
+        return {}, set()
+
+    keys_needed: Dict[str, set] = {}
+    for rel in config.relationships:
+        keys_needed.setdefault(rel.parent_table, set()).add(rel.parent_key)
+
+    preloaded: Dict[str, pd.DataFrame] = {}
+    for table in external:
+        qualified = f'"{table.external_schema}"."{table.name}"'
+        cols = sorted(keys_needed.get(table.name, {"id"}))
+        col_list = ", ".join(f'"{c}"' for c in cols)
+        df = pd.read_sql_query(f"SELECT {col_list} FROM {qualified}", conn)
+        if df.empty:
+            raise ValueError(
+                f"{table.external_schema}.{table.name} has no rows, and "
+                f"{', '.join(sorted({r.child_table for r in config.relationships if r.parent_table == table.name}))} "
+                f"references it. Every row generated would violate that foreign "
+                f"key, so there is nothing valid to insert.\n\n"
+                f"Create some {table.external_schema}.{table.name} rows first. On "
+                f"Supabase that means signing up a few users (the dashboard, the "
+                f"admin API, or `supabase auth` in the CLI), then run this again."
+            )
+        # The FK sampler's fast path looks for "id".
+        if "id" not in df.columns and len(cols) == 1:
+            df = df.rename(columns={cols[0]: "id"}).assign(**{cols[0]: df[cols[0]]})
+        preloaded[table.name] = df
+
+    return preloaded, {t.name for t in external}
 
 
 def _load_existing_context(conn, dialect: str, config: SchemaConfig):
@@ -315,17 +367,26 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame) -> int:
     rows = list(clean_df.itertuples(index=False, name=None))
 
     if dialect == "postgres":
-        # Try COPY for performance, fallback to executemany
+        # COPY for speed, executemany as the fallback.
+        #
+        # `cur.copy(sql, buf)` looks like it streams `buf`, and does not:
+        # psycopg3's second positional argument is query *parameters*, and the
+        # return value is a context manager that has to be entered before a
+        # single byte moves. Called this way it wrote nothing, raised nothing,
+        # so the fallback never fired and the caller was told every row landed.
+        # `misata seed` reported success against Postgres while leaving the
+        # tables empty. Enter the context manager and write into it.
         try:
             csv_buf = StringIO()
             clean_df.to_csv(csv_buf, index=False, header=False)
-            csv_buf.seek(0)
             with conn.cursor() as cur:
                 copy_sql = f'COPY "{table_name}" ({col_list}) FROM STDIN WITH (FORMAT CSV)'
-                cur.copy(copy_sql, csv_buf)
+                with cur.copy(copy_sql) as copy:
+                    copy.write(csv_buf.getvalue())
             conn.commit()
             return len(rows)
         except Exception:
+            conn.rollback()
             with conn.cursor() as cur:
                 cur.executemany(sql, rows)
             conn.commit()
@@ -488,10 +549,23 @@ class RelationshipIntegrity:
 @dataclass
 class IntegrityReport:
     relationships: List[RelationshipIntegrity] = field(default_factory=list)
+    # Relationships that could not be checked, and why. Kept separate from the
+    # ones that passed: a check that did not run is not a check that passed.
+    skipped: List[str] = field(default_factory=list)
 
     @property
     def verified(self) -> bool:
+        # `all([])` is True, which is how this reported "every foreign key
+        # resolves" after checking none of them. An empty result means the
+        # verifier did not run, not that the data is clean.
+        if not self.relationships:
+            return False
         return all(r.intact for r in self.relationships)
+
+    @property
+    def complete(self) -> bool:
+        """True when every declared relationship was actually queried."""
+        return bool(self.relationships) and not self.skipped
 
     @property
     def total_orphans(self) -> int:
@@ -507,12 +581,20 @@ def verify_referential_integrity(config: SchemaConfig, db_url: str) -> Integrity
     """
     dialect, conn = _connect(db_url)
     report = IntegrityReport()
+    # A parent living in another schema has to be named with it, or the query
+    # looks in `public`, finds nothing, and errors. That error then aborted the
+    # Postgres transaction, so every remaining check failed too and the report
+    # came back empty while the CLI printed that every foreign key resolved.
+    schema_of = {t.name: t.external_schema for t in config.tables if t.external_schema}
     try:
         for rel in config.relationships:
+            parent = rel.parent_table
+            qualified = (f'"{schema_of[parent]}"."{parent}"'
+                         if parent in schema_of else f'"{parent}"')
             sql = (
                 f'SELECT COUNT(*) FROM "{rel.child_table}" c '
                 f'WHERE c."{rel.child_key}" IS NOT NULL '
-                f'AND NOT EXISTS (SELECT 1 FROM "{rel.parent_table}" p '
+                f'AND NOT EXISTS (SELECT 1 FROM {qualified} p '
                 f'WHERE p."{rel.parent_key}" = c."{rel.child_key}")'
             )
             try:
@@ -522,9 +604,20 @@ def verify_referential_integrity(config: SchemaConfig, db_url: str) -> Integrity
                         orphans = int(cur.fetchone()[0])
                 else:
                     orphans = int(conn.execute(sql).fetchone()[0])
-            except Exception:
-                # A relationship we cannot check (view, cross-schema) is skipped
-                # rather than reported as a false pass.
+            except Exception as exc:
+                # A relationship we cannot check (a view, a table we lack rights
+                # to) is recorded as skipped, never as a pass. Roll back first:
+                # in Postgres a failed statement poisons the transaction, and
+                # without this every later check failed for the wrong reason.
+                if dialect == "postgres":
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                report.skipped.append(
+                    f"{rel.child_table}.{rel.child_key} -> {parent}.{rel.parent_key}: "
+                    f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
+                )
                 continue
             report.relationships.append(
                 RelationshipIntegrity(

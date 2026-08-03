@@ -2162,26 +2162,37 @@ def seed_cmd(
     # The trust step: confirm integrity against the live database, not memory.
     console.print("\n🔎 Verifying foreign keys against the database…")
     integrity = verify_referential_integrity(config, db_url)
-    if not integrity.relationships:
-        console.print("  [dim]No foreign keys to verify.[/dim]")
-    else:
-        for r in integrity.relationships:
-            mark = "[green]✓[/green]" if r.intact else "[red]✗[/red]"
-            console.print(f"  {mark} {r.label} — {r.orphans} orphan(s)")
+    for r in integrity.relationships:
+        mark = "[green]✓[/green]" if r.intact else "[red]✗[/red]"
+        console.print(f"  {mark} {r.label} — {r.orphans} orphan(s)")
+    for note in integrity.skipped:
+        console.print(f"  [yellow]?[/yellow] {note}")
 
     console.print()
-    if integrity.verified:
+    if integrity.verified and integrity.complete:
         console.print(
             f"[bold green]✓ Seeded {report.total_rows:,} rows in "
-            f"{report.duration_seconds:.1f}s.[/bold green] Every foreign key "
-            f"resolves in the database."
+            f"{report.duration_seconds:.1f}s.[/bold green] All "
+            f"{len(integrity.relationships)} foreign key(s) resolve in the database."
         )
-    else:
+    elif integrity.total_orphans:
         console.print(
             f"[bold yellow]Seeded {report.total_rows:,} rows, but "
             f"{integrity.total_orphans} orphaned foreign key(s) remain.[/bold yellow] "
             f"This usually means a relationship the introspector could not see; "
             f"open an issue with your schema."
+        )
+    else:
+        # Rows landed, but the check did not fully run. Say so plainly rather
+        # than claiming a verification that never happened.
+        checked = len(integrity.relationships)
+        console.print(
+            f"[bold yellow]Seeded {report.total_rows:,} rows in "
+            f"{report.duration_seconds:.1f}s, but the integrity check did not "
+            f"fully run.[/bold yellow] {checked} of "
+            f"{checked + len(integrity.skipped)} foreign key(s) verified; the "
+            f"rest are listed above. The rows are inserted either way, and the "
+            f"database enforced its own constraints on the way in."
         )
 
 

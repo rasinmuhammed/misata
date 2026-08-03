@@ -5,6 +5,53 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.3] - 2026-08-03
+
+### `misata seed` never wrote a row to Postgres
+
+Found by pointing it at a live database shaped like a Supabase project. The
+whole test suite was green throughout, because it only ever seeded SQLite,
+where none of the Postgres code runs.
+
+**Nothing was inserted, and it said everything was.** The fast path called
+`cur.copy(sql, buf)`. psycopg3's second positional argument is query
+*parameters*, not data, and the return value is a context manager that has to
+be entered before a byte moves. So the COPY wrote nothing and raised nothing,
+the `executemany` fallback never fired, and the caller was handed the full row
+count. `misata seed` reported "Seeded 4,025 rows" against empty tables.
+
+**The verifier then agreed with it.** One unqueryable relationship raised, which
+in Postgres aborts the transaction, so every remaining check failed too. The
+failures were swallowed by a bare `except: continue`, leaving an empty report,
+and `all([])` is `True`. The CLI printed "Every foreign key resolves in the
+database" having checked none of them. A skipped check is now recorded as
+skipped and never counted as a pass, the report distinguishes "what ran passed"
+from "everything ran", and the success line states how many keys it actually
+checked.
+
+### Foreign keys that leave the schema
+
+Every Supabase project has `public.profiles.id` referencing `auth.users.id`.
+Introspection returned that as a relationship to a table called `users` that was
+not in `public`, and the config was rejected outright, so `misata seed` failed
+on essentially every real Supabase database.
+
+Such a parent is now carried in the schema as read-only: its real keys are read
+so children can reference rows that exist, and nothing is ever generated or
+inserted into it. If it is empty the seed refuses and says why, because every
+child row would violate its foreign key.
+
+### A unique foreign key is one-to-one
+
+`profiles.id` is both the foreign key and the primary key, so it has to be drawn
+without replacement. It was drawn with replacement, and Postgres rejected the
+insert on `profiles_pkey`. Uniqueness now outranks every weighting strategy, and
+asking for more children than there are parents is refused with the arithmetic
+rather than attempted.
+
+Row counts inherit the same rule: a one-to-one child is capped at the parent's
+row count, using the external table's real count where that is the parent.
+
 ## [0.9.6.2] - 2026-08-03
 
 ### The extension would not have started for a reviewer
