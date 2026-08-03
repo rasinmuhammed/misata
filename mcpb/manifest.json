@@ -14,6 +14,7 @@
   "documentation": "https://www.misata.studio/docs",
   "support": "https://github.com/rasinmuhammed/misata/issues",
   "license": "MIT",
+  "icon": "icon.png",
   "keywords": [
     "synthetic-data",
     "test-data",

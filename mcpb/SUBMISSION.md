@@ -91,8 +91,12 @@ Productivity
 **Support contact** — `rasinbinabdulla@gmail.com`
 **URL slug** (permanent once published) — `misata`
 
-**Icon** — needed. Use the existing mark from
-`misata-studio/apps/web/public/`; square PNG, transparent background.
+**Icon** — `mcpb/icon.png`, the studio's own mark: 1024x1024, PNG, genuinely
+transparent background. One thing to weigh: the strokes are dark, so it reads
+well on a light card and loses contrast on a dark one. If you would rather it
+held up in both, the fix is the mark on its own solid rounded tile, and that is
+a design call rather than a packaging one. Replace the file and re-run
+`python mcpb/pack.py`.
 
 ---
 
@@ -248,16 +252,15 @@ Seven are required, all straightforward here:
 
 ## Still blocked on you
 
-1. **Publish the privacy policy.** The page is written and in the studio repo at
-   `apps/web/src/app/(marketing)/privacy/page.tsx`; it goes live on the next
-   Vercel deploy. **Read it before it ships.** It describes your data handling
-   and it is the one document here that carries legal weight. Anthropic's own
-   wording: *"Missing or incomplete privacy policies result in immediate
-   rejection."*
+1. **Read the privacy policy.** It is live at
+   `https://www.misata.studio/privacy`, source in the studio repo at
+   `apps/web/src/app/(marketing)/privacy/page.tsx`. **Read it.** It describes your data handling
+   It describes your data handling and it is the one document here that carries
+   legal weight, so it should say what you mean rather than what I inferred from
+   the code. Anthropic's own wording: *"Missing or incomplete privacy policies
+   result in immediate rejection."*
 
-2. **Provide an icon**, square PNG, transparent background.
-
-3. **Decide the path.** Desktop extension needs neither an org nor a paid plan.
+2. **Decide the path.** Desktop extension needs neither an org nor a paid plan.
    The remote listing needs a Team or Enterprise organisation.
 
 Nothing else is outstanding. Review times are not published; community reports
