@@ -93,6 +93,21 @@ pip install "misata[mcp]"        # MCP server, expose Misata to Claude, Cursor, 
 pip install "misata[evalpack]"   # evalpacks: verified eval databases for data agents (DuckDB)
 ```
 
+### Use it from a coding agent
+
+Misata ships an Agent Skill, so Claude Code and anything else that reads
+`SKILL.md` knows which entry point fits which request and what is worth
+declaring:
+
+```
+/plugin marketplace add rasinmuhammed/misata
+/plugin install misata@misata
+```
+
+The skill drives the CLI, so `pip install misata` is still required. There is
+also an MCP server (`pip install "misata[mcp]"`) and a Claude Desktop extension
+in [`mcpb/`](mcpb/).
+
 ---
 
 ## Use Misata from Claude / Cursor / Windsurf (MCP)

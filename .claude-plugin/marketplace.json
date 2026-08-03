@@ -1,0 +1,22 @@
+{
+  "name": "misata",
+  "owner": {
+    "name": "Muhammed Rasin",
+    "email": "rasinbinabdulla@gmail.com"
+  },
+  "metadata": {
+    "description": "Realistic multi-table test data whose joins and totals hold up",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "misata",
+      "description": "Generate realistic multi-table test data, seed a development database, or build fixtures whose foreign keys resolve and whose totals reconcile. Requires `pip install misata`.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/misata"
+      ]
+    }
+  ]
+}

@@ -125,3 +125,43 @@ class TestSafetyInstructions:
 
     def test_it_requires_a_dry_run_before_seeding(self):
         assert re.search(r"`--dry-run` first", skill_text())
+
+
+class TestMarketplaceManifest:
+    """`/plugin marketplace add rasinmuhammed/misata` reads this file.
+
+    It points at skill directories by path. A rename or a typo makes the
+    marketplace resolve to nothing, and the failure shows up on a stranger's
+    machine rather than here.
+    """
+
+    def _manifest(self):
+        import json
+        path = (Path(__file__).resolve().parents[1]
+                / ".claude-plugin" / "marketplace.json")
+        assert path.exists(), "marketplace.json is what makes the repo installable"
+        return json.loads(path.read_text()), path.parent.parent
+
+    def test_it_parses_and_names_an_owner(self):
+        manifest, _ = self._manifest()
+        assert manifest["name"]
+        assert manifest["owner"]["name"] and manifest["owner"]["email"]
+        assert manifest["plugins"], "a marketplace with no plugins installs nothing"
+
+    def test_every_skill_path_exists_and_has_a_skill_file(self):
+        manifest, root = self._manifest()
+        missing = []
+        for plugin in manifest["plugins"]:
+            for rel in plugin.get("skills", []):
+                skill_dir = (root / rel.lstrip("./")).resolve()
+                if not (skill_dir / "SKILL.md").exists():
+                    missing.append(f"{plugin['name']} -> {rel}")
+        assert not missing, (
+            "marketplace.json points at skills that do not exist: " + ", ".join(missing))
+
+    def test_the_description_mentions_the_install_requirement(self):
+        """The skill drives a Python CLI. Someone installing the plugin alone
+        gets an agent confidently running a command they do not have."""
+        manifest, _ = self._manifest()
+        blob = " ".join(p["description"] for p in manifest["plugins"])
+        assert "pip install misata" in blob
