@@ -1,7 +1,12 @@
 # Connectors Directory submission dossier
 
+**For the desktop extension, use [FORM.md](FORM.md).** The real form is six
+fields and this document is far longer than it needs. Keep this one: it holds
+the long-form copy the REMOTE server submission asks for, which is a separate
+listing at `api.misata.studio/mcp` and needs a Team or Enterprise organisation.
+
 Everything the submission asks for, drafted and ready to paste. Answer copy is
-final; the two blockers at the bottom are yours.
+final; the one blocker at the bottom is yours.
 
 Sources for the requirements:
 [submission guide](https://claude.com/docs/connectors/building/submission),
