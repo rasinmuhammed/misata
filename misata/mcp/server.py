@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional
 # server that stops importing because an upstream package tidied its namespace
 # is a packaging failure, not a Misata one, and it took CI down on all four
 # interpreters while the local environment still had the older layout.
+from mcp.types import ToolAnnotations
+
 try:
     from mcp.server.fastmcp import FastMCP
 except ImportError:  # pragma: no cover - import-time guard
@@ -121,7 +123,16 @@ def _tool_error(exc: Exception, suggestion: str) -> Dict[str, Any]:
     }
 
 
-@mcp.tool()
+# Reads the bundled domain catalogue. Touches nothing.
+@mcp.tool(
+    title="List built-in domains",
+    annotations=ToolAnnotations(
+        title="List built-in domains",
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def list_domains() -> Dict[str, Any]:
     """List the 18 built-in business domains Misata can generate from natural language.
 
@@ -139,7 +150,16 @@ def list_domains() -> Dict[str, Any]:
         return _tool_error(exc, "This should never fail — please report a bug at https://github.com/rasinmuhammed/misata/issues")
 
 
-@mcp.tool()
+# Parses a sentence into a schema and shows the interpretation. Generates no data and writes nothing.
+@mcp.tool(
+    title="Preview how a story is interpreted",
+    annotations=ToolAnnotations(
+        title="Preview how a story is interpreted",
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def preview_story(story: str, rows: int = 1000) -> Dict[str, Any]:
     """Inspect what Misata would generate from a story — without generating any rows.
 
@@ -176,7 +196,16 @@ def preview_story(story: str, rows: int = 1000) -> Dict[str, Any]:
         )
 
 
-@mcp.tool()
+# Returns the tables, columns and relationships a story implies.
+@mcp.tool(
+    title="Inspect the schema behind a story",
+    annotations=ToolAnnotations(
+        title="Inspect the schema behind a story",
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
     """Return the full schema (tables, columns, relationships) for a story without
     generating data.
@@ -251,7 +280,16 @@ def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
     }
 
 
-@mcp.tool()
+# Generates data in memory and returns it. Writes to no database.
+@mcp.tool(
+    title="Generate a dataset from a sentence",
+    annotations=ToolAnnotations(
+        title="Generate a dataset from a sentence",
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def generate_dataset(
     story: str,
     rows: int = 1000,
@@ -322,7 +360,16 @@ def generate_dataset(
     }
 
 
-@mcp.tool()
+# Generates data from an explicit schema. Writes to no database.
+@mcp.tool(
+    title="Generate a dataset from a schema",
+    annotations=ToolAnnotations(
+        title="Generate a dataset from a schema",
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def generate_from_schema(
     schema: Dict[str, Any],
     rows: int = 1000,
@@ -658,7 +705,16 @@ def generate_from_schema(
     }
 
 
-@mcp.tool()
+# WRITES to the database you point it at, and can be asked to truncate existing tables. Plans by default and only applies when explicitly told to.
+@mcp.tool(
+    title="Seed a real database",
+    annotations=ToolAnnotations(
+        title="Seed a real database",
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=False,
+    ),
+)
 def seed_database(
     db_url: str,
     rows: int = 500,
@@ -840,7 +896,16 @@ def seed_database(
     }
 
 
-@mcp.tool()
+# Checks a schema for infeasible declarations. Changes nothing.
+@mcp.tool(
+    title="Validate a misata.yaml",
+    annotations=ToolAnnotations(
+        title="Validate a misata.yaml",
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def validate_yaml(yaml_text: str) -> Dict[str, Any]:
     """Validate a ``misata.yaml`` document at two levels.
 

@@ -368,3 +368,43 @@ def test_generate_from_schema_bad_schema_returns_recoverable_error():
     assert "ok" in result
     if not result["ok"]:
         assert result["suggestion"]
+
+
+class TestDirectoryAnnotations:
+    """Every tool carries the annotations the Connectors Directory requires.
+
+    Anthropic's submission portal groups tools by whether they declare
+    themselves read-only or write, and flags any that declare neither. The
+    honesty matters more than the paperwork: `seed_database` writes to a
+    database the user points it at and can be asked to truncate tables, so a
+    client that trusted a missing hint would be trusting the wrong thing.
+    """
+
+    def _tools(self):
+        import asyncio
+        from misata.mcp.server import mcp
+        return {t.name: t for t in asyncio.run(mcp.list_tools())}
+
+    def test_every_tool_has_a_title_and_a_hint(self):
+        for name, tool in self._tools().items():
+            ann = tool.annotations
+            assert ann is not None, f"{name} has no annotations"
+            assert ann.title, f"{name} has no title"
+            assert ann.readOnlyHint is not None or ann.destructiveHint is not None, (
+                f"{name} declares neither readOnlyHint nor destructiveHint")
+
+    def test_the_only_writing_tool_says_so(self):
+        """The one tool that touches a real database must not claim otherwise."""
+        tools = self._tools()
+        writers = [n for n, t in tools.items() if t.annotations.destructiveHint]
+        assert writers == ["seed_database"], (
+            f"expected seed_database to be the only destructive tool, got {writers}")
+        assert tools["seed_database"].annotations.readOnlyHint is False
+
+    def test_the_reading_tools_do_not_claim_to_write(self):
+        tools = self._tools()
+        for name in ["list_domains", "preview_story", "inspect_schema",
+                     "generate_dataset", "generate_from_schema", "validate_yaml"]:
+            ann = tools[name].annotations
+            assert ann.readOnlyHint is True, f"{name} should be read-only"
+            assert ann.destructiveHint is False, f"{name} should not be destructive"

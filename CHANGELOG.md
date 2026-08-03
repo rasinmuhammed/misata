@@ -5,6 +5,20 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6] - 2026-08-02
+
+### Every MCP tool declares what it does to your data
+
+All seven tools now carry a `title` and an honest `readOnlyHint` /
+`destructiveHint`. Six read and compute; `seed_database` is the only one that
+writes, since it inserts into a database you point it at and can be asked to
+truncate existing tables, and it is annotated accordingly.
+
+This is a requirement for Anthropic's Connectors Directory, whose submission
+portal groups tools by their declared behaviour and flags any that declare
+neither. The honesty matters more than the listing: a client that trusted a
+missing hint would be trusting the wrong thing.
+
 ## [0.9.5] - 2026-08-02
 
 ### The YAML loader accepts the names the rest of the language uses
