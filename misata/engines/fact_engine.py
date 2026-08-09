@@ -471,15 +471,34 @@ class FactEngine:
         return pd.DateOffset(months=index)
 
     def _point_sort_key(self, point: Dict[str, Any]) -> Any:
+        """Order curve points, whichever way the period was written.
+
+        `period` is documented in the published JSON Schema as a string label
+        such as '2024-01', and this called int() on it. So the one spelling the
+        schema requires was the one that crashed, with a bare ValueError out of
+        a sort key: `misata generate` died on the flagship feature, and lint
+        reported it as a warning.
+
+        ISO period labels sort chronologically as plain text, so a label that is
+        not a number sorts by its string. Keys are 4-tuples throughout, because
+        a key that is sometimes (int, int) and sometimes (int, str) raises
+        TypeError the moment two points disagree.
+        """
+        def key(group: int, raw: Any) -> tuple:
+            try:
+                return (group, 0, float(raw), "")
+            except (TypeError, ValueError):
+                return (group, 1, 0.0, str(raw))
+
         if "month" in point:
-            return (0, int(point["month"]))
+            return key(0, point["month"])
         if "date" in point:
-            return (1, pd.to_datetime(point["date"]))
+            return (1, 0, pd.to_datetime(point["date"]).value, "")
         if "period" in point:
-            return (2, int(point["period"]))
+            return key(2, point["period"])
         if "index" in point:
-            return (3, int(point["index"]))
-        return (4, 0)
+            return key(3, point["index"])
+        return (4, 0, 0.0, "")
 
     def _extract_target_value(self, point: Dict[str, Any]) -> float:
         for key in TARGET_KEYS:

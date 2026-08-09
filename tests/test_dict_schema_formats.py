@@ -921,3 +921,75 @@ class TestSelfReferentialFkExcludesSelf:
         df = self._employees(1)
         assert len(df) == 1
         assert pd.isna(df["manager_id"].iloc[0])
+
+
+class TestCurvePeriodLabels:
+    """The period spelling the published JSON Schema requires must work.
+
+    `curve_points[].period` is documented as a string label such as '2024-01',
+    and the fact engine's sort key called int() on it. So the one spelling the
+    schema demands was the one that crashed, with a bare ValueError raised from
+    inside a sort comparator. `misata generate` died on the flagship feature and
+    `misata lint` reported it as a warning.
+    """
+
+    def _schema(self, points):
+        from misata.schema import Column, OutcomeCurve, SchemaConfig, Table
+        return SchemaConfig(
+            name="curve", seed=3,
+            tables=[Table(name="orders", row_count=1200)],
+            columns={"orders": [
+                Column(name="order_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 99999}),
+                Column(name="order_date", type="datetime",
+                       distribution_params={"start": "2025-01-01",
+                                            "end": "2025-03-31"}),
+                Column(name="revenue", type="float",
+                       distribution_params={"min": 1.0, "max": 5000.0}),
+            ]},
+            outcome_curves=[OutcomeCurve(
+                table="orders", column="revenue", time_column="order_date",
+                time_unit="month", pattern_type="custom", value_mode="absolute",
+                curve_points=points)],
+        )
+
+    ISO = [{"period": "2025-01", "value": 100_000.0},
+           {"period": "2025-02", "value": 120_000.0},
+           {"period": "2025-03", "value": 90_000.0}]
+
+    def test_iso_period_labels_generate(self):
+        import misata
+        tables = misata.generate_from_schema(self._schema(self.ISO))
+        assert len(tables["orders"]) == 1200
+
+    def test_iso_period_targets_hold_exactly(self):
+        import misata
+        import pandas as pd
+        orders = misata.generate_from_schema(self._schema(self.ISO))["orders"]
+        got = orders.groupby(
+            pd.to_datetime(orders["order_date"]).dt.strftime("%Y-%m")
+        )["revenue"].sum()
+        for point in self.ISO:
+            assert abs(got[point["period"]] - point["value"]) < 0.01, (
+                f"{point['period']}: declared {point['value']}, got {got[point['period']]}")
+
+    def test_points_out_of_order_are_sorted_not_crashed(self):
+        """The crash was in a sort key, so the ordering path is the one to poke."""
+        import misata
+        shuffled = [self.ISO[2], self.ISO[0], self.ISO[1]]
+        assert len(misata.generate_from_schema(self._schema(shuffled))["orders"]) == 1200
+
+    def test_a_numeric_period_still_works(self):
+        """Integer labels were the only spelling that used to work. Keep them."""
+        import misata
+        points = [{"period": 1, "value": 100_000.0},
+                  {"period": 2, "value": 120_000.0}]
+        assert len(misata.generate_from_schema(self._schema(points))["orders"]) == 1200
+
+    def test_mixed_numeric_and_text_labels_do_not_raise_typeerror(self):
+        """A key that is sometimes (int, int) and sometimes (int, str) blows up
+        on the first comparison between them."""
+        import misata
+        points = [{"period": 1, "value": 100_000.0},
+                  {"period": "2025-02", "value": 120_000.0}]
+        misata.generate_from_schema(self._schema(points))

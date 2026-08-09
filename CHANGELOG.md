@@ -5,6 +5,31 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.5] - 2026-08-04
+
+### The documented spelling of an outcome curve crashed
+
+`curve_points[].period` is documented in the published JSON Schema as a string
+label such as `'2024-01'`, and it is a required property. The fact engine's sort
+key called `int()` on it. So the one spelling the schema demands was the one
+that could not run:
+
+    ValueError: invalid literal for int() with base 10: '2025-01'
+
+raised from inside a sort comparator, on the feature Misata exists for. Integer
+labels worked, which is why every suite stayed green: the tests and benchmarks
+use `month`, `index` or bare integers. Nobody had run the documented form.
+
+Period labels are now ordered whatever spelling they arrive in. ISO labels sort
+chronologically as text, so they sort as text; numeric labels still sort
+numerically; and the keys are uniform 4-tuples, because a key that is sometimes
+`(int, int)` and sometimes `(int, str)` raises `TypeError` the moment two points
+disagree. Regression tests cover ISO labels, out-of-order points, numeric
+labels, and a mix of numeric and text in one curve.
+
+Found by writing a schema from the JSON Schema rather than by copying an
+existing example.
+
 ## [0.9.6.4] - 2026-08-03
 
 ### The scaffold did not generate

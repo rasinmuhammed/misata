@@ -9,6 +9,7 @@ This module implements vectorized data generation with support for:
 - Pure Python text generation (no external dependencies)
 """
 
+import os
 import re
 import warnings
 import zlib
@@ -242,6 +243,7 @@ class DataSimulator:
         """
         from misata.validation import validate_schema
         validate_schema(config)
+
 
         self.config = config
         self.context: Dict[str, pd.DataFrame] = {}  # Lightweight context (IDs only)
