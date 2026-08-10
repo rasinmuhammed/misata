@@ -404,3 +404,97 @@ class TestUniqueForeignKey:
         import misata
         with pytest.raises(ValueError, match="at most one row per parent"):
             misata.generate_from_schema(self._schema(40))
+
+
+class TestUniqueTextColumns:
+    """A column declared unique must hold that through every pass.
+
+    Found by seeding a Rails-shaped schema: `tags.name varchar UNIQUE` filled
+    from a finite pool of company names, and Postgres rejected the insert on
+    `tags_name_key`. Two separate defects were behind it.
+    """
+
+    def _schema(self, rows=1500):
+        from misata.schema import Column, SchemaConfig, Table
+        return SchemaConfig(
+            name="unique_text", seed=5,
+            tables=[Table(name="users", row_count=rows)],
+            columns={"users": [
+                Column(name="id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 9_999_999}),
+                Column(name="name", type="text", unique=True,
+                       distribution_params={"text_type": "name"}),
+                Column(name="email", type="text", unique=True,
+                       distribution_params={"text_type": "email"}),
+                Column(name="company", type="text", unique=True,
+                       distribution_params={"text_type": "company"}),
+            ]},
+        )
+
+    def test_every_unique_text_column_is_actually_unique(self):
+        """The text branch checked `unique` last, after four earlier returns
+        (reference pools, conditional vocab, capsule vocab, patterns) that each
+        ignored it. A finite pool then collides as rows approach pool size."""
+        import misata
+        df = misata.generate_from_schema(self._schema())["users"]
+        for col in ("id", "name", "email", "company"):
+            dupes = len(df[col]) - df[col].nunique()
+            assert dupes == 0, f"{col}: {dupes} duplicate(s) in a unique column"
+
+    def test_uniqueness_survives_the_realism_pass(self):
+        """`_fix_email_from_name` derives the address from the person's name,
+        which is correct and which reintroduces duplicates the generator had
+        already resolved. Enforcing it at generation alone was not enough."""
+        import misata
+        emails = misata.generate_from_schema(self._schema())["users"]["email"]
+        assert emails.is_unique
+        assert all("@" in str(v) for v in emails), (
+            "deduplication must not stop an email looking like an email")
+
+    def test_it_holds_across_batches(self):
+        """A table generated in several passes must be unique over the whole
+        table, not within each chunk."""
+        import misata
+        from misata.simulator import DataSimulator
+        import pandas as pd
+
+        sim = DataSimulator(self._schema(rows=2500), batch_size=500)
+        frames = {}
+        for name, batch in sim.generate_all():
+            frames.setdefault(name, []).append(batch)
+        users = pd.concat(frames["users"], ignore_index=True)
+        assert users["email"].is_unique, (
+            f"{len(users) - users['email'].nunique()} duplicate(s) across batches")
+
+
+class TestUniqueConstraintIntrospection:
+    """A UNIQUE constraint is not a PRIMARY KEY.
+
+    Only primary keys were read, so `tags.name varchar UNIQUE` was introspected
+    as an ordinary column. Every Rails, Laravel and Django schema is full of
+    these (email, slug, name), which is why seeding failed on most real
+    applications rather than on an exotic one.
+    """
+
+    def _db(self, tmp_path, ddl):
+        import sqlite3
+        path = tmp_path / "app.db"
+        con = sqlite3.connect(path)
+        con.executescript(ddl)
+        con.commit()
+        con.close()
+        return f"sqlite:///{path}"
+
+    def test_a_unique_column_is_marked_unique(self, tmp_path):
+        from misata.introspect import schema_from_db
+        url = self._db(tmp_path, """
+            CREATE TABLE tags (
+              id INTEGER PRIMARY KEY,
+              name TEXT NOT NULL UNIQUE,
+              blurb TEXT
+            );
+        """)
+        cols = {c.name: c for c in schema_from_db(url).columns["tags"]}
+        assert cols["id"].unique, "primary key"
+        assert cols["name"].unique, "declared UNIQUE but introspected as ordinary"
+        assert not cols["blurb"].unique, "must not mark everything unique"

@@ -567,13 +567,27 @@ def _sqlite_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column]]
     relationships: List[Relationship] = []
 
     for table in tables:
+        # `PRAGMA table_info` reports the primary key and nothing about UNIQUE.
+        # A column declared `name TEXT UNIQUE` therefore looked ordinary, the
+        # generator drew it from a finite pool, and the insert was rejected.
+        # Unique indexes carry that information; single-column ones only,
+        # because a unique index over (a, b) constrains the pair.
+        unique_cols: set = set()
+        for idx in conn.execute(f'PRAGMA index_list("{table}")').fetchall():
+            idx_name, is_unique = idx[1], idx[2]
+            if not is_unique:
+                continue
+            members = conn.execute(f'PRAGMA index_info("{idx_name}")').fetchall()
+            if len(members) == 1:
+                unique_cols.add(members[0][2])
+
         cur = conn.execute(f'PRAGMA table_info("{table}")')
         cols: List[Column] = []
         for row in cur.fetchall():
             name = row[1]
             sql_type = row[2] or ""
             nullable = row[3] == 0
-            is_pk = row[5] == 1
+            is_pk = row[5] == 1 or name in unique_cols
             col_type = _map_sql_type(sql_type)
             cols.append(
                 Column(
@@ -637,6 +651,26 @@ def _postgres_introspect(conn, tables: List[str]):
           AND tc.table_name = %s
           AND tc.constraint_type = 'PRIMARY KEY'
     """
+    # A UNIQUE constraint is not a PRIMARY KEY, and only primary keys were read.
+    # So `tags.name varchar UNIQUE` came back as an ordinary column, the
+    # generator drew it from a finite pool, and Postgres rejected the insert on
+    # `tags_name_key`. Every Rails, Laravel and Django schema is full of these
+    # (email, slug, name), which made seeding fail on most real applications.
+    #
+    # Single-column constraints only: a UNIQUE over (a, b) constrains the pair,
+    # and marking a and b individually unique would be a stricter schema than
+    # the database declares.
+    unique_sql = """
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.table_schema = 'public'
+          AND tc.table_name = %s
+          AND tc.constraint_type = 'UNIQUE'
+          AND (SELECT COUNT(*) FROM information_schema.key_column_usage k2
+               WHERE k2.constraint_name = tc.constraint_name) = 1
+    """
     fk_sql = """
         SELECT
             tc.table_name AS child_table,
@@ -658,6 +692,9 @@ def _postgres_introspect(conn, tables: List[str]):
         for table in tables:
             cur.execute(pk_sql, (table,))
             pk_cols = {row[0] for row in cur.fetchall()}
+
+            cur.execute(unique_sql, (table,))
+            pk_cols |= {row[0] for row in cur.fetchall()}
 
             cur.execute(col_sql, (table,))
             cols: List[Column] = []

@@ -248,6 +248,9 @@ class DataSimulator:
         self.config = config
         self.context: Dict[str, pd.DataFrame] = {}  # Lightweight context (IDs only)
         self._pk_store: Dict[str, np.ndarray] = {}  # Full PK arrays for FK sampling
+        # (table, column) -> values already emitted for a unique text column,
+        # so uniqueness holds across batches rather than within one.
+        self._unique_text_seen: Dict[tuple, set] = {}
         self.text_gen = TextGenerator(seed=config.seed)
         self.batch_size = batch_size
         self.smart_mode = smart_mode
@@ -1395,6 +1398,70 @@ class DataSimulator:
         return out.astype(int) if was_integer else out
 
     def generate_column(
+        self,
+        table_name: str,
+        column: Column,
+        size: int,
+        table_data: Optional[pd.DataFrame] = None,
+    ) -> np.ndarray:
+        """Generate a column, then hold a declared `unique` to its word.
+
+        The text branch checks `column.unique` last, after four earlier returns
+        (reference pools, conditional vocabularies, capsule vocabularies,
+        patterns) that each ignore it. A capsule pool has a finite number of
+        company names, so a unique column drawing from one collides as soon as
+        the row count approaches the pool size, and Postgres rejects the insert.
+        Seeding a Rails-shaped schema died on `tags.name` this way.
+
+        Enforcing it here rather than at those four sites is deliberate: this is
+        the one function every column passes through, so a branch added later
+        cannot route around the guarantee.
+        """
+        values = self._generate_column_raw(table_name, column, size, table_data)
+        return self._enforce_unique_text(table_name, column, values)
+
+    def _enforce_unique_text(self, table_name: str, column: Column,
+                             values: np.ndarray) -> np.ndarray:
+        """Disambiguate repeats in a column declared unique.
+
+        Numeric columns have their own uniqueness machinery; this covers the
+        text-shaped ones. Values are tracked across batches, because a table
+        generated in several passes must be unique over the whole table, not
+        within each chunk.
+        """
+        if not column.unique or values is None or len(values) == 0:
+            return values
+        if values.dtype.kind not in ("O", "U", "S"):
+            return values
+
+        seen = self._unique_text_seen.setdefault((table_name, column.name), set())
+        out = list(values)
+        for i, val in enumerate(out):
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                continue
+            text = str(val)
+            if text not in seen:
+                seen.add(text)
+                continue
+            # Suffix the repeat. An email keeps its shape, because a column
+            # named email that stops looking like one is its own defect.
+            n = 2
+            if "@" in text:
+                local, _, domain = text.partition("@")
+                candidate = f"{local}{n}@{domain}"
+                while candidate in seen:
+                    n += 1
+                    candidate = f"{local}{n}@{domain}"
+            else:
+                candidate = f"{text} {n}"
+                while candidate in seen:
+                    n += 1
+                    candidate = f"{text} {n}"
+            seen.add(candidate)
+            out[i] = candidate
+        return np.array(out, dtype=object)
+
+    def _generate_column_raw(
         self,
         table_name: str,
         column: Column,
@@ -5334,6 +5401,18 @@ class DataSimulator:
                 workflow_name,
                 protected_columns=protected_columns,
             )
+
+        # Last word on uniqueness, after every pass has had its turn.
+        # `_fix_email_from_name` derives the address from the person's name,
+        # which is right (a mismatched name and email is the loudest tell that
+        # data is fake) and which reintroduces duplicates the generator had
+        # already resolved: two rows drawn from the same name pool produce the
+        # same address. Enforcing it in generate_column alone was not enough,
+        # because a later pass rewrote the column.
+        for column in self.config.columns.get(table_name, []):
+            if column.unique and column.name in df.columns:
+                df[column.name] = self._enforce_unique_text(
+                    table_name, column, df[column.name].to_numpy())
 
         return df
 

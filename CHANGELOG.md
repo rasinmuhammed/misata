@@ -5,6 +5,43 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.7] - 2026-08-04
+
+### Seeding a Rails, Laravel or Django database failed on a unique column
+
+`misata seed` against an ordinary Rails-shaped schema died on
+
+    duplicate key value violates unique constraint "tags_name_key"
+
+Three defects, one after the other, all on the most ordinary schema shape there
+is: `email`, `slug` and `name` columns with a `UNIQUE` constraint.
+
+**A UNIQUE constraint is not a PRIMARY KEY.** Introspection read only primary
+keys, so `name varchar UNIQUE` came back as an ordinary column. Both dialects
+were wrong in their own way: Postgres never queried `constraint_type = 'UNIQUE'`,
+and SQLite's `PRAGMA table_info` does not report it at all, so unique indexes are
+now read via `index_list`. Single-column constraints only, because a UNIQUE over
+(a, b) constrains the pair rather than either column.
+
+**The text generator checked `unique` last.** Four branches return before it
+(reference pools, conditional vocabularies, capsule vocabularies, patterns) and
+each ignored it, so a column drawing from a finite pool of company names
+collided as soon as the row count approached the pool size. Uniqueness is now
+enforced in `generate_column`, the one function every column passes through, so
+a branch added later cannot route around it. Values are tracked across batches,
+because a table generated in several passes must be unique over the table rather
+than within each chunk.
+
+**A realism pass then reintroduced the duplicates.** `_fix_email_from_name`
+derives the address from the person's name, which is correct (a mismatched name
+and email is the loudest tell that data is fake) and which collides whenever two
+rows draw the same name. Uniqueness is re-applied after every pass has run.
+Deduplication keeps the shape: an email stays an email.
+
+Found by seeding a Rails-shaped Postgres schema (bigint ids, timestamps, a join
+table) rather than the project's own fixtures. It now seeds 5,300 rows across
+five tables with all five foreign keys verified and zero orphans.
+
 ## [0.9.6.6] - 2026-08-04
 
 ### The docs are now executed, not just written
