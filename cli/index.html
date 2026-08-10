@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/logo.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -2707,10 +2707,9 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>misata<span class="w"> </span>generate<span class="w">                                      </span><span class="c1"># reads misata.yaml</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>misata<span class="w"> </span>generate<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with 5k users&quot;</span><span class="w"> </span>--rows<span class="w"> </span><span class="m">5000</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>misata<span class="w"> </span>generate<span class="w"> </span>--output-dir<span class="w"> </span>data/
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>misata<span class="w"> </span>generate<span class="w"> </span>--format<span class="w"> </span>parquet<span class="w">                     </span><span class="c1"># parquet | csv | jsonl | duckdb</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>misata<span class="w"> </span>generate<span class="w"> </span>--locale<span class="w"> </span>de_DE<span class="w">                       </span><span class="c1"># force locale</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>misata<span class="w"> </span>generate<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>misata<span class="w"> </span>generate<span class="w"> </span>--db-url<span class="w"> </span>postgresql://localhost/dev<span class="w"> </span>--db-create
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>misata<span class="w"> </span>generate<span class="w"> </span>--locale<span class="w"> </span>de_DE<span class="w">                       </span><span class="c1"># force locale</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>misata<span class="w"> </span>generate<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>misata<span class="w"> </span>generate<span class="w"> </span>--db-url<span class="w"> </span>postgresql://localhost/dev<span class="w"> </span>--db-create
 </code></pre></div>
 <table>
 <thead>
@@ -2775,7 +2774,7 @@
 <h2 id="misata-template"><code>misata template</code></h2>
 <p>Generate from a built-in industry template.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>misata<span class="w"> </span>template<span class="w"> </span>saas<span class="w"> </span>--scale<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--output-dir<span class="w"> </span>data/
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>misata<span class="w"> </span>template<span class="w"> </span>fintech<span class="w"> </span>--rows<span class="w"> </span><span class="m">5000</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>misata<span class="w"> </span>template<span class="w"> </span>fintech<span class="w"> </span>--scale<span class="w"> </span><span class="m">2</span>.0<span class="w">                  </span><span class="c1"># 2x the template&#39;s row counts</span>
 </code></pre></div>
 <hr />
 <h2 id="misata-templates-list"><code>misata templates-list</code></h2>
@@ -2888,7 +2887,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
