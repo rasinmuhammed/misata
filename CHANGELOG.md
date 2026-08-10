@@ -5,6 +5,43 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.6] - 2026-08-04
+
+### The docs are now executed, not just written
+
+Nine defects shipped in two days, every one on a path the documentation tells
+people to take, none caught by 1,645 tests. The tests drive the internal Python
+API; the docs describe a command line and a YAML file. They had drifted into
+describing two different products, and the only people finding out were the ones
+who left without filing an issue.
+
+`tools/stranger.py` extracts every fenced example from README and `docs/` and
+runs it. `--clean` builds the wheel and installs it into a fresh virtualenv,
+which is the mode that matters: an editable install from inside the repo is
+exactly what hid the MCP server's missing extra in 0.9.6.1. A CI job runs it on
+every push.
+
+First run found four more, all confirmed by hand:
+
+- `misata preview` does not exist and never has. Documented in `quickstart.md`
+  and `validate.md`; the command is `misata parse`, and it takes the story as a
+  positional argument rather than `--story`.
+- `misata generate --format parquet` is documented with four output formats.
+  There is no `--format` option.
+- `misata template <name> --rows N` does not exist. The flag is `--scale`.
+- The example on the page teaching schema validation does not validate: `values`
+  should be `choices`, there is no `email` column type (it is `text` with
+  `text_type: email`), and tables are a mapping rather than a list.
+
+42 of the 69 example blocks are executable and all 42 now pass. The other 27 want
+a database, an API key or a file the docs do not ship, and are reported as
+skipped with the reason rather than quietly passing.
+
+Two notes on the harness itself. It only runs allowlisted commands, because a
+markdown file is not a trusted script. And `pip install "misata[extra]"` lines
+are checked against the real extras in `pyproject.toml` without running pip,
+which is the specific check that would have caught 0.9.6.1.
+
 ## [0.9.6.5] - 2026-08-04
 
 ### The documented spelling of an outcome curve crashed

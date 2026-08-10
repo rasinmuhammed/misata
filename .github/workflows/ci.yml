@@ -75,3 +75,24 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           fail_ci_if_error: false
+
+  stranger:
+    name: The docs, run as a stranger would
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Deliberately NOT `pip install -e .`. An editable install from inside
+      # the repo is what hid the MCP server's missing extra in 0.9.6.1: the
+      # dev environment already had the dependency, so the packaging bug was
+      # invisible until someone installed the published wheel. This job builds
+      # the wheel and installs it into a clean virtualenv, the way a reader
+      # following the README does.
+      - name: Install build tooling only
+        run: python -m pip install --upgrade pip build
+
+      - name: Run every documented example
+        run: python tools/stranger.py --clean

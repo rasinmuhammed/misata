@@ -226,7 +226,7 @@ misata generate    # reads misata.yaml automatically
 misata validate customers.csv
 
 # Preview what would be generated (no rows)
-misata preview --story "A SaaS company with 5k users"
+misata parse "A SaaS company with 5k users"
 ```
 
 ---

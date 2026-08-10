@@ -112,7 +112,7 @@ tables = misata.generate_from_schema(schema, seed=42)
 ### CLI
 
 ```bash
-misata preview --story "A SaaS company with 5k users, Q4 spike"
+misata parse "A SaaS company with 5k users, Q4 spike"
 ```
 
 ---
@@ -224,21 +224,22 @@ else:
 Add the `$schema` pointer to your `misata.yaml` to get in-editor validation and auto-complete in VS Code, PyCharm, and any editor that supports JSON Schema:
 
 ```yaml
-# misata.yaml
-$schema: "https://rasinmuhammed.github.io/misata/schema/misata_schema.json"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/rasinmuhammed/misata/main/schema/misata.schema.json
+name: users_demo
 
 tables:
-  - name: users
+  users:
     rows: 5000
     columns:
-      - name: user_id
+      user_id:
         type: int
         unique: true
-      - name: email
-        type: email
-      - name: plan
+      email:
+        type: text
+        text_type: email
+      plan:
         type: categorical
-        values: [free, pro, enterprise]
+        choices: [free, pro, enterprise]
 ```
 
 VS Code will highlight unknown keys, warn on invalid distribution names, and auto-complete column type names as you type.

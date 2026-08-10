@@ -34,7 +34,6 @@ Generate data and write to files or a database.
 misata generate                                      # reads misata.yaml
 misata generate --story "A SaaS company with 5k users" --rows 5000
 misata generate --output-dir data/
-misata generate --format parquet                     # parquet | csv | jsonl | duckdb
 misata generate --locale de_DE                       # force locale
 misata generate --seed 42
 misata generate --db-url postgresql://localhost/dev --db-create
@@ -72,7 +71,7 @@ Generate from a built-in industry template.
 
 ```bash
 misata template saas --scale 0.1 --output-dir data/
-misata template fintech --rows 5000
+misata template fintech --scale 2.0                  # 2x the template's row counts
 ```
 
 ---
