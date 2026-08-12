@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.6.8] - 2026-08-10
 
+### A declared locale did nothing on every surface except the CLI
+
+`from_dict_schema` dropped the whole `realism` block, and `locale` with it. A
+schema asking for Japanese names returned American ones, no error, no warning.
+Since the API, Studio and every YAML path load schemas through this function,
+the CLI was the only place a locale ever worked.
+
+Our own `schema/misata.schema.json` publishes `locale` as a top-level key, and
+that file ships to SchemaStore, so editors have been autocompleting people into
+a setting the engine ignored. Both spellings now work: top-level `locale`, and
+`realism.locale` where it lives internally. An explicit `realism.locale` wins.
+A malformed realism block now raises instead of being discarded, for the same
+reason `noise` does.
+
+`rows` at the top level was ignored too, and is now the default for tables that
+do not state their own. An explicit `row_count` argument still beats it.
+
+To stop this recurring, `misata.compat` names every top-level key it handles,
+plus the ones it knowingly does not, and `tests/test_schema_contract.py` checks
+that list against the published JSON Schema. A key added to the schema and not
+wired up now fails a test instead of silently doing nothing. That check found
+`events`, which is still accepted and dropped, and is recorded as a known gap
+rather than left to be rediscovered.
+
+
 ### `from_ddl` could not read the most ordinary schema in SQL
 
 Handing it a plural table with a singular primary key, which is most tables

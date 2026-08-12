@@ -48,10 +48,59 @@ from misata.schema import (
     NoiseConfig,
     OutcomeCurve,
     RateCurve,
+    RealismConfig,
     Relationship,
     SchemaConfig,
     Table,
 )
+
+
+# Envelope keys hoisted into their dunder form by ``_normalise_envelope``.
+# Anything published as a top-level key by ``schema/misata.schema.json`` and
+# missing from here is accepted without complaint and then ignored, which is
+# the worst outcome a declarative tool can produce. `realism` and `locale` sat
+# in exactly that gap, so `tests/test_schema_contract.py` now compares this
+# list against the published schema and fails when they drift apart.
+_ENVELOPE_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("outcome_curves", "__outcome_curves__"),
+    ("rate_curves", "__rate_curves__"),
+    ("group_shares", "__group_shares__"),
+    ("waterfalls", "__waterfalls__"),
+    ("stock_flows", "__stock_flows__"),
+    ("lifecycles", "__lifecycles__"),
+    ("retention", "__retention__"),
+    ("missingness", "__missingness__"),
+    ("late_arrivals", "__late_arrivals__"),
+    ("time_grids", "__time_grids__"),
+    ("duplicates", "__duplicates__"),
+    ("event_logs", "__event_logs__"),
+    ("outliers", "__outliers__"),
+    ("typos", "__typos__"),
+    ("bitemporal", "__bitemporal__"),
+    ("dag_edges", "__dag_edges__"),
+    ("closures", "__closures__"),
+    ("noise", "__noise__"),
+    ("realism", "__realism__"),
+    ("vocabulary", "__vocabulary__"),
+    ("vocabularies", "__vocabulary__"),
+)
+
+# Read directly rather than hoisted, so the contract test can account for them.
+_DIRECT_TOP_LEVEL_KEYS: Tuple[str, ...] = (
+    "tables", "name", "seed", "domain", "generation_mode",
+    "relationships", "constraints", "locale", "rows",
+)
+
+#: Every top-level key ``from_dict_schema`` understands.
+HANDLED_TOP_LEVEL_KEYS = frozenset(
+    [k for k, _ in _ENVELOPE_KEYS] + list(_DIRECT_TOP_LEVEL_KEYS)
+)
+
+#: Published in the JSON Schema and deliberately not acted on here. Listed so
+#: the contract test passes for a stated reason rather than by omission.
+#: ``events`` is a real gap: it is accepted and dropped, and wiring it needs
+#: ScenarioEvent support this loader does not have yet.
+UNHANDLED_TOP_LEVEL_KEYS = frozenset({"description", "events"})
 
 
 # ---------------------------------------------------------------------------
@@ -481,28 +530,22 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
         flat["__domain__"] = schemas["domain"]
     if schemas.get("generation_mode"):
         flat["__generation_mode__"] = schemas["generation_mode"]
-    for env_key, dunder in (("outcome_curves", "__outcome_curves__"),
-                            ("rate_curves", "__rate_curves__"),
-                            ("group_shares", "__group_shares__"),
-                            ("waterfalls", "__waterfalls__"),
-                            ("stock_flows", "__stock_flows__"),
-                            ("lifecycles", "__lifecycles__"),
-                            ("retention", "__retention__"),
-                            ("missingness", "__missingness__"),
-                            ("late_arrivals", "__late_arrivals__"),
-                            ("time_grids", "__time_grids__"),
-                            ("duplicates", "__duplicates__"),
-                            ("event_logs", "__event_logs__"),
-                            ("outliers", "__outliers__"),
-                            ("typos", "__typos__"),
-                            ("bitemporal", "__bitemporal__"),
-                            ("dag_edges", "__dag_edges__"),
-                            ("closures", "__closures__"),
-                            ("noise", "__noise__"),
-                            ("vocabulary", "__vocabulary__"),
-                            ("vocabularies", "__vocabulary__")):
+    if schemas.get("rows") is not None:
+        flat["__rows__"] = schemas["rows"]
+    for env_key, dunder in _ENVELOPE_KEYS:
         if schemas.get(env_key) is not None:
             flat[dunder] = schemas[env_key]
+
+    # `locale` is published at the top level by our own JSON Schema, which
+    # SchemaStore ships to every editor, so that is the spelling people are
+    # autocompleted into. It lives on RealismConfig internally. Accept the
+    # documented spelling and fold it in rather than ignoring it silently,
+    # which is what happened before: the declaration was accepted, no error was
+    # raised, and the data came back in the default locale.
+    if schemas.get("locale"):
+        realism_block = dict(flat.get("__realism__") or {})
+        realism_block.setdefault("locale", schemas["locale"])
+        flat["__realism__"] = realism_block
     # Preserve any dunder directives passed alongside the envelope.
     for k, v in schemas.items():
         if k.startswith("__"):
@@ -555,7 +598,7 @@ def _dedupe_relationships(rels: List[Relationship]) -> List[Relationship]:
 
 def from_dict_schema(
     schemas: Dict[str, Any],
-    row_count: int = 1000,
+    row_count: Optional[int] = None,
     seed: Optional[int] = 42,
 ) -> SchemaConfig:
     """Convert a plain dict schema definition to a Misata ``SchemaConfig``.
@@ -730,6 +773,32 @@ def from_dict_schema(
             # the user knowing — a worse failure than aborting.
             raise ValueError(f"__noise__ is invalid: {e}") from e
 
+    # A top-level `rows` is the schema's own default for tables that do not
+    # state one, and the published JSON Schema offers it. An explicit row_count
+    # argument still wins, since that is the caller overriding the document.
+    effective_row_count = row_count
+    if effective_row_count is None:
+        declared_rows = schemas.get("__rows__")
+        if declared_rows is None:
+            declared_rows = schemas.get("rows")
+        if isinstance(declared_rows, int) and not isinstance(declared_rows, bool) and declared_rows >= 0:
+            effective_row_count = declared_rows
+    if effective_row_count is None:
+        effective_row_count = 1000
+
+    # __realism__ carries locale and the realism switches. Dropping it meant a
+    # declared locale changed nothing at all on every surface that loads a dict
+    # or YAML schema, which is all of them except the CLI.
+    realism_config: Optional[RealismConfig] = None
+    raw_realism = schemas.get("__realism__")
+    if raw_realism:
+        try:
+            realism_config = RealismConfig(**raw_realism)
+        except Exception as e:
+            # Loud, for the same reason as __noise__: a silently ignored realism
+            # block hands back data that looks fine and is not what was asked for.
+            raise ValueError(f"realism is invalid: {e}") from e
+
     # __domain__ stores the domain name on the SchemaConfig for post-generation validation
     domain: Optional[str] = schemas.get("__domain__") or None
 
@@ -767,7 +836,7 @@ def from_dict_schema(
         # Per-table row count: lets a 6-table schema say "4 regions, 50 sites, 5000 logs"
         # instead of forcing one global count on every table. Accept several spellings;
         # fall back to the global row_count when none is given.
-        table_rows = row_count
+        table_rows = effective_row_count
         for rows_key in ("__rows__", "__row_count__", "rows", "row_count"):
             val = table_def.get(rows_key)
             # Honour an explicit 0 (empty table) — only a missing/negative/non-int
@@ -931,6 +1000,7 @@ def from_dict_schema(
         generation_mode=(schemas.get("__generation_mode__")
                          or schemas.get("generation_mode") or "anchored"),
         noise_config=noise_config,
+        realism=realism_config,
         seed=seed,
         domain=domain,
         vocabularies=({**_table_vocabularies, **(vocabularies or {})} or None),
