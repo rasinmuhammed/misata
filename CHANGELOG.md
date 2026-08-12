@@ -5,6 +5,44 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.8] - 2026-08-10
+
+### `from_ddl` could not read the most ordinary schema in SQL
+
+Handing it a plural table with a singular primary key, which is most tables
+ever written, produced a schema that refused to generate:
+
+```sql
+CREATE TABLE customers (customer_id INT PRIMARY KEY, name VARCHAR(80));
+```
+
+The rule that treats a `<thing>_id` column as a foreign key fired on the
+table's own key. It guarded against `customers_id` and `id`, but the column is
+`customer_id`, so `customers.customer_id` was read as a reference to a
+`customer` table that nobody had written. The relationship was then dropped for
+naming an unknown table while the column stayed typed `foreign_key`, and
+validation failed with a fix the caller could not apply, because it named a
+parent table that does not exist.
+
+Three changes:
+
+- A column that is part of the table's primary key is never inferred as a
+  foreign key. Inline `PRIMARY KEY` and table-level `PRIMARY KEY (a, b)`,
+  including the named `CONSTRAINT ... PRIMARY KEY` form, are all read.
+- A guessed parent is matched against the plural tables that actually exist, so
+  `category_id` finds `categories` and `company_id` finds `companies`, and the
+  relationship points at the parent's real key rather than assuming `id`.
+- Any column still typed `foreign_key` once invalid relationships have been
+  dropped is demoted back to a plain column. An unresolvable reference now
+  costs you the relationship, not the whole schema.
+
+Explicit `REFERENCES` and `FOREIGN KEY` constraints are untouched. If one names
+a table that is not in the DDL it is still dropped with a warning, since that
+is the author's error and not ours to reinterpret.
+
+`from_ddl` had a single test before this release, which is how it stayed broken.
+It now has sixteen.
+
 ## [0.9.6.7] - 2026-08-04
 
 ### Seeding a Rails, Laravel or Django database failed on a unique column

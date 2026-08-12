@@ -14,6 +14,28 @@ from typing import Dict, List, Optional, Tuple
 from misata.schema import Column, Relationship, SchemaConfig, Table
 
 
+def _parent_key_for(parent: str, columns_map: Dict[str, List[Column]], fallback: str) -> str:
+    """
+    Pick the column an inferred foreign key should point at.
+
+    The `_id` rule guesses a parent key called `id`, which is right for Rails
+    and wrong for most hand-written SQL, where `categories` is keyed by
+    `category_id`. Look at what the parent table actually has before pointing
+    at a column that is not there.
+    """
+    names = [c.name for c in columns_map.get(parent, [])]
+    if not names:
+        return fallback
+    lookup = {n.lower(): n for n in names}
+    for candidate in (fallback, "id", f"{parent}_id"):
+        if candidate and candidate.lower() in lookup:
+            return lookup[candidate.lower()]
+    for name in names:
+        if name.lower().endswith("_id"):
+            return name
+    return names[0]
+
+
 # SQL type → Misata type
 _TYPE_MAP: List[Tuple[str, str]] = [
     (r"bool(?:ean)?",                                   "boolean"),
@@ -114,7 +136,7 @@ def from_ddl(
     ddl = _strip_comments(ddl)
 
     # Match CREATE TABLE headers and then walk character-by-character to find the
-    # matching closing paren — handles nested parens like DECIMAL(10,2) and
+    # matching closing paren, which handles nested parens like DECIMAL(10,2) and
     # REFERENCES users(id) without the non-greedy .*? truncation bug.
     header_pattern = re.compile(
         r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
@@ -140,6 +162,25 @@ def from_ddl(
             results.append((tname, ddl_text[hdr.end(): i - 1]))
         return results
 
+    def _singular(name: str) -> str:
+        """
+        Enough English to recognise a table's own key.
+
+        Tables are usually plural and their key is usually singular, so
+        `customers` has `customer_id`. Without this the key looks like a
+        reference to a `customer` table that was never created. This only needs
+        to catch the naming conventions people actually use in DDL, so it stays
+        a handful of rules rather than a dependency.
+        """
+        lowered = name.lower()
+        if lowered.endswith("ies") and len(name) > 3:
+            return name[:-3] + "y"
+        if lowered.endswith(("sses", "shes", "ches", "xes", "zes")):
+            return name[:-2]
+        if lowered.endswith("s") and not lowered.endswith("ss"):
+            return name[:-1]
+        return name
+
     fk_inline = re.compile(
         r"REFERENCES\s+(?:\"?[\w]+\"?\.)?"
         r"\"?([\w]+)\"?"
@@ -158,17 +199,22 @@ def from_ddl(
         re.IGNORECASE,
     )
     col_pattern = re.compile(r"^\"?([\w]+)\"?\s+([\w]+(?:\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)", re.IGNORECASE)
+    pk_table_level = re.compile(
+        r"^\s*(?:CONSTRAINT\s+\w+\s+)?PRIMARY\s+KEY\s*\(([^)]*)\)", re.IGNORECASE
+    )
 
     tables: List[Table] = []
     columns_map: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []
     all_table_names: List[str] = []
+    inferred_fks: set = set()  # (child_table, child_col) that came from the _id rule
 
     for table_name, body in _extract_tables(ddl):
         all_table_names.append(table_name)
         cols: List[Column] = []
         fk_specs: List[Tuple[str, str, str]] = []  # (child_col, parent_table, parent_col)
         explicit_fk_cols: set = set()
+        pk_cols: set = set()
 
         for line in _split_column_defs(body):
             # Standalone FOREIGN KEY constraint
@@ -178,6 +224,15 @@ def from_ddl(
                 fk_specs.append((child_col, parent_table, parent_col))
                 explicit_fk_cols.add(child_col)
                 continue
+
+            # Table-level PRIMARY KEY (a, b). Recorded before the constraint is
+            # skipped, because a table's own key must never be inferred as a
+            # foreign key pointing somewhere else.
+            pk_constraint = pk_table_level.search(line)
+            if pk_constraint:
+                pk_cols.update(
+                    c.strip().strip('"') for c in pk_constraint.group(1).split(",")
+                )
 
             # Skip other table-level constraints
             if skip_pattern.match(line):
@@ -192,6 +247,8 @@ def from_ddl(
             sql_type = col_match.group(2)
             misata_type = _map_sql_type(sql_type)
             nullable = "NOT NULL" not in line.upper() and "PRIMARY KEY" not in line.upper()
+            if "PRIMARY KEY" in line.upper():
+                pk_cols.add(col_name)
 
             # Inline REFERENCES
             inline = fk_inline.search(line)
@@ -209,12 +266,15 @@ def from_ddl(
 
         # FK inference from _id suffix
         if infer_fks:
+            own_key_names = {"id", f"{table_name}_id", f"{_singular(table_name)}_id"}
             for col in cols:
                 if (col.name.endswith("_id") and col.name not in explicit_fk_cols
-                        and col.name not in (f"{table_name}_id", "id")):
+                        and col.name not in own_key_names
+                        and col.name not in pk_cols):
                     guessed_parent = col.name[:-3]
                     fk_specs.append((col.name, guessed_parent, "id"))
                     explicit_fk_cols.add(col.name)
+                    inferred_fks.add((table_name, col.name))
 
         # Promote inferred FK columns to foreign_key type
         explicit_fk_set = {c for c, _, _ in fk_specs}
@@ -249,8 +309,38 @@ def from_ddl(
             "CREATE TABLE name (col_definitions);"
         )
 
-    # Drop relationships referencing unknown tables — avoids SchemaConfig validation errors
+    # Drop relationships referencing unknown tables, which avoids SchemaConfig
+    # validation errors
     known = set(all_table_names)
+
+    # `category_id` guesses a parent called `category`, but the table is almost
+    # always `categories`. Resolve the plural before giving up, and only for
+    # names we guessed: an explicit REFERENCES naming a missing table is the
+    # author's error, not ours to reinterpret.
+    by_lower = {t.lower(): t for t in all_table_names}
+
+    def _resolve_parent(guess: str) -> Optional[str]:
+        for candidate in (guess, guess + "s", guess + "es",
+                          (guess[:-1] + "ies") if guess.endswith("y") else guess):
+            match = by_lower.get(candidate.lower())
+            if match:
+                return match
+        return None
+
+    resolved: List[Relationship] = []
+    for rel in relationships:
+        if rel.parent_table not in known and (rel.child_table, rel.child_key) in inferred_fks:
+            parent = _resolve_parent(rel.parent_table)
+            if parent:
+                rel = Relationship(
+                    parent_table=parent,
+                    child_table=rel.child_table,
+                    parent_key=_parent_key_for(parent, columns_map, rel.parent_key),
+                    child_key=rel.child_key,
+                )
+        resolved.append(rel)
+    relationships = resolved
+
     valid_rels = [r for r in relationships if r.parent_table in known and r.parent_table != r.child_table]
     dropped = len(relationships) - len(valid_rels)
     if dropped:
@@ -260,6 +350,20 @@ def from_ddl(
             UserWarning,
             stacklevel=2,
         )
+
+    # A column left typed foreign_key after its relationship was dropped is an
+    # invalid schema, and the error it raises names a fix the caller cannot
+    # apply because the parent table does not exist. Demote it instead.
+    surviving = {(r.child_table, r.child_key) for r in valid_rels}
+    for tname, tcols in columns_map.items():
+        for index, col in enumerate(tcols):
+            if col.type == "foreign_key" and (tname, col.name) not in surviving:
+                tcols[index] = Column(
+                    name=col.name,
+                    type="int",
+                    nullable=col.nullable,
+                    distribution_params={},
+                )
 
     return SchemaConfig(
         name="from_ddl",

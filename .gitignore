@@ -143,3 +143,4 @@ research/dbt_integration_reality_check.md
 
 # Bank-in-a-Box generated evalpack output
 examples/bank_evalpack_out/
+!tests/test_ddl.py
