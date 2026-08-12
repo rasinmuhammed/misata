@@ -297,6 +297,11 @@ class RealisticTextGenerator:
         self.domain = (domain or "").lower()
         self.locale = locale or "en_US"
         self._faker = None  # lazy
+        # Faker keeps its own RNG, and an unseeded one made every localised run
+        # different under a fixed seed. The seed is drawn here rather than at
+        # first use so it does not depend on when a localised column happens to
+        # be reached. Same schema and seed, same faker stream, every time.
+        self._faker_seed = int(self.rng.integers(0, 2**31 - 1))
         # Per-(table, size) joint person frames so first_name, last_name and
         # gender for the same table come from ONE draw of (culture, gender,
         # first, last) — never independent samples that produce "Pablo, Female"
@@ -316,6 +321,15 @@ class RealisticTextGenerator:
                     self._faker = Faker(self.locale)
                 except Exception:
                     self._faker = None
+
+            # seed_instance, not the class-level seed: the registry hands out
+            # shared instances, and seeding the class would reach across every
+            # other Faker in the process.
+            if self._faker is not None:
+                try:
+                    self._faker.seed_instance(self._faker_seed)
+                except Exception:
+                    pass
         return self._faker
 
     _MEDICAL_DOMAINS = ("health", "hospital", "medical", "clinic", "pharma", "care")

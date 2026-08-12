@@ -24,6 +24,26 @@ reason `noise` does.
 `rows` at the top level was ignored too, and is now the default for tables that
 do not state their own. An explicit `row_count` argument still beats it.
 
+### Localised data was not reproducible
+
+Wiring locale up exposed a worse bug behind it. Faker keeps its own random
+number generator and nothing ever seeded it, so two runs of the same schema
+with the same seed returned different names. Reproducibility is the one promise
+everything else here rests on, and for any schema with a locale it did not
+hold. It went unnoticed because a declared locale never reached the generator
+in the first place.
+
+The faker instance is now seeded from the run's own seed, drawn at construction
+so it does not depend on when a localised column is first reached. `seed_instance`
+rather than the class-level seed, since the locale registry hands out shared
+instances and seeding the class would reach across every other one in the process.
+
+### `events` was accepted and dropped
+
+A declared scenario event, the thing that puts a Q4 surge or a crash in the
+data, was parsed off the schema and thrown away by the same loader. It is now
+read and applied, and the known-gaps list in `misata.compat` is empty.
+
 To stop this recurring, `misata.compat` names every top-level key it handles,
 plus the ones it knowingly does not, and `tests/test_schema_contract.py` checks
 that list against the published JSON Schema. A key added to the schema and not

@@ -99,6 +99,70 @@ def test_no_locale_leaves_realism_alone():
     assert build().realism is None
 
 
+# ── Reproducibility under a locale ────────────────────────────────────────────
+#
+# Faker keeps its own RNG. Unseeded, every localised run produced different
+# names under a fixed seed, which breaks the one promise the whole tool rests
+# on. The bug was invisible only because a declared locale never reached the
+# generator at all.
+
+def names(seed=7, **extra):
+    spec = dict(PEOPLE)
+    spec.update(extra)
+    schema = misata.from_dict_schema(spec, seed=seed)
+    return list(misata.generate_from_schema(schema)["people"]["name"])
+
+
+def test_a_localised_run_repeats_exactly():
+    assert names(locale="ja_JP") == names(locale="ja_JP")
+
+
+def test_both_spellings_produce_the_same_data():
+    """Identical schemas must generate identical data, however they were written."""
+    assert names(locale="ja_JP") == names(realism={"locale": "ja_JP"})
+
+
+def test_a_different_seed_produces_different_data():
+    assert names(seed=7, locale="ja_JP") != names(seed=8, locale="ja_JP")
+
+
+def test_a_different_locale_produces_different_data():
+    assert names(locale="ja_JP") != names(locale="de_DE")
+
+
+def test_the_default_locale_is_still_reproducible():
+    assert names() == names()
+
+
+# ── Events ────────────────────────────────────────────────────────────────────
+
+def test_a_declared_event_is_parsed_and_applied():
+    """`events` was accepted and dropped, so a declared scenario did nothing."""
+    spec = {
+        "name": "ev",
+        "tables": {"sales": {"rows": 400, "columns": {
+            "sale_id": {"type": "int", "unique": True},
+            "amount": {"type": "float", "min": 100, "max": 100},
+            "sale_date": {"type": "date"},
+        }}},
+        "events": [{
+            "name": "q4_surge", "table": "sales", "column": "amount",
+            "condition": "sale_date >= '2024-10-01'",
+            "modifier_type": "multiply", "modifier_value": 3,
+        }],
+    }
+    schema = misata.from_dict_schema(spec, seed=5)
+    assert [e.name for e in schema.events] == ["q4_surge"]
+
+    import pandas as pd
+    sales = misata.generate_from_schema(schema)["sales"]
+    when = pd.to_datetime(sales["sale_date"])
+    before = sales.loc[when < "2024-10-01", "amount"]
+    after = sales.loc[when >= "2024-10-01", "amount"]
+    assert len(before) and len(after), "need rows on both sides of the event"
+    assert after.mean() > before.mean() * 2.5
+
+
 def test_an_invalid_realism_block_is_loud():
     """
     Silently dropping it is how this bug lasted. A malformed realism block must

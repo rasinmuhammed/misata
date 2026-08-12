@@ -81,6 +81,7 @@ _ENVELOPE_KEYS: Tuple[Tuple[str, str], ...] = (
     ("closures", "__closures__"),
     ("noise", "__noise__"),
     ("realism", "__realism__"),
+    ("events", "__events__"),
     ("vocabulary", "__vocabulary__"),
     ("vocabularies", "__vocabulary__"),
 )
@@ -98,9 +99,8 @@ HANDLED_TOP_LEVEL_KEYS = frozenset(
 
 #: Published in the JSON Schema and deliberately not acted on here. Listed so
 #: the contract test passes for a stated reason rather than by omission.
-#: ``events`` is a real gap: it is accepted and dropped, and wiring it needs
-#: ScenarioEvent support this loader does not have yet.
-UNHANDLED_TOP_LEVEL_KEYS = frozenset({"description", "events"})
+#: ``description`` is prose for the reader and changes no data.
+UNHANDLED_TOP_LEVEL_KEYS = frozenset({"description"})
 
 
 # ---------------------------------------------------------------------------
@@ -735,10 +735,11 @@ def from_dict_schema(
     # One table, so the next declaration is one line rather than a new branch.
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
                                Duplicates, EventLog, LateArrival, Lifecycle,
-                               Missingness, Outliers, TimeGrid,
+                               Missingness, Outliers, ScenarioEvent, TimeGrid,
                                TransitiveClosure, Typos)
     declared: Dict[str, List[Any]] = {}
-    for key, model in (("lifecycles", Lifecycle),
+    for key, model in (("events", ScenarioEvent),
+                       ("lifecycles", Lifecycle),
                        ("retention", CohortRetention),
                        ("missingness", Missingness),
                        ("late_arrivals", LateArrival),
@@ -985,6 +986,7 @@ def from_dict_schema(
         group_shares=group_shares,
         waterfalls=waterfalls,
         stock_flows=stock_flows,
+        events=declared["events"],
         lifecycles=declared["lifecycles"],
         retention=declared["retention"],
         missingness=declared["missingness"],
