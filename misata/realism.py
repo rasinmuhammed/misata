@@ -1413,21 +1413,28 @@ class RealisticTextGenerator:
             elif token == "[":
                 end = pattern.find("]", i)
                 body = pattern[i + 1:end] if end != -1 else "A-Z"
-                members = None
-                if "A-Z" in body:
-                    char_type = "letter"
-                elif "a-z" in body:
-                    char_type = "lower"
-                elif "0-9" in body:
-                    # The most obvious way to write a digit class. It used to
-                    # fall through to "literal", which emitted nothing at all,
-                    # so `SKU-[0-9]{4}` came out as the string "SKU-".
-                    char_type = "digit"
-                else:
-                    # An explicit set, `[ABC]` or `[xyz1]`: draw one member per
-                    # repeat rather than dropping the whole group.
-                    members = [c for c in body if c not in "^-"]
-                    char_type = "set" if members else "literal"
+                # Expand the body into its actual members: every `X-Y` range
+                # plus every literal character.
+                #
+                # This used to test the body for "A-Z", then "a-z", then "0-9"
+                # by substring, taking the first that matched and ignoring the
+                # rest. So `[0-9A-F]` contains neither the substring "A-Z" nor
+                # "a-z" but does contain "0-9", and produced digits only: a hex
+                # pattern such as an info hash or a colour never emitted a
+                # letter. `[A-Za-z0-9]` was uppercase-only for the same reason.
+                members = []
+                j = 0
+                while j < len(body):
+                    if j + 2 < len(body) and body[j + 1] == "-":
+                        lo, hi = body[j], body[j + 2]
+                        if ord(lo) <= ord(hi):
+                            members.extend(chr(c) for c in range(ord(lo), ord(hi) + 1))
+                        j += 3
+                        continue
+                    if body[j] != "^":
+                        members.append(body[j])
+                    j += 1
+                char_type = "set" if members else "literal"
                 i = end + 1 if end != -1 else i + 1
             elif token == "\\" and i + 1 < len(pattern):
                 output += pattern[i + 1]

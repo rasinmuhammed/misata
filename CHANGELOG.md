@@ -5,6 +5,36 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.11] - 2026-08-14
+
+### Declared text became generic text, and hex patterns had no letters
+
+**The column parser passed through sixteen parameter names. The engine reads
+over fifty.** Everything not on that list was accepted by the file and thrown
+away. `templates` and `variables` are the ones that hurt: a column declared to
+produce `[SubsPlease] Show - 05 (1080p) [A1B2C3D4].mkv` silently produced
+"VP of Marketing" instead, because the templates never survived the file they
+were written in. `null_when`, `exact_incidence`, `quantiles`, `zipf_exponent`
+and twenty-odd others went the same way.
+
+Three separate defects this week were one enumerated list missing one key, so
+the parser no longer enumerates: it consumes the ten structural keys it handles
+itself and carries everything else into `distribution_params`. Inverting is also
+the safer direction, since an unrecognised key is ignored by the engine while a
+dropped one is a declaration that does nothing behind a file that still looks
+authoritative. A test asserts the inversion holds.
+
+**A character class with two ranges only honoured the first.** The class body
+was matched by substring, "A-Z" then "a-z" then "0-9", first hit wins. So
+`[0-9A-F]` contains "0-9" and produced digits only: an info hash, a colour, any
+hex pattern never emitted a letter, and `[A-Za-z0-9]` was uppercase-only. Class
+bodies are now expanded into their actual members, every range plus every
+literal.
+
+Both found while writing a spec for a real project rather than a fixture: the
+first because release names came out as job titles, the second because a
+40-character info hash came out as 40 digits.
+
 ## [0.9.6.10] - 2026-08-14
 
 ### Two declarations that loaded empty and did nothing

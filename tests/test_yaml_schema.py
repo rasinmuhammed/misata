@@ -372,3 +372,53 @@ constraints:
 """)
         c = next(c for t in schema.tables for c in (t.constraints or []))
         assert c.column_a == "a" and c.column_b == "b" and c.operator == "<="
+
+    def test_templates_survive_the_file(self, tmp_path):
+        """The passthrough was a list of sixteen names; the engine reads over
+        fifty params. `templates` and `variables` were not on it, so a declared
+        release-name template silently became generic semantic text: a column
+        meant to hold `[SubsPlease] Show - 05 (1080p) [A1B2C3D4].mkv` came out
+        as "VP of Marketing"."""
+        import misata
+        schema = self._load(tmp_path, """
+name: releases
+tables:
+  grabs:
+    rows: 40
+    columns:
+      id: {type: int, unique: true, min: 1, max: 40}
+      release_title:
+        type: text
+        templates:
+          - "[{group}] {show} - {ep} ({res}) [{crc}].mkv"
+        variables:
+          group: [SubsPlease, Erai-raws]
+          show: [Some Show]
+          ep: ["01", "05"]
+          res: [1080p, 720p]
+          crc: [A1B2C3D4]
+""")
+        col = next(c for c in schema.columns["grabs"] if c.name == "release_title")
+        assert col.distribution_params.get("templates"), "templates dropped on load"
+        assert col.distribution_params.get("variables"), "variables dropped on load"
+
+        titles = misata.generate_from_schema(schema)["grabs"]["release_title"]
+        assert all(t.endswith(".mkv") for t in titles), list(titles[:3])
+        assert all(t.startswith("[") for t in titles)
+
+    def test_every_param_the_engine_reads_can_be_written_in_yaml(self):
+        """Three bugs this week were one enumerated list missing one key, so
+        the loader no longer enumerates. This asserts the inversion holds: any
+        key that is not structural must reach distribution_params."""
+        from misata.yaml_schema import _parse_column, _STRUCTURAL_COLUMN_KEYS
+
+        col = _parse_column("c", {
+            "type": "text",
+            "templates": ["x"], "variables": {"a": ["b"]},
+            "null_when": "other", "exact_incidence": 5, "quantiles": [0.5],
+            "zipf_exponent": 1.2, "start_hour": 9,
+        })
+        for key in ("templates", "variables", "null_when", "exact_incidence",
+                    "quantiles", "zipf_exponent", "start_hour"):
+            assert key in col.distribution_params, f"{key} did not survive the file"
+        assert "type" in _STRUCTURAL_COLUMN_KEYS

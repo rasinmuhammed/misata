@@ -1744,3 +1744,42 @@ def test_v0814_money_column_gets_nonnegative_floor():
     assert params["min"] == 0
     assert params["mean"] == 60000  # untouched
     assert params["distribution"] == "normal"  # untouched
+
+
+class TestPatternCharacterClasses:
+    """A character class with more than one range only honoured the first.
+
+    The body was tested by substring, "A-Z" then "a-z" then "0-9", first match
+    wins. So `[0-9A-F]` contains "0-9" and produced digits only: an info hash,
+    a colour, any hex pattern never emitted a letter. `[A-Za-z0-9]` was
+    uppercase-only for the same reason.
+    """
+
+    def _chars(self, cls, n=600):
+        from misata.realism import RealisticTextGenerator
+        g = RealisticTextGenerator()
+        return {g._expand_pattern(cls) for _ in range(n)}
+
+    def test_hex_class_yields_letters_and_digits(self):
+        seen = self._chars("[0-9A-F]")
+        assert set("0123456789") <= seen, "digits missing"
+        assert set("ABCDEF") <= seen, "A-F missing: the second range was ignored"
+
+    def test_alphanumeric_class_spans_all_three_ranges(self):
+        seen = self._chars("[A-Za-z0-9]", n=1500)
+        for label, chars in [("upper", "AZ"), ("lower", "az"), ("digits", "09")]:
+            assert set(chars) <= seen, f"{label} missing"
+
+    def test_single_ranges_still_work(self):
+        assert self._chars("[0-9]") <= set("0123456789")
+        assert self._chars("[a-z]") <= set("abcdefghijklmnopqrstuvwxyz")
+
+    def test_an_explicit_set_is_unchanged(self):
+        assert self._chars("[ABC]") == set("ABC")
+
+    def test_a_realistic_info_hash(self):
+        from misata.realism import RealisticTextGenerator
+        import re
+        g = RealisticTextGenerator()
+        h = g._expand_pattern("[0-9a-f]{40}")
+        assert re.fullmatch(r"[0-9a-f]{40}", h), h

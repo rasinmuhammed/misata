@@ -195,6 +195,14 @@ relationships:
 # Parsing helpers
 # ---------------------------------------------------------------------------
 
+# Keys the column parser consumes itself. Everything else a user writes on a
+# column is carried into `distribution_params` for the engine to read.
+_STRUCTURAL_COLUMN_KEYS = frozenset({
+    "type", "unique", "nullable", "description",
+    "choices", "probabilities", "start", "end", "text_type", "distribution",
+})
+
+
 def _parse_relationship(raw: Union[str, Dict[str, Any]]) -> Relationship:
     """Accept both shorthand string and dict form."""
     if isinstance(raw, str):
@@ -309,12 +317,20 @@ def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
     # null rate did nothing, and a declared pattern was ignored in favour of
     # semantic text. Anything the engine reads from `distribution_params` has to
     # be listed here or it does not survive the file it was written in.
-    for k in ("rollup", "zero_inflate", "depends_on", "mapping", "formula",
-              "inherits_curve_from", "quantize", "null_rate", "pattern",
-              "pattern_weights", "anomaly_rate", "references", "sampling",
-              "missing_if", "unit", "true_probability"):
-        if col_def.get(k) is not None:
-            params[k] = col_def[k]
+    # This was a list of sixteen names, and the engine reads more than fifty
+    # parameters. Everything absent was accepted by the file and then thrown
+    # away: `templates` and `variables` are the ones that hurt, because a
+    # declared release-name template silently became generic semantic text, but
+    # `null_when`, `exact_incidence`, `quantiles` and twenty-odd others went the
+    # same way. Three separate bugs this week were one enumerated list missing
+    # one key, so stop enumerating.
+    #
+    # Inverting is also the safer direction. An unknown key carried into
+    # distribution_params is ignored by the engine; a known key dropped here is
+    # a declaration that does nothing while the file still looks authoritative.
+    for k, v in col_def.items():
+        if k not in _STRUCTURAL_COLUMN_KEYS and v is not None:
+            params.setdefault(k, v)
 
     return Column(
         name=col_name,
