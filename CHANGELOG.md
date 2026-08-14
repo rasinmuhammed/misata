@@ -5,6 +5,35 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.10] - 2026-08-14
+
+### Two declarations that loaded empty and did nothing
+
+Both found by writing a spec against a real project's schema rather than a
+fixture. In each case the YAML parsed, `misata lint` was clean, generation
+succeeded, and the thing the user declared simply did not happen. That is worse
+than an error, because the file looks authoritative afterwards.
+
+**`unique` on a foreign key.** The `foreign_key` branch of the column parser
+built its `Column` from the column name alone, discarding `unique`, `nullable`,
+`description` and `references`. `unique: true` on a foreign key says the
+relationship is one-to-one; dropping it means the key is drawn with replacement
+and the database rejects the insert on its own index. Found on a schema where
+`grabs.wanted_item_id` is UNIQUE, one grab per item.
+
+**Every field of a `when_then`.** `_parse_constraint` enumerated the fields of
+four constraint types and dropped the rest, so a `when_then` written in YAML
+loaded with `when_column`, `when_op`, `when_value`, `then_column` and `then` all
+None. The constraint was present, named, and inert: the engine produced 40 rows
+whose status was `imported` next to a populated `last_error`, which is exactly
+the contradiction the declaration exists to prevent. Ledger and parent-comparison
+constraints were losing their columns the same way.
+
+Enumerating fields is what caused this, so the parser no longer enumerates: it
+takes every field the model defines, and **raises on any field it does not
+recognise**. A typo in a constraint used to be a silent no-op and is now an
+error naming the valid fields. `table:` stays allowed as routing.
+
 ## [0.9.6.9] - 2026-08-14
 
 ### A composite UNIQUE constraint never left the database

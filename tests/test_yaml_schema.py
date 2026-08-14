@@ -240,3 +240,135 @@ class TestMisataYamlTemplate:
     def test_template_contains_key_sections(self):
         assert "relationships:" in MISATA_YAML_TEMPLATE
         assert "constraints:" in MISATA_YAML_TEMPLATE
+
+
+class TestDeclarationsSurviveTheFile:
+    """A declaration that loads empty is worse than one that is rejected.
+
+    Both defects here were found by writing a spec against a real project's
+    schema (transpondarr#184) rather than against a fixture. In each case the
+    YAML parsed, `misata lint` was clean, generation succeeded, and the thing
+    the user declared simply did not happen.
+    """
+
+    def _load(self, tmp_path, text):
+        import misata
+        path = tmp_path / "misata.yaml"
+        path.write_text(text)
+        return misata.load_yaml_schema(path)
+
+    FK_SPEC = """
+name: fk
+tables:
+  parents:
+    rows: 50
+    columns:
+      id: {type: int, unique: true, min: 1, max: 50}
+  children:
+    rows: 20
+    columns:
+      id: {type: int, unique: true, min: 1, max: 20}
+      parent_id: {type: foreign_key, unique: true, references: "parents.id"}
+relationships:
+  - {parent_table: parents, child_table: children, parent_key: id, child_key: parent_id}
+"""
+
+    def test_unique_survives_on_a_foreign_key(self, tmp_path):
+        """The foreign_key branch built its Column from the name alone.
+
+        `unique: true` on a foreign key says the relationship is one-to-one.
+        Dropping it means the key is drawn with replacement, and the database
+        rejects the insert on its own unique index.
+        """
+        schema = self._load(tmp_path, self.FK_SPEC)
+        col = next(c for c in schema.columns["children"] if c.name == "parent_id")
+        assert col.unique is True
+        assert col.distribution_params.get("references") == "parents.id"
+
+    def test_a_unique_foreign_key_generates_distinct_values(self, tmp_path):
+        import misata
+        children = misata.generate_from_schema(self._load(tmp_path, self.FK_SPEC))["children"]
+        assert children["parent_id"].is_unique
+
+    WHEN_THEN_SPEC = """
+name: gate
+tables:
+  grabs:
+    rows: 200
+    columns:
+      id: {type: int, unique: true, min: 1, max: 200}
+      status:
+        type: categorical
+        choices: [imported, grabbed, failed]
+        probabilities: [0.5, 0.3, 0.2]
+      last_error: {type: categorical, choices: ["boom", "kaput"]}
+    constraints:
+      - name: only_failed_rows_carry_an_error
+        type: when_then
+        when_column: status
+        when_op: not_in
+        when_value: [failed]
+        then_column: last_error
+        then: "null"
+"""
+
+    def test_when_then_fields_survive_the_parser(self, tmp_path):
+        """`_parse_constraint` enumerated the fields of four constraint types
+        and dropped the rest, so a when_then loaded with every field None. The
+        constraint was present, named, and inert."""
+        schema = self._load(tmp_path, self.WHEN_THEN_SPEC)
+        c = next(c for t in schema.tables for c in (t.constraints or [])
+                 if c.type == "when_then")
+        assert c.when_column == "status"
+        assert c.when_op == "not_in"
+        assert c.when_value == ["failed"]
+        assert c.then_column == "last_error"
+        assert c.then == "null"
+
+    def test_the_declared_gate_actually_holds(self, tmp_path):
+        import misata
+        grabs = misata.generate_from_schema(self._load(tmp_path, self.WHEN_THEN_SPEC))["grabs"]
+        offenders = grabs[(grabs["status"] != "failed") & grabs["last_error"].notna()]
+        assert len(offenders) == 0, (
+            f"{len(offenders)} row(s) are not failed yet carry an error")
+
+    def test_an_unknown_constraint_field_is_refused(self, tmp_path):
+        """Enumerating fields is what caused the silence, so the parser now
+        takes every field the model defines and rejects anything else. A typo
+        must not be a no-op."""
+        import pytest
+        with pytest.raises(ValueError, match="unknown field"):
+            self._load(tmp_path, """
+name: typo
+tables:
+  t:
+    rows: 10
+    columns:
+      id: {type: int, unique: true, min: 1, max: 10}
+    constraints:
+      - name: oops
+        type: when_then
+        when_colum: status
+""")
+
+    def test_the_table_routing_key_is_still_allowed(self, tmp_path):
+        """`table:` routes a top-level constraint and is not a model field."""
+        schema = self._load(tmp_path, """
+name: routed
+tables:
+  t:
+    rows: 10
+    columns:
+      id: {type: int, unique: true, min: 1, max: 10}
+      a: {type: int, min: 1, max: 5}
+      b: {type: int, min: 1, max: 5}
+constraints:
+  - name: a_below_b
+    type: inequality
+    table: t
+    column_a: a
+    operator: "<="
+    column_b: b
+""")
+        c = next(c for t in schema.tables for c in (t.constraints or []))
+        assert c.column_a == "a" and c.column_b == "b" and c.operator == "<="

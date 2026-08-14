@@ -253,7 +253,25 @@ def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
 
     # FK declared via relationships — column just needs type="foreign_key"
     if raw_type == "foreign_key" or misata_type == "foreign_key":
-        return Column(name=col_name, type="foreign_key", distribution_params={})
+        # This branch used to build the column from nothing but its name, which
+        # silently discarded everything else written next to it. `unique: true`
+        # on a foreign key is the one that bites: it says the relationship is
+        # one-to-one, and dropping it means the key is drawn with replacement
+        # and the database rejects the insert on its own unique index. Found on
+        # a real schema where `grabs.wanted_item_id` is UNIQUE, one grab per
+        # item. `references` and `nullable` were being lost the same way.
+        params: Dict[str, Any] = {}
+        for k in ("references", "sampling", "filters", "null_rate"):
+            if col_def.get(k) is not None:
+                params[k] = col_def[k]
+        return Column(
+            name=col_name,
+            type="foreign_key",
+            distribution_params=params,
+            nullable=bool(col_def.get("nullable", True)),
+            unique=bool(col_def.get("unique", False)),
+            description=col_def.get("description") or None,
+        )
 
     # Categorical from choices
     choices = col_def.get("choices")
@@ -309,19 +327,36 @@ def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
 
 
 def _parse_constraint(raw: Dict[str, Any]) -> Constraint:
-    return Constraint(
-        name=raw.get("name", "unnamed"),
-        type=raw["type"],
-        group_by=list(raw.get("group_by", [])),
-        column=raw.get("column"),
-        value=raw.get("value"),
-        action=raw.get("action", "cap"),
-        column_a=raw.get("column_a"),
-        operator=raw.get("operator"),
-        column_b=raw.get("column_b"),
-        low_column=raw.get("low_column"),
-        high_column=raw.get("high_column"),
-    )
+    """Carry every field of a constraint, whatever its type.
+
+    This listed the fields of four constraint types and silently dropped the
+    rest, so a `when_then` written in YAML loaded with `when_column`,
+    `when_op`, `when_value`, `then_column` and `then` all None. The constraint
+    was present, named, and did nothing: the engine happily produced grabs whose
+    status was `imported` next to a populated `last_error`, which is precisely
+    the class of contradiction the declaration exists to prevent. Ledger and
+    parent-comparison constraints were losing their columns the same way.
+
+    Enumerating fields is what caused this, so stop enumerating: take every key
+    the model actually defines. An unknown key still raises, which is the point
+    of writing the schema down.
+    """
+    known = set(Constraint.model_fields)
+    # `table` is routing, consumed by the caller to decide which table the
+    # constraint attaches to, and is not a field of the constraint itself.
+    routing = {"table"}
+    unknown = sorted(set(raw) - known - routing)
+    if unknown:
+        raise ValueError(
+            f"constraint {raw.get('name', '<unnamed>')!r} has unknown field(s) "
+            f"{unknown}. Valid fields: {sorted(known)}")
+
+    fields = {k: v for k, v in raw.items() if k in known}
+    fields.setdefault("name", "unnamed")
+    fields.setdefault("action", "cap")
+    if "group_by" in fields:
+        fields["group_by"] = list(fields["group_by"] or [])
+    return Constraint(**fields)
 
 
 def _parse_event(raw: Dict[str, Any]) -> ScenarioEvent:
