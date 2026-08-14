@@ -5,6 +5,32 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.9] - 2026-08-14
+
+### A composite UNIQUE constraint never left the database
+
+Seeding a real application's schema failed on
+
+    UNIQUE constraint failed:
+      quality_profile_groups.profile_id, quality_profile_groups.group_name
+
+`UNIQUE (a, b)` constrains the pair. 0.9.6.7 taught introspection to read
+single-column UNIQUE constraints and deliberately skipped the multi-column ones,
+because marking each member individually unique would be a stricter schema than
+the database declares. The right target already existed: the engine has had a
+`unique_combination` constraint type since the Prisma importer, and introspection
+had simply never emitted it.
+
+Both dialects now do. Postgres reads them from `information_schema` in
+constraint-column order; SQLite reads multi-column unique indexes via
+`index_list`. Six were found in the one schema tested, on shapes any application
+has: `(provider, provider_id)`, `(series_id, kind, number)`,
+`(series_id, normalized_title)`.
+
+Found by applying another project's 22 real migrations into SQLite and seeding
+the result, rather than by writing a fixture. That database now seeds 455 rows
+across seven tables with six foreign keys re-queried afterwards and zero orphans.
+
 ## [0.9.6.8] - 2026-08-10
 
 ### A declared locale did nothing on every surface except the CLI
