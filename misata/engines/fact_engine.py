@@ -279,12 +279,19 @@ class FactEngine:
 
         total_rows = max(int(fallback_row_count), active_count)
         base_allocation = positive_targets / positive_targets.sum()
-        row_counts = np.floor(base_allocation * total_rows).astype(int)
+        raw_allocation = base_allocation * total_rows
+        row_counts = np.floor(raw_allocation).astype(int)
         row_counts[active] = np.maximum(row_counts[active], 1)
 
         delta = total_rows - int(row_counts.sum())
         if delta > 0:
-            priorities = np.argsort(-(base_allocation - np.floor(base_allocation * total_rows)))
+            # Largest remainder: the leftover rows go to the periods that lost
+            # the most to flooring. The remainder is a property of the row
+            # count, `base_allocation * total_rows`, not of the share itself.
+            # Subtracting a floored count from a fraction that sums to 1 ranks
+            # by period size instead, which handed every leftover row to the
+            # smallest period. Same form as shares.py and waterfall.py.
+            priorities = np.argsort(-(raw_allocation - np.floor(raw_allocation)))
             for idx in priorities:
                 if positive_targets[idx] <= 0:
                     continue

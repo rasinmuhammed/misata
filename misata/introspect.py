@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
-from misata.schema import Column, Relationship, SchemaConfig, Table
+from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
 
 
 def schema_from_db(
@@ -23,15 +23,18 @@ def schema_from_db(
     try:
         if dialect == "sqlite":
             tables = _sqlite_list_tables(conn, include_tables)
-            columns_map, relationships = _sqlite_introspect(conn, tables)
+            columns_map, relationships, constraints = _sqlite_introspect(conn, tables)
             external = {}
         else:
             tables = _postgres_list_tables(conn, include_tables)
-            columns_map, relationships, external = _postgres_introspect(conn, tables)
+            columns_map, relationships, external, constraints = _postgres_introspect(
+                conn, tables)
     finally:
         conn.close()
 
-    table_defs = [Table(name=t, row_count=default_rows) for t in tables]
+    table_defs = [Table(name=t, row_count=default_rows,
+                        constraints=constraints.get(t, []))
+                  for t in tables]
 
     # A foreign key can point out of `public` at a table somebody else owns.
     # Supabase is the common case: every project's `public.profiles.id`
@@ -562,9 +565,10 @@ def _sqlite_list_tables(conn, include_tables: Optional[List[str]]) -> List[str]:
     return tables
 
 
-def _sqlite_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column]], List[Relationship]]:
+def _sqlite_introspect(conn, tables: List[str]):
     columns_map: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []
+    constraints_map: Dict[str, List[Constraint]] = {}
 
     for table in tables:
         # `PRAGMA table_info` reports the primary key and nothing about UNIQUE.
@@ -573,6 +577,7 @@ def _sqlite_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column]]
         # Unique indexes carry that information; single-column ones only,
         # because a unique index over (a, b) constrains the pair.
         unique_cols: set = set()
+        composite: list = []
         for idx in conn.execute(f'PRAGMA index_list("{table}")').fetchall():
             idx_name, is_unique = idx[1], idx[2]
             if not is_unique:
@@ -580,6 +585,12 @@ def _sqlite_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column]]
             members = conn.execute(f'PRAGMA index_info("{idx_name}")').fetchall()
             if len(members) == 1:
                 unique_cols.add(members[0][2])
+            elif len(members) > 1:
+                # UNIQUE (a, b) constrains the pair, not either column. Marking
+                # both individually unique would be a stricter schema than the
+                # database declares; the engine already has a constraint type
+                # for this, it had simply never been emitted from introspection.
+                composite.append([m[2] for m in sorted(members)])
 
         cur = conn.execute(f'PRAGMA table_info("{table}")')
         cols: List[Column] = []
@@ -599,6 +610,10 @@ def _sqlite_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column]]
                 )
             )
         columns_map[table] = cols
+        for combo in composite:
+            constraints_map.setdefault(table, []).append(Constraint(
+                name=f"{table}_unique_{'_'.join(combo)}",
+                type="unique_combination", group_by=list(combo), action="drop"))
 
         fk_cur = conn.execute(f'PRAGMA foreign_key_list("{table}")')
         for fk in fk_cur.fetchall():
@@ -612,7 +627,7 @@ def _sqlite_introspect(conn, tables: List[str]) -> Tuple[Dict[str, List[Column]]
                 )
             )
 
-    return columns_map, relationships
+    return columns_map, relationships, constraints_map
 
 
 def _postgres_list_tables(conn, include_tables: Optional[List[str]]) -> List[str]:
@@ -633,6 +648,7 @@ def _postgres_list_tables(conn, include_tables: Optional[List[str]]) -> List[str
 def _postgres_introspect(conn, tables: List[str]):
     columns_map: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []
+    constraints_map: Dict[str, List[Constraint]] = {}
     # parent table name -> (schema, referenced column) for FKs that leave `public`
     external: Dict[str, Tuple[str, str]] = {}
 
@@ -671,6 +687,20 @@ def _postgres_introspect(conn, tables: List[str]):
           AND (SELECT COUNT(*) FROM information_schema.key_column_usage k2
                WHERE k2.constraint_name = tc.constraint_name) = 1
     """
+    # The multi-column ones become a `unique_combination` constraint, which the
+    # engine has always supported and introspection had never emitted.
+    composite_sql = """
+        SELECT tc.constraint_name, kcu.column_name, kcu.ordinal_position
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.table_schema = 'public'
+          AND tc.table_name = %s
+          AND tc.constraint_type = 'UNIQUE'
+          AND (SELECT COUNT(*) FROM information_schema.key_column_usage k2
+               WHERE k2.constraint_name = tc.constraint_name) > 1
+        ORDER BY tc.constraint_name, kcu.ordinal_position
+    """
     fk_sql = """
         SELECT
             tc.table_name AS child_table,
@@ -695,6 +725,15 @@ def _postgres_introspect(conn, tables: List[str]):
 
             cur.execute(unique_sql, (table,))
             pk_cols |= {row[0] for row in cur.fetchall()}
+
+            cur.execute(composite_sql, (table,))
+            combos: Dict[str, List[str]] = {}
+            for cname, col, _pos in cur.fetchall():
+                combos.setdefault(cname, []).append(col)
+            for cname, cols_in_combo in combos.items():
+                constraints_map.setdefault(table, []).append(Constraint(
+                    name=cname, type="unique_combination",
+                    group_by=cols_in_combo, action="drop"))
 
             cur.execute(col_sql, (table,))
             cols: List[Column] = []
@@ -736,7 +775,7 @@ def _postgres_introspect(conn, tables: List[str]):
                     )
                 )
 
-    return columns_map, relationships, external
+    return columns_map, relationships, external, constraints_map
 
 
 def _map_sql_type(sql_type: str) -> str:

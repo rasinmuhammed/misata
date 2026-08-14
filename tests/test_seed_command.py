@@ -498,3 +498,50 @@ class TestUniqueConstraintIntrospection:
         assert cols["id"].unique, "primary key"
         assert cols["name"].unique, "declared UNIQUE but introspected as ordinary"
         assert not cols["blurb"].unique, "must not mark everything unique"
+
+    def test_a_composite_unique_becomes_a_constraint(self, tmp_path):
+        """UNIQUE (a, b) constrains the pair, not either column.
+
+        The engine has always had `unique_combination`; introspection never
+        emitted it, so seeding a real schema hit
+        `UNIQUE constraint failed: quality_profile_groups.profile_id,
+        quality_profile_groups.group_name`. Found against transpondarr's actual
+        migrations, not a fixture.
+        """
+        from misata.introspect import schema_from_db
+        url = self._db(tmp_path, """
+            CREATE TABLE profiles (id INTEGER PRIMARY KEY, label TEXT);
+            CREATE TABLE profile_groups (
+              id INTEGER PRIMARY KEY,
+              profile_id INTEGER NOT NULL REFERENCES profiles(id),
+              group_name TEXT NOT NULL,
+              UNIQUE (profile_id, group_name)
+            );
+        """)
+        config = schema_from_db(url, default_rows=30)
+        table = next(t for t in config.tables if t.name == "profile_groups")
+        combos = [c for c in table.constraints if c.type == "unique_combination"]
+        assert combos, "composite UNIQUE was not carried into the schema"
+        assert set(combos[0].group_by) == {"profile_id", "group_name"}
+
+        cols = {c.name: c for c in config.columns["profile_groups"]}
+        assert not cols["profile_id"].unique, (
+            "a member of a composite UNIQUE must not be marked individually "
+            "unique: that is a stricter schema than the database declares")
+
+    def test_generation_respects_the_composite(self, tmp_path):
+        import misata
+        from misata.introspect import schema_from_db
+        url = self._db(tmp_path, """
+            CREATE TABLE profiles (id INTEGER PRIMARY KEY, label TEXT);
+            CREATE TABLE profile_groups (
+              id INTEGER PRIMARY KEY,
+              profile_id INTEGER NOT NULL REFERENCES profiles(id),
+              group_name TEXT NOT NULL,
+              UNIQUE (profile_id, group_name)
+            );
+        """)
+        tables = misata.generate_from_schema(schema_from_db(url, default_rows=40))
+        pg = tables["profile_groups"]
+        dupes = pg.duplicated(subset=["profile_id", "group_name"]).sum()
+        assert dupes == 0, f"{dupes} row(s) violate UNIQUE (profile_id, group_name)"
