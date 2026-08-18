@@ -41,6 +41,8 @@ from misata.compat import _TYPE_MAP
 from misata.schema import (
     Column,
     Constraint,
+    Degradation,
+    SensorResponse,
     GroupShares,
     SCD2Config,
     StockFlowIdentity,
@@ -502,6 +504,16 @@ def load_yaml_schema(
     # Rate curves
     rate_curves = [_parse_rate_curve(c) for c in (raw.get("rate_curves") or [])]
 
+    # Units that wear out. The failure time is declared; damage and remaining
+    # useful life follow from it, so the label is exact rather than annotated.
+    degradations = []
+    for spec_raw in (raw.get("degradations") or []):
+        spec_raw = dict(spec_raw)
+        spec_raw["responses"] = [
+            SensorResponse(**r) for r in (spec_raw.get("responses") or [])
+        ]
+        degradations.append(Degradation(**spec_raw))
+
     # Exact group shares ("Electronics is 40% of revenue")
     group_shares = [GroupShares(**g) for g in (raw.get("group_shares") or [])]
 
@@ -571,6 +583,7 @@ def load_yaml_schema(
         outcome_curves=outcome_curves,
         rate_curves=rate_curves,
         group_shares=group_shares,
+        degradations=degradations,
         waterfalls=waterfalls,
         stock_flows=stock_flows,
         lifecycles=_declared["lifecycles"],

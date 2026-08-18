@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.9.6.11"
+__version__ = "0.9.6.12"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -147,6 +147,7 @@ def _run_simulation(
             tables[name] = pd.concat([tables[name], batch], ignore_index=True)
         else:
             tables[name] = batch
+
     return tables
 
 

@@ -767,6 +767,91 @@ class EventLog(BaseModel):
     filler_events: List[str] = Field(default_factory=list)
 
 
+class SensorResponse(BaseModel):
+    """How one measurement responds as a unit accumulates damage.
+
+    Damage runs 0 at commissioning to 1 at failure. `baseline` is the healthy
+    reading and `at_failure` the reading the instant before it fails; what
+    happens between them is the `shape`.
+
+    Attributes:
+        column: The measurement column.
+        baseline: Reading at damage 0.
+        at_failure: Reading at damage 1.
+        shape: "linear" tracks damage directly. "exponential" stays flat and
+            then climbs late, which is what a vibration RMS does as a spall
+            opens up. "sqrt" moves early and then flattens.
+        noise: Standard deviation of the measurement noise on top.
+        decimals: Rounding, so a column reads like an instrument rather than
+            like a float.
+    """
+
+    column: str
+    baseline: float
+    at_failure: float
+    shape: Literal["linear", "exponential", "sqrt"] = "linear"
+    noise: float = 0.0
+    decimals: int = 3
+    # Some measurements physically cannot fall. Accumulated tool wear is the
+    # obvious one: material does not come back. Measurement noise alone made
+    # wear decrease on a third of consecutive readings, which is the exact
+    # criticism levelled at AI4I, so a cumulative quantity has to say it is one.
+    monotonic: bool = False
+
+
+class Degradation(BaseModel):
+    """Declare that units wear out, and when.
+
+    Every other primitive here draws each row independently, which is correct
+    for orders and payments and wrong for equipment: a machine has a history.
+    Its wear accumulates, its measurements drift, and it eventually fails. A
+    dataset without that has nothing to predict, which is the standing
+    criticism of the public predictive-maintenance datasets, where tool wear is
+    as likely to fall as to rise between consecutive readings.
+
+    The declaration is the **failure time**. Each unit draws a life from
+    `life_mean`/`life_std`, damage accumulates toward it, and the sensors follow
+    the damage. Remaining useful life is therefore exact by construction rather
+    than annotated afterwards, which is the property that makes the label worth
+    training on.
+
+    One row per (unit, cycle) is generated, replacing the table's row_count:
+    the number of rows is the sum of the drawn lives, because a unit that lives
+    300 cycles has 300 readings.
+
+    Attributes:
+        table: Table receiving one row per unit per cycle.
+        unit_column / cycle_column: Identity and the cycle index within a unit.
+        units: How many units in the fleet.
+        life_mean / life_std / life_min / life_max: The life distribution.
+            Unit-to-unit spread is what makes remaining life learnable rather
+            than a constant.
+        damage_exponent: Damage is (cycle/life) ** exponent. Above 1 the last
+            stretch degrades fastest, which is how wear behaves.
+        rul_column / damage_column: Where the exact labels are written.
+        failure_column: 1 on a unit's final cycle, 0 elsewhere.
+        failure_mode_column / failure_modes: Optional named modes with weights.
+        responses: Measurements that follow the damage.
+    """
+
+    table: str
+    unit_column: str = "unit_id"
+    cycle_column: str = "cycle"
+    units: int = 100
+    life_mean: float = 220.0
+    life_std: float = 45.0
+    life_min: int = 20
+    life_max: int = 1000
+    damage_exponent: float = 1.3
+    rul_column: str = "rul_cycles"
+    damage_column: Optional[str] = "damage"
+    failure_column: str = "machine_failure"
+    failure_mode_column: Optional[str] = None
+    failure_modes: Dict[str, float] = Field(default_factory=dict)
+    responses: List[SensorResponse] = Field(default_factory=list)
+    description: Optional[str] = None
+
+
 class StockFlowIdentity(BaseModel):
     """Declare an inventory table whose stock ledger reconciles to the unit.
 
@@ -1181,6 +1266,7 @@ class SchemaConfig(BaseModel):
     group_shares: List[GroupShares] = Field(default_factory=list)
     waterfalls: List[WaterfallIdentity] = Field(default_factory=list)
     stock_flows: List[StockFlowIdentity] = Field(default_factory=list)
+    degradations: List[Degradation] = Field(default_factory=list)
     lifecycles: List[Lifecycle] = Field(default_factory=list)
     retention: List[CohortRetention] = Field(default_factory=list)
     missingness: List[Missingness] = Field(default_factory=list)

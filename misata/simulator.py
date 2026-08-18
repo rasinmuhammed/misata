@@ -5434,6 +5434,20 @@ class DataSimulator:
         sorted_tables = self.topological_sort()
         cascade_events = [e for e in (self.config.events or []) if e.propagate_to]
 
+        # A degraded table is produced per unit, not per row: its length is the
+        # sum of the drawn lives, because a unit that lives 300 cycles has 300
+        # readings. Row-at-a-time generation cannot express that, so it is
+        # produced whole here and the normal loop skips it.
+        #
+        # This sits in generate_all rather than in `misata.generate_from_schema`
+        # because the CLI builds a DataSimulator directly. Hooking the Python
+        # API alone is how four earlier defects shipped: a guarantee wired into
+        # one of two entry points is a guarantee the other one does not have.
+        _degraded = {}
+        for _spec in (getattr(self.config, "degradations", None) or []):
+            from misata.degradation import generate as _degrade
+            _degraded[_spec.table] = _degrade(_spec, seed=self.config.seed or 42)
+
         # Cross-table roll-ups: parent summary columns computed from child facts so the data
         # reconciles under a JOIN. Both the parent (target) and the child (source) must be
         # buffered together for the post-generation pass.
@@ -5560,6 +5574,20 @@ class DataSimulator:
             # is not regenerated. Its context (PKs) is already seeded so
             # children can reference its rows.
             if table_name in self._skip_tables:
+                continue
+            # A declared degradation owns its table outright: the trajectory is
+            # the rows. Any other columns the table declares are tiled onto it,
+            # so `quality` and `control_type` still come from the schema.
+            if table_name in _degraded:
+                traj = _degraded[table_name]
+                extra_cols = [c for c in self.config.columns.get(table_name, [])
+                              if c.name not in traj.columns]
+                if extra_cols:
+                    traj = traj.reset_index(drop=True)
+                    for col in extra_cols:
+                        traj[col.name] = self.generate_column(
+                            table_name, col, len(traj), traj)
+                yield table_name, traj
                 continue
             if table_name in buffer_tables:
                 # Buffer: collect all batches for the post-generation passes

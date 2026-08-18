@@ -5,6 +5,54 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.12] - 2026-08-14
+
+### Units that wear out, with a remaining-life label that is exact
+
+Every primitive until now drew each row independently. That is right for orders
+and payments and wrong for equipment, because a machine has a history. In AI4I
+2020, the most used public predictive-maintenance dataset, tool wear is as
+likely to fall as to rise between consecutive readings of the same machine
+(correlation with time: -0.024) and there is no remaining-life label at all. A
+dataset for predicting failure in which nothing progresses toward failure is a
+classification exercise in a prognostics costume.
+
+`degradations` declares the **failure time**. Each unit draws a life, damage
+accumulates toward it, and the measurements follow the damage, so remaining
+useful life is exact by construction rather than annotated afterwards. One row
+per unit per cycle; the row count is the sum of the drawn lives, because a unit
+that lives 300 cycles has 300 readings.
+
+    degradations:
+      - table: readings
+        units: 100
+        life_mean: 220
+        life_std: 45
+        responses:
+          - {column: tool_wear_min, baseline: 0, at_failure: 250, monotonic: true}
+          - {column: vibration_mm_s, baseline: 0.8, at_failure: 5.2, shape: exponential}
+
+`monotonic` exists because material does not come back. Measurement noise alone
+made wear decrease on about a third of consecutive readings, which is precisely
+the criticism aimed at AI4I, so a cumulative quantity has to say it is one.
+
+`misata.degradation.defect_frequencies` computes a rolling-element bearing's
+fault frequencies from its geometry and shaft speed. Nothing there is fitted:
+for the SKF 6205-2RS at 1797 rpm it returns BPFO 107.36 Hz, the published value,
+and a test pins it.
+
+`verify()` re-derives the guarantees from the produced rows rather than trusting
+the generator, in the same spirit as the conformance suites.
+
+Measured on a 100-unit fleet: wear rises on 100% of steps and correlates +0.949
+with cycle, vibration correlates +0.93 with damage, and a model trained on 80
+units predicts remaining life on 20 unseen units with 12.0 cycles of error
+against 58.3 for guessing the mean.
+
+What this is not: a validated model of a specific bearing, spindle or pump. The
+damage law is a simplified lumped model. The claim that holds is that the labels
+are exact and the trajectory is declared, not that the physics is faithful.
+
 ## [0.9.6.11] - 2026-08-14
 
 ### Declared text became generic text, and hex patterns had no letters

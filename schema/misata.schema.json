@@ -1036,6 +1036,124 @@
         "type": "object",
         "additionalProperties": false
       }
+    },
+    "degradations": {
+      "type": "array",
+      "description": "Units that wear out. The failure time is declared; damage and remaining useful life follow from it, so the RUL label is exact by construction rather than annotated.",
+      "items": {
+        "type": "object",
+        "required": [
+          "table"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "unit_column": {
+            "type": "string"
+          },
+          "cycle_column": {
+            "type": "string"
+          },
+          "units": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "life_mean": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "life_std": {
+            "type": "number",
+            "minimum": 0
+          },
+          "life_min": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "life_max": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "damage_exponent": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "rul_column": {
+            "type": "string"
+          },
+          "damage_column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failure_column": {
+            "type": "string"
+          },
+          "failure_mode_column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failure_modes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "column",
+                "baseline",
+                "at_failure"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "column": {
+                  "type": "string"
+                },
+                "baseline": {
+                  "type": "number"
+                },
+                "at_failure": {
+                  "type": "number"
+                },
+                "shape": {
+                  "enum": [
+                    "linear",
+                    "exponential",
+                    "sqrt"
+                  ]
+                },
+                "noise": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "decimals": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "monotonic": {
+                  "type": "boolean",
+                  "description": "A cumulative measurement never falls."
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {

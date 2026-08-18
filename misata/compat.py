@@ -40,6 +40,8 @@ import warnings
 from typing import Any, Dict, List, Optional
 
 from misata.schema import (
+    Degradation,
+    SensorResponse,
     Column,
     Constraint,
     GroupShares,
@@ -67,6 +69,7 @@ _ENVELOPE_KEYS: Tuple[Tuple[str, str], ...] = (
     ("group_shares", "__group_shares__"),
     ("waterfalls", "__waterfalls__"),
     ("stock_flows", "__stock_flows__"),
+    ("degradations", "__degradations__"),
     ("lifecycles", "__lifecycles__"),
     ("retention", "__retention__"),
     ("missingness", "__missingness__"),
@@ -723,6 +726,20 @@ def from_dict_schema(
             waterfalls.append(WaterfallIdentity(**wf_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __waterfalls__[{i}]: {e}")
+    # Units that wear out. Registering the envelope key is not the same as
+    # building the object: the key was accepted and nothing was constructed,
+    # which is the same silence three other declarations shipped with.
+    degradations: List["Degradation"] = []
+    for i, d_def in enumerate(schemas.get("__degradations__") or []):
+        try:
+            d_def = dict(d_def)
+            d_def["responses"] = [
+                SensorResponse(**r) for r in (d_def.get("responses") or [])
+            ]
+            degradations.append(Degradation(**d_def))
+        except Exception as e:
+            warnings.warn(f"Skipping invalid __degradations__[{i}]: {e}")
+
     stock_flows: List[StockFlowIdentity] = []
     for i, sf_def in enumerate(schemas.get("__stock_flows__") or []):
         try:
@@ -986,6 +1003,7 @@ def from_dict_schema(
         group_shares=group_shares,
         waterfalls=waterfalls,
         stock_flows=stock_flows,
+        degradations=degradations,
         events=declared["events"],
         lifecycles=declared["lifecycles"],
         retention=declared["retention"],
