@@ -37,7 +37,7 @@ import warnings
 
 import yaml
 
-from misata.compat import _TYPE_MAP
+from misata.compat import _TYPE_MAP, resolve_column_type
 from misata.schema import (
     Column,
     Constraint,
@@ -259,7 +259,7 @@ def _parse_relationship(raw: Union[str, Dict[str, Any]]) -> Relationship:
 def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
     """Map a YAML column definition to a Misata Column."""
     raw_type = str(col_def.get("type", "text")).lower()
-    misata_type = _TYPE_MAP.get(raw_type, "text")
+    misata_type = resolve_column_type(raw_type, where=f"column {col_name!r}")
 
     # FK declared via relationships — column just needs type="foreign_key"
     if raw_type == "foreign_key" or misata_type == "foreign_key":

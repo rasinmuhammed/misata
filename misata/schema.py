@@ -799,6 +799,25 @@ class SensorResponse(BaseModel):
     monotonic: bool = False
 
 
+class FailureMode(BaseModel):
+    """A named way a unit fails, and what it does to the measurements.
+
+    A mode that only labels the last row is decorative: a heat-dissipation
+    failure that runs no hotter than a power failure tells a reader nothing and
+    tells a model less. `accentuates` scales how far a named measurement travels
+    for units failing this way, so the mode has a signature you can actually
+    diagnose.
+
+    Attributes:
+        weight: Relative share of units failing this way.
+        accentuates: column name -> multiplier on that column's damage response.
+            1.0 leaves it alone; 2.0 sends it twice as far by failure.
+    """
+
+    weight: float = 1.0
+    accentuates: Dict[str, float] = Field(default_factory=dict)
+
+
 class Degradation(BaseModel):
     """Declare that units wear out, and when.
 
@@ -847,7 +866,14 @@ class Degradation(BaseModel):
     damage_column: Optional[str] = "damage"
     failure_column: str = "machine_failure"
     failure_mode_column: Optional[str] = None
-    failure_modes: Dict[str, float] = Field(default_factory=dict)
+    # Either {"name": weight} or {"name": {"weight": w, "accentuates": {...}}}.
+    # The plain form stays valid; the second gives the mode a signature.
+    failure_modes: Dict[str, Union[float, FailureMode]] = Field(default_factory=dict)
+    # Units are not identical. Each draws its own multiplier per response, so
+    # the fleet is a population rather than one machine repeated: without it
+    # every sensor is the same deterministic function of damage and they come
+    # out near-collinear, which makes the data far easier than any real fleet.
+    unit_variation: float = 0.10
     responses: List[SensorResponse] = Field(default_factory=list)
     description: Optional[str] = None
 

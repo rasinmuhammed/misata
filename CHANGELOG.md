@@ -5,6 +5,64 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.13] - 2026-08-18
+
+### A declaration is honoured, or it is refused. It is never substituted.
+
+I pointed a new probe at the live Studio API and sent it what a caller would
+actually write:
+
+    {"country": {"type": "category", "categories": ["US", "UK", "DE"]}}
+
+The column came back holding Australia, Brazil and Japan. The response said
+`ok: true` and `integrity.verified: true`.
+
+`category` is not a type Misata knows. `categorical` is. The unknown name fell
+through to text, and semantic inference then filled the column from its own
+name, which for a column called `country` produces country names. Plausible
+enough that nobody would look twice, and wrong in the one way that matters: the
+caller stated three values and got none of them.
+
+Unknown types are now refused, with the near miss named:
+
+    unknown column type 'category'. Did you mean 'categorical'?
+    Known types: boolean, categorical, date, datetime, ...
+
+An explicit declaration also now beats the semantics of the column name, so
+`{"type": "categorical", "choices": [...]}` on a column called `email` yields
+those choices and not email addresses. Guessing from a name is a fallback for
+when nothing was said, not an override for when something was.
+
+1,719 tests and three conformance suites missed this because they all speak the
+engine's internal dialect. `tools/studio_stranger.py` speaks the API's, and
+runs in CI on every push.
+
+### `name` and `seed` in a dict schema did nothing
+
+Both keys are in the published JSON Schema and both are honoured by the YAML
+loader. The dict path read neither, so the same document produced a named
+dataset one way and "Imported schema" the other, with different bytes. It also
+warned `Skipping non-dict entry for table 'name'`, which reads as the caller's
+mistake when they did exactly what the docs say.
+
+The test is now the value and not the key, so a table may still be called
+`name` or `seed`: `name: "sales"` is metadata, `name: {...columns...}` is a
+table. A malformed table still warns, and now says what was wrong with it.
+
+### Failure modes that change the data, and units that differ from each other
+
+Shipping the machine-degradation dataset meant reading it as a hostile
+reviewer, and two things in it would not have survived that.
+
+`failure_mode` was a label. Every unit degraded identically and then got a
+mode name stapled on, so a model predicting the mode from the sensors had
+nothing to learn. `accentuates` gives each mode a signature: heat degradation
+drives temperature, tool wear drives wear.
+
+Sensors correlated 0.83 to 0.96 with each other, because every unit followed
+the same curve. `unit_variation` gives each unit its own susceptibility per
+measurement, which is what a fleet looks like. Now 0.65.
+
 ## [0.9.6.12] - 2026-08-14
 
 ### Units that wear out, with a remaining-life label that is exact

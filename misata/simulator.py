@@ -5511,6 +5511,12 @@ class DataSimulator:
         dyn_tables |= {t for t in bitemporal_tables(self.config)
                        if t in set(sorted_tables)}
 
+        # A degraded table is produced whole and must reach the dynamics pass,
+        # or every declaration written against it (missingness, outliers,
+        # typos, time grids) silently does nothing.
+        dyn_tables |= {s.table for s in (getattr(self.config, "degradations", None) or [])
+                       if s.table in set(sorted_tables)}
+
         # A lifecycle rewrites its table's state column and per-state
         # timestamps over the whole table, so that table buffers.
         lifecycle_tables = {
@@ -5579,15 +5585,21 @@ class DataSimulator:
             # the rows. Any other columns the table declares are tiled onto it,
             # so `quality` and `control_type` still come from the schema.
             if table_name in _degraded:
-                traj = _degraded[table_name]
+                traj = _degraded[table_name].reset_index(drop=True)
                 extra_cols = [c for c in self.config.columns.get(table_name, [])
                               if c.name not in traj.columns]
-                if extra_cols:
-                    traj = traj.reset_index(drop=True)
-                    for col in extra_cols:
-                        traj[col.name] = self.generate_column(
-                            table_name, col, len(traj), traj)
-                yield table_name, traj
+                for col in extra_cols:
+                    traj[col.name] = self.generate_column(
+                        table_name, col, len(traj), traj)
+                # Buffer rather than yield. Declarations have to compose, and
+                # the dynamics pass (missingness, outliers, typos, retention,
+                # time grids) runs only over buffered tables at the end of
+                # generation. Yielding here skipped all of them, so a
+                # `missingness` rule written against a degraded table did
+                # nothing and every sensor came back fully observed. The
+                # trajectory owns the rows; it does not own the rest of the
+                # schema.
+                buffered[table_name] = traj
                 continue
             if table_name in buffer_tables:
                 # Buffer: collect all batches for the post-generation passes

@@ -144,6 +144,57 @@ _TYPE_MAP: Dict[str, str] = {
     "object": "text",
 }
 
+#: The types `Column` itself accepts. `_TYPE_MAP` translates foreign spellings
+#: (SQL, JSON Schema) into these, and does not contain them, so both sets are
+#: needed to answer "is this a type Misata knows".
+#: Distinguishes "caller passed no seed" from "caller passed 42".
+_SEED_UNSET = object()
+
+_NATIVE_TYPES = frozenset({
+    "int", "float", "date", "time", "datetime",
+    "categorical", "foreign_key", "text", "boolean",
+})
+
+
+def resolve_column_type(raw_type: str, *, where: str = "") -> str:
+    """Translate a declared type, and refuse one nobody recognises.
+
+    This used to be ``_TYPE_MAP.get(raw_type, "text")``. An unrecognised type
+    became text, and semantic inference then filled the column from its name, so
+    a column declared ``{"type": "category", "categories": ["US","UK","DE"]}``
+    came back holding Australia, Brazil and Japan. The API answered `ok: true`
+    with `integrity.verified: true`, and the values were plausible enough that
+    nobody would look twice at country names in a country column.
+
+    Substituting for a declaration is the worst of the three options. Honouring
+    it is best, refusing it is honest, and quietly generating something else
+    leaves the user holding data that does not match what they asked for behind
+    a response that says it does.
+
+    Raises:
+        ValueError: naming the closest known spelling, because the mistake is
+            almost always a near miss rather than an invention.
+    """
+    if not raw_type:
+        return "text"
+    key = str(raw_type).strip().lower()
+    if key in _NATIVE_TYPES:
+        return key
+    if key in _TYPE_MAP:
+        return _TYPE_MAP[key]
+
+    import difflib
+    known = sorted(_NATIVE_TYPES | set(_TYPE_MAP))
+    close = difflib.get_close_matches(key, known, n=3, cutoff=0.6)
+    hint = f" Did you mean {' or '.join(repr(c) for c in close)}?" if close else ""
+    prefix = f"{where}: " if where else ""
+    raise ValueError(
+        f"{prefix}unknown column type {raw_type!r}.{hint} "
+        f"Known types: {', '.join(known)}"
+    )
+
+
+
 _TEXT_TYPE_HINTS: Dict[str, str] = {
     # Identifiers — must come BEFORE "name" so substring scan stops here first.
     # Without these, columns like "anonymous_id" or "device_token" match "name"
@@ -359,7 +410,7 @@ def _col_from_dict(
     if fk_ref or raw_type == "foreign_key":
         return Column(name=col_name, type="foreign_key", distribution_params={})
 
-    misata_type = _TYPE_MAP.get(raw_type, "text")
+    misata_type = resolve_column_type(raw_type, where=f"column {col_name!r}")
 
     # Detect categorical from enum constraint
     enum = col_def.get("enum") or col_def.get("choices")
@@ -602,7 +653,7 @@ def _dedupe_relationships(rels: List[Relationship]) -> List[Relationship]:
 def from_dict_schema(
     schemas: Dict[str, Any],
     row_count: Optional[int] = None,
-    seed: Optional[int] = 42,
+    seed: Any = _SEED_UNSET,
 ) -> SchemaConfig:
     """Convert a plain dict schema definition to a Misata ``SchemaConfig``.
 
@@ -683,7 +734,17 @@ def from_dict_schema(
     relationships: List[Relationship] = []
 
     # Envelope metadata hoisted by _unwrap_envelope.
-    schema_name = schemas.get("__name__") or "Imported schema"
+    # Both spellings. `__name__` is this path's own dialect; `name` is what the
+    # published JSON Schema documents and what the YAML loader honours, and it
+    # was being dropped here, so the same document produced a named dataset
+    # through one entry point and "Imported schema" through the other.
+    # Only when it is metadata. A schema may contain a table literally called
+    # `name`, in which case the value is a mapping of columns and taking it as
+    # the dataset's title fails validation.
+    _declared_name = schemas.get("name")
+    schema_name = (schemas.get("__name__")
+                   or (_declared_name if isinstance(_declared_name, str) else None)
+                   or "Imported schema")
     if schemas.get("__seed__") is not None:
         try:
             seed = int(schemas["__seed__"])
@@ -841,7 +902,21 @@ def from_dict_schema(
         if table_name == "generation_mode" and isinstance(table_def, str):
             continue  # flat-form directive, read below
         if not isinstance(table_def, dict):
-            warnings.warn(f"Skipping non-dict entry for table '{table_name}'.")
+            # A recognised top-level key carrying metadata is not a malformed
+            # table. Passing the documented `name` and `seed` used to warn
+            # "Skipping non-dict entry for table 'name'", which reads as the
+            # caller's mistake when they did exactly what the docs say.
+            #
+            # The test is the VALUE, not the key: `name: "sales"` is metadata,
+            # while `name: {...columns...}` is a table that happens to be
+            # called name, and a schema is allowed to have one.
+            if (table_name in HANDLED_TOP_LEVEL_KEYS
+                    or table_name in UNHANDLED_TOP_LEVEL_KEYS):
+                continue
+            warnings.warn(
+                f"Skipping {table_name!r}: a table must be a mapping of column "
+                f"names to definitions, and this is a "
+                f"{type(table_def).__name__}.")
             continue
 
         # Support both __table_description__ and __description__ as table-level metadata
@@ -1021,7 +1096,14 @@ def from_dict_schema(
                          or schemas.get("generation_mode") or "anchored"),
         noise_config=noise_config,
         realism=realism_config,
-        seed=seed,
+        # An explicit argument wins; otherwise honour the `seed` written in the
+        # document, which the JSON Schema publishes and the YAML loader reads.
+        # Without this a declared seed was silently ignored on this path and the
+        # same document produced different bytes through the two loaders,
+        # which is the one thing a seed exists to prevent.
+        seed=(seed if seed is not _SEED_UNSET
+              else (schemas["seed"] if isinstance(schemas.get("seed"), int)
+                    else 42)),
         domain=domain,
         vocabularies=({**_table_vocabularies, **(vocabularies or {})} or None),
     )

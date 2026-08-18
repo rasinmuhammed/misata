@@ -96,3 +96,20 @@ jobs:
 
       - name: Run every documented example
         run: python tools/stranger.py --clean
+
+  studio-stranger:
+    name: A declaration is honoured or refused, never substituted
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e .
+
+      # In-process, so this gates every push without needing the API up. Run it
+      # with `--api https://api.misata.studio` after a deploy to check the
+      # served build agrees with this one.
+      - name: Probe the schema surface the way a caller would
+        run: python tools/studio_stranger.py --local

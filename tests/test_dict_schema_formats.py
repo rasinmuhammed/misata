@@ -993,3 +993,113 @@ class TestCurvePeriodLabels:
         points = [{"period": 1, "value": 100_000.0},
                   {"period": "2025-02", "value": 120_000.0}]
         misata.generate_from_schema(self._schema(points))
+
+
+class TestADeclarationIsNeverSubstituted:
+    """Honour it, or refuse it. Never quietly generate something else.
+
+    Found by calling the live Studio API the way a user would. A column declared
+    `{"type": "category", "categories": ["US","UK","DE"]}` came back holding
+    Australia, Brazil and Japan, and the response said `ok: true` with
+    `integrity.verified: true`. `category` is not a known type, so it fell
+    through to text, and semantic inference then filled the column from its
+    name. The values were plausible enough that nobody would look twice at
+    country names in a country column.
+
+    1,719 tests and three conformance suites missed it because they all speak
+    the internal dialect. The API takes whatever a caller sends.
+    """
+
+    def _gen(self, spec, column="country", rows=30):
+        import misata
+        cfg = misata.from_dict_schema({
+            "t": {"__rows__": rows,
+                  "id": {"type": "integer", "primary_key": True},
+                  column: spec}})
+        return misata.generate_from_schema(cfg)["t"][column]
+
+    def test_a_near_miss_type_is_refused_with_the_right_suggestion(self):
+        import pytest
+        with pytest.raises(ValueError, match="categorical"):
+            self._gen({"type": "category", "categories": ["US", "UK", "DE"]})
+
+    def test_an_invented_type_is_refused(self):
+        import pytest
+        with pytest.raises(ValueError, match="unknown column type"):
+            self._gen({"type": "sparkle"})
+
+    def test_the_correct_spelling_still_works(self):
+        """The refusal must not become a regression on valid input."""
+        vals = set(self._gen({"type": "categorical", "choices": ["US", "UK", "DE"]}))
+        assert vals <= {"US", "UK", "DE"}
+
+    def test_categorical_is_accepted_even_though_the_type_map_lacks_it(self):
+        """`categorical` reaches the engine through the choices path rather than
+        the type map, so a naive strictness check would have refused it."""
+        from misata.compat import resolve_column_type
+        assert resolve_column_type("categorical") == "categorical"
+
+    def test_a_declaration_beats_the_semantics_of_the_column_name(self):
+        """The mechanism that produced the country names: an explicit
+        declaration must win over what the column is called."""
+        for column, allowed in [("country", {"AA", "BB"}),
+                                ("email", {"a@x.io", "b@x.io"}),
+                                ("city", {"C1", "C2"}),
+                                ("phone", {"P1", "P2"})]:
+            vals = set(self._gen({"type": "categorical", "choices": sorted(allowed)},
+                                 column=column))
+            assert vals <= allowed, f"{column}: generated {vals - allowed}"
+
+
+class TestTopLevelMetadataOnTheDictPath:
+    """`name` and `seed` are published in the JSON Schema and honoured by the
+    YAML loader. This path read `__name__` only and took the seed from its
+    argument, so the same document produced a named dataset through one entry
+    point and "Imported schema" through the other, with different bytes.
+    """
+
+    def _cfg(self, doc, **kw):
+        import misata
+        return misata.from_dict_schema(doc, **kw)
+
+    TABLE = {"__rows__": 5, "id": {"type": "integer", "primary_key": True}}
+
+    def test_name_and_seed_are_read_from_the_document(self):
+        cfg = self._cfg({"name": "sales", "seed": 7, "t": self.TABLE})
+        assert cfg.name == "sales"
+        assert cfg.seed == 7
+
+    def test_an_explicit_argument_still_wins(self):
+        cfg = self._cfg({"name": "sales", "seed": 7, "t": self.TABLE}, seed=99)
+        assert cfg.seed == 99
+
+    def test_the_default_survives_when_nothing_is_declared(self):
+        assert self._cfg({"t": self.TABLE}).seed == 42
+
+    def test_a_table_may_still_be_called_name_or_seed(self):
+        """The test is the value, not the key: `name: "sales"` is metadata,
+        `name: {...columns...}` is a table that happens to be called name."""
+        cfg = self._cfg({"name": self.TABLE})
+        assert [t.name for t in cfg.tables] == ["name"]
+        assert cfg.name == "Imported schema"
+
+        cfg = self._cfg({"seed": self.TABLE})
+        assert [t.name for t in cfg.tables] == ["seed"]
+        assert cfg.seed == 42
+
+    def test_documented_metadata_does_not_warn_about_bad_tables(self):
+        """Passing the documented keys warned "Skipping non-dict entry for
+        table 'name'", which reads as the caller's mistake when they did
+        exactly what the docs say."""
+        import warnings
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            self._cfg({"name": "x", "seed": 1, "domain": "saas", "t": self.TABLE})
+        assert not [w for w in caught if "Skipping" in str(w.message)]
+
+    def test_a_genuinely_malformed_table_still_warns(self):
+        import warnings
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            self._cfg({"t": "not a table"})
+        assert any("must be a mapping" in str(w.message) for w in caught)

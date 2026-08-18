@@ -42,7 +42,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from misata.schema import Degradation, SensorResponse
+from misata.schema import Degradation, FailureMode, SensorResponse
 
 
 # --------------------------------------------------------------------------- #
@@ -100,8 +100,32 @@ def defect_frequencies(
 # Trajectories
 # --------------------------------------------------------------------------- #
 
+def _resolve_modes(spec: Degradation):
+    """Normalise both spellings of `failure_modes` into names, weights, effects."""
+    if not (spec.failure_mode_column and spec.failure_modes):
+        return None, None, {}
+    names, weights, effects = [], [], {}
+    for name, value in spec.failure_modes.items():
+        if isinstance(value, FailureMode):
+            names.append(name)
+            weights.append(float(value.weight))
+            effects[name] = dict(value.accentuates)
+        elif isinstance(value, dict):
+            names.append(name)
+            weights.append(float(value.get("weight", 1.0)))
+            effects[name] = dict(value.get("accentuates", {}))
+        else:
+            names.append(name)
+            weights.append(float(value))
+            effects[name] = {}
+    total = sum(weights)
+    if total <= 0:
+        raise ValueError("failure_modes weights must sum to more than zero")
+    return names, np.array(weights) / total, effects
+
+
 def _respond(damage: np.ndarray, spec: SensorResponse,
-             rng: np.random.Generator) -> np.ndarray:
+             rng: np.random.Generator, scale: float = 1.0) -> np.ndarray:
     """A measurement's value along a damage trajectory.
 
     `baseline` at damage 0 and `at_failure` at damage 1 in every shape, so the
@@ -121,7 +145,9 @@ def _respond(damage: np.ndarray, spec: SensorResponse,
     else:  # pragma: no cover - Literal keeps this unreachable
         raise ValueError(f"unknown response shape {spec.shape!r}")
 
-    values = spec.baseline + (spec.at_failure - spec.baseline) * frac
+    # `scale` carries the unit's own susceptibility and the failure mode's
+    # signature: how far this measurement travels for this machine.
+    values = spec.baseline + (spec.at_failure - spec.baseline) * frac * scale
     if spec.noise:
         values = values + rng.normal(0.0, spec.noise, size=values.shape)
     if spec.monotonic:
@@ -152,14 +178,7 @@ def generate(spec: Degradation, seed: int = 42) -> pd.DataFrame:
 
     rng = np.random.default_rng(seed)
 
-    modes: Optional[List[str]] = None
-    weights: Optional[np.ndarray] = None
-    if spec.failure_mode_column and spec.failure_modes:
-        modes = list(spec.failure_modes)
-        w = np.array([float(spec.failure_modes[m]) for m in modes], dtype=float)
-        if w.sum() <= 0:
-            raise ValueError("failure_modes weights must sum to more than zero")
-        weights = w / w.sum()
+    modes, weights, effects = _resolve_modes(spec)
 
     frames: List[pd.DataFrame] = []
     for unit in range(1, spec.units + 1):
@@ -180,13 +199,25 @@ def generate(spec: Degradation, seed: int = 42) -> pd.DataFrame:
         if spec.damage_column:
             frame[spec.damage_column] = np.round(damage, 6)
 
+        mode = None
         if modes is not None and weights is not None:
             mode = str(rng.choice(modes, p=weights))
             frame[spec.failure_mode_column] = np.where(
                 cycles == life, mode, "none")
 
         for response in spec.responses:
-            frame[response.column] = _respond(damage, response, rng)
+            # Two multipliers, and they mean different things. The first is this
+            # unit's own susceptibility, so the fleet is a population rather
+            # than one machine repeated. The second is the failure mode's
+            # signature, so a heat-dissipation failure actually runs hot
+            # instead of merely being labelled that way.
+            scale = 1.0
+            if spec.unit_variation:
+                scale *= float(np.clip(
+                    rng.normal(1.0, spec.unit_variation), 0.3, 2.5))
+            if mode:
+                scale *= float(effects.get(mode, {}).get(response.column, 1.0))
+            frame[response.column] = _respond(damage, response, rng, scale)
 
         frames.append(pd.DataFrame(frame))
 
