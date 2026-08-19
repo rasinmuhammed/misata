@@ -5,6 +5,35 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.15] - 2026-08-19
+
+### "through" was detected as an HR system
+
+Testing prompts for a demo video, this one:
+
+    An e-commerce store: customers, products, orders and order items,
+    GMV rising through 2025 with a Black Friday spike
+
+produced **departments, employees and payroll**.
+
+The HR domain has the keyword `"hr"`, and domain detection matched keywords by
+raw substring. The word **through** contains "hr". So did "three",
+"throughout", "shrinking" and "chrome", which means "a store with three tables
+of customers and orders" generated a payroll system.
+
+Column-name inference was made token-aware after exactly this class of bug. The
+domain detector was still scanning substrings, and a two-letter keyword makes
+that catastrophic rather than merely sloppy.
+
+Matching is now anchored to a word start. The right edge stays loose for
+keywords over three characters, so `pharma` still finds "pharmaceutical" and
+`employee` still finds "employees", while `cro` no longer claims
+"crowdfunding". Anchoring both edges was my first attempt and it broke the
+one-sentence pharma CRO case, which is why the rule is asymmetric.
+
+1,770 tests green. Gauntlet 126/126, Warren 110/110, Ledger 48/48. Documented
+examples 42/42. API probes 13/13.
+
 ## [0.9.6.14] - 2026-08-19
 
 ### A declared primary key was not unique

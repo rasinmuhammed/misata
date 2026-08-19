@@ -323,3 +323,71 @@ class TestQualitativeOnlyCurves:
         assert pts[1] == pytest.approx(50_000.0)
         assert pts[12] == pytest.approx(200_000.0)
         assert pts[9] < pts[8]
+
+
+class TestDomainDetectionMatchesWordsNotSubstrings:
+    """The HR domain has the keyword "hr", and detection was a raw substring
+    scan. The word **through** contains "hr", so this prompt:
+
+        "An e-commerce store, revenue rising through 2025"
+
+    was detected as HR and generated departments, employees and payroll. So did
+    "three", "throughout", "shrinking" and "chrome".
+
+    Column-name inference was made token-aware after the same class of bug. The
+    domain detector was still scanning substrings, and a two-letter keyword
+    makes that catastrophic rather than merely sloppy.
+    """
+
+    def _domain(self, story):
+        from misata.story_parser import StoryParser
+        p = StoryParser()
+        p.parse(story, default_rows=10)
+        return p.detected_domain
+
+    @pytest.mark.parametrize("story", [
+        "An e-commerce store, revenue rising through 2025",
+        "An online shop, revenue growing throughout 2025",
+        "A shrinking retail chain with customers and orders",
+    ])
+    def test_a_word_that_merely_contains_hr_is_not_an_hr_system(self, story):
+        assert self._domain(story) != "hr", (
+            "an ordinary English word containing 'hr' selected the HR domain")
+
+    @pytest.mark.parametrize("story", [
+        "An HR system with employees and payroll",
+        "hr analytics with headcount and hiring",
+        "A human resources platform tracking onboarding",
+    ])
+    def test_a_real_hr_story_still_finds_hr(self, story):
+        assert self._domain(story) == "hr"
+
+    def test_the_ecommerce_prompt_that_started_it_produces_a_storefront(self):
+        from misata.story_parser import StoryParser
+        p = StoryParser()
+        schema = p.parse(
+            "An e-commerce store: customers, products, orders and order items, "
+            "GMV rising through 2025 with a Black Friday spike", default_rows=500)
+        names = {t.name for t in schema.tables}
+        assert p.detected_domain == "ecommerce"
+        assert "payroll" not in names and "employees" not in names
+        assert "customers" in names and "orders" in names
+
+    def test_a_multi_word_keyword_still_matches_as_a_phrase(self):
+        assert self._domain("A human resources platform") == "hr"
+
+    def test_a_longer_keyword_still_matches_as_a_stem(self):
+        """Anchoring both edges was too strict: the keyword is "pharma" and the
+        story says "pharmaceutical", which broke the flagship one-sentence CRO
+        test. Only the left edge is anchored for keywords over three
+        characters."""
+        assert self._domain(
+            "A pharmaceutical CRO with 60 employees and clinical projects") == "pharma"
+
+    def test_a_short_keyword_is_not_a_prefix_match(self):
+        """Three characters or fewer need both edges, or "cro" starts claiming
+        every story about crowdfunding."""
+        from misata.story_parser import _mentions
+        assert _mentions("a cro running trials", "cro")
+        assert not _mentions("a crowdfunding platform", "cro")
+        assert not _mentions("revenue rising through 2025", "hr")

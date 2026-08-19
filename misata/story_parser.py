@@ -104,6 +104,30 @@ class DetectionReport:
         return "\n".join(lines)
 
 
+def _mentions(text: str, phrase: str) -> bool:
+    """Whether `text` names `phrase`, anchored to a word start.
+
+    This was `phrase in text`, and the HR domain has the keyword "hr". The word
+    **through** contains "hr", so "an e-commerce store, revenue rising through
+    2025" was detected as HR and generated departments, employees and payroll.
+    So did "three", "throughout", "shrinking" and "chrome".
+
+    Column-name inference was made token-aware for exactly this reason. Domain
+    detection was still doing a raw substring scan, and a two-letter keyword
+    makes that catastrophic rather than merely sloppy.
+
+    The left edge is always a word boundary, which is what kills those matches:
+    the "hr" inside "through" is preceded by a letter. The right edge is looser
+    for keywords of more than three characters, so "pharma" still finds
+    "pharmaceutical" and "employee" still finds "employees". Short keywords get
+    both edges anchored, because a three-letter prefix match is how "cro" would
+    start claiming "crowdfunding".
+    """
+    left = r"(?<![a-z0-9])"
+    right = r"(?![a-z0-9])" if len(phrase) <= 3 else ""
+    return re.search(rf"{left}{re.escape(phrase)}{right}", text) is not None
+
+
 class StoryParser:
     """
     Parses natural language stories into SchemaConfig objects.
@@ -300,14 +324,14 @@ class StoryParser:
         scores: Dict[str, int] = {}
 
         for domain, keywords in self.DOMAIN_KEYWORDS.items():
-            hits = [kw for kw in keywords if kw in story_lower]
+            hits = [kw for kw in keywords if _mentions(story_lower, kw)]
             if not hits:
                 continue
             score = len(hits)
             # Literal domain name (e.g. "fintech") is the strongest signal —
             # explicit user intent beats incidental keyword matches like
             # "churn" appearing in a fintech-but-mentions-subscriptions story.
-            if domain in story_lower:
+            if _mentions(story_lower, domain):
                 score += 5
             all_matches[domain] = hits
             scores[domain] = score
@@ -328,7 +352,7 @@ class StoryParser:
         self._matched_keywords = all_matches[winner]
         self._near_misses = {d: kws for d, kws in all_matches.items() if d != winner}
         self._domain_score = scores[winner]
-        self._literal_domain_hit = winner in story_lower
+        self._literal_domain_hit = _mentions(story_lower, winner)
         return winner
 
     def _extract_scale(self, story: str) -> Dict[str, int]:
