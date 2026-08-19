@@ -5,6 +5,34 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.16] - 2026-08-19
+
+### A curve longer than a year crashed
+
+Building a star schema for the dataset gallery, a two-year revenue curve:
+
+    curve_points:
+      - {month: 1,  target_value: 820000}
+      - {month: 24, target_value: 1480000}
+
+raised `ValueError: month must be in 1..12, not 24` and took the whole
+generation down.
+
+`month` in a curve point counts from the curve's start, and it was being passed
+straight into `pd.Timestamp(month=...)`. Anything past month 12 was
+unrepresentable. A two-year revenue curve is an ordinary thing to declare.
+
+It now offsets from `start_date`, so month 13 of a curve starting in January is
+the following January, and month 1 of a curve starting in July is July.
+
+Fourth time in a row that using the language on a shape it had not been used on
+found a defect the suite could not. The star schema also exercised four
+dimensions joining one fact table, and the feasibility check correctly refused
+to generate until all four relationships were declared rather than inferring
+two of them and leaving two keys unresolvable.
+
+1,775 tests green. Gauntlet 126/126, Warren 110/110, Ledger 48/48.
+
 ## [0.9.6.15] - 2026-08-19
 
 ### "through" was detected as an HR system

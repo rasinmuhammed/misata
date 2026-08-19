@@ -137,3 +137,68 @@ def test_curve_detection_does_not_crash(story):
     for curve in schema.outcome_curves:
         assert curve.curve_points, f"Empty curve_points for: {story}"
         assert curve.value_mode in ("auto", "relative", "absolute")
+
+
+class TestACurveMayRunLongerThanAYear:
+    """`month` in a curve point counts from the curve's start, not from January.
+
+    It was passed straight into `pd.Timestamp(month=...)`, so declaring a
+    two-year revenue curve raised `month must be in 1..12, not 24` and took the
+    whole generation down. Found by building a star schema for the dataset
+    gallery, which is the fourth time now that using the language on a shape it
+    had not been used on found a defect the suite could not.
+    """
+
+    def _window(self, month, start="2024-01-01"):
+        import pandas as pd
+        from misata.engines.fact_engine import FactEngine
+        engine = FactEngine.__new__(FactEngine)
+        return engine._resolve_bucket_window(
+            {"month": month}, 0, "month", pd.Timestamp(start))
+
+    def test_month_one_is_the_start_month(self):
+        start, end, _ = self._window(1)
+        assert (start.year, start.month) == (2024, 1)
+        assert (end.year, end.month) == (2024, 2)
+
+    def test_month_thirteen_rolls_into_the_next_year(self):
+        start, _, _ = self._window(13)
+        assert (start.year, start.month) == (2025, 1)
+
+    def test_a_two_year_curve_does_not_raise(self):
+        start, end, _ = self._window(24)
+        assert (start.year, start.month) == (2025, 12)
+        assert (end.year, end.month) == (2026, 1)
+
+    def test_it_counts_from_the_start_month_not_from_january(self):
+        """A curve beginning in July, month 1 is July."""
+        start, _, _ = self._window(1, start="2024-07-01")
+        assert (start.year, start.month) == (2024, 7)
+        start, _, _ = self._window(7, start="2024-07-01")
+        assert (start.year, start.month) == (2025, 1)
+
+    def test_a_declared_two_year_curve_lands_on_its_targets(self):
+        """The end-to-end case: the numbers a learner would check."""
+        import warnings, tempfile, pathlib, yaml, misata
+        doc = {
+            "name": "t", "seed": 3,
+            "tables": {"sales": {"rows": 6000, "columns": {
+                "sale_id": {"type": "integer", "primary_key": True},
+                "sold_at": {"type": "datetime", "start": "2024-01-01",
+                            "end": "2025-12-31"},
+                "revenue": {"type": "float", "min": 5, "max": 900}}}},
+            "outcome_curves": [{
+                "table": "sales", "column": "revenue", "time_column": "sold_at",
+                "time_unit": "month", "start_date": "2024-01-01",
+                "curve_points": [{"month": 1, "target_value": 50000},
+                                 {"month": 24, "target_value": 90000}]}],
+        }
+        p = pathlib.Path(tempfile.mkstemp(suffix=".yaml")[1])
+        p.write_text(yaml.safe_dump(doc))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            df = misata.generate_from_schema(misata.load_yaml_schema(str(p)))["sales"]
+        import pandas as pd
+        by = df.groupby(pd.to_datetime(df.sold_at).dt.strftime("%Y-%m")).revenue.sum()
+        assert round(by["2024-01"], 2) == 50000.0
+        assert round(by["2025-12"], 2) == 90000.0

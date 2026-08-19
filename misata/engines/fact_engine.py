@@ -449,8 +449,15 @@ class FactEngine:
         start_date: pd.Timestamp,
     ) -> tuple[pd.Timestamp, pd.Timestamp, str]:
         if "month" in point:
+            # `month` counts from the curve's start, not from January. It was
+            # being passed straight to `pd.Timestamp(month=...)`, so any curve
+            # longer than a year raised "month must be in 1..12, not 24" and
+            # took the whole generation down. A two-year revenue curve is an
+            # ordinary thing to declare.
             month = int(point["month"])
-            bucket_start = pd.Timestamp(year=start_date.year, month=month, day=1)
+            bucket_start = (pd.Timestamp(year=start_date.year,
+                                         month=start_date.month, day=1)
+                            + pd.DateOffset(months=month - 1))
             bucket_end = bucket_start + pd.DateOffset(months=1)
             return bucket_start, bucket_end, f"month:{month}"
 
