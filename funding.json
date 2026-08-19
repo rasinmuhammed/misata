@@ -5,7 +5,7 @@
         "type": "individual",
         "role": "maintainer",
         "name": "Muhammed Rasin",
-        "email": "rasinbinabdulla@gmail.com",
+        "email": "rasin@misata.studio",
         "description": "I am an independent open source developer based in India. I built Misata as a side project to solve a real problem I kept running into: generating realistic, relationally intact test data without needing a copy of production. The project has grown into a research-backed library with a published arXiv paper formalising the core mechanism, a built-in MCP server for AI coding agents, and integrations with Databricks, Delta Lake, and dbt. I maintain it alone and am looking for funding to work on it more seriously.",
         "webpageUrl": {
             "url": "https://github.com/rasinmuhammed"
@@ -49,7 +49,7 @@
                 "guid": "bank-transfer",
                 "type": "bank",
                 "address": "",
-                "description": "Direct bank transfer available for organisations and grant disbursements. Email rasinbinabdulla@gmail.com for details."
+                "description": "Direct bank transfer available for organisations and grant disbursements. Email rasin@misata.studio for details."
             }
         ],
         "plans": [

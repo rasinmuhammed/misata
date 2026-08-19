@@ -26,7 +26,7 @@ This code of conduct applies in all project spaces: GitHub issues, pull requests
 
 ## Enforcement
 
-Instances of unacceptable behaviour may be reported to **rasinbinabdulla@gmail.com**. All reports will be reviewed promptly and confidentially. The maintainer reserves the right to remove, edit, or reject contributions and to temporarily or permanently ban anyone whose behaviour violates these standards.
+Instances of unacceptable behaviour may be reported to **hello@misata.studio**. All reports will be reviewed promptly and confidentially. The maintainer reserves the right to remove, edit, or reject contributions and to temporarily or permanently ban anyone whose behaviour violates these standards.
 
 ## Attribution
 

@@ -149,4 +149,4 @@ I am happy to do a quarterly update post on the FOSS United forum and speak at I
 
 ---
 
-*Application prepared July 2026. Questions: rasinbinabdulla@gmail.com*
+*Application prepared July 2026. Questions: rasin@misata.studio*

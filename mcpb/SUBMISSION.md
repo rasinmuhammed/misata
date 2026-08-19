@@ -93,7 +93,7 @@ Productivity
 
 **Documentation URL** — `https://www.misata.studio/docs`
 **Privacy policy URL** — `https://www.misata.studio/privacy`
-**Support contact** — `rasinbinabdulla@gmail.com`
+**Support contact** — `hello@misata.studio`
 **URL slug** (permanent once published) — `misata`
 
 **Icon** — `mcpb/icon.png`, the studio's own mark: 1024x1024, PNG, genuinely

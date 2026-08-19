@@ -11,7 +11,7 @@
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email **rasinbinabdulla@gmail.com** with the subject line `[SECURITY] Misata – <short description>`.
+Email **hello@misata.studio** with the subject line `[SECURITY] Misata – <short description>`.
 
 Include:
 - A description of the vulnerability and its potential impact

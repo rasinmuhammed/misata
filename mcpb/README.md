@@ -89,7 +89,7 @@ written and nowhere else.
 Full policy, including how the misata.studio website is handled:
 **https://www.misata.studio/privacy**
 
-Questions, corrections, or a data request: rasinbinabdulla@gmail.com
+Questions, corrections, or a data request: hello@misata.studio
 
 ## Links
 
