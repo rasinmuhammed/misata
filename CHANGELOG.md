@@ -5,6 +5,38 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.17] - 2026-08-19
+
+### The MCP server told agents "verified" when it had checked nothing
+
+A fifth hand-rolled copy of the integrity rule lived in `misata/mcp/server.py`,
+carrying the same defect as the four already found:
+
+    "verified": all(v["intact"] for v in verification) if verification else True
+
+A single-table schema, or one whose relationships did not resolve, came back
+`verified: true` having checked nothing. That is worse here than on any other
+surface, because an agent relays it to a person as fact and the person never
+sees the response.
+
+It now calls `misata.compat.verify_integrity`, the library's own verifier, and
+reports a `status` alongside the boolean: `verified`, `failed`, `incomplete`, or
+`nothing_to_verify`. An agent can tell "checked and clean" apart from "there was
+nothing to check".
+
+### It also reported the wrong version of itself
+
+The handshake said `misata 1.29.0`, which is the version of the `mcp` library.
+No release of Misata has ever had that number. FastMCP takes no `version`
+argument, so the low-level server fell back to the library's, and anyone reading
+it had no way to tell which engine they were talking to or report a bug against
+the right one. It now reports Misata's own version.
+
+Found by installing `misata[mcp]` from PyPI into an empty virtualenv and driving
+the server over stdio the way a client does, rather than by reading the code.
+
+1,779 tests green. Gauntlet 126/126, Warren 110/110, Ledger 48/48.
+
 ## [0.9.6.16] - 2026-08-19
 
 ### A curve longer than a year crashed

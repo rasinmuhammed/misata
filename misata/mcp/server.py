@@ -683,21 +683,32 @@ def generate_from_schema(
 
     # Integrity verification: prove every declared relationship holds, so the
     # agent can report "verified" instead of "should be fine".
-    verification: List[Dict[str, Any]] = []
-    for rel in config.relationships:
-        parent_df = tables.get(rel.parent_table)
-        child_df = tables.get(rel.child_table)
-        if parent_df is None or child_df is None:
-            continue
-        if rel.parent_key not in parent_df.columns or rel.child_key not in child_df.columns:
-            continue
-        child_vals = child_df[rel.child_key].dropna()
-        orphans = int((~child_vals.isin(set(parent_df[rel.parent_key]))).sum())
-        verification.append({
-            "relationship": f"{rel.child_table}.{rel.child_key} → {rel.parent_table}.{rel.parent_key}",
-            "intact": orphans == 0,
-            "orphans": orphans,
-        })
+    #
+    # This was a hand-rolled copy of the rule, and it said
+    # `all(...) if verification else True`. A single-table schema, or one whose
+    # relationships did not resolve, came back "verified" having checked
+    # nothing, and an agent relaying that to a user has no way to see the
+    # difference. The library already ships the correct verifier, where an
+    # empty result is a refusal rather than a pass, so use that one.
+    from misata.compat import verify_integrity
+
+    _report = verify_integrity(tables, config)
+    verification: List[Dict[str, Any]] = [
+        {"relationship": r["relationship"], "intact": r["intact"],
+         "orphans": r["orphans"]}
+        for r in _report.relationships
+    ]
+    _declared = len(config.relationships)
+    _skipped = [r["relationship"] for r in _report.relationships
+                if r.get("orphans", 0) < 0]
+    if _declared == 0:
+        _status = "nothing_to_verify"
+    elif _skipped:
+        _status = "incomplete"
+    elif all(v["intact"] for v in verification):
+        _status = "verified"
+    else:
+        _status = "failed"
 
     return {
         "ok": True,
@@ -707,8 +718,15 @@ def generate_from_schema(
         "table_count": len(files),
         "seed": seed,
         "integrity": {
-            "verified": all(v["intact"] for v in verification) if verification else True,
+            "verified": _status == "verified",
+            # The distinction a boolean cannot carry. An agent telling a user
+            # "verified" should be able to tell "checked and clean" apart from
+            # "there was nothing to check".
+            "status": _status,
+            "declared": _declared,
+            "checked": len(verification),
             "relationships": verification,
+            "skipped": _skipped,
         },
     }
 
@@ -1061,6 +1079,19 @@ def main() -> None:
     directly — they configure their MCP client (Claude Desktop, Cursor,
     Windsurf, etc.) to launch ``misata-mcp`` and the client manages the process.
     """
+    # Report Misata's own version, not the `mcp` library's.
+    #
+    # FastMCP takes no version argument, so the low-level server fell back to
+    # the library's and a client's handshake showed "misata 1.29.0", a release
+    # of Misata that has never existed. Anyone reading it had no way to tell
+    # which engine they were talking to, or to report a bug against the right
+    # one. Guarded, because this is cosmetic and must never stop the server.
+    try:
+        from misata import __version__ as _engine_version
+        mcp._mcp_server.version = _engine_version
+    except Exception:  # noqa: BLE001
+        pass
+
     # FastMCP.run() handles signal management, transport setup, and request loop.
     mcp.run()
 

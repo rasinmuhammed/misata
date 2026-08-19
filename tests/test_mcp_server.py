@@ -569,3 +569,71 @@ group_shares:
         with pytest.raises(InfeasibleSchema):
             misata.generate_from_schema(schema)
         assert validate_yaml(self.IMPOSSIBLE)["valid"] is False
+
+
+class TestTheMCPServerCannotClaimAnUncheckedVerification:
+    """The fifth hand-rolled copy of the integrity rule lived here, and it had
+    the same defect as the other four: `all(...) if verification else True`.
+
+    A single-table schema came back `verified: true` having checked nothing.
+    That is worse on this surface than on the others, because an agent relays
+    it to a user as fact and the user never sees the response. Found while
+    testing whether the MCP server was fit to launch.
+    """
+
+    def _integrity(self, schema):
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            from misata.mcp import server
+            import inspect
+            fn = server.generate_from_schema
+            fn = getattr(fn, "fn", fn)          # unwrap the FastMCP tool
+            result = fn(schema=schema, sample_rows=1)
+        return result["integrity"]
+
+    def test_a_schema_with_no_relationships_is_not_verified(self):
+        i = self._integrity({"t": {"__rows__": 10,
+                                   "id": {"type": "integer", "primary_key": True}}})
+        assert i["verified"] is False
+        assert i["status"] == "nothing_to_verify"
+        assert i["declared"] == 0 and i["checked"] == 0
+
+    def test_a_real_relationship_is_verified(self):
+        i = self._integrity({
+            "customers": {"__rows__": 30,
+                          "customer_id": {"type": "integer", "primary_key": True}},
+            "orders": {"__rows__": 100,
+                       "order_id": {"type": "integer", "primary_key": True},
+                       "customer_id": {"type": "foreign_key",
+                                       "references": "customers.customer_id"}}})
+        assert i["verified"] is True
+        assert i["status"] == "verified"
+        assert i["declared"] == i["checked"] == 1
+        assert i["relationships"][0]["orphans"] == 0
+
+    def test_it_uses_the_library_verifier_rather_than_its_own(self):
+        """One rule, one implementation. Five copies is how they diverge."""
+        import inspect
+        from misata.mcp import server
+        src = inspect.getsource(server)
+        assert "from misata.compat import verify_integrity" in src
+        # Checks the code, not the prose: the comment explaining the removal
+        # necessarily quotes the expression it removed.
+        import ast
+        tree = ast.parse(src)
+        bad = [n for n in ast.walk(tree)
+               if isinstance(n, ast.IfExp)
+               and isinstance(n.orelse, ast.Constant) and n.orelse.value is True]
+        assert not bad, "an `... if x else True` integrity claim is back"
+
+    def test_the_handshake_reports_misata_s_own_version(self):
+        """FastMCP takes no `version`, so the low-level server defaulted to the
+        `mcp` library's and a client showed "misata 1.29.0", a release that has
+        never existed."""
+        import inspect
+        from misata.mcp import server
+        import misata
+        src = inspect.getsource(server.main)
+        assert "_mcp_server.version" in src
+        assert "__version__" in src
