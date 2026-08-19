@@ -198,19 +198,69 @@ def build_probes() -> List[Probe]:
 # Runners
 # --------------------------------------------------------------------------- #
 
-def run_remote(api: str, probe: Probe) -> Dict[str, Any]:
+# The Studio serves two generate endpoints, with two different handlers behind
+# them. The browser calls the first; this harness used to probe only the second,
+# which meant it was checking a path the product does not use. Both now.
+REMOTE_PATHS = ("/engine/generate", "/api/v1/engine/generate")
+
+
+def _from_sse(raw: str) -> Dict[str, Any]:
+    """`/engine/generate` streams Server-Sent Events; the v1 route returns a
+    JSON body. Same declarations either way, so both are normalised into the
+    one shape the checks read."""
+    tables: List[Dict[str, Any]] = []
+    error: Optional[str] = None
+    saw_done = False
+
+    event = None
+    for line in raw.splitlines():
+        if line.startswith("event:"):
+            event = line[6:].strip()
+        elif line.startswith("data:"):
+            try:
+                payload = json.loads(line[5:].strip())
+            except json.JSONDecodeError:
+                continue
+            if event == "table":
+                tables.append({"table": payload.get("name"),
+                               "sample": (payload.get("preview") or {}).get("rows", [])})
+            elif event == "error":
+                error = payload.get("message") or payload.get("detail") or str(payload)
+            elif event == "done":
+                saw_done = True
+
+    if error:
+        return {"ok": False, "error": error}
+    if not saw_done and not tables:
+        return {"ok": False, "error": "stream ended without producing tables"}
+    return {"ok": True, "tables": tables}
+
+
+def _post(api: str, path: str, probe: Probe) -> Dict[str, Any]:
     body = json.dumps({"schema_def": {"name": "stranger", **probe.schema},
                        "seed": 11}).encode()
     req = urllib.request.Request(
-        f"{api.rstrip('/')}/api/v1/engine/generate", data=body,
+        f"{api.rstrip('/')}{path}", data=body,
         headers={"Content-Type": "application/json"}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            return json.loads(r.read())
+            raw = r.read().decode("utf-8", "replace")
+            ctype = r.headers.get("Content-Type", "")
     except urllib.error.HTTPError as e:
         return {"ok": False, "error": f"HTTP {e.code}: {e.read()[:200]!r}"}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    if "event-stream" in ctype or raw.lstrip().startswith("event:"):
+        return _from_sse(raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        return {"ok": False, "error": f"not JSON and not SSE: {e}"}
+
+
+def run_remote(api: str, probe: Probe, path: str = REMOTE_PATHS[0]) -> Dict[str, Any]:
+    return _post(api, path, probe)
 
 
 def run_local(probe: Probe) -> Dict[str, Any]:
@@ -234,37 +284,45 @@ def main() -> int:
     args = ap.parse_args()
 
     probes = build_probes()
-    where = "in-process" if args.local else args.api
+    # Remotely, every probe runs against both generate endpoints, because the
+    # browser uses one and this harness used to check only the other.
+    paths = [None] if args.local else list(REMOTE_PATHS)
+    where = "in-process" if args.local else f"{args.api} ({', '.join(REMOTE_PATHS)})"
+    total = len(probes) * len(paths)
     print(f"{len(probes)} probes against {where}\n")
 
     failures: List[str] = []
-    for probe in probes:
-        payload = run_local(probe) if args.local else run_remote(args.api, probe)
-        ok = bool(payload.get("ok"))
+    for path in paths:
+        if path:
+            print(f"  --- {path} ---")
+        for probe in probes:
+            label = probe.name if path is None else f"{probe.name}  [{path}]"
+            payload = run_local(probe) if args.local else run_remote(args.api, probe, path)
+            ok = bool(payload.get("ok"))
 
-        if probe.must_refuse:
-            if ok:
-                failures.append(
-                    f"{probe.name}\n      accepted and generated anyway"
-                    + (f" ({probe.refuse_hint})" if probe.refuse_hint else ""))
-                print(f"  FAIL  {probe.name}")
+            if probe.must_refuse:
+                if ok:
+                    failures.append(
+                        f"{label}\n      accepted and generated anyway"
+                        + (f" ({probe.refuse_hint})" if probe.refuse_hint else ""))
+                    print(f"  FAIL  {label}")
+                else:
+                    print(f"  ok    {label}")
+                continue
+
+            if not ok:
+                failures.append(f"{label}\n      {payload.get('error')}")
+                print(f"  FAIL  {label}")
+                continue
+
+            complaint = probe.check(_rows(payload)) if probe.check else None
+            if complaint:
+                failures.append(f"{label}\n      {complaint}")
+                print(f"  FAIL  {label}")
             else:
-                print(f"  ok    {probe.name}")
-            continue
+                print(f"  ok    {label}")
 
-        if not ok:
-            failures.append(f"{probe.name}\n      {payload.get('error')}")
-            print(f"  FAIL  {probe.name}")
-            continue
-
-        complaint = probe.check(_rows(payload)) if probe.check else None
-        if complaint:
-            failures.append(f"{probe.name}\n      {complaint}")
-            print(f"  FAIL  {probe.name}")
-        else:
-            print(f"  ok    {probe.name}")
-
-    print(f"\n{len(probes) - len(failures)}/{len(probes)} passing")
+    print(f"\n{total - len(failures)}/{total} passing")
     if failures:
         print("\nFAILING:")
         for f in failures:
