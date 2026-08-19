@@ -200,7 +200,7 @@ relationships:
 # Keys the column parser consumes itself. Everything else a user writes on a
 # column is carried into `distribution_params` for the engine to read.
 _STRUCTURAL_COLUMN_KEYS = frozenset({
-    "type", "unique", "nullable", "description",
+    "type", "unique", "nullable", "description", "primary_key",
     "choices", "probabilities", "start", "end", "text_type", "distribution",
 })
 
@@ -334,12 +334,36 @@ def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
         if k not in _STRUCTURAL_COLUMN_KEYS and v is not None:
             params.setdefault(k, v)
 
+    # A primary key is unique, and it is drawn from a range wide enough to stay
+    # that way. This was doing neither: `primary_key` was not a structural key,
+    # so it fell through into distribution_params, the column kept the default
+    # normal distribution, and a declared key produced 142 distinct values
+    # across 2,000 rows. The dict path had always honoured it, so the same
+    # document behaved differently depending on which door it came through,
+    # which is the failure this project keeps finding.
+    #
+    # Nothing catches it downstream either: an orphan check asks whether a
+    # child's value exists in the parent, never whether the parent's key is
+    # unique, so integrity still reported clean.
+    is_pk = bool(col_def.get("primary_key", False))
+    if is_pk:
+        params.pop("primary_key", None)
+        # Unless the author asked for a specific shape, a key is drawn
+        # uniformly from a range wide enough that uniqueness is not a fight.
+        # The default normal distribution over a narrow range made the engine
+        # widen it and warn on every run.
+        if "distribution" not in col_def:
+            params.pop("_distribution_is_default", None)
+            params["distribution"] = "uniform"
+            params.setdefault("min", 1)
+            params.setdefault("max", 2_000_000)
+
     return Column(
         name=col_name,
         type=misata_type,  # type: ignore[arg-type]
         distribution_params=params,
-        nullable=bool(col_def.get("nullable", True)),
-        unique=bool(col_def.get("unique", False)),
+        nullable=False if is_pk else bool(col_def.get("nullable", True)),
+        unique=is_pk or bool(col_def.get("unique", False)),
         description=col_def.get("description") or None,
     )
 

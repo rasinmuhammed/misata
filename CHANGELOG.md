@@ -5,6 +5,56 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.14] - 2026-08-19
+
+### A declared primary key was not unique
+
+Writing a demo schema and checking it in DuckDB rather than trusting the run:
+
+    customers: 2000 rows, 142 distinct customer_id
+
+One id appeared forty times, in a column declared `primary_key: true`.
+
+`primary_key` was not in the YAML loader's set of structural keys, so it fell
+through into `distribution_params`, the column kept its default **normal**
+distribution, and the key collided with itself. The dict path had always
+honoured it, so the same declaration meant different things depending on which
+loader read it.
+
+The part worth sitting with: **integrity still reported clean.** An orphan check
+asks whether a child's value exists in the parent. It never asks whether the
+parent's key is unique. So a dataset with a duplicated primary key passed
+verification and printed a green badge.
+
+Anyone who wrote a YAML schema with a primary key has data with duplicate keys.
+Regenerate.
+
+### A declared template produced generic filler
+
+The mirror image, on the other loader. `template` and `variables` were missing
+from the dict path's enumerated passthrough, so:
+
+    {"type": "text", "template": "{colour}-{animal}", "variables": {...}}
+
+returned `"The team submitted the remaining documents; awaiting response."`
+instead of `"red-fox"`. That path is the one the Studio API uses.
+
+### Both loaders stopped enumerating
+
+The cause, both times, was an allowlist of keys to pass to the engine that
+somebody forgot to extend. The YAML loader had already been bitten three times
+and fixed by inverting: name the keys you consume, pass the rest through. The
+dict path now does the same, so a new generator feature reaches the engine on
+the day it lands rather than the day somebody remembers the list.
+
+`tests/test_entry_point_parity.py` checks all twenty column declarations
+through both doors on every push, and asserts neither loader has gone back to
+an allowlist. Both of these bugs were found by hand, days apart. The next one
+gets found by CI.
+
+1,760 tests green. Gauntlet 126/126, Warren 110/110, Ledger 48/48. Documented
+examples 42/42. API probes 13/13.
+
 ## [0.9.6.13] - 2026-08-18
 
 ### A declaration is honoured, or it is refused. It is never substituted.

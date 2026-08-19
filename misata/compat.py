@@ -387,6 +387,18 @@ def _infer_text_type(col_name: str) -> Optional[str]:
     return _HEAD_TYPE.get(head)
 
 
+# Keys `_col_from_dict` interprets itself. Everything not in here is carried
+# through to the engine verbatim, so a new generator feature works from a dict
+# schema the day it lands rather than the day somebody remembers this list.
+_CONSUMED_COLUMN_KEYS = frozenset({
+    "type", "primary_key", "foreign_key", "unique", "nullable", "description",
+    "enum", "choices", "probabilities", "weights",
+    "min", "max", "decimals",
+    "min_date", "max_date", "start", "end",
+    "probability",
+})
+
+
 def _col_from_dict(
     col_name: str,
     col_def: Dict[str, Any],
@@ -452,41 +464,24 @@ def _col_from_dict(
         if col_def.get("probability") is not None:
             params["probability"] = col_def["probability"]
 
-    # ── Full generation-feature passthrough ──────────────────────────────────
-    # Everything the engine supports must be reachable from a plain dict, not just
-    # hand-built Column objects. Without this, an LLM or non-Python user silently loses
-    # their distributions, exact percentages, formulas, and cross-table logic.
-    if col_def.get("distribution") is not None:
-        params["distribution"] = col_def["distribution"]
-    # Distribution shape parameters (lognormal mu/sigma, normal mean/std, pareto alpha,
-    # poisson lambda, binomial n/p, ...). These must reach the generator verbatim or
-    # the declared distribution silently degrades to its default.
-    for dist_key in ("mu", "sigma", "mean", "std", "alpha", "scale", "a", "b",
-                     "lam", "lambda", "shape", "loc", "n", "p"):
-        if col_def.get(dist_key) is not None:
-            params[dist_key] = col_def[dist_key]
+    # ── Everything else reaches the engine ───────────────────────────────────
+    # This was an enumerated allowlist of about thirty keys, and it dropped any
+    # declaration nobody had remembered to add. `template` and `variables` were
+    # missing, so a declared template silently produced generic sentence filler
+    # instead. The YAML loader had exactly this bug, three times, and fixed it
+    # by inverting: name the keys consumed above, and pass the rest through.
+    #
+    # Inverting is also the safer direction. An unknown key carried into
+    # distribution_params is ignored by the engine, while a known key dropped
+    # here is a declaration that does nothing while the schema still reads as
+    # though it means something.
+    for key, value in col_def.items():
+        if key not in _CONSUMED_COLUMN_KEYS and value is not None:
+            params.setdefault(key, value)
+
     # The poisson generator reads "lambda"; accept the common "lam" alias too.
     if "lam" in params and "lambda" not in params:
         params["lambda"] = params["lam"]
-    # Data-quality knobs the generators honor per-column (were being dropped, so a
-    # declared null_rate / outlier_rate produced clean data).
-    for quality_key in ("null_rate", "outlier_rate"):
-        if col_def.get(quality_key) is not None:
-            params[quality_key] = col_def[quality_key]
-    # Cross-column / cross-table logic
-    for passthrough in ("formula", "depends_on", "mapping", "default", "zero_inflate", "rollup",
-                        "inherits_curve_from", "references", "after_column", "relative_to",
-                        "null_if", "min_gap_days", "sequence_start", "quantize",
-                        "pattern", "pattern_weights", "text_type",
-                        # 0.8.1 features
-                        "profiles",       # stratified distributions per subgroup
-                        "missing_if",     # MAR/MNAR informative missingness
-                        "null_when",      # conditional null via eval expression
-                        "exact_incidence", # exact count control for boolean/categorical
-                        "time_series",    # within-entity AR1/trend/random-walk
-                        ):
-        if col_def.get(passthrough) is not None:
-            params[passthrough] = col_def[passthrough]
 
     nullable = bool(col_def.get("nullable", True))
     unique = bool(col_def.get("unique", False))

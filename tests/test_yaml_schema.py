@@ -422,3 +422,87 @@ tables:
                     "quantiles", "zipf_exponent", "start_hour"):
             assert key in col.distribution_params, f"{key} did not survive the file"
         assert "type" in _STRUCTURAL_COLUMN_KEYS
+
+
+class TestAPrimaryKeyIsUniqueOnEveryPath:
+    """`primary_key: true` was honoured by the dict path and silently ignored
+    by the YAML loader.
+
+    `primary_key` was not in `_STRUCTURAL_COLUMN_KEYS`, so it fell through into
+    `distribution_params`, the column kept the default normal distribution, and
+    a declared key produced **142 distinct values across 2,000 rows**. Found by
+    writing a demo schema for a video and checking it in DuckDB, not by the
+    suite, because the suite speaks the dict dialect.
+
+    Nothing downstream catches it: an orphan check asks whether a child's value
+    exists in the parent, never whether the parent's key is unique. Integrity
+    reported clean the whole time.
+    """
+
+    def _load(self, tmp_path, doc):
+        import yaml
+        import misata
+        p = tmp_path / "s.yaml"
+        p.write_text(yaml.safe_dump(doc))
+        return misata.load_yaml_schema(str(p))
+
+    DOC = {
+        "name": "pk",
+        "seed": 7,
+        "tables": {
+            "customers": {
+                "rows": 2000,
+                "columns": {
+                    "customer_id": {"type": "integer", "primary_key": True},
+                    "country": {"type": "categorical", "choices": ["US", "UK"]},
+                },
+            }
+        },
+    }
+
+    def test_the_declaration_survives_the_yaml_loader(self, tmp_path):
+        cfg = self._load(tmp_path, self.DOC)
+        col = next(c for c in cfg.columns["customers"] if c.name == "customer_id")
+        assert col.unique is True, "a primary key that is not unique is not a key"
+        assert col.nullable is False
+        assert "primary_key" not in col.distribution_params, (
+            "the flag leaked into distribution params instead of being honoured")
+
+    def test_the_generated_key_is_actually_unique(self, tmp_path):
+        import misata
+        df = misata.generate_from_schema(self._load(tmp_path, self.DOC))["customers"]
+        assert df.customer_id.is_unique
+        assert df.customer_id.nunique() == 2000
+
+    def test_it_does_not_have_to_fight_the_range(self, tmp_path):
+        """The default normal distribution over a narrow range made the engine
+        widen it and warn on every single run."""
+        import warnings
+        import misata
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            misata.generate_from_schema(self._load(tmp_path, self.DOC))
+        assert not [w for w in caught if "too small for unique" in str(w.message)]
+
+    def test_an_explicit_distribution_still_wins(self, tmp_path):
+        doc = {**self.DOC}
+        doc["tables"]["customers"]["columns"]["customer_id"] = {
+            "type": "integer", "primary_key": True,
+            "distribution": "uniform", "min": 1, "max": 5000,
+        }
+        cfg = self._load(tmp_path, doc)
+        col = next(c for c in cfg.columns["customers"] if c.name == "customer_id")
+        assert col.distribution_params["max"] == 5000
+        assert col.unique is True
+
+    def test_both_entry_points_agree(self, tmp_path):
+        """The same declaration, through either door, must mean the same thing."""
+        import misata
+        yaml_col = next(c for c in self._load(tmp_path, self.DOC).columns["customers"]
+                        if c.name == "customer_id")
+        dict_cfg = misata.from_dict_schema({
+            "customers": {"__rows__": 2000,
+                          "customer_id": {"type": "integer", "primary_key": True}}})
+        dict_col = next(c for c in dict_cfg.columns["customers"]
+                        if c.name == "customer_id")
+        assert yaml_col.unique == dict_col.unique is True
