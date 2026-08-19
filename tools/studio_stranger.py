@@ -241,7 +241,13 @@ def _post(api: str, path: str, probe: Probe) -> Dict[str, Any]:
                        "seed": 11}).encode()
     req = urllib.request.Request(
         f"{api.rstrip('/')}{path}", data=body,
-        headers={"Content-Type": "application/json"}, method="POST")
+        headers={"Content-Type": "application/json",
+                 # This harness exists to trigger refusals, so its refusals are
+                 # successes. Without this header every run posts "generation
+                 # failed for a visitor" into Discord and teaches us to ignore
+                 # the one channel that reports real users hitting walls.
+                 "X-Misata-Probe": "studio_stranger"},
+        method="POST")
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             raw = r.read().decode("utf-8", "replace")
