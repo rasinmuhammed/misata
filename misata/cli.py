@@ -657,6 +657,37 @@ def generate(
         console.print(f"🔮 Oracle report: [cyan]{oracle_path}[/cyan]")
 
     console.print("\n[bold green]✓ Done![/bold green]")
+    _studio_hint(console)
+
+
+def _studio_hint(console) -> None:
+    """Mention Studio once, ever, after a run that worked.
+
+    The library and Studio lived in separate universes: thousands of installs a
+    month that had no idea a browser version existed, and a browser version with
+    no way to be found by the people most likely to need it for a colleague.
+
+    The rules that keep this from being an advert in someone's terminal:
+    once per machine, only after a successful generate, suppressible with
+    `MISATA_NO_HINTS=1`, and phrased as a thing you might need rather than a
+    thing we would like to sell. Never fails: a hint that breaks a run is
+    infinitely worse than a hint nobody sees.
+    """
+    if os.environ.get("MISATA_NO_HINTS"):
+        return
+    try:
+        marker = Path.home() / ".misata" / ".studio-hint"
+        if marker.exists():
+            return
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    except Exception:  # noqa: BLE001
+        return  # cannot remember having shown it, so do not show it
+    console.print(
+        "\n[dim]Need this without writing Python, or a set to hand a "
+        "colleague? [/dim][cyan]https://misata.studio[/cyan]"
+        "\n[dim]Shown once. Silence it with MISATA_NO_HINTS=1.[/dim]"
+    )
 
 
 @main.group()

@@ -5,6 +5,28 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.18] - 2026-08-19
+
+### The library now points at Studio, once
+
+Thousands of installs a month had no idea a browser version existed, and the
+browser version could not be found by the people most likely to need it for a
+colleague. The two lived in separate universes.
+
+After a successful `misata generate`, the CLI now prints one line:
+
+    Need this without writing Python, or a set to hand a colleague?
+    https://misata.studio
+
+Once per machine, ever. Suppressible with `MISATA_NO_HINTS=1`, and it says so.
+Wrapped so an unwritable home directory can never fail a generation, because a
+hint that breaks a run is worse than a hint nobody sees.
+
+Suggested by a stranger who read the site and pointed out that an MIT library
+which will never convert directly should at least point somewhere.
+
+1,784 tests green. Gauntlet 126/126, Warren 110/110, Ledger 48/48.
+
 ## [0.9.6.17] - 2026-08-19
 
 ### The MCP server told agents "verified" when it had checked nothing

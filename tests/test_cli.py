@@ -336,3 +336,63 @@ class TestCLIInit:
         content = out.read_text()
         # The saved YAML should reference the "products" table
         assert "products" in content
+
+
+class TestTheStudioHintIsShownOnceAndNeverGetsInTheWay:
+    """The library and Studio lived in separate universes: thousands of installs
+    a month that did not know a browser version existed, and a browser version
+    the people most likely to need it could not find.
+
+    A line in the CLI closes that. The constraints are what stop it becoming an
+    advert in somebody's terminal, and they are what these tests hold.
+    """
+
+    def _run(self, home, env=None):
+        import subprocess, sys, textwrap, os
+        schema = home / "s.yaml"
+        schema.write_text(textwrap.dedent("""
+            name: t
+            seed: 1
+            tables:
+              t:
+                rows: 5
+                columns:
+                  id: {type: integer, primary_key: true}
+        """))
+        e = {**os.environ, "HOME": str(home)}
+        e.pop("MISATA_NO_HINTS", None)
+        e.update(env or {})
+        return subprocess.run(
+            [sys.executable, "-m", "misata.cli", "generate",
+             "--config", str(schema), "--output-dir", str(home / "out")],
+            capture_output=True, text=True, env=e, cwd=str(home)).stdout
+
+    def test_it_appears_on_a_first_successful_run(self, tmp_path):
+        assert "misata.studio" in self._run(tmp_path)
+
+    def test_it_does_not_appear_again(self, tmp_path):
+        self._run(tmp_path)
+        assert "misata.studio" not in self._run(tmp_path)
+
+    def test_it_can_be_silenced(self, tmp_path):
+        out = self._run(tmp_path, env={"MISATA_NO_HINTS": "1"})
+        assert "misata.studio" not in out
+
+    def test_it_says_how_to_silence_it(self, tmp_path):
+        """A hint that cannot be turned off is an advert."""
+        assert "MISATA_NO_HINTS" in self._run(tmp_path)
+
+    def test_it_never_breaks_a_run(self, tmp_path, monkeypatch):
+        """An unwritable home must not fail a generation. A hint that breaks a
+        run is infinitely worse than a hint nobody sees."""
+        from misata import cli
+
+        class Boom:
+            def print(self, *a, **k):
+                raise AssertionError("should not have printed")
+
+        def explode(*a, **k):
+            raise OSError("read-only home")
+
+        monkeypatch.setattr(cli.Path, "home", staticmethod(explode))
+        cli._studio_hint(Boom())  # must return quietly
