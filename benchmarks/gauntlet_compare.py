@@ -257,6 +257,104 @@ def generate_with_sdv() -> Dict[str, pd.DataFrame]:
 
 
 # --------------------------------------------------------------------------- #
+# DDL-only: what a tool that reads your schema can possibly know
+# --------------------------------------------------------------------------- #
+
+# A SQL CHECK constraint sees exactly one row of one table. A FOREIGN KEY
+# asserts that a parent exists, never that any value agrees with it. That is
+# the entire expressive power of a CREATE TABLE statement, and it is the line
+# this projection draws.
+#
+# So this is not a strawman competitor. It is Misata's own engine, given a
+# schema reduced to what a database could have told it, run at the same seed.
+# Anything the reduced run cannot satisfy was never recoverable from the schema
+# by any tool, however well built: the information is not in the input. That
+# makes the score an UPPER BOUND for schema-reading generators rather than a
+# measurement of any particular product.
+#
+# The reduction is deliberately generous. Single-row declarations survive even
+# when no real team would hand-write the CHECK, because the argument does not
+# need them and a generous baseline is harder to dispute.
+
+# Column params a CREATE TABLE can carry: types, ranges, enums, nullability,
+# a single-row formula, and the column name itself (which is what "AI planner"
+# features in these tools infer semantics from).
+_DDL_COLUMN_PARAMS = {
+    "min", "max", "choices", "references", "subtype", "formula",
+    "start", "end", "null_probability", "decimals",
+}
+
+# Distribution shape is not in any DDL. A schema-reading tool knows the column
+# is numeric and bounded; it does not know the values are lognormal, nor that
+# the status split is 80/20.
+_SHAPE_PARAMS = {"distribution", "mu", "sigma", "alpha", "sampling", "weights",
+                 "rollup", "_distribution_is_default"}
+
+# Table constraints: single-row CHECKs survive, cross-table ones cannot.
+_DDL_CONSTRAINTS = {"inequality", "when_then"}
+
+# Schema-level declarations. A lifecycle and a time grid are single-row facts a
+# CHECK could state, so they stay. Everything else is either a distribution, a
+# cross-partition behaviour, or an instruction to violate uniqueness, and no
+# DDL can express any of those.
+_DDL_SCHEMA_DECLS = {"lifecycles", "time_grids"}
+_DROPPED_SCHEMA_DECLS = ["duplicates", "late_arrivals", "missingness",
+                         "outcome_curves", "group_shares", "waterfalls",
+                         "stock_flows", "retention", "typos", "outliers",
+                         "noise_config", "events", "event_logs", "closures",
+                         "dag_edges", "bitemporal", "degradations",
+                         "vocabularies", "realism"]
+
+
+def project_to_ddl(schema):
+    """Reduce a SchemaConfig to what a CREATE TABLE statement could express.
+
+    Returns (reduced_schema, dropped) where `dropped` lists every declaration
+    removed, so the reduction is auditable rather than asserted.
+    """
+    s = schema.model_copy(deep=True)
+    dropped: list[str] = []
+
+    for table, cols in s.columns.items():
+        for col in cols:
+            params = col.distribution_params or {}
+            if "rollup" in params:
+                dropped.append(f"rollup {table}.{col.name}")
+            for key in list(params):
+                if key in _SHAPE_PARAMS:
+                    params.pop(key)
+                elif key not in _DDL_COLUMN_PARAMS:
+                    dropped.append(f"param {table}.{col.name}.{key}")
+                    params.pop(key)
+
+    for t in s.tables:
+        keep = []
+        for c in (t.constraints or []):
+            if c.type in _DDL_CONSTRAINTS:
+                keep.append(c)
+            else:
+                dropped.append(f"constraint {t.name}.{c.name} ({c.type})")
+        t.constraints = keep
+
+    for decl in _DROPPED_SCHEMA_DECLS:
+        v = getattr(s, decl, None)
+        if v:
+            dropped.append(f"schema.{decl} (x{len(v) if hasattr(v, '__len__') else 1})")
+            setattr(s, decl, type(v)() if isinstance(v, (list, dict)) else None)
+
+    return s, dropped
+
+
+def generate_with_ddl_only():
+    import misata
+    schema, dropped = project_to_ddl(build_schema())
+    print(f"DDL projection dropped {len(dropped)} declaration(s):")
+    for d in dropped:
+        print(f"    - {d}")
+    return misata.generate_from_schema(schema)
+
+
+# --------------------------------------------------------------------------- #
 # Runner: same assertions, different generator
 # --------------------------------------------------------------------------- #
 
@@ -296,11 +394,13 @@ def score(tables: Dict[str, pd.DataFrame], label: str,
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tool", choices=["faker", "sdv"], required=True)
+    ap.add_argument("--tool", choices=["faker", "sdv", "ddl-only"], required=True)
     ap.add_argument("--json", default=None)
     args = ap.parse_args()
     t0 = time.time()
-    tables = generate_with_faker() if args.tool == "faker" else generate_with_sdv()
+    gen = {"faker": generate_with_faker, "sdv": generate_with_sdv,
+           "ddl-only": generate_with_ddl_only}[args.tool]
+    tables = gen()
     print(f"generated with {args.tool} in {time.time() - t0:.1f}s")
     score(tables, args.tool, args.json)
 

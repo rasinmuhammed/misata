@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.9.6.18"
+__version__ = "0.9.6.19"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -312,6 +312,14 @@ def generate_from_schema(
         tables = misata.generate_from_schema(schema, min_quality_score=85)
     """
     import copy
+
+    # A plain dict is the shape an LLM emits and the shape the MCP tool takes,
+    # so it is the first thing anyone tries here. It used to reach the
+    # validator untouched and die on `'dict' object has no attribute 'tables'`,
+    # which tells the caller nothing about what to do instead. Convert it.
+    if isinstance(schema, dict):
+        from misata.compat import from_dict_schema
+        schema = from_dict_schema(schema)
 
     # Refuse contradictory declarations before generating anything. A
     # declarative engine owes the user a compiler error here, not a warning

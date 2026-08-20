@@ -1,31 +1,90 @@
-# Smithery configuration for Misata MCP server
+# Smithery configuration for the Misata MCP server
 # https://smithery.ai/docs/config
+#
+# Keep the tool names below in step with @mcp.tool in misata/mcp/server.py.
+# The published listing advertised `generate_from_story` and `design_schema`
+# long after both were renamed, so the directory described tools the server did
+# not have. The env keys here must match misata/llm_parser.py, which reads the
+# standard provider variables rather than a Misata-specific one.
 
 name: misata
-displayName: Misata — Synthetic Data Generator
-description: >
-  Generate realistic multi-table synthetic datasets from a plain-English sentence.
-  18 built-in domains (SaaS, fintech, ecommerce, healthcare, and more), locale-aware
-  names and phone numbers, referential integrity across tables, exact growth curves
-  (Black Friday spikes, Q4 pushes, 10x multipliers), and two-layer YAML validation.
-  Agents can preview before generating, inspect full schemas, and validate hand-crafted
-  misata.yaml files before committing them.
+displayName: Misata — Declarative Synthetic Data
 
-homepage: https://github.com/rasinmuhammed/misata
+description: >
+  Generate relational synthetic data that satisfies what you declare, and get a
+  verification of it back. Describe the dataset in a sentence or hand over a
+  schema, and the engine builds every table together: foreign keys resolve,
+  declared aggregates hit their target exactly, and derived columns satisfy the
+  formula they were declared with. The same schema and seed return the same
+  rows, so a dataset you liked yesterday is still there tomorrow.
+
+  The division of labour is the point. The agent designs the schema, which is
+  what agents are genuinely good at, and the engine guarantees the arithmetic,
+  which is what they are not. Seven tools:
+
+    generate_from_schema  Generate from a schema dict and get back an integrity
+                          proof for every relationship. Needs no API key.
+    generate_dataset      Generate from a plain-English story.
+    preview_story         Show how a story will be read before committing to a
+                          large generation.
+    inspect_schema        The full schema for a story, without generating rows.
+    list_domains          The 18 built-in business domains.
+    seed_database         Fill a real database from its own schema, parents
+                          before children, every foreign key checked against
+                          the database afterwards. Plans first and writes
+                          nothing until you confirm.
+    validate_yaml         Structural and semantic checks on a misata.yaml.
+
+  MIT licensed. No training data, no copy of production, nothing to anonymise.
+
+homepage: https://www.misata.studio/docs/guides/mcp
 license: MIT
+
 tags:
   - data-generation
   - synthetic-data
   - testing
   - database-seeding
   - demo-data
+  - relational-data
+  - fixtures
 
 startCommand:
   type: stdio
   configSchema:
     type: object
-    properties: {}
+    description: >
+      Every field is optional. The three tools that read plain English
+      (generate_dataset, preview_story, inspect_schema) need one provider key.
+      generate_from_schema, seed_database, list_domains and validate_yaml never
+      call a model and work with nothing configured at all.
+    properties:
+      provider:
+        type: string
+        title: LLM provider
+        description: Which provider to use when a tool has to read a sentence.
+        enum: [groq, openai, anthropic, gemini]
+      groqApiKey:
+        type: string
+        title: Groq API key
+      openaiApiKey:
+        type: string
+        title: OpenAI API key
+      anthropicApiKey:
+        type: string
+        title: Anthropic API key
+      geminiApiKey:
+        type: string
+        title: Gemini API key
     additionalProperties: false
   commandFunction:
     |-
-    (_config) => ({ command: "misata-mcp" })
+    (config) => {
+      const env = {};
+      if (config.provider)        env.MISATA_PROVIDER    = config.provider;
+      if (config.groqApiKey)      env.GROQ_API_KEY       = config.groqApiKey;
+      if (config.openaiApiKey)    env.OPENAI_API_KEY     = config.openaiApiKey;
+      if (config.anthropicApiKey) env.ANTHROPIC_API_KEY  = config.anthropicApiKey;
+      if (config.geminiApiKey)    env.GEMINI_API_KEY     = config.geminiApiKey;
+      return { command: "misata-mcp", env };
+    }

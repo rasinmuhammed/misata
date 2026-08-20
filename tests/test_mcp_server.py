@@ -404,10 +404,27 @@ class TestDirectoryAnnotations:
     def test_the_reading_tools_do_not_claim_to_write(self):
         tools = self._tools()
         for name in ["list_domains", "preview_story", "inspect_schema",
-                     "generate_dataset", "generate_from_schema", "validate_yaml"]:
+                     "validate_yaml"]:
             ann = tools[name].annotations
             assert ann.readOnlyHint is True, f"{name} should be read-only"
             assert ann.destructiveHint is False, f"{name} should not be destructive"
+
+    def test_the_generators_admit_they_write_files(self):
+        """These two used to be listed above as read-only. They are not.
+
+        Both take `output_dir` and, when given one, create the directory and
+        write a CSV per table. The spec defines readOnlyHint as "does not
+        modify its environment", so claiming it here told a client it was safe
+        to run unattended when it puts files on the user's disk. Not
+        destructive, though: it writes new files rather than replacing data.
+        """
+        tools = self._tools()
+        for name in ["generate_dataset", "generate_from_schema"]:
+            ann = tools[name].annotations
+            assert ann.readOnlyHint is False, (
+                f"{name} writes CSVs when output_dir is set")
+            assert ann.destructiveHint is False, (
+                f"{name} creates files, it does not destroy anything")
 
 
 class TestDesktopBundle:

@@ -1892,6 +1892,74 @@ def dbt_seed_cmd(
             )
 
 
+@main.command("synth-import")
+@click.option("--namespace", "namespace_path", type=click.Path(exists=True), default=None,
+              help="Path to a synth namespace directory (auto-detected: ./synth, then upward).")
+@click.option("--out", "out_path", type=click.Path(), default="misata.yaml",
+              help="Where to write the translated schema (default: misata.yaml).")
+@click.option("--scale", type=float, default=1.0,
+              help="Multiply every collection's length by this (default: 1.0).")
+@click.option("--seed", type=int, default=42,
+              help="Random seed written into the schema (default: 42).")
+@click.option("--force", is_flag=True, default=False,
+              help="Overwrite the output file if it exists.")
+def synth_import_cmd(
+    namespace_path: Optional[str],
+    out_path: str,
+    scale: float,
+    seed: int,
+    force: bool,
+) -> None:
+    """Translate a synth namespace into a Misata schema.
+
+    synth stopped receiving commits in September 2024. If you have a namespace
+    that still works, this reads it and writes the equivalent misata.yaml,
+    listing anything it could not translate rather than guessing at it.
+
+        cd my-project && misata synth-import
+        misata synth-import --namespace ./synth --out schema.yaml --scale 100
+    """
+    from pathlib import Path as _Path
+
+    from misata.synth_import import build_schema_from_synth, find_synth_namespace
+
+    ns = _Path(namespace_path) if namespace_path else find_synth_namespace()
+    if ns is None:
+        console.print("[red]Error:[/red] no synth namespace found (looked in "
+                      "./synth and ./, walking upward). Pass --namespace.")
+        raise SystemExit(1)
+
+    target = _Path(out_path)
+    if target.exists() and not force:
+        console.print(f"[red]Error:[/red] {target} already exists. Pass --force "
+                      f"to overwrite it.")
+        raise SystemExit(1)
+
+    try:
+        schema, report = build_schema_from_synth(ns, scale=scale)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise SystemExit(1)
+
+    schema.seed = seed
+
+    from misata.yaml_schema import save_yaml_schema
+    save_yaml_schema(schema, target)
+
+    console.print(f"[green]Wrote[/green] {target}")
+    console.print(f"  {report.tables} tables, {report.columns} columns, "
+                  f"{report.relationships} relationships")
+
+    for note in report.notes:
+        console.print(f"  [yellow]note[/yellow] {note}")
+    for item in report.unsupported:
+        console.print(f"  [red]not imported[/red] {item}")
+
+    if report.unsupported:
+        console.print("\n  Those columns need a declaration you write yourself. "
+                      "synth had no way to state most of them either.")
+
+
 @main.command("prisma-seed")
 @click.option("--schema", "schema_path", type=click.Path(exists=True), default=None,
               help="Path to schema.prisma (auto-detected: prisma/schema.prisma, ./schema.prisma).")

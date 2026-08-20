@@ -138,6 +138,7 @@ def _tool_error(exc: Exception, suggestion: str) -> Dict[str, Any]:
         title="List built-in domains",
         readOnlyHint=True,
         destructiveHint=False,
+        idempotentHint=True,
         openWorldHint=False,
     ),
 )
@@ -165,7 +166,8 @@ def list_domains() -> Dict[str, Any]:
         title="Preview how a story is interpreted",
         readOnlyHint=True,
         destructiveHint=False,
-        openWorldHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
     ),
 )
 def preview_story(story: str, rows: int = 1000) -> Dict[str, Any]:
@@ -211,7 +213,8 @@ def preview_story(story: str, rows: int = 1000) -> Dict[str, Any]:
         title="Inspect the schema behind a story",
         readOnlyHint=True,
         destructiveHint=False,
-        openWorldHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
     ),
 )
 def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
@@ -293,9 +296,10 @@ def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
     title="Generate a dataset from a sentence",
     annotations=ToolAnnotations(
         title="Generate a dataset from a sentence",
-        readOnlyHint=True,
+        readOnlyHint=False,
         destructiveHint=False,
-        openWorldHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
     ),
 )
 def generate_dataset(
@@ -373,8 +377,9 @@ def generate_dataset(
     title="Generate a dataset from a schema",
     annotations=ToolAnnotations(
         title="Generate a dataset from a schema",
-        readOnlyHint=True,
+        readOnlyHint=False,
         destructiveHint=False,
+        idempotentHint=True,
         openWorldHint=False,
     ),
 )
@@ -738,7 +743,8 @@ def generate_from_schema(
         title="Seed a real database",
         readOnlyHint=False,
         destructiveHint=True,
-        openWorldHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
     ),
 )
 def seed_database(
@@ -929,6 +935,7 @@ def seed_database(
         title="Validate a misata.yaml",
         readOnlyHint=True,
         destructiveHint=False,
+        idempotentHint=True,
         openWorldHint=False,
     ),
 )
