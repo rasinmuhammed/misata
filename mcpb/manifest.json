@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "misata",
   "display_name": "Misata",
-  "version": "0.9.6.21",
+  "version": "0.9.6.22",
   "description": "Generate realistic multi-table test data from a description, with foreign keys that resolve and totals that reconcile.",
   "long_description": "Misata is a declarative synthetic data engine. You state what must be true of the data (exact period totals, group shares, parent aggregates that reconcile with child rows, ledgers that balance, keys that stay inside a tenant) and the engine solves for rows that satisfy it, deterministically. An independent verifier then proves it held.\n\nNothing is sampled from real data and no model is fitted, so there is no personal information to leak and nothing to anonymise. Generation is seeded: the same schema and seed produce identical bytes.\n\nUse it to seed a development database, produce fixtures for tests, build a demo dataset, or answer 'what would this dashboard look like with a year of data in it'.",
   "author": {

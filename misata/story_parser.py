@@ -128,6 +128,15 @@ def _mentions(text: str, phrase: str) -> bool:
     return re.search(rf"{left}{re.escape(phrase)}{right}", text) is not None
 
 
+# A money-ish value in a story. Written once because it appeared in three
+# regexes and the loose version (`\d[\d,]*(?:\.\d+)?\s*[kmb]?`) swallowed the
+# comma that ended the number and then read the next month's initial as a
+# magnitude suffix: "Feb 140000, Mar 160000" made February 140,000,000,000.
+# The thousands groups must be well formed, and a k/m/b has to be attached to
+# the digits and not be the first letter of a longer word.
+_STORY_VALUE = r"\$?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:\s?[kmb](?![a-z]))?"
+
+
 class StoryParser:
     """
     Parses natural language stories into SchemaConfig objects.
@@ -288,22 +297,33 @@ class StoryParser:
             return int(num_str)
 
     def _parse_numeric_value(self, raw_value: str) -> float:
-        """Parse currency-like values such as $50k, 150,000, or 1.5M."""
-        cleaned = raw_value.strip().lower().replace(",", "")
+        """Parse currency-like values such as $50k, 150,000, or 1.5M.
+
+        The magnitude suffix has to be attached to the digits. Commas used to
+        be stripped before the suffix was read, so a capture that ran into the
+        next word applied it across the gap: "Feb 140000, Mar 160000" gave
+        February 140,000,000,000 instead of 140,000, and the run looked
+        plausible right up until someone read the total. A value this parser
+        cannot read confidently now raises, and the caller skips the point,
+        because a dropped declaration is recoverable and a silent factor of a
+        million is not.
+        """
+        cleaned = raw_value.strip().lower()
         cleaned = cleaned.replace("$", "").replace("usd", "").strip()
+        # A capture may include the separator that ended it. Trailing commas and
+        # spaces are safe to drop; one sitting *between* the digits and a
+        # letter is not, and that case still refuses below.
+        cleaned = re.sub(r"[,\s]+$", "", cleaned)
+        # Thousands separators only, never a comma that separates two values.
+        cleaned = re.sub(r"(?<=\d),(?=\d\d\d(?!\d))", "", cleaned)
 
-        multiplier = 1.0
-        if cleaned.endswith("k"):
-            multiplier = 1_000.0
-            cleaned = cleaned[:-1]
-        elif cleaned.endswith("m"):
-            multiplier = 1_000_000.0
-            cleaned = cleaned[:-1]
-        elif cleaned.endswith("b"):
-            multiplier = 1_000_000_000.0
-            cleaned = cleaned[:-1]
+        match = re.fullmatch(r"(\d+(?:\.\d+)?)\s?([kmb])?", cleaned)
+        if match is None:
+            raise ValueError(f"could not read a number from {raw_value!r}")
 
-        return float(cleaned) * multiplier
+        multiplier = {"k": 1_000.0, "m": 1_000_000.0,
+                      "b": 1_000_000_000.0}.get(match.group(2), 1.0)
+        return float(match.group(1)) * multiplier
 
     def _detect_domain(self, story: str) -> Optional[str]:
         """Detect business domain from story text.
@@ -401,12 +421,12 @@ class StoryParser:
         anchors: Dict[int, float] = {}
 
         value_then_month = re.finditer(
-            r"(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)\s+(?:in|for|by|at)\s+(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)",
+            rf"(?P<value>{_STORY_VALUE})\s+(?:in|for|by|at)\s+(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)",
             story,
             re.IGNORECASE,
         )
         month_then_value = re.finditer(
-            r"(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(?:at|=|:)?\s*(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)",
+            rf"(?P<month>jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(?:at|=|:)?\s*(?P<value>{_STORY_VALUE})",
             story,
             re.IGNORECASE,
         )
@@ -432,7 +452,7 @@ class StoryParser:
             anchors[month_number] = self._parse_numeric_value(match.group("value"))
 
         range_match = re.search(
-            r"from\s+(?P<start>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)\s+to\s+(?P<end>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)(?:\s+over\s+(?P<months>\d+)\s+months?)?",
+            rf"from\s+(?P<start>{_STORY_VALUE})\s+to\s+(?P<end>{_STORY_VALUE})(?:\s+over\s+(?P<months>\d+)\s+months?)?",
             story,
             re.IGNORECASE,
         )
@@ -545,8 +565,8 @@ class StoryParser:
 
         # "$50k in Q2", "Q1: $30k", "Q3 = $200k", "$100k for Q4"
         for pattern in (
-            r"(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)\s+(?:in|for|by|at)\s+(?P<q>q[1-4])\b",
-            r"\b(?P<q>q[1-4])\b\s*(?::|=|at|was|is|=)?\s*(?P<value>\$?\d[\d,]*(?:\.\d+)?\s*[kmb]?)",
+            rf"(?P<value>{_STORY_VALUE})\s+(?:in|for|by|at)\s+(?P<q>q[1-4])\b",
+            rf"\b(?P<q>q[1-4])\b\s*(?::|=|at|was|is|=)?\s*(?P<value>{_STORY_VALUE})",
         ):
             for match in re.finditer(pattern, story, re.IGNORECASE):
                 quarter = match.group("q").lower()
