@@ -391,9 +391,12 @@ class RealisticTextGenerator:
         size: int,
         semantic_type: Optional[str] = None,
         table_data: Optional[pd.DataFrame] = None,
+        semantic_declared: bool = False,
     ) -> np.ndarray:
         # Lookup-table labels win over everything: a reference table's label
-        # column is an enumeration, not a distribution.
+        # column is an enumeration, not a distribution. A column named
+        # `plan_name` or `account_name` is a label even when something upstream
+        # guessed "name", and that is the right call often enough to keep.
         ref_labels = self._reference_table_labels(column_name, table_name, size)
         if ref_labels is not None:
             return ref_labels
@@ -401,7 +404,17 @@ class RealisticTextGenerator:
         # A specific inference (blood_type, lab_test, department, …) beats a
         # GENERIC semantic passed by the caller ("name"/"text"): the simulator's
         # fallback routing must not shadow clinical/reference columns.
-        if semantic_type in (None, "", "name", "sentence", "text", "word"):
+        #
+        # But only when the caller was guessing. This could not previously tell
+        # `text_type: name` written by a user from the "name" the simulator
+        # passes as its own fallback, so an explicit declaration lost to column
+        # name inference: a column called `full_name` declared as a person's
+        # name came back "Premium", "Starter", "Scale". A declaration is
+        # honoured or refused, never quietly replaced, so an explicit one now
+        # short-circuits inference entirely.
+        if semantic_declared and semantic_type:
+            semantic = semantic_type
+        elif semantic_type in (None, "", "name", "sentence", "text", "word"):
             semantic = self._infer_semantic(column_name, table_name) or semantic_type or "name"
         else:
             semantic = semantic_type

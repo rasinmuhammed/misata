@@ -449,12 +449,26 @@ def _col_from_dict(
     elif misata_type == "text":
         # Token-aware inference: exact name, id-suffix, whole-word compound key,
         # then guarded head tokens — never a raw substring scan.
-        inferred = _infer_text_type(col_name)
+        # Only guess when the caller said nothing. Inference used to overwrite
+        # an explicit `text_type` (or `subtype`) from the dict schema, so a
+        # column the user had already described was renamed by a heuristic.
+        _stated = col_def.get("text_type") or col_def.get("subtype")
+        if _stated:
+            params["text_type"] = _stated
+            params.pop("_text_type_is_default", None)
+        inferred = None if _stated else _infer_text_type(col_name)
         if inferred:
             params["text_type"] = inferred
+            # This is a guess from the column name, not something the caller
+            # asked for, and downstream has to be able to tell the difference.
+            # A declared text_type now beats domain inference, so without this
+            # marker a column merely *called* `name` in a healthcare schema
+            # would suppress the medical-department vocabulary it should get.
+            params["_text_type_is_default"] = True
         # Explicit raw type in the dict schema always wins
         if raw_type in ("email", "phone", "url", "uuid"):
             params["text_type"] = raw_type
+            params.pop("_text_type_is_default", None)
 
     elif misata_type in ("date", "datetime"):
         params["start"] = col_def.get("min_date", col_def.get("start", "2020-01-01"))

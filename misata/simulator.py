@@ -2567,7 +2567,16 @@ class DataSimulator:
             # says nothing. Unknown declared types pass through as-is so the
             # full semantic vocabulary is reachable from dict schemas, not
             # just the simulator aliases.
-            declared = params.get("text_type")
+            # `subtype` is the spelling the benchmarks and several examples
+            # use, and it was reaching none of this: it is absent from the
+            # published JSON schema, so it fell through to free text and the
+            # column was filled with business-note sentences. Accept it rather
+            # than silently ignoring it.
+            declared = params.get("text_type") or params.get("subtype")
+            # A text_type the dict path guessed from the column name is not a
+            # declaration and must not suppress domain inference.
+            if params.get("_text_type_is_default"):
+                declared = None
             if declared in ("sentence", "word", "address", "phone", "url"):
                 declared = None  # legacy free-text types: handled below
             semantic = (
@@ -2594,6 +2603,7 @@ class DataSimulator:
                     size=size,
                     semantic_type=semantic,  # None → _infer_semantic uses column name
                     table_data=table_data,
+                    semantic_declared=bool(declared),
                 )
 
             # Legacy pool sampler for free-text types (sentence, word, address, phone, url)
