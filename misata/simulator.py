@@ -3391,8 +3391,14 @@ class DataSimulator:
                 # Apply!
                 df[target_col] = df[target_col] * row_factors
 
-                # Curve multipliers win over the column's declared min/max
-                # (same precedence as exact targets) — but never silently.
+                # Hold the period totals and the declared bounds together.
+                # The curve used to simply win and warn; both can be satisfied
+                # whenever the arithmetic allows, and when it cannot the schema
+                # is contradictory and says so instead of choosing for you.
+                df = self._fit_curve_within_bounds(
+                    df, table_name, target_col, time_col,
+                    getattr(curve, "time_unit", "month"),
+                )
                 self._warn_curve_bound_violations(df, table_name, target_col)
 
             except Exception as e:
@@ -3815,6 +3821,102 @@ class DataSimulator:
                 parent_map=parent_map,
             )
             return  # Use the first parent that has a map
+
+    def _fit_curve_within_bounds(self, df: pd.DataFrame, table_name: str,
+                                 column_name: str, time_col: str,
+                                 time_unit: str = "month") -> pd.DataFrame:
+        """Hold the curve's period totals AND the column's declared min/max.
+
+        The curve used to simply win: values were multiplied to hit each
+        period's target and whatever fell outside the declared bounds was
+        warned about and shipped. That is a declaration accepted and then
+        broken, which is the one thing this engine is supposed not to do. A
+        declared invoice floor of 49 was producing rows of 6.71.
+
+        Both can hold whenever the arithmetic allows it. For each period the
+        target sum S is already encoded in the values the curve produced, so
+        it is preserved exactly while the rows are pulled inside [lo, hi]:
+        clip, then redistribute the residual across the rows that still have
+        headroom, repeating until it closes. Sum is conserved at every step,
+        so the period total never moves.
+
+        It is impossible only when S falls outside [n·lo, n·hi]. There is no
+        set of n values inside the bounds that adds to S, so the schema is
+        genuinely contradictory and says so with the arithmetic that proves
+        it, rather than quietly picking one declaration over the other.
+        """
+        params = self._get_column_params(table_name, column_name)
+        lo, hi = params.get("min"), params.get("max")
+        lo = float(lo) if isinstance(lo, (int, float)) and not isinstance(lo, bool) else None
+        hi = float(hi) if isinstance(hi, (int, float)) and not isinstance(hi, bool) else None
+        if lo is None and hi is None:
+            return df
+        if lo is not None and hi is not None and lo > hi:
+            return df
+
+        values = pd.to_numeric(df[column_name], errors="coerce")
+        if values.dropna().empty:
+            return df
+
+        if time_col in df.columns:
+            stamps = pd.to_datetime(df[time_col], errors="coerce")
+            freq = {"day": "D", "week": "W", "month": "MS"}.get(str(time_unit), "MS")
+            periods = stamps.dt.to_period({"D": "D", "W": "W", "MS": "M"}[freq])
+        else:
+            periods = pd.Series(0, index=df.index)
+
+        out = values.copy()
+        conflicts = []
+        for period, idx in df.groupby(periods.values, dropna=False).groups.items():
+            block = values.loc[idx].dropna()
+            n = len(block)
+            if n == 0:
+                continue
+            target = float(block.sum())
+            floor_total = n * lo if lo is not None else float("-inf")
+            ceil_total = n * hi if hi is not None else float("inf")
+
+            if target < floor_total - 1e-6 or target > ceil_total + 1e-6:
+                bound = (f"min={lo:g}" if target < floor_total else f"max={hi:g}")
+                needed = floor_total if target < floor_total else ceil_total
+                conflicts.append(
+                    f"{table_name}.{column_name} period {period}: the curve asks "
+                    f"for a total of {target:,.2f} across {n} row(s), but the "
+                    f"declared {bound} allows a total of {needed:,.2f}. Widen the "
+                    f"bound, change the target, or move rows into this period."
+                )
+                continue
+
+            fitted = block.clip(lower=lo, upper=hi).astype(float)
+            for _ in range(64):
+                residual = target - float(fitted.sum())
+                if abs(residual) <= max(1e-9, abs(target) * 1e-12):
+                    break
+                if residual > 0:
+                    headroom = (hi - fitted) if hi is not None else pd.Series(1.0, index=fitted.index)
+                else:
+                    headroom = (fitted - lo) if lo is not None else pd.Series(1.0, index=fitted.index)
+                headroom = headroom.clip(lower=0.0)
+                capacity = float(headroom.sum())
+                if capacity <= 1e-12:
+                    break
+                fitted = (fitted + residual * headroom / capacity).clip(lower=lo, upper=hi)
+            # Close any float dust on the row with the most room to absorb it.
+            residual = target - float(fitted.sum())
+            if abs(residual) > 1e-9:
+                room = ((hi - fitted) if residual > 0 and hi is not None
+                        else (fitted - lo) if residual < 0 and lo is not None
+                        else pd.Series(1.0, index=fitted.index))
+                if float(room.max()) > abs(residual):
+                    fitted.loc[room.idxmax()] += residual
+            out.loc[fitted.index] = fitted
+
+        if conflicts:
+            from misata.feasibility import InfeasibleSchema
+            raise InfeasibleSchema(conflicts)
+
+        df[column_name] = out
+        return df
 
     def _warn_curve_bound_violations(self, df: pd.DataFrame, table_name: str, column_name: str) -> None:
         """Warn when an outcome curve pushed values past the declared min/max.

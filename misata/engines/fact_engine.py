@@ -107,6 +107,18 @@ class FactEngine:
             intra_period_pattern=primary.intra_period_pattern,
         )
 
+    @staticmethod
+    def _declared_bounds(column: Optional[Any]) -> tuple[Optional[float], Optional[float]]:
+        """The column's declared min/max, or (None, None). One reader, because
+        `bound_conflicts` and the value generator must agree on what was
+        declared or they will disagree about whether a run is clean."""
+        params = (getattr(column, "distribution_params", {}) or {}) if column is not None else {}
+        out = []
+        for key in ("min", "max"):
+            v = params.get(key)
+            out.append(float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None)
+        return out[0], out[1]
+
     def bound_conflicts(
         self,
         plan: FactGenerationPlan,
@@ -185,6 +197,7 @@ class FactEngine:
                 bucket_rows = int(mask.sum())
                 if bucket_rows <= 0:
                     continue
+                lo, hi = self._declared_bounds(column_map.get(curve.column))
                 df.loc[mask, curve.column] = self._generate_exact_values(
                     target=target,
                     row_count=bucket_rows,
@@ -192,6 +205,8 @@ class FactEngine:
                     decimals=decimals,
                     concentration=curve.concentration,
                     intra_period_pattern=curve.intra_period_pattern,
+                    lo=lo,
+                    hi=hi,
                 )
 
         return df
@@ -370,6 +385,8 @@ class FactEngine:
         decimals: int = 2,
         concentration: float = 2.0,
         intra_period_pattern: str = "uniform",
+        lo: Optional[float] = None,
+        hi: Optional[float] = None,
     ) -> np.ndarray:
         if row_count <= 0:
             return np.array([], dtype=float if decimals else int)
@@ -416,9 +433,80 @@ class FactEngine:
         if units.sum() != total_units:
             units[-1] += total_units - int(units.sum())
 
+        units = self._fit_units_within_bounds(units, total_units, multiplier, lo, hi)
+
         if decimals:
             return units / multiplier
         return units.astype(int)
+
+    @staticmethod
+    def _fit_units_within_bounds(
+        units: np.ndarray,
+        total_units: int,
+        multiplier: int,
+        lo: Optional[float],
+        hi: Optional[float],
+    ) -> np.ndarray:
+        """Pull every row inside [lo, hi] while keeping the period total exact.
+
+        The Dirichlet split hits the aggregate perfectly and knows nothing about
+        the column's declared bounds, so a target of 150,000 across 400 rows
+        produced invoices of 6.71 against a declared min of 49. The aggregate
+        was honoured and the bound was quietly broken.
+
+        Both hold whenever ``lo·n <= T <= hi·n``. Everything here is integer
+        units of the column's own precision, so clipping and then handing the
+        residual to the rows that still have room conserves the total exactly
+        rather than to within a rounding error. When the arithmetic genuinely
+        cannot hold, this leaves the aggregate intact and the caller's existing
+        `bound_conflicts` check reports the sacrifice, which is the behaviour
+        that was already documented for the impossible case.
+        """
+        n = len(units)
+        if n == 0 or (lo is None and hi is None):
+            return units
+
+        lo_u = int(np.ceil(lo * multiplier)) if lo is not None else None
+        hi_u = int(np.floor(hi * multiplier)) if hi is not None else None
+        if lo_u is not None and hi_u is not None and lo_u > hi_u:
+            return units
+        # Infeasible period: no set of n values inside the bounds sums to the
+        # target. Keep the aggregate and let bound_conflicts report it.
+        if lo_u is not None and lo_u * n > total_units:
+            return units
+        if hi_u is not None and hi_u * n < total_units:
+            return units
+
+        fitted = np.clip(units,
+                         lo_u if lo_u is not None else units.min(),
+                         hi_u if hi_u is not None else units.max()).astype(np.int64)
+
+        for _ in range(64):
+            residual = total_units - int(fitted.sum())
+            if residual == 0:
+                break
+            if residual > 0:
+                room = (hi_u - fitted) if hi_u is not None else np.full(n, residual, dtype=np.int64)
+            else:
+                room = (fitted - lo_u) if lo_u is not None else np.full(n, -residual, dtype=np.int64)
+            room = np.maximum(room, 0)
+            capacity = int(room.sum())
+            if capacity == 0:
+                break
+            step = min(abs(residual), capacity)
+            give = (room.astype(np.int64) * step) // capacity
+            left = step - int(give.sum())
+            if left > 0:
+                for i in np.argsort(-room):
+                    if left <= 0:
+                        break
+                    add = min(left, int(room[i] - give[i]))
+                    if add > 0:
+                        give[i] += add
+                        left -= add
+            fitted = fitted + give if residual > 0 else fitted - give
+
+        return fitted if int(fitted.sum()) == total_units else units
 
     def _column_decimals(self, column: Optional[Any]) -> int:
         if column is None:
