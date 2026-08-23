@@ -240,6 +240,62 @@ tables = misata.generate("A fintech startup with 10k customers, fraud rate 3%, a
 
 Misata reads the story, infers domain (fintech), scale (10 000 rows), and column semantics (fraud flag, IBAN format), no schema authoring needed.
 
+A sentence is read by a recogniser that handles a fixed set of phrasings. Anything it cannot turn into a declaration is named in a warning rather than dropped, so you always know what took effect. When a prompt needs to be exact, write it as a spec instead.
+
+### 1b. A structured spec, parsed deterministically
+
+Prose that declares tables, row counts, columns and rules is not a story, and guessing at it is the wrong tool. Misata detects that shape and parses it directly, so "exactly 4000" means exactly 4000. No model, no inference, no rewriting.
+
+```text
+Table 1: accounts
+Rows: exactly 600
+Columns:
+  account_id
+  company_name
+  plan
+  seats
+  signed_up_on
+plan must only be:
+Starter
+Professional
+Enterprise
+seats must be 1 to 120
+signed_up_on must be 2023-01-01 to 2023-12-31
+
+Table 2: invoices
+Rows: exactly 3200
+Columns:
+  invoice_id
+  account_id
+  amount
+  issued_on
+account_id must match values from accounts table
+amount must be 120 to 8500
+issued_on must be 2024-01-01 to 2024-12-31
+
+Revenue curve on invoices.amount by issued_on:
+Jan 180000
+Feb 195000
+Mar 210000
+```
+
+```python
+tables = misata.generate_from_schema(misata.parse(open("spec.txt").read()))
+```
+
+What the spec guarantees:
+
+| You write | You get |
+|---|---|
+| `Rows: exactly 3200` | 3200 rows, not about 3200 |
+| `x must match values from y table` | a foreign key with zero orphans |
+| `plan must only be:` + a list | those values and no others |
+| `seats must be 1 to 120` | every row inside the bound |
+| `signed_up_on must be 2023-01-01 to 2023-12-31` | dates inside that window |
+| `Revenue curve on t.col by t.date:` | each month lands on its figure to the cent |
+
+Rules can sit inside a table's block or in one section at the end; either way they attach by column name. A column ending `_on`, `_at`, `_date` or `_for` is generated as a date. Anything the parser cannot translate is listed back to you, never guessed at.
+
 ### 2. YAML schema-as-code, commit it to git
 
 ```bash

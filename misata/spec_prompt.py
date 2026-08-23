@@ -30,6 +30,12 @@ _IDENT_LINE_RE = re.compile(r"^\s*([a-z][a-z0-9_]*)\s*$")
 _ARROW_FK_RE = re.compile(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*(?:→|->)\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)")
 _MATCH_FK_RE = re.compile(r"(?i)\b([a-z_]\w*)\b\s+must match values? from\s+(?:the\s+)?([a-z_]\w*)\s+table")
 _RANGE_RE = re.compile(r"(?i)\b([a-z_]\w*?)s?\b\s+must be\s+(-?\d+)\s+(?:to|-|through)\s+(-?\d+)")
+# The same sentence shape for dates. Without it a spec could bound every number
+# and not the one thing that decides whether a child can postdate its parent,
+# so the documented example warned about 2,866 rows it could not place.
+_DATE_RANGE_RE = re.compile(
+    r"(?i)\b([a-z_]\w*)\b\s+must be\s+(\d{4}-\d{2}-\d{2})\s+(?:to|-|through)\s+(\d{4}-\d{2}-\d{2})"
+)
 _ENUM_HEAD_RE = re.compile(r"(?i)^\s*(.+?)\s+(?:must (?:only )?be|types?)\s*:\s*$")
 _VAR_POOL_RE = re.compile(r"(?m)^\s*([a-z_]\w*)\s*:\s*(.+,.+)$")
 _ENUM_ITEM_RE = re.compile(r"^\s*([A-Z][A-Za-z0-9 /&\-]{0,38})\s*$")
@@ -59,6 +65,7 @@ class SpecReport:
     enums: int = 0
     ranges: int = 0
     templates: int = 0
+    curves: int = 0
     refined: int = 0
     untranslated: List[str] = field(default_factory=list)
     # Columns whose values are contractual (FKs, PKs, declared enums, declared
@@ -73,7 +80,8 @@ class SpecReport:
         line = (
             f"Structured spec parsed deterministically: {self.tables} table(s), "
             f"{self.relationships} foreign key(s), {self.enums} enumeration(s), "
-            f"{self.ranges} range rule(s), {self.templates} text template(s)."
+            f"{self.ranges} range rule(s), {self.templates} text template(s), "
+            f"{self.curves} declared curve(s)."
         )
         if self.refined:
             line += f" LLM refined {self.refined} column(s) within the locked contract."
@@ -161,6 +169,27 @@ def _find_column(table: _TableSpec, phrase: str) -> Optional[str]:
     return best
 
 
+
+def _find_column_anywhere(specs: List["_TableSpec"], phrase: str,
+                          exclude: Optional[str] = None) -> Optional[Tuple[str, str]]:
+    """Find the one table that owns the column an unscoped rule names.
+
+    Rules written after every table ("Rules: status must only be: ...") land in
+    the last table's text, so they were only ever matched against that table.
+    The example shipped in the product works purely because its one enum
+    belongs to the last table; a spec with enums on two tables silently lost
+    all but the last. Attach by column name instead, and only when exactly one
+    table has it, so an ambiguous name is reported rather than guessed.
+    """
+    hits = []
+    for t in specs:
+        if exclude is not None and t.name == exclude:
+            continue
+        col = _find_column(t, phrase)
+        if col:
+            hits.append((t.name, col))
+    return hits[0] if len(hits) == 1 else None
+
 def _collect_enum_items(lines: List[str], start: int) -> Tuple[List[str], int]:
     items: List[str] = []
     j = start
@@ -229,6 +258,60 @@ def _parse_templates(
     return out
 
 
+_MONTHS_3 = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+             "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+
+_CURVE_HEAD_RE = re.compile(
+    r"(?im)^\s*(?:revenue\s+)?curve\s+on\s+([a-z_]\w*)\.([a-z_]\w*)\s+by\s+([a-z_]\w*)\s*:\s*$"
+)
+_CURVE_POINT_RE = re.compile(
+    r"(?i)\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+"
+    r"(\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\b"
+)
+
+
+def _extract_curves(text: str, report: "SpecReport") -> List[Dict[str, Any]]:
+    """Parse `curve on <table>.<column> by <time_column>:` blocks.
+
+    A spec could state every table, row count, key and enum exactly and had no
+    way at all to say what a total must come to, which is the one thing this
+    engine is for. The block was simply dropped, and silently: a spec carrying
+    twelve months of declared revenue parsed as a clean success with no curve
+    and no complaint.
+    """
+    curves: List[Dict[str, Any]] = []
+    for head in _CURVE_HEAD_RE.finditer(text):
+        table, column, time_column = head.group(1), head.group(2), head.group(3)
+        # Read forward to the next blank-line-separated block or table header.
+        tail = text[head.end():]
+        stop = re.search(r"(?im)^\s*(?:table\s*\d*\s*[:\-]|rows?\s*[:\-])", tail)
+        body = tail[: stop.start()] if stop else tail
+
+        points: List[Dict[str, Any]] = []
+        seen = set()
+        for month_token, raw in _CURVE_POINT_RE.findall(body):
+            month = _MONTHS_3[month_token.lower()[:3]]
+            if month in seen:
+                continue
+            seen.add(month)
+            points.append({"month": month, "value": float(raw.replace(",", ""))})
+
+        if len(points) < 2:
+            report.untranslated.append(
+                f"{table}.{column}: curve block found but fewer than two month "
+                f"values could be read from it"
+            )
+            continue
+
+        points.sort(key=lambda p: p["month"])
+        curves.append({
+            "table": table, "column": column, "time_column": time_column,
+            "time_unit": "month", "pattern_type": "custom",
+            "value_mode": "absolute", "curve_points": points,
+        })
+    return curves
+
+
 def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", SpecReport]:
     from misata.schema import Column, Relationship, SchemaConfig, Table
     from misata.semantic import SemanticInference
@@ -274,6 +357,7 @@ def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", Spe
     # Enumerations and ranges per table block
     enums: Dict[Tuple[str, str], List[str]] = {}
     ranges: Dict[Tuple[str, str], Tuple[int, int]] = {}
+    date_ranges: Dict[Tuple[str, str], Tuple[str, str]] = {}
     template_choices: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for t in specs:
         lines = t.body.split("\n")
@@ -288,15 +372,39 @@ def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", Spe
                 if col and len(items) >= 2:
                     enums[(t.name, col)] = items
                     report.enums += 1
+                elif len(items) >= 2:
+                    found = _find_column_anywhere(specs, phrase, exclude=t.name)
+                    if found:
+                        enums[found] = items
+                        report.enums += 1
+                    else:
+                        report.untranslated.append(
+                            f"{t.name}: enumeration '{em.group(1)}' matched no column"
+                        )
                 elif items:
                     report.untranslated.append(
                         f"{t.name}: enumeration '{em.group(1)}' matched no column"
                     )
+        for dm in _DATE_RANGE_RE.finditer(t.body):
+            owner, col = t.name, _find_column(t, dm.group(1))
+            if not col:
+                found = _find_column_anywhere(specs, dm.group(1), exclude=t.name)
+                if found:
+                    owner, col = found
+            if col:
+                date_ranges[(owner, col)] = (dm.group(2), dm.group(3))
+                report.ranges += 1
+
         for rm in _RANGE_RE.finditer(t.body):
             col = _find_column(t, rm.group(1))
             if col:
                 ranges[(t.name, col)] = (int(rm.group(2)), int(rm.group(3)))
                 report.ranges += 1
+            else:
+                found = _find_column_anywhere(specs, rm.group(1), exclude=t.name)
+                if found:
+                    ranges[found] = (int(rm.group(2)), int(rm.group(3)))
+                    report.ranges += 1
         for col, variants in _parse_templates(t.body, t, report).items():
             template_choices[(t.name, col)] = variants
 
@@ -337,6 +445,14 @@ def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", Spe
                 cols.append(Column(
                     name=name, type="categorical",
                     distribution_params={"choices": enums[key]},
+                ))
+                continue
+            if key in date_ranges:
+                start, end = date_ranges[key]
+                report.lock(t.name, name)
+                cols.append(Column(
+                    name=name, type="date",
+                    distribution_params={"start": start, "end": end},
                 ))
                 continue
             if key in ranges:
@@ -407,10 +523,32 @@ def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", Spe
         r for r in relationships if r.parent_table in built and r.child_table in built
     ]
 
+    # Declared aggregates. A curve naming a table or column the spec never
+    # built is reported rather than dropped, because the whole point of this
+    # path is that what you wrote is what you get.
+    outcome_curves = []
+    for spec_curve in _extract_curves(text, report):
+        table_name, column_name = spec_curve["table"], spec_curve["column"]
+        if table_name not in built:
+            report.untranslated.append(
+                f"curve on {table_name}.{column_name}: no table named "
+                f"{table_name!r} was declared")
+            continue
+        known = {c.name for c in columns.get(table_name, [])}
+        missing = [c for c in (column_name, spec_curve["time_column"]) if c not in known]
+        if missing:
+            report.untranslated.append(
+                f"curve on {table_name}.{column_name}: {table_name} has no "
+                f"column {', '.join(repr(m) for m in missing)}")
+            continue
+        outcome_curves.append(spec_curve)
+    report.curves = len(outcome_curves)
+
     return SchemaConfig(
         name="spec prompt",
         description="Parsed deterministically from a structured spec prompt",
         tables=tables, columns=columns, relationships=relationships, seed=42,
+        outcome_curves=outcome_curves,
     ), report
 
 
