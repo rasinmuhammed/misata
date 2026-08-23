@@ -368,7 +368,18 @@ def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", Spe
             if inferred is not None:
                 itype, iparams = inferred
                 cols.append(Column(name=name, type=itype, distribution_params=iparams))
-            elif name.endswith(("_date", "_at")) or name == "date":
+            elif (name.endswith(("_date", "_at", "_on", "_for", "_until",
+                                 "_from", "_time"))
+                  or name in ("date", "created", "updated")
+                  or name.startswith(("date_", "signed_up", "hired", "issued",
+                                      "scheduled", "completed", "cancelled",
+                                      "started", "ended", "closed", "shipped",
+                                      "delivered", "renewed", "expires"))):
+                # `_on` and `_for` are how English actually writes these:
+                # issued_on, hired_on, scheduled_for. Without them every one
+                # fell through to free text, so a spec declaring four date
+                # columns produced four columns of business-note prose and
+                # said nothing about it.
                 cols.append(Column(
                     name=name, type="date",
                     distribution_params={"start": "2024-01-01", "end": "2025-12-31"},
