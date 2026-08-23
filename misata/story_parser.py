@@ -737,6 +737,16 @@ class StoryParser:
         # their parents instead of defaulting to an unrelated year.
         explicit_year = self._extract_explicit_year(story)
         intra_pattern = self._extract_intra_period_pattern(story)
+
+        # An average transaction value is this parser's guess at how many rows
+        # a period needs, and the FactEngine sizes the table from it and never
+        # looks at the declared row count. So "4000 orders" plus a revenue
+        # curve produced 24,797 orders, silently, because the guess said each
+        # one was worth 75. When the story states a count for this table, the
+        # count is the declaration and the average simply falls out of it.
+        if self.scale_params.get(table) or self.scale_params.get(f"{table}s"):
+            avg_transaction_value = None
+
         return OutcomeCurve(
             table=table,
             column=column,
