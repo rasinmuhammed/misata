@@ -9,6 +9,7 @@ This module provides rule-based pattern matching to extract:
 """
 
 import re
+import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -164,6 +165,7 @@ class StoryParser:
         _NUM + r"\s*drivers": "drivers",
         _NUM + r"\s*sellers": "sellers",
         _NUM + r"\s*doctors": "doctors",
+        _NUM + r"\s*subscriptions": "subscriptions",
     }
 
     TEMPORAL_PATTERNS = {
@@ -282,6 +284,9 @@ class StoryParser:
         self._matched_keywords: List[str] = []
         self._near_misses: Dict[str, List[str]] = {}
         self._detection_warnings: List[str] = []
+        # Story fragments this parser could not express; surfaced by parse()
+        # and included in detection_report() so the caller sees them once.
+        self._unhandled: List[str] = []
         self._last_schema: Optional[SchemaConfig] = None
         self.detected_locale: Optional[str] = None
 
@@ -1129,9 +1134,99 @@ class StoryParser:
 
         schema = self._enrich_schema_text_types(schema)
 
+        # Say what could not be used. Silence here is how a story that asked
+        # for six thousand invoices, a plan split and an unpaid rate came back
+        # as two tables and looked like a success.
+        self._unhandled = self.unhandled_claims(story, schema)
+        for claim in self._unhandled:
+            warnings.warn(
+                f"This parser could not turn {claim!r} into a declaration, so it "
+                f"had no effect. Set it on the schema directly, or use an LLM "
+                f"provider for a story this detailed.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Cache the produced schema so detection_report() can preview tables
         self._last_schema = schema
         return schema
+
+    # ── What the story asked for that this parser did not deliver ──────────
+    #
+    # This is a recogniser, not a language model. It handles a fixed set of
+    # phrasings well and returns nothing at all for the rest, and until now it
+    # returned nothing *silently*: "8% of invoices unpaid" and "plans split 55%
+    # Starter" produced no declaration and no complaint, so a schema that had
+    # quietly dropped half the brief looked identical to one that honoured it.
+    #
+    # A declaration is honoured or refused, never ignored. When this parser
+    # cannot express something, it now says which words it could not use, so
+    # the caller can set it on the canvas or hand the story to an LLM instead.
+
+    _CLAIM_SPLIT = re.compile(r"[.;]|,(?=\s*(?:and\s+)?[a-z]{3,}\s)", re.IGNORECASE)
+
+    def unhandled_claims(self, story: str, schema: "SchemaConfig") -> List[str]:
+        """Fragments of the story carrying a number that reached no declaration."""
+        if not story:
+            return []
+
+        table_names = {t.name.lower() for t in (schema.tables or [])}
+        column_names = {c.name.lower()
+                        for cols in (schema.columns or {}).values() for c in cols}
+        has_curve = bool(schema.outcome_curves)
+        has_rates = bool(schema.rate_curves)
+        has_shares = bool(getattr(schema, "group_shares", None))
+
+        # Row counts the parser actually honoured, so "1,500 customers" is not
+        # reported when customers really did come back with 1,500 rows.
+        honoured_counts = {int(t.row_count) for t in (schema.tables or [])}
+
+        unhandled: List[str] = []
+        for raw in self._CLAIM_SPLIT.split(story):
+            fragment = raw.strip(" ,")
+            if not fragment or not any(ch.isdigit() for ch in fragment):
+                continue
+            low = fragment.lower()
+
+            # A month-and-value list is the curve; one curve covers all of it.
+            # "growth" alone is not enough to claim coverage: it is a common
+            # plan name, and "Plans split 55% Starter, 33% Growth" was being
+            # waved through as if it were a revenue statement.
+            if has_curve and re.search(
+                r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|"
+                r"\brevenue\b|\bcurve\b", low
+            ):
+                continue
+            if has_rates and "churn" in low:
+                continue
+            if has_shares and re.search(r"\bsplit\b|\bshare\b|\bmix\b", low):
+                continue
+
+            # Report the part that failed, not the sentence around it. A
+            # fragment often carries several count-and-noun pairs and only one
+            # of them was dropped; naming the whole sentence makes the caller
+            # hunt for which.
+            pairs = re.findall(r"(\d[\d,]*)\s+([a-z_]{3,})", low)
+            if pairs:
+                def _handled(raw_n: str) -> bool:
+                    n = int(raw_n.replace(",", ""))
+                    # A calendar year is context, not a quantity to honour.
+                    if 1900 <= n <= 2100 and "," not in raw_n:
+                        return True
+                    # Match on the count alone: this parser renames as it maps
+                    # ("1,500 customers" becomes the users table), so requiring
+                    # the noun to survive reports work it actually did.
+                    return n in honoured_counts
+
+                missed = [f"{n} {noun}" for n, noun in pairs if not _handled(n)]
+                if not missed:
+                    continue
+                unhandled.extend(missed)
+                continue
+
+            unhandled.append(fragment)
+
+        return unhandled
 
     def _enrich_schema_text_types(self, schema: "SchemaConfig") -> "SchemaConfig":
         """Post-processing: set text_type for any text column whose name
@@ -1226,13 +1321,18 @@ class StoryParser:
             locale=self.detected_locale,
             table_preview=table_preview,
             total_rows=total_rows,
-            warnings=list(self._detection_warnings),
+            warnings=list(self._detection_warnings) + [
+                f"not understood: {c}" for c in getattr(self, "_unhandled", [])
+            ],
         )
 
     def _build_saas_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a SaaS-specific schema."""
         num_users = self.scale_params.get("users", default_rows)
-        num_subscriptions = int(num_users * 1.2)  # Some users have multiple subs
+        # An explicit count wins over the ratio. "1,000 subscriptions" used to
+        # come back as 960, because users x 1.2 was applied regardless of what
+        # the story asked for, and nothing said the number had been changed.
+        num_subscriptions = self.scale_params.get("subscriptions") or int(num_users * 1.2)
 
         # Define tables
         tables = [
