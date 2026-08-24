@@ -956,6 +956,13 @@ def from_dict_schema(
                 table_rows = val
                 break
 
+        # A table whose rows are given verbatim must not have its key range
+        # synthesised: a date_key of 20240101 does not fit in 1..730, and
+        # bounding it turned three working presets into an InfeasibleSchema.
+        _has_inline_rows = any(
+            isinstance(table_def.get(k), list) and table_def.get(k)
+            for k in ("__inline_data__", "__rows_data__", "inline_data"))
+
         # Nested per-table format: {"rows": N, "columns": {...}} — read the
         # column defs from the sub-dict while table-level keys stay on the
         # outer def. (This is the misata.yaml shape handed to dict callers.)
@@ -1058,7 +1065,7 @@ def from_dict_schema(
                 ))
 
             col = _col_from_dict(col_name, col_def, primary_key_col=pk_col,
-                                 row_count=table_rows)
+                                 row_count=(None if _has_inline_rows else table_rows))
             if col is not None:
                 table_cols.append(col)
 

@@ -139,3 +139,26 @@ tables:
         seed=1).columns["dim_thing"][0]
 
     assert from_yaml.distribution_params["max"] == from_dict.distribution_params["max"] == 12
+
+
+def test_a_reference_table_keeps_its_own_key_values():
+    """Bounding a surrogate key to the row count is right for a generated
+    dimension and wrong for one whose rows are given. A date_key of 20240101
+    does not fit in 1..731, and applying the bound anyway turned three working
+    star-schema presets into an InfeasibleSchema that would not generate at
+    all."""
+    rows = [{"date_key": 20240100 + d, "full_date": f"2024-01-{d:02d}"}
+            for d in range(1, 32)]
+    data = misata.generate_from_schema(misata.from_dict_schema({
+        "dim_date": {"__inline_data__": rows,
+                     "date_key": {"type": "integer", "primary_key": True},
+                     "full_date": {"type": "date"}},
+        "fact_x": {"__rows__": 100,
+                   "id": {"type": "integer", "primary_key": True},
+                   "date_key": {"type": "integer",
+                                "foreign_key": {"table": "dim_date",
+                                                "column": "date_key"}}}},
+        seed=2))
+
+    assert list(data["dim_date"]["date_key"]) == [r["date_key"] for r in rows]
+    assert data["fact_x"]["date_key"].isin(data["dim_date"]["date_key"]).all()
