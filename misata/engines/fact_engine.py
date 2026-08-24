@@ -231,6 +231,13 @@ class FactEngine:
                 current = float(pd.to_numeric(df.loc[mask, curve.column], errors="coerce").fillna(0).sum())
                 if abs(current - float(target)) <= tolerance:
                     continue
+                # The declared bounds have to be read here too, not just at
+                # generation. Without them this regeneration silently undid the
+                # bound fitting the first pass had done: a salary column
+                # declared 45,000 to 350,000 came back holding 1,808 and
+                # 815,895, because the aggregate was re-hit by a code path that
+                # had never been told the column had a floor or a ceiling.
+                lo, hi = self._declared_bounds(column_map.get(curve.column))
                 df.loc[mask, curve.column] = self._generate_exact_values(
                     target=target,
                     row_count=bucket_rows,
@@ -238,6 +245,8 @@ class FactEngine:
                     decimals=decimals,
                     concentration=curve.concentration,
                     intra_period_pattern=curve.intra_period_pattern,
+                    lo=lo,
+                    hi=hi,
                 )
         return df
 
