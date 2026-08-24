@@ -403,16 +403,24 @@ def _col_from_dict(
     col_name: str,
     col_def: Dict[str, Any],
     primary_key_col: Optional[str],
+    row_count: Optional[int] = None,
 ) -> Optional[Column]:
     """Convert a single dict column definition to a Misata ``Column``."""
     raw_type = str(col_def.get("type", "string")).lower()
 
-    # Primary keys → sequential unique int (name must be "id" for Misata's auto-sequence)
+    # Primary keys → a surrogate key, bounded by how many rows there are.
+    #
+    # This drew uniformly from 1 to 2,000,000 whatever the table's size, so a
+    # twenty row dimension came back with department_key 1,660,996. Real
+    # surrogate keys run 1..N, and on a star schema page that difference is the
+    # whole difference between a warehouse and a pile of random integers. With
+    # `unique` set and a range of exactly N, every value is used.
     if col_def.get("primary_key") and col_name == primary_key_col:
+        upper = int(row_count) if isinstance(row_count, int) and row_count > 0 else 2_000_000
         return Column(
             name=col_name,
             type="int",
-            distribution_params={"distribution": "uniform", "min": 1, "max": 2_000_000},
+            distribution_params={"distribution": "uniform", "min": 1, "max": max(upper, 1)},
             nullable=False,
             unique=True,
         )
@@ -1049,7 +1057,8 @@ def from_dict_schema(
                     child_key=col_name,
                 ))
 
-            col = _col_from_dict(col_name, col_def, primary_key_col=pk_col)
+            col = _col_from_dict(col_name, col_def, primary_key_col=pk_col,
+                                 row_count=table_rows)
             if col is not None:
                 table_cols.append(col)
 

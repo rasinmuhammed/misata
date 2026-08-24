@@ -96,3 +96,46 @@ def test_a_fact_table_still_joins_to_inline_reference_rows():
                            "headcount": {"type": "integer", "min": 1, "max": 90}}},
         seed=1))
     assert data["fact_headcount"]["date_key"].isin(data["dim_date"]["date_key"]).all()
+
+
+def test_a_surrogate_key_is_bounded_by_its_table():
+    """A twenty row dimension used to come back with department_key 1,660,996,
+    because a primary key drew uniformly from 1 to 2,000,000 whatever the size
+    of the table. On a star schema page that is the difference between a
+    warehouse and a pile of random integers."""
+    data = misata.generate_from_schema(misata.from_dict_schema({
+        "dim_department": {"__rows__": 20,
+                           "department_key": {"type": "integer", "primary_key": True},
+                           "name": {"type": "string", "enum": ["Sales", "Finance"]}}},
+        seed=7))["dim_department"]
+    assert sorted(data["department_key"]) == list(range(1, 21))
+
+
+def test_both_doors_agree_on_the_key_range():
+    """The dict path and the yaml path must build the same column, or
+    `primary_key` means two different things depending on how you arrived."""
+    from misata.yaml_schema import load_yaml_schema
+    import tempfile, pathlib as _p
+
+    yaml_text = """
+name: t
+seed: 1
+tables:
+  dim_thing:
+    rows: 12
+    columns:
+      thing_key:
+        type: int
+        primary_key: true
+"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _p.Path(tmp) / "s.yaml"
+        path.write_text(yaml_text)
+        from_yaml = load_yaml_schema(path).columns["dim_thing"][0]
+
+    from_dict = misata.from_dict_schema({
+        "dim_thing": {"__rows__": 12,
+                      "thing_key": {"type": "integer", "primary_key": True}}},
+        seed=1).columns["dim_thing"][0]
+
+    assert from_yaml.distribution_params["max"] == from_dict.distribution_params["max"] == 12

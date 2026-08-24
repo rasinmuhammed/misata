@@ -256,7 +256,8 @@ def _parse_relationship(raw: Union[str, Dict[str, Any]]) -> Relationship:
     )
 
 
-def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
+def _parse_column(col_name: str, col_def: Dict[str, Any],
+                  row_count: Optional[int] = None) -> Column:
     """Map a YAML column definition to a Misata Column."""
     raw_type = str(col_def.get("type", "text")).lower()
     misata_type = resolve_column_type(raw_type, where=f"column {col_name!r}")
@@ -356,7 +357,11 @@ def _parse_column(col_name: str, col_def: Dict[str, Any]) -> Column:
             params.pop("_distribution_is_default", None)
             params["distribution"] = "uniform"
             params.setdefault("min", 1)
-            params.setdefault("max", 2_000_000)
+            # Bounded by the table, so a twenty row dimension gets keys 1..20
+            # rather than a surrogate key of 1,660,996. The dict path does the
+            # same, and a parity test holds the two doors together.
+            upper = int(row_count) if isinstance(row_count, int) and row_count > 0 else 2_000_000
+            params.setdefault("max", max(upper, 1))
 
     return Column(
         name=col_name,
@@ -494,7 +499,7 @@ def load_yaml_schema(
 
         col_defs: Dict[str, Any] = tdef.get("columns", {})
         columns_map[table_name] = [
-            _parse_column(col_name, (cdef or {}))
+            _parse_column(col_name, (cdef or {}), row_count=t_rows)
             for col_name, cdef in col_defs.items()
         ]
 
