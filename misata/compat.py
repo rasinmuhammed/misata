@@ -1066,14 +1066,30 @@ def from_dict_schema(
                     if len(vals) >= 2:
                         _table_vocabularies[str(k).strip().lower()] = vals
 
+        # Reference rows given verbatim. A date dimension is a calendar, not a
+        # sample: its months, quarters and years are facts that agree with each
+        # other or the table is wrong. Generating those three columns
+        # independently is how a public star-schema page ended up showing June
+        # 2024 labelled Q4 2025. `Table.inline_data` already existed; the dict
+        # path just never passed anything to it, and dropped the key in silence.
+        inline_rows = None
+        for key in ("__inline_data__", "__rows_data__", "inline_data"):
+            candidate = table_def.get(key)
+            if isinstance(candidate, list) and candidate and all(
+                    isinstance(r, dict) for r in candidate):
+                inline_rows = candidate
+                break
+
         tables.append(Table(
             name=table_name,
-            row_count=table_rows,
+            row_count=len(inline_rows) if inline_rows else table_rows,
             description=table_desc,
             constraints=table_constraints,
             correlations=table_correlations,
             state_machine=state_machine,
             cluster_effect=cluster_effect,
+            is_reference=bool(inline_rows),
+            inline_data=inline_rows,
         ))
         columns_map[table_name] = table_cols
 

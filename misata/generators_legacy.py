@@ -63,6 +63,23 @@ STATES = [
     "NJ", "VA", "WA", "AZ", "MA", "CO", "TN", "IN", "MO", "MD",
 ]
 
+# Business vocabulary, used wherever a single plausible word is asked for.
+#
+# `word()` used to return a Lorem Ipsum term straight from the pool below, so a
+# column declared `text_type: "word"` came back "consectetur" or "ullamco". The
+# README says in as many words that lorem ipsum cannot reach output, and a
+# `cost_centre` column on the public star-schema page was full of it.
+#
+# These read as the sort of short label a code, centre, tag or category column
+# actually holds, so the failure mode is a dull value rather than a Latin one.
+BUSINESS_WORDS = [
+    "Core", "Central", "Regional", "Global", "Shared", "Direct", "Indirect",
+    "Primary", "Secondary", "Standard", "Priority", "General", "Corporate",
+    "Commercial", "Technical", "Support", "Delivery", "Platform", "Field",
+    "Retail", "Wholesale", "Internal", "External", "Strategic", "Operational",
+    "Capital", "Overhead", "Logistics", "Fulfilment", "Procurement",
+]
+
 LOREM_WORDS = [
     "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit",
     "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore",
@@ -97,6 +114,7 @@ class TextGenerator:
         "cities": list(CITIES),
         "states": list(STATES),
         "lorem_words": list(LOREM_WORDS),
+        "business_words": list(BUSINESS_WORDS),
     }
 
     def __init__(self, seed: Optional[int] = None):
@@ -226,8 +244,14 @@ class TextGenerator:
         return ' '.join(selected) + '.'
 
     def word(self) -> str:
-        """Generate a single word."""
-        return self.rng.choice(self._pools["lorem_words"])
+        """A single plausible label, never a Latin one.
+
+        This returned a Lorem Ipsum word until a `cost_centre` column on a
+        public page came back reading "veniam" and "consectetur". Anything a
+        schema calls a word is a short business label in practice, so that is
+        what it gets.
+        """
+        return self.rng.choice(self._pools["business_words"])
 
     def text(self, sentences: int = 3) -> str:
         """Generate a paragraph of text."""
