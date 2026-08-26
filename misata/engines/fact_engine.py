@@ -283,11 +283,18 @@ class FactEngine:
         )
 
     def _allocate_row_counts(self, fallback_row_count: int, curve: ResolvedCurve) -> np.ndarray:
-        positive_targets = np.maximum(curve.targets, 0)
+        # A period's row count has to come from how much activity it needs to
+        # carry, not from the sign of its target. A ledger's net change, a
+        # P&L delta, a cash flow: all legitimately go negative some months.
+        # `np.maximum(targets, 0)` used to clamp every negative target to
+        # zero here, so a declared -$95,000 month got zero rows, not $95,000
+        # split negative. Twelve real months, six of them negative, produced
+        # a dataset with six months completely empty and no warning raised.
+        magnitude_targets = np.abs(curve.targets)
         row_counts = np.zeros(len(curve.targets), dtype=int)
 
         if curve.avg_transaction_value and curve.avg_transaction_value > 0:
-            for index, target in enumerate(positive_targets):
+            for index, target in enumerate(magnitude_targets):
                 if target <= 0:
                     continue
                 estimated = int(round(target / curve.avg_transaction_value))
@@ -296,13 +303,13 @@ class FactEngine:
                 row_counts[index] = self._clip_to_target_units(estimated, target)
             return row_counts
 
-        active = positive_targets > 0
+        active = magnitude_targets > 0
         active_count = int(active.sum())
         if active_count == 0:
             return row_counts
 
         total_rows = max(int(fallback_row_count), active_count)
-        base_allocation = positive_targets / positive_targets.sum()
+        base_allocation = magnitude_targets / magnitude_targets.sum()
         raw_allocation = base_allocation * total_rows
         row_counts = np.floor(raw_allocation).astype(int)
         row_counts[active] = np.maximum(row_counts[active], 1)
@@ -317,7 +324,7 @@ class FactEngine:
             # smallest period. Same form as shares.py and waterfall.py.
             priorities = np.argsort(-(raw_allocation - np.floor(raw_allocation)))
             for idx in priorities:
-                if positive_targets[idx] <= 0:
+                if magnitude_targets[idx] <= 0:
                     continue
                 row_counts[idx] += 1
                 delta -= 1
@@ -332,7 +339,7 @@ class FactEngine:
                 if delta == 0:
                     break
 
-        for index, target in enumerate(positive_targets):
+        for index, target in enumerate(magnitude_targets):
             if target <= 0:
                 row_counts[index] = 0
                 continue
@@ -402,9 +409,19 @@ class FactEngine:
 
         multiplier = 10 ** decimals
         total_units = int(round(target * multiplier))
-        if total_units <= 0:
+        if total_units == 0:
             zeros = np.zeros(row_count, dtype=int)
             return zeros / multiplier if decimals else zeros
+
+        # A negative target (a net loss month, a credit-heavy ledger period)
+        # is a real, legitimate value, not "no target". `total_units <= 0`
+        # used to treat it the same as zero and hand back an all-zero column,
+        # so a declared -$3,000 came back as $0 with the total silently wrong
+        # and nothing raised to say so. The split below always works in
+        # magnitude; the sign is reapplied once, at the end, before bounds
+        # fitting sees the real signed total again.
+        sign = -1 if total_units < 0 else 1
+        magnitude_units = abs(total_units)
 
         alpha_array = np.full(row_count, concentration, dtype=float)
         if intra_period_pattern != "uniform" and len(timestamps) == row_count:
@@ -429,19 +446,20 @@ class FactEngine:
                             alpha_array *= np.exp((progress - 1) * 2)
 
         proportions = self.rng.dirichlet(alpha_array)
-        raw_units = proportions * total_units
+        raw_units = proportions * magnitude_units
         units = np.floor(raw_units).astype(int)
 
-        remainder = total_units - int(units.sum())
+        remainder = magnitude_units - int(units.sum())
         if remainder > 0:
             fractional = raw_units - units
             priority = np.argsort(-fractional)
             units[priority[:remainder]] += 1
 
         units = np.maximum(units, 0)
-        if units.sum() != total_units:
-            units[-1] += total_units - int(units.sum())
+        if units.sum() != magnitude_units:
+            units[-1] += magnitude_units - int(units.sum())
 
+        units = units * sign
         units = self._fit_units_within_bounds(units, total_units, multiplier, lo, hi)
 
         if decimals:
