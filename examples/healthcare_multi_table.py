@@ -1,9 +1,12 @@
 """
-Healthcare Multi-Table Dataset
-================================
-Generates a 3-table relational dataset: doctors, patients, appointments.
-Two foreign keys. Blood type distribution matches real-world ABO/Rh frequencies.
-Patient age follows a normal distribution centered on 45 (chronic care skew).
+Healthcare Multi-Table Dataset (minimal)
+==========================================
+The quick, story-based path: doctors, patients, appointments. Two foreign
+keys, real ABO/Rh blood type frequencies. No admissions, diagnoses, or lab
+results -- for the full hospital schema with a reconciled length of stay,
+real ICD-10 codes, and clinical reference ranges, see
+examples/healthcare_hospital.py instead. This file is for prototyping when
+three tables are genuinely enough.
 
 Run:
     python examples/healthcare_multi_table.py
