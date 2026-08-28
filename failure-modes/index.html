@@ -2716,7 +2716,7 @@
 <h2 id="rate-targets-and-integer-rounding">Rate targets and integer rounding</h2>
 <p>A rate over n rows can only be a multiple of 1/n. A declared 2% fraud rate over 4,824 rows is unreachable: 96 flagged rows gives 1.99%, 97 gives 2.01%.</p>
 <p>What happens: plain generation flags the closest achievable count and moves on. An evalpack, whose questions must verify exactly, drops the question instead of shipping a wrong answer. The drop is recorded in <code>manifest.json</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&quot;drop_reason&quot;: &quot;verification_mismatch&quot;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>"drop_reason": "verification_mismatch"
 </code></pre></div>
 <p>If you need the rate to be a round number, choose row counts that divide it: 2% of 5,000 is exactly 100 rows.</p>
 <h2 id="declared-bounds-versus-aggregate-targets">Declared bounds versus aggregate targets</h2>
@@ -2724,23 +2724,23 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>lo * n &lt;= T &lt;= hi * n
 </code></pre></div>
 <p>When the declaration violates this, the aggregate target wins and rows leave their bounds, loudly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>UserWarning: Outcome curve on &#39;orders.amount&#39; pushed values past the
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>column&#39;s declared bounds: 92 row(s) above declared max=100. The curve takes
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>UserWarning: Outcome curve on 'orders.amount' pushed values past the
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>column's declared bounds: 92 row(s) above declared max=100. The curve takes
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>precedence over the declared min/max. Widen the bounds or soften the curve
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>to avoid this.
 </code></pre></div>
 <p>The fix is in the message: widen the bounds or soften the curve. The conformance preview (<code>misata preview</code>) surfaces these conflicts before any rows are generated.</p>
 <h2 id="row-count-clamps-prop-3-saturation">Row-count clamps (Prop. 3 saturation)</h2>
 <p>When a period target needs more rows than <code>max_transactions_per_period</code> allows, the engine keeps the sum exact by inflating per-row values. Every aggregate check still passes while the row-level distribution shifts, so the warning is the only signal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Period &#39;2024-03&#39;: target=250,000.00 requires ≈2500 rows but
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Period '2024-03': target=250,000.00 requires ≈2500 rows but
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>max_transactions_per_period=1000 — per-row values will be inflated
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>(Prop. 3 upper clamp). Raise max_transactions_per_period to avoid distortion.
 </code></pre></div>
 <p>The mirror case (target too small for <code>min_transactions_per_period</code>) deflates per-row values with the matching "Prop. 3 lower clamp" message.</p>
 <h2 id="evalpack-question-gates">Evalpack question gates</h2>
 <p>Every question in an evalpack is re-executed against the shipped CSV files with DuckDB before shipping. Anything inexact is dropped and logged, never shipped. The two drop reasons in <code>manifest.json</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>&quot;drop_reason&quot;: &quot;verification_mismatch&quot;   the answer did not reproduce exactly
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>&quot;drop_reason&quot;: &quot;sql_error: ...&quot;          the gold SQL failed to execute
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>"drop_reason": "verification_mismatch"   the answer did not reproduce exactly
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>"drop_reason": "sql_error: ..."          the gold SQL failed to execute
 </code></pre></div>
 <p>A pack that ships 35 questions may have had 40 candidates. The dropped five are the honest ones.</p>
 <h2 id="group-shares-and-small-buckets">Group shares and small buckets</h2>

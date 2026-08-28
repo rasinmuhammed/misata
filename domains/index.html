@@ -3013,14 +3013,14 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Basic</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A SaaS company with 5k users and 20% monthly churn&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A SaaS company with 5k users and 20% monthly churn"</span><span class="p">)</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># With narrative curve</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="s2">&quot;SaaS startup — MRR from $50k in Jan to $200k in Dec, Q3 slump, doubled by year end&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="s2">"SaaS startup — MRR from $50k in Jan to $200k in Dec, Q3 slump, doubled by year end"</span><span class="p">,</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscriptions&quot;</span><span class="p">][[</span><span class="s2">&quot;mrr&quot;</span><span class="p">,</span> <span class="s2">&quot;start_date&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"subscriptions"</span><span class="p">][[</span><span class="s2">"mrr"</span><span class="p">,</span> <span class="s2">"start_date"</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="ecommerce">Ecommerce</h2>
@@ -3055,7 +3055,7 @@
 <p><strong>Distributions:</strong> Order amounts lognormal (median ~$85). <code>shipped_at</code> is always after <code>ordered_at</code>; <code>delivered_at</code> always after <code>shipped_at</code>. ~88% of orders are delivered; ~8% returned.</p>
 <p><strong>Narrative support:</strong> Revenue and order volume curves. Named events (Black Friday, Christmas) are especially effective here.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s2">&quot;Ecommerce store with 10k customers — Black Friday spike, Christmas peak, Q1 slump&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s2">"Ecommerce store with 10k customers — Black Friday spike, Christmas peak, Q1 slump"</span><span class="p">,</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">)</span>
 </code></pre></div>
@@ -3087,11 +3087,11 @@
 </table>
 <p><strong>Distributions:</strong> Credit scores lognormal centred on FICO mean (~700, σ=75). Fraud rate ~2% (configurable: <code>"3% fraud rate"</code>). Transaction amounts lognormal. IBAN format follows locale (DE: <code>DE##...</code>, BR: <code>BR##...</code>).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;Brazilian fintech with 2k customers, R$ payments, CPF verification, 3</span><span class="si">% f</span><span class="s2">raud rate&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">"Brazilian fintech with 2k customers, R$ payments, CPF verification, 3</span><span class="si">% f</span><span class="s2">raud rate"</span><span class="p">,</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="p">)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;customers&quot;</span><span class="p">][[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;credit_score&quot;</span><span class="p">,</span> <span class="s2">&quot;country&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;transactions&quot;</span><span class="p">][[</span><span class="s2">&quot;amount&quot;</span><span class="p">,</span> <span class="s2">&quot;is_fraud&quot;</span><span class="p">,</span> <span class="s2">&quot;transaction_date&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"customers"</span><span class="p">][[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"credit_score"</span><span class="p">,</span> <span class="s2">"country"</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"transactions"</span><span class="p">][[</span><span class="s2">"amount"</span><span class="p">,</span> <span class="s2">"is_fraud"</span><span class="p">,</span> <span class="s2">"transaction_date"</span><span class="p">]]</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="healthcare">Healthcare</h2>
@@ -3120,8 +3120,8 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Blood types match real ABO/Rh frequencies (O+ 37.4%, A+ 35.7%, B+ 8.5%, …). Patient ages centred on chronic-care population (μ=52, σ=18). No-show rate ~15%. Doctor specialties drawn from realistic distribution (internal medicine, cardiology, orthopedics, …).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A hospital with 500 patients and 50 doctors&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;patients&quot;</span><span class="p">][[</span><span class="s2">&quot;blood_type&quot;</span><span class="p">,</span> <span class="s2">&quot;diagnosis&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A hospital with 500 patients and 50 doctors"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"patients"</span><span class="p">][[</span><span class="s2">"blood_type"</span><span class="p">,</span> <span class="s2">"diagnosis"</span><span class="p">]]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="marketplace">Marketplace</h2>
@@ -3154,7 +3154,7 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Seller ratings beta-distributed (skewed toward 4–5 stars). Listing prices lognormal. Order completion rate ~85%. Seller volume follows power-law (few top sellers, many occasional ones).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A freelance marketplace with 500 sellers and 2000 buyers&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A freelance marketplace with 500 sellers and 2000 buyers"</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="logistics">Logistics</h2>
@@ -3187,7 +3187,7 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Delivery times lognormal. On-time rate ~88%. Route distances lognormal. Driver ratings beta-distributed (4.0–5.0 range).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A logistics company with 200 drivers and 50k shipments&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A logistics company with 200 drivers and 50k shipments"</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="hr-workforce">HR / Workforce</h2>
@@ -3218,11 +3218,11 @@
 <p><strong>Coherence rules:</strong> <code>hire_date</code> is always after <code>date_of_birth + 18 years</code> and never in the future. <code>tenure_years</code> is derived from <code>hire_date</code> on the same row, no separate random distribution. <code>net_pay = gross_pay × (1 − tax_withheld)</code> is formula-consistent row by row.</p>
 <p><strong>Distributions:</strong> Salary lognormal by seniority (junior ~$65k, mid ~$95k, senior ~$140k, lead ~$180k). Tax rate Beta(3, 7) clipped to 18–40%.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="s2">&quot;A tech company with 1000 employees, monthly payroll, and 4 departments&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="s2">"A tech company with 1000 employees, monthly payroll, and 4 departments"</span><span class="p">,</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">)</span>
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># tenure_years derived from hire_date — no employees have negative tenure</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;employees&quot;</span><span class="p">][[</span><span class="s2">&quot;role&quot;</span><span class="p">,</span> <span class="s2">&quot;salary&quot;</span><span class="p">,</span> <span class="s2">&quot;tenure_years&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"employees"</span><span class="p">][[</span><span class="s2">"role"</span><span class="p">,</span> <span class="s2">"salary"</span><span class="p">,</span> <span class="s2">"tenure_years"</span><span class="p">]]</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="social-media">Social Media</h2>
@@ -3259,7 +3259,7 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Follower counts follow a Pareto (power-law), a small fraction of accounts captures most reach. Engagement rates beta-distributed (~1–5%). Captions are realistic social media text with hashtags and emoji, not lorem ipsum.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A social media app with 10k creators, posts, and viral content&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A social media app with 10k creators, posts, and viral content"</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="real-estate">Real Estate</h2>
@@ -3288,8 +3288,8 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Home prices lognormal (US median ~$410k, heavy right tail). Days-on-market lognormal (median ~23 days). Agent ratings beta-distributed (skewed toward 4–5). ~60% of listings close.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A real estate agency with 500 properties and 50 agents&quot;</span><span class="p">)</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;properties&quot;</span><span class="p">][[</span><span class="s2">&quot;price&quot;</span><span class="p">,</span> <span class="s2">&quot;bedrooms&quot;</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A real estate agency with 500 properties and 50 agents"</span><span class="p">)</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"properties"</span><span class="p">][[</span><span class="s2">"price"</span><span class="p">,</span> <span class="s2">"bedrooms"</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">]]</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="pharma-research">Pharma / Research</h2>
@@ -3321,7 +3321,7 @@
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A pharma research company with 200 researchers and clinical trials&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A pharma research company with 200 researchers and clinical trials"</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="food-delivery">Food Delivery</h2>
@@ -3359,7 +3359,7 @@
 </table>
 <p><strong>Coherence rules:</strong> <code>delivered_at</code> is always after <code>placed_at</code>, no negative delivery times. Cuisines drawn from realistic distribution (pizza, sushi, burgers, indian, chinese, …).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="s2">&quot;A food delivery app with 500 restaurants, 2k customers, and 1k couriers&quot;</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="s2">"A food delivery app with 500 restaurants, 2k customers, and 1k couriers"</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="p">)</span>
 </code></pre></div>
 <hr />
@@ -3398,7 +3398,7 @@
 </table>
 <p><strong>Narrative support:</strong> Enrollment curves support <code>back to school</code> surge (August) and <code>New Year</code> spike (January).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="s2">&quot;An edtech platform with 5k students, 200 courses — back to school surge, New Year spike&quot;</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="s2">"An edtech platform with 5k students, 200 courses — back to school surge, New Year spike"</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">)</span>
 </code></pre></div>
 <hr />
@@ -3432,7 +3432,7 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Player levels follow a right-skewed lognormal (most players are low-level). XP follows Pareto. K/D ratio beta-distributed around 1.0.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A gaming platform with 10k players, matches, and leaderboards&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A gaming platform with 10k players, matches, and leaderboards"</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="crm">CRM</h2>
@@ -3465,8 +3465,8 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Deal values lognormal (median ~$25k). Pipeline stages: prospecting 35%, qualification 25%, proposal 20%, negotiation 12%, closed-won 8%. Activity types: email 40%, call 30%, meeting 20%, demo 10%.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;A CRM with 500 companies, contacts, deals pipeline, and activities&quot;</span><span class="p">)</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;deals&quot;</span><span class="p">][[</span><span class="s2">&quot;stage&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="s2">&quot;probability&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;stage&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"A CRM with 500 companies, contacts, deals pipeline, and activities"</span><span class="p">)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"deals"</span><span class="p">][[</span><span class="s2">"stage"</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">,</span> <span class="s2">"probability"</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"stage"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="crypto-web3">Crypto / Web3</h2>
@@ -3500,10 +3500,10 @@
 </table>
 <p><strong>Distributions:</strong> Wallet addresses are hex-format (40 chars, <code>0x</code> prefix). Gas fees lognormal. Token prices lognormal with high variance. Transaction types: transfer 60%, swap 25%, stake 10%, bridge 5%.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="s2">&quot;A crypto exchange with wallets, blockchain transactions, and token prices&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="s2">"A crypto exchange with wallets, blockchain transactions, and token prices"</span><span class="p">,</span>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="p">)</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;wallets&quot;</span><span class="p">][[</span><span class="s2">&quot;chain&quot;</span><span class="p">,</span> <span class="s2">&quot;balance_usd&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;chain&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"wallets"</span><span class="p">][[</span><span class="s2">"chain"</span><span class="p">,</span> <span class="s2">"balance_usd"</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"chain"</span><span class="p">)</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="insurance">Insurance</h2>
@@ -3536,8 +3536,8 @@
 </tbody>
 </table>
 <p><strong>Distributions:</strong> Premiums lognormal by policy type (auto ~$1.2k/yr, home ~$1.5k/yr, life ~$800/yr). Claim rate ~8% of active policies. Coverage amounts lognormal (heavy right tail).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">&quot;An insurance company with 2k customers, policies, and claims&quot;</span><span class="p">)</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;claims&quot;</span><span class="p">][[</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;amount&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"An insurance company with 2k customers, policies, and claims"</span><span class="p">)</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tables</span><span class="p">[</span><span class="s2">"claims"</span><span class="p">][[</span><span class="s2">"status"</span><span class="p">,</span> <span class="s2">"amount"</span><span class="p">]]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"status"</span><span class="p">)</span><span class="o">.</span><span class="n">describe</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="travel">Travel</h2>
@@ -3575,12 +3575,12 @@
 </table>
 <p><strong>Coherence rules:</strong> <code>cancellation_reason</code> is <code>null</code> for non-cancelled bookings. Hotel <code>check_out</code> is always after <code>check_in</code>. Flight <code>arrival_at</code> is always after <code>departure_at</code>. Airport codes are realistic IATA format.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="s2">&quot;A travel booking platform with 5k users, hotels, and international flights&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="s2">"A travel booking platform with 5k users, hotels, and international flights"</span><span class="p">,</span>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
 <a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="p">)</span>
 <a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="c1"># cancellation_reason is only non-null for cancelled bookings</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="n">cancelled</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;bookings&quot;</span><span class="p">][</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;bookings&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;cancelled&quot;</span><span class="p">]</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">cancelled</span><span class="p">[</span><span class="s2">&quot;cancellation_reason&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="n">cancelled</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">"bookings"</span><span class="p">][</span><span class="n">tables</span><span class="p">[</span><span class="s2">"bookings"</span><span class="p">][</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"cancelled"</span><span class="p">]</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">cancelled</span><span class="p">[</span><span class="s2">"cancellation_reason"</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
 </code></pre></div>
 <hr />
 <h2 id="streaming">Streaming</h2>
@@ -3614,18 +3614,18 @@
 </table>
 <p><strong>Coherence rules:</strong> <code>churned_at</code> is <code>null</code> for active subscribers (<code>is_churned = false</code>). Content types: series 55%, movie 35%, documentary 10%. Watch completion rate ~65% for movies, ~45% per episode for series.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="s2">&quot;A Netflix-like streaming service with 10k subscribers and a content library&quot;</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="s2">"A Netflix-like streaming service with 10k subscribers and a content library"</span>
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="p">)</span>
 <a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># churned_at is null for all active subscribers</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="n">active</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscribers&quot;</span><span class="p">][</span><span class="o">~</span><span class="n">tables</span><span class="p">[</span><span class="s2">&quot;subscribers&quot;</span><span class="p">][</span><span class="s2">&quot;is_churned&quot;</span><span class="p">]]</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="k">assert</span> <span class="n">active</span><span class="p">[</span><span class="s2">&quot;churned_at&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="n">active</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">"subscribers"</span><span class="p">][</span><span class="o">~</span><span class="n">tables</span><span class="p">[</span><span class="s2">"subscribers"</span><span class="p">][</span><span class="s2">"is_churned"</span><span class="p">]]</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="k">assert</span> <span class="n">active</span><span class="p">[</span><span class="s2">"churned_at"</span><span class="p">]</span><span class="o">.</span><span class="n">isna</span><span class="p">()</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
 </code></pre></div>
 <hr />
 <h2 id="no-match-generic-table">No match → generic table</h2>
 <p>If no domain keyword is detected, Misata emits a warning and generates a single generic table with inferred columns. A <code>DetectionReport</code> is returned with <code>domain_confidence: "none"</code> and an actionable warning message.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="s2">&quot;quarterly sales data by region&quot;</span><span class="p">)</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="c1"># ⚠ No domain detected — domain_confidence: &quot;none&quot;</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="c1"># warnings: [&quot;No domain detected. Falling back to a generic single-table schema...&quot;]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="s2">"quarterly sales data by region"</span><span class="p">)</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="c1"># ⚠ No domain detected — domain_confidence: "none"</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="c1"># warnings: ["No domain detected. Falling back to a generic single-table schema..."]</span>
 </code></pre></div>
 <p><strong>Fix options:</strong>
 1. Add a domain keyword: <code>"quarterly sales data by region — fintech"</code> or <code>"ecommerce quarterly sales by region"</code>
@@ -3692,7 +3692,7 @@
 </table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># SaaS with a full growth narrative</span>
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    <span class="s2">&quot;SaaS company with 5k users — MRR from $50k in Jan, strong Q4, doubled by December&quot;</span><span class="p">,</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    <span class="s2">"SaaS company with 5k users — MRR from $50k in Jan, strong Q4, doubled by December"</span><span class="p">,</span>
 <a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span>
 <a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="p">)</span>
 </code></pre></div>

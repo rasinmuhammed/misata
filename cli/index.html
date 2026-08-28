@@ -2696,7 +2696,7 @@
 <h2 id="misata-init"><code>misata init</code></h2>
 <p>Scaffold a <code>misata.yaml</code> schema file.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>misata<span class="w"> </span>init<span class="w">                                          </span><span class="c1"># blank template</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>misata<span class="w"> </span>init<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A marketplace with sellers&quot;</span><span class="w">     </span><span class="c1"># story → YAML</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>misata<span class="w"> </span>init<span class="w"> </span>--story<span class="w"> </span><span class="s2">"A marketplace with sellers"</span><span class="w">     </span><span class="c1"># story → YAML</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>misata<span class="w"> </span>init<span class="w"> </span>--db<span class="w"> </span>postgresql://localhost/myapp<span class="w">        </span><span class="c1"># DB introspection → YAML</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>misata<span class="w"> </span>init<span class="w"> </span>--output<span class="w"> </span>custom.yaml<span class="w">                     </span><span class="c1"># custom output path</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>misata<span class="w"> </span>init<span class="w"> </span>--force<span class="w">                                  </span><span class="c1"># overwrite existing file</span>
@@ -2705,7 +2705,7 @@
 <h2 id="misata-generate"><code>misata generate</code></h2>
 <p>Generate data and write to files or a database.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>misata<span class="w"> </span>generate<span class="w">                                      </span><span class="c1"># reads misata.yaml</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>misata<span class="w"> </span>generate<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with 5k users&quot;</span><span class="w"> </span>--rows<span class="w"> </span><span class="m">5000</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>misata<span class="w"> </span>generate<span class="w"> </span>--story<span class="w"> </span><span class="s2">"A SaaS company with 5k users"</span><span class="w"> </span>--rows<span class="w"> </span><span class="m">5000</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>misata<span class="w"> </span>generate<span class="w"> </span>--output-dir<span class="w"> </span>data/
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>misata<span class="w"> </span>generate<span class="w"> </span>--locale<span class="w"> </span>de_DE<span class="w">                       </span><span class="c1"># force locale</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>misata<span class="w"> </span>generate<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span>
@@ -2767,14 +2767,14 @@
 <p>Profile a CSV and optionally check it against a schema.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>misata<span class="w"> </span>validate<span class="w"> </span>customers.csv
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--schema<span class="w"> </span>misata.yaml
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--story<span class="w"> </span><span class="s2">&quot;A SaaS company with orders table&quot;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--story<span class="w"> </span><span class="s2">"A SaaS company with orders table"</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>misata<span class="w"> </span>validate<span class="w"> </span>orders.csv<span class="w"> </span>--table<span class="w"> </span>orders<span class="w">            </span><span class="c1"># specify table name in schema</span>
 </code></pre></div>
 <hr />
 <h2 id="misata-template"><code>misata template</code></h2>
 <p>Generate from a built-in industry template.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>misata<span class="w"> </span>template<span class="w"> </span>saas<span class="w"> </span>--scale<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--output-dir<span class="w"> </span>data/
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>misata<span class="w"> </span>template<span class="w"> </span>fintech<span class="w"> </span>--scale<span class="w"> </span><span class="m">2</span>.0<span class="w">                  </span><span class="c1"># 2x the template&#39;s row counts</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>misata<span class="w"> </span>template<span class="w"> </span>fintech<span class="w"> </span>--scale<span class="w"> </span><span class="m">2</span>.0<span class="w">                  </span><span class="c1"># 2x the template's row counts</span>
 </code></pre></div>
 <hr />
 <h2 id="misata-templates-list"><code>misata templates-list</code></h2>
