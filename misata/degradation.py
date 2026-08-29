@@ -338,6 +338,29 @@ def generate(spec: Degradation, seed: int = 42,
             for name, hz in freqs.items():
                 frame[f"{name.lower()}_hz"] = np.full(life, round(hz, 3))
 
+            if spec.line_frequency_hz is not None:
+                # MCSA: bearing-induced load irregularity modulates the
+                # stator field, producing a sideband offset from the line
+                # frequency by each defect frequency. Upper sideband is
+                # always physical (f_line + f_defect); the "lower" one uses
+                # abs(f_line - f_defect), the standard convention when a
+                # defect frequency exceeds the line frequency and a naive
+                # subtraction would otherwise go negative.
+                for name, hz in freqs.items():
+                    key = name.lower()
+                    frame[f"mcsa_{key}_upper_sideband_hz"] = np.full(
+                        life, round(spec.line_frequency_hz + hz, 3))
+                    frame[f"mcsa_{key}_lower_sideband_hz"] = np.full(
+                        life, round(abs(spec.line_frequency_hz - hz), 3))
+
+                # Acoustic emission: a struck defect produces one burst per
+                # rolling-element pass, so burst rate tracks BPFO directly --
+                # not a growth curve, a frequency, with the same small
+                # per-reading jitter a real tachometer/AE sensor pairing
+                # would show from shaft-speed micro-variation.
+                jitter = rng.normal(1.0, 0.01, size=life)
+                frame["ae_burst_rate_hz"] = np.round(freqs["BPFO"] * jitter, 3)
+
         mode = None
         if modes is not None and weights is not None:
             mode = str(rng.choice(modes, p=weights))

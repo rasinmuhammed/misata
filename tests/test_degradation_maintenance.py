@@ -79,6 +79,57 @@ def test_bearing_frequencies_absent_without_rpm_declared():
     assert "bpfo_hz" not in df.columns
 
 
+# ── MCSA current sidebands and acoustic emission burst rate ────────────
+#
+# Both derive from the same defect frequencies as the vibration columns,
+# not a separate model: a current sideband is the line frequency offset
+# by a defect frequency, and an AE burst arrives once per defect strike,
+# so its rate tracks BPFO directly. Grounded in the literature on bearing-
+# induced current modulation and AE burst-rate-tracks-defect-frequency
+# findings researched before implementation, not invented.
+
+def test_mcsa_sidebands_match_independent_recomputation():
+    spec = Degradation(table="r", units=50, life_mean=80, life_std=8,
+                        life_min=30, life_max=150, bearing_rpm=1797.0, line_frequency_hz=60.0)
+    df = generate(spec, seed=7)
+    ratio = defect_frequencies(1797.0)["BPFO"] / 1797.0
+
+    for uid, g in df.groupby("unit_id"):
+        implied_rpm = g["bpfo_hz"].iloc[0] / ratio
+        freqs = defect_frequencies(implied_rpm)
+        for name, hz in freqs.items():
+            key = name.lower()
+            assert abs(g[f"mcsa_{key}_upper_sideband_hz"].iloc[0] - (60.0 + hz)) < 0.01
+            assert abs(g[f"mcsa_{key}_lower_sideband_hz"].iloc[0] - abs(60.0 - hz)) < 0.01
+
+
+def test_ae_burst_rate_tracks_outer_race_defect_frequency():
+    spec = Degradation(table="r", units=50, life_mean=80, life_std=8,
+                        life_min=30, life_max=150, bearing_rpm=1797.0, line_frequency_hz=60.0)
+    df = generate(spec, seed=7)
+
+    for uid, g in df.groupby("unit_id"):
+        bpfo = g["bpfo_hz"].iloc[0]
+        # Mean burst rate over a unit's whole life should sit within 2% of
+        # its own BPFO -- jitter is per-reading noise, not a bias.
+        assert abs(g["ae_burst_rate_hz"].mean() - bpfo) / bpfo < 0.02
+
+
+def test_mcsa_and_ae_require_both_bearing_rpm_and_line_frequency():
+    # bearing_rpm alone (no line_frequency_hz): no MCSA/AE columns.
+    spec = Degradation(table="r", units=3, life_mean=50, life_std=5,
+                        life_min=20, life_max=80, bearing_rpm=1797.0)
+    df = generate(spec, seed=1)
+    assert not any(c.startswith("mcsa_") or c == "ae_burst_rate_hz" for c in df.columns)
+
+    # line_frequency_hz alone (no bearing_rpm): still nothing, since there
+    # is no defect frequency to build a sideband or burst rate from.
+    spec2 = Degradation(table="r", units=3, life_mean=50, life_std=5,
+                         life_min=20, life_max=80, line_frequency_hz=60.0)
+    df2 = generate(spec2, seed=1)
+    assert not any(c.startswith("mcsa_") or c == "ae_burst_rate_hz" for c in df2.columns)
+
+
 # ── maintenance: the part that did not exist at all before ────────────
 
 def test_scheduled_maintenance_produces_events_and_exact_rul():

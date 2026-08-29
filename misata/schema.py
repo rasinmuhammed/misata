@@ -896,6 +896,25 @@ class Degradation(BaseModel):
     bearing_pitch_diameter: float = 1.537
     bearing_contact_angle_deg: float = 0.0
 
+    # ── Motor current signature analysis (MCSA) and acoustic emission ──────
+    #
+    # Both derive from the SAME bearing defect frequencies as the vibration
+    # columns above -- not invented separately. Bearing damage modulates the
+    # stator's magnetic field, producing current sidebands offset from the
+    # line frequency by each defect frequency; a damaged rolling element
+    # strikes a defect once per pass, so acoustic emission bursts arrive at a
+    # rate equal to the outer-race defect frequency (BPFO) itself, not a
+    # shape anyone chose. Requires `bearing_rpm` to also be set -- there is
+    # no defect frequency to derive a sideband or burst rate from otherwise.
+    #
+    # What is NOT emitted automatically: sideband AMPLITUDE and AE ENERGY,
+    # both of which grow with damage severity the same way a vibration RMS
+    # does. Those are declared as ordinary `responses` entries (shape=
+    # "exponential" or "kurtosis"), because that mechanism is already
+    # tested and correct; duplicating it here for two more column names
+    # would be new surface area for no new guarantee.
+    line_frequency_hz: Optional[float] = None
+
     # ── Maintenance ──────────────────────────────────────────────────────
     #
     # Absent entirely before this. A fleet that only ever runs to failure,
