@@ -148,3 +148,4 @@ examples/bank_evalpack_out/
 !tests/test_schema_contract.py
 !tests/test_degradation_maintenance.py
 !tests/test_healthcare_comorbidity.py
+!tests/test_credit_risk_portfolio.py

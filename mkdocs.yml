@@ -84,6 +84,8 @@ nav:
     - Ecommerce: domains/ecommerce.md
     - Fintech: domains/fintech.md
     - Healthcare: domains/healthcare.md
+    - Predictive Maintenance: domains/predictive-maintenance.md
+    - Credit Risk: domains/credit-risk.md
     - HR & Workforce: domains/hr.md
     - Logistics: domains/logistics.md
     - Marketplace: domains/marketplace.md
