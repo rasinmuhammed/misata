@@ -1,6 +1,6 @@
 ---
 title: Generate Healthcare Synthetic Data in Python | Misata
-description: Generate realistic healthcare synthetic datasets in Python: patients, doctors, admissions, diagnoses, and lab results, with real ICD-10 codes, reconciled length-of-stay, comorbidity clusters, severity-driven length of stay, and zero orphaned foreign keys. No real patient data required.
+description: "Generate realistic healthcare synthetic datasets in Python: patients, doctors, admissions, diagnoses, and lab results, with real ICD-10 codes, reconciled length-of-stay, comorbidity clusters, severity-driven length of stay, and zero orphaned foreign keys. No real patient data required."
 ---
 
 # Generate Healthcare Synthetic Data in Python
