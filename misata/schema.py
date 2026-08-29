@@ -780,7 +780,14 @@ class SensorResponse(BaseModel):
         at_failure: Reading at damage 1.
         shape: "linear" tracks damage directly. "exponential" stays flat and
             then climbs late, which is what a vibration RMS does as a spall
-            opens up. "sqrt" moves early and then flattens.
+            opens up. "sqrt" moves early and then flattens. "kurtosis" rises
+            fast in early damage and then falls back most of the way to
+            baseline: published bearing studies report vibration kurtosis
+            increasing quickly at the onset of defect growth and then
+            decreasing, the opposite of every other shape here, which is why
+            kurtosis is the feature used for *early*-stage detection rather
+            than end-of-life. `at_failure` for this shape means the peak
+            value reached, not the value at the final cycle.
         noise: Standard deviation of the measurement noise on top.
         decimals: Rounding, so a column reads like an instrument rather than
             like a float.
@@ -789,7 +796,7 @@ class SensorResponse(BaseModel):
     column: str
     baseline: float
     at_failure: float
-    shape: Literal["linear", "exponential", "sqrt"] = "linear"
+    shape: Literal["linear", "exponential", "sqrt", "kurtosis"] = "linear"
     noise: float = 0.0
     decimals: int = 3
     # Some measurements physically cannot fall. Accumulated tool wear is the
@@ -876,6 +883,53 @@ class Degradation(BaseModel):
     unit_variation: float = 0.10
     responses: List[SensorResponse] = Field(default_factory=list)
     description: Optional[str] = None
+
+    # ── Bearing fault frequencies, wired to the real geometry ──────────────
+    #
+    # `defect_frequencies` in misata/degradation.py has always computed
+    # correct, checkable BPFO/BPFI/BSF/FTF values from bearing geometry and
+    # shaft speed. It sat disconnected from generation: the physics existed,
+    # nothing ever wrote it into a row. Setting `bearing_rpm` wires it in.
+    bearing_rpm: Optional[float] = None
+    bearing_n_elements: int = 9
+    bearing_ball_diameter: float = 0.3126
+    bearing_pitch_diameter: float = 1.537
+    bearing_contact_angle_deg: float = 0.0
+
+    # ── Maintenance ──────────────────────────────────────────────────────
+    #
+    # Absent entirely before this. A fleet that only ever runs to failure,
+    # never repaired, has no maintenance history to speak of -- and every
+    # real fleet is repaired. `maintenance_policy` makes an intervention
+    # possible mid-life, which both extends the trajectory and produces a
+    # second table: the log of when it happened and how much it helped.
+    #
+    # "scheduled": a repair every `maintenance_interval_cycles`, regardless
+    # of condition. "condition_based": a repair the first time damage would
+    # cross `maintenance_trigger_damage`.
+    #
+    # `maintenance_restoration` is the fraction of accumulated damage the
+    # repair removes: 1.0 is a perfect repair (as-good-as-new, the textbook
+    # case), below 1.0 is an imperfect one. Following the documented finding
+    # that repeated imperfect repairs leave a system more susceptible to
+    # future deterioration, each imperfect repair also shortens the unit's
+    # *subsequent* nominal life by `maintenance_wear_penalty` -- a perfect
+    # repair does not, matching the as-good-as-new definition.
+    maintenance_policy: Optional[Literal["scheduled", "condition_based"]] = None
+    maintenance_interval_cycles: Optional[int] = None
+    maintenance_trigger_damage: Optional[float] = None
+    maintenance_restoration: float = 1.0
+    maintenance_wear_penalty: float = 0.08
+    maintenance_events_table: str = "maintenance_events"
+    # No real maintenance crew repairs the same unit every few cycles.
+    # Without a floor, a wear penalty compounding on repeated imperfect
+    # repairs can shrink effective life fast enough to trigger a "repair
+    # storm": one unit repaired dozens of times in its last few dozen
+    # cycles, which is not a maintenance history any real fleet would
+    # produce. None resolves to 5% of that unit's own nominal life at
+    # generation time, which is itself declared, not hidden -- the default
+    # exists so realism does not depend on a caller knowing to set it.
+    maintenance_min_cooldown_cycles: Optional[int] = None
 
 
 class StockFlowIdentity(BaseModel):
