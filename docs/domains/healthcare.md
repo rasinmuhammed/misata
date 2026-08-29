@@ -1,6 +1,6 @@
 ---
 title: Generate Healthcare Synthetic Data in Python | Misata
-description: Generate realistic healthcare synthetic datasets in Python: patients, doctors, admissions, diagnoses, and lab results, with real ICD-10 codes, reconciled length-of-stay, and zero orphaned foreign keys. No real patient data required.
+description: Generate realistic healthcare synthetic datasets in Python: patients, doctors, admissions, diagnoses, and lab results, with real ICD-10 codes, reconciled length-of-stay, comorbidity clusters, severity-driven length of stay, and zero orphaned foreign keys. No real patient data required.
 ---
 
 # Generate Healthcare Synthetic Data in Python
@@ -78,6 +78,34 @@ Five tables, referentially intact.
 - **Lab result flags (`low` / `normal` / `high`) match the stated clinical reference range** for that specific test, for every row.
 - **Zero orphaned foreign keys** across `admissions`, `diagnoses`, and `lab_tests`.
 - **No real patient data is sourced**, so there is no PHI to protect.
+
+## Comorbidity clusters and severity-driven length of stay
+
+The five-table example above draws each admission's diagnoses independently of the others. Real EHR data does not work that way: a patient with chronic kidney disease is far more likely to also carry hypertension and type 2 diabetes than an unrelated diagnosis, because these conditions cluster in real physiology, not by chance. And length of stay is not independent of how sick the admission actually was.
+
+[`examples/healthcare_comorbidity.py`](https://github.com/rasinmuhammed/misata/blob/main/examples/healthcare_comorbidity.py) extends the hospital schema with both, and grounds each number rather than inventing it:
+
+```
+patients: 2000  admissions: 4000  diagnoses: 5600
+
+  [OK] comorbidity_cluster 'kidney_metabolic' matches cited prevalence (0.141 vs 0.133)
+  [OK] comorbidity_cluster 'diabetes_hypertension' matches cited prevalence (0.173 vs 0.170)
+  [OK] comorbidity_cluster 'independent' matches cited prevalence (0.685 vs 0.697)
+  [OK] 'kidney_metabolic' patients show their cluster's diagnoses at 0.82 vs a 0.06 random baseline (13.7x)
+  [OK] 'diabetes_hypertension' patients show their cluster's diagnoses at 0.80 vs a 0.04 random baseline (20.1x)
+  [OK] mean length of stay strictly increases minor -> extreme
+  [OK] 'extreme' mean LOS (18.3d) is close to the cited ~17d
+  [OK] admit precedes discharge on every row
+  [OK] length of stay reconciles on every row
+
+ALL CHECKS PASSED
+```
+
+**Comorbidity clusters.** Each patient is assigned one of three clusters at creation: `kidney_metabolic` (CKD + hypertension + type 2 diabetes, 13.3% prevalence, cited from a 163,626-patient elderly inpatient cohort, Xu et al. 2026), `diabetes_hypertension` (diabetes and hypertension co-occurring without CKD, 17% prevalence among community-dwelling older adults, Pham et al., PubMed 30094913), or `independent` (the remainder). These are two separate studies of overlapping but distinct populations, applied here as non-overlapping synthetic categories for construction — a modeling simplification stated plainly rather than left implicit.
+
+The connection this produces: a patient's own cluster measurably predicts what shows up in their diagnoses. A `kidney_metabolic` patient's admissions show a diagnosis from {CKD, hypertension, type 2 diabetes} at roughly 80% of rows, against a ~6% baseline if diagnoses were drawn independently of the patient — an 13x concentration, checked against the actual generated data, not declared. A patient in neither cluster shows no such concentration, confirming the effect comes from the cluster assignment and not an artifact of the vocabulary.
+
+**Severity-driven length of stay.** Every admission gets one of the four real APR-DRG (All Patient Refined Diagnosis Related Groups) severity-of-illness tiers: minor, moderate, major, extreme. Only one tier has a specific cited figure: patients at APR severity level 4 ("extreme") have a mean length of stay of almost 17 days. The other three tiers are a designed, monotonically increasing progression anchored at that one real number (minor≈2.5d, moderate≈5d, major≈9d, extreme≈17d), not independently cited each — the same honesty split used for the bearing damage trajectory in the [predictive maintenance capability](predictive-maintenance.md), where the geometry is textbook and the growth curve is declared.
 
 ## Declaring an exact operational KPI
 

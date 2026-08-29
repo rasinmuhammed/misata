@@ -146,3 +146,5 @@ research/dbt_integration_reality_check.md
 examples/bank_evalpack_out/
 !tests/test_ddl.py
 !tests/test_schema_contract.py
+!tests/test_degradation_maintenance.py
+!tests/test_healthcare_comorbidity.py
