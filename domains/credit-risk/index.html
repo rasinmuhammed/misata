@@ -1242,6 +1242,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-realism-bug-found-and-fixed-after-this-shipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A realism bug found and fixed after this shipped
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-this-is-not" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2635,6 +2646,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-realism-bug-found-and-fixed-after-this-shipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A realism bug found and fixed after this shipped
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-this-is-not" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2683,11 +2705,12 @@
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="s2">"loan_id"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="s2">"primary_key"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
 <a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="s2">"borrower_id"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="s2">"foreign_key"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"table"</span><span class="p">:</span> <span class="s2">"borrowers"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"borrower_id"</span><span class="p">}},</span>
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="s2">"seniority"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"string"</span><span class="p">,</span> <span class="s2">"enum"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"senior_unsecured"</span><span class="p">,</span> <span class="s2">"subordinated"</span><span class="p">],</span> <span class="s2">"weights"</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.82</span><span class="p">,</span> <span class="mf">0.18</span><span class="p">]},</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="s2">"drawn_amount"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"float"</span><span class="p">,</span> <span class="s2">"distribution"</span><span class="p">:</span> <span class="s2">"lognormal"</span><span class="p">,</span> <span class="s2">"mu"</span><span class="p">:</span> <span class="mf">13.5</span><span class="p">,</span> <span class="s2">"sigma"</span><span class="p">:</span> <span class="mf">1.1</span><span class="p">,</span> <span class="s2">"min"</span><span class="p">:</span> <span class="mi">50_000</span><span class="p">,</span> <span class="s2">"max"</span><span class="p">:</span> <span class="mi">25_000_000</span><span class="p">},</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="p">},</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">}</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">misata</span><span class="o">.</span><span class="n">from_dict_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">11</span><span class="p">))</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>   <span class="c1"># ['borrowers', 'loans']</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="s2">"drawn_amount"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"float"</span><span class="p">,</span> <span class="s2">"distribution"</span><span class="p">:</span> <span class="s2">"lognormal"</span><span class="p">,</span> <span class="s2">"mu"</span><span class="p">:</span> <span class="mf">13.5</span><span class="p">,</span> <span class="s2">"sigma"</span><span class="p">:</span> <span class="mf">1.1</span><span class="p">,</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>                          <span class="s2">"min"</span><span class="p">:</span> <span class="mi">50_000</span><span class="p">,</span> <span class="s2">"max"</span><span class="p">:</span> <span class="mi">25_000_000</span><span class="p">,</span> <span class="s2">"decimals"</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="p">},</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="p">}</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate_from_schema</span><span class="p">(</span><span class="n">misata</span><span class="o">.</span><span class="n">from_dict_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">11</span><span class="p">))</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="nb">print</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>   <span class="c1"># ['borrowers', 'loans']</span>
 </code></pre></div>
 <p>That is the minimal shape. The full example — PD by rating, LGD by seniority, EAD from drawn plus a credit-conversion-factor on undrawn commitment, and a real Bernoulli default draw at each borrower's own PD — is a working, runnable script: <a href="https://github.com/rasinmuhammed/misata/blob/main/examples/credit_risk_portfolio.py"><code>examples/credit_risk_portfolio.py</code></a> in the repo. Run it directly:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>examples/credit_risk_portfolio.py
@@ -2722,6 +2745,8 @@
 <p><strong>The connection.</strong> A borrower's <code>credit_rating</code> is not a decorative label sitting next to an independently-random <code>defaulted</code> flag. Whether a loan actually defaults is a real Bernoulli draw at that borrower's own S&amp;P-published PD, so the realized default rate per rating grade is a measured property of the generated rows — checkable, not assumed.</p>
 <h2 id="portfolio-composition">Portfolio composition</h2>
 <p>The rating-grade mix (2% AAA, 6% AA, 17% A, 30% BBB, 22% BB, 16% B, 7% CCC) is declared to be realistic of the real corporate bond market's skew toward investment grade, not independently cited the way the PD table itself is — stated plainly, the same honesty split used for the designed severity-tier progression in the <a href="../healthcare/#comorbidity-clusters-and-severity-driven-length-of-stay">healthcare comorbidity example</a>.</p>
+<h2 id="a-realism-bug-found-and-fixed-after-this-shipped">A realism bug found and fixed after this shipped</h2>
+<p>The first release of this example passed every guarantee above and still gave itself away: <code>drawn_amount</code> came out as <code>130028.33004434995</code>, and <code>origination_date</code> as <code>2025-09-12 08:16:54</code>. No loan tape on earth carries a dollar figure to eleven decimal places or an origination date to the nanosecond. The first was a one-line schema fix (<code>"decimals": 2</code>). The second was a real engine bug — <code>"type": "date"</code> was silently getting a time-of-day added by the same temporal-profile system that gives <code>"type": "datetime"</code> columns their realistic business-hour grids, in four separate code paths in <code>misata/simulator.py</code>. Fixed in 0.9.6.36, with a permanent regression test at the engine level (<code>tests/test_date_type_has_no_time.py</code>) so any schema declaring <code>"type": "date"</code>, not just this one, stays a calendar day rather than a timestamp.</p>
 <h2 id="what-this-is-not">What this is not</h2>
 <p>This models unsecured commercial lending using the Foundation IRB's own supervisory parameters, not a full internal-ratings-based capital calculation. Real F-IRB models also incorporate maturity adjustments, correlation parameters, and a bank's own internal PD estimation rather than S&amp;P's public corporate-bond default study — this example is grounded in real, checkable regulatory numbers to produce realistic <em>test</em> data, not a substitute for an actual capital adequacy filing. Retail/consumer lending (mortgages, credit cards held by individuals) uses different LGD conventions than the corporate F-IRB values used here; this example is scoped to commercial/corporate lending specifically.</p>
 
