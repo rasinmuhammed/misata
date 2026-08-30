@@ -1,6 +1,11 @@
+import sys
+from pathlib import Path
+
 import numpy as np
 
-from examples.contact_center_queueing import (
+sys.path.insert(0, str(Path(__file__).parent.parent / "examples"))
+
+from contact_center_queueing import (
     QUEUES,
     _erlang_b,
     _erlang_c,

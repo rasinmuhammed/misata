@@ -1,6 +1,11 @@
+import sys
+from pathlib import Path
+
 import numpy as np
 
-from examples.manufacturing_spc import PROCESSES, build, verify
+sys.path.insert(0, str(Path(__file__).parent.parent / "examples"))
+
+from manufacturing_spc import PROCESSES, build, verify
 
 
 def test_full_verify_suite_passes():

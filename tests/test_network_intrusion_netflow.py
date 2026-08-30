@@ -1,7 +1,12 @@
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-from examples.network_intrusion_netflow import (
+sys.path.insert(0, str(Path(__file__).parent.parent / "examples"))
+
+from network_intrusion_netflow import (
     ATTACK_WEIGHTS,
     build,
     verify,
