@@ -151,3 +151,5 @@ examples/bank_evalpack_out/
 !tests/test_credit_risk_portfolio.py
 !tests/test_date_type_has_no_time.py
 !tests/test_network_intrusion_netflow.py
+!tests/test_contact_center_queueing.py
+!tests/test_manufacturing_spc.py

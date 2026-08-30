@@ -87,6 +87,8 @@ nav:
     - Predictive Maintenance: domains/predictive-maintenance.md
     - Credit Risk: domains/credit-risk.md
     - Network Intrusion: domains/network-intrusion.md
+    - Contact Center: domains/contact-center.md
+    - Manufacturing SPC: domains/manufacturing-spc.md
     - HR & Workforce: domains/hr.md
     - Logistics: domains/logistics.md
     - Marketplace: domains/marketplace.md
