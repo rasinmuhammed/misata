@@ -112,3 +112,30 @@ def test_reproducible_with_the_same_seed():
     assert a["borrowers"]["credit_rating"].equals(b["borrowers"]["credit_rating"])
     assert a["loans"]["defaulted"].equals(b["loans"]["defaulted"])
     assert a["loans"]["expected_loss"].equals(b["loans"]["expected_loss"])
+
+
+def test_dollar_amounts_never_carry_more_than_cent_precision():
+    # Found in a manual realism audit: drawn_amount and undrawn_commitment
+    # shipped as raw engine floats (130028.33004434995), which gives away a
+    # synthetic file faster than anything else in it -- no loan tape on
+    # earth carries a dollar amount to eleven decimal places. Pinned here so
+    # a future schema edit that drops "decimals": 2 fails loudly instead of
+    # shipping to the public dataset again.
+    tables = build(n_borrowers=500, seed=6)
+    for col in ("drawn_amount", "undrawn_commitment", "ead", "expected_loss", "realized_loss"):
+        values = tables["loans"][col]
+        cents = (values * 100).round()
+        assert np.allclose(values * 100, cents, atol=1e-6), f"{col} carries sub-cent precision"
+
+
+def test_origination_date_has_no_time_of_day():
+    # A second, related realism finding from the same audit: "type": "date"
+    # was silently getting a time-of-day added by the engine's temporal
+    # profile system, so origination_date read as
+    # "2025-09-12 08:16:54" instead of a plain calendar day. Fixed in
+    # misata/simulator.py's date-generation branch; pinned here so a
+    # regression there is caught at this level too, not just in the
+    # engine's own test suite.
+    tables = build(n_borrowers=500, seed=8)
+    dates = tables["loans"]["origination_date"]
+    assert (dates.dt.normalize() == dates).all()

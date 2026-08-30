@@ -24,7 +24,8 @@ schema = {
         "loan_id": {"type": "integer", "primary_key": True},
         "borrower_id": {"type": "integer", "foreign_key": {"table": "borrowers", "column": "borrower_id"}},
         "seniority": {"type": "string", "enum": ["senior_unsecured", "subordinated"], "weights": [0.82, 0.18]},
-        "drawn_amount": {"type": "float", "distribution": "lognormal", "mu": 13.5, "sigma": 1.1, "min": 50_000, "max": 25_000_000},
+        "drawn_amount": {"type": "float", "distribution": "lognormal", "mu": 13.5, "sigma": 1.1,
+                          "min": 50_000, "max": 25_000_000, "decimals": 2},
     },
 }
 tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=11))
@@ -77,6 +78,10 @@ ALL CHECKS PASSED
 ## Portfolio composition
 
 The rating-grade mix (2% AAA, 6% AA, 17% A, 30% BBB, 22% BB, 16% B, 7% CCC) is declared to be realistic of the real corporate bond market's skew toward investment grade, not independently cited the way the PD table itself is — stated plainly, the same honesty split used for the designed severity-tier progression in the [healthcare comorbidity example](healthcare.md#comorbidity-clusters-and-severity-driven-length-of-stay).
+
+## A realism bug found and fixed after this shipped
+
+The first release of this example passed every guarantee above and still gave itself away: `drawn_amount` came out as `130028.33004434995`, and `origination_date` as `2025-09-12 08:16:54`. No loan tape on earth carries a dollar figure to eleven decimal places or an origination date to the nanosecond. The first was a one-line schema fix (`"decimals": 2`). The second was a real engine bug — `"type": "date"` was silently getting a time-of-day added by the same temporal-profile system that gives `"type": "datetime"` columns their realistic business-hour grids, in four separate code paths in `misata/simulator.py`. Fixed in 0.9.6.36, with a permanent regression test at the engine level (`tests/test_date_type_has_no_time.py`) so any schema declaring `"type": "date"`, not just this one, stays a calendar day rather than a timestamp.
 
 ## What this is not
 

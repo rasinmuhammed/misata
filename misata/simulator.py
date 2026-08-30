@@ -2216,7 +2216,11 @@ class DataSimulator:
                     if params.get("max_date") == "today":
                         today = pd.Timestamp.now().normalize()
                         dates = dates.clip(upper=today)
-                    return pd.to_datetime(dates).values
+                    # column.type == "date" here, never "datetime": the
+                    # contract is a calendar day, not a timestamp, regardless
+                    # of whether the base column it's offset from carried a
+                    # time-of-day.
+                    return pd.DatetimeIndex(pd.to_datetime(dates)).normalize().values
 
             # Parent-Relative Date Generation (Time Travel Fix)
             if "relative_to" in params:
@@ -2247,9 +2251,11 @@ class DataSimulator:
                             deltas = self.rng.integers(min_delta, max_delta, size=size)
                             deltas_ns = deltas.astype('timedelta64[D]')
 
-                            # Child Date = Parent Date + Delta
+                            # Child Date = Parent Date + Delta. Normalized for
+                            # the same reason as the after_column path above:
+                            # "date" means a calendar day, never a timestamp.
                             values = parent_dates + deltas_ns
-                            return values
+                            return pd.DatetimeIndex(pd.to_datetime(values)).normalize().values
                 except Exception as e:
                     warnings.warn(f"Failed to generate relative date: {e}. Falling back to random range.")
 
@@ -2265,7 +2271,9 @@ class DataSimulator:
                     inherited_dates = density_map.sample_dates(size, self.rng, start=start, end=end)
                     if len(inherited_dates) == size:
                         values = pd.to_datetime(inherited_dates)
-                        return self._add_realistic_time(values, table_name, size, column.name)
+                        # column.type == "date": a calendar day, not a
+                        # timestamp, regardless of the parent's own density.
+                        return pd.DatetimeIndex(values).normalize()
 
             start = pd.to_datetime(params.get("start", "2020-01-01"))
             end = pd.to_datetime(params.get("end", "2024-12-31"))
@@ -2274,11 +2282,16 @@ class DataSimulator:
             random_ints = self.rng.integers(start_int, end_int, size=size)
             values = pd.to_datetime(random_ints)
 
-            # Every datetime gets semantically-correct granularity: appointments
-            # snap to 15-min business-hour grids, signups follow waking-hour
-            # rhythms, logs keep sub-second precision, birth dates are dates.
-            # Raw nanosecond noise never survives to output.
-            return self._add_realistic_time(values, table_name, size, column.name)
+            # This is the "date" branch, not "datetime": _add_realistic_time
+            # exists for genuine timestamps (appointments snapping to 15-min
+            # grids, signups following waking-hour rhythms) and was being
+            # called here regardless, which meant a plain "date" column
+            # carried a time-of-day anyway -- drawn_amount-adjacent bug: a
+            # loan origination date reading "2025-09-12 08:16:54" gives away
+            # a synthetic file as fast as an unrounded dollar figure does.
+            # normalize() truncates to midnight, matching what "date" means
+            # everywhere else in this schema.
+            return pd.DatetimeIndex(values).normalize()
 
         # FOREIGN KEY
         elif column.type == "foreign_key":

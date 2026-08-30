@@ -98,11 +98,20 @@ def build(n_borrowers: int = 3000, seed: int = RNG_SEED):
             "commitment_type": {"type": "string",
                 "enum": list(CCF_BY_COMMITMENT.keys()),
                 "weights": [0.45, 0.20, 0.20, 0.15]},
+            # decimals: 2 on purpose. Left at the engine's raw float output,
+            # this showed up as drawn_amount=130028.33004434995 -- no loan
+            # tape on earth carries a dollar amount to eleven decimal places,
+            # and that alone would give away a synthetic file faster than
+            # anything else in it.
             "drawn_amount": {"type": "float", "min": 50_000, "max": 25_000_000,
-                              "distribution": "lognormal", "mu": 13.5, "sigma": 1.1},
+                              "distribution": "lognormal", "mu": 13.5, "sigma": 1.1,
+                              "decimals": 2},
             "undrawn_commitment": {"type": "float", "min": 0, "max": 10_000_000,
-                                     "distribution": "lognormal", "mu": 11.0, "sigma": 1.3},
-            "origination_date": {"type": "datetime", "min_date": "2022-01-01", "max_date": "2025-12-01"},
+                                     "distribution": "lognormal", "mu": 11.0, "sigma": 1.3,
+                                     "decimals": 2},
+            # type "date", not "datetime": a loan tape records the day a loan
+            # was originated, not a timestamp accurate to the nanosecond.
+            "origination_date": {"type": "date", "min_date": "2022-01-01", "max_date": "2025-12-01"},
         },
     }
     tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=seed))
