@@ -316,7 +316,18 @@ Small lookup / dimension tables (3-20 rows) with ACTUAL DATA you generate.
 - EXACT USER VALUES: When the user's story explicitly names the values for a
   category (e.g., "Free, Pro, Enterprise plans"), use EXACTLY those values —
   do not add, rename, or remove any. Only invent values when the user did NOT
-  specify them.
+  specify them. This applies EVERY time the story names values in parentheses
+  or a list next to a dimension, not only for plans/tiers: "regions (North
+  America, EMEA, APAC)" means the regions table's inline_data has exactly
+  those three rows, in that order, not invented placeholder names. A schema
+  that renames or drops values the user explicitly listed is wrong even if
+  the rest of the schema is well-formed — this check is not optional.
+- EVERY reference/dimension table (see TABLE TYPES below) MUST carry the full
+  set of columns the story implies for it, not just an "id" and a "name". If
+  the story gives a table a second attribute (a region's group, a plan's
+  price, a status's color), that attribute belongs in the SAME inline_data
+  rows as real values you write, never left for the engine to invent later —
+  the engine has no idea what should live there and will not guess well.
 - HUMAN-READABLE STRINGS in inline_data and choices: for display columns (type,
   status, method, category, reason, tier, plan, channel, industry, department)
   always use Title Case or Sentence case strings ("Credit Card", "In Progress",

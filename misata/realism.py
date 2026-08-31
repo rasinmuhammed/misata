@@ -164,6 +164,46 @@ _COMPANY_TABLE_HINTS = (
     "partner", "partners",
 )
 
+# A table's own name is a signal _infer_semantic under-used: person/company/
+# product tables already got this treatment (see _PERSON_TABLE_HINTS /
+# _COMPANY_TABLE_HINTS above), but a "regions" table's "name" column fell
+# through every one of those to the generic "category_label" pool (tier-ish
+# filler words), and an unrecognised column on that same table, "geo_group",
+# fell all the way to the description/notes catch-all — business-note prose
+# on a lookup table, found via a live prompt where the story named the
+# regions explicitly. Both are the same gap: nothing connected the TABLE's
+# own topic to what its columns should contain. This is deliberately built
+# from semantic types that already have real generators elsewhere in this
+# file (region, department, channel, currency, industry, payment_method,
+# event_type) — it routes to existing pools, it doesn't invent new ones.
+_TABLE_TOPIC_SEMANTIC = {
+    "region": "region", "regions": "region",
+    "territory": "region", "territories": "region",
+    "zone": "region", "zones": "region",
+    "district": "region", "districts": "region",
+    "department": "department", "departments": "department",
+    "channel": "channel", "channels": "channel",
+    "currency": "currency", "currencies": "currency",
+    "industry": "industry", "industries": "industry",
+    "payment_method": "payment_method", "payment_methods": "payment_method",
+    "event_type": "event_type", "event_types": "event_type",
+}
+
+
+def _table_topic_semantic(table: str) -> Optional[str]:
+    """The semantic type implied by a table's own name, if any.
+
+    Checked against the whole table name first ("regions"), then against
+    each underscore-separated token ("customer_regions" -> "regions"), so a
+    prefixed or compound table name still resolves.
+    """
+    if table in _TABLE_TOPIC_SEMANTIC:
+        return _TABLE_TOPIC_SEMANTIC[table]
+    for token in table.split("_"):
+        if token in _TABLE_TOPIC_SEMANTIC:
+            return _TABLE_TOPIC_SEMANTIC[token]
+    return None
+
 # Exact qualifiers (the token before "_name") that decide what a *_name column
 # holds, ahead of any table context: business_name in a listings table is the
 # business, seller_name in an orders table is the seller. "account"/"store"/
@@ -1105,6 +1145,13 @@ class RealisticTextGenerator:
                 "catalog", "catalogue", "inventory", "sku",
             )):
                 return "product_name"
+            # Before the blind generic label: does the TABLE's own name say
+            # what this is? A "regions" table's "name" column is a region
+            # name, not a generic tier word — check _table_topic_semantic
+            # ahead of the catchall so the table's own topic wins.
+            _topic = _table_topic_semantic(table)
+            if _topic:
+                return _topic
             return "category_label"
         if name.endswith("_name"):
             # The exact qualifier was already checked (before the product
@@ -1162,6 +1209,17 @@ class RealisticTextGenerator:
             return "caption"
         if name in ("body", "description", "summary"):
             return "product_description"
+        # Last resort before assuming this is free-text prose: an unrecognised
+        # column name ("geo_group") is far more often a short descriptor on a
+        # table whose own name already says its topic than it is a genuine
+        # notes field. Only columns that read as an actual notes/comment field
+        # are exempt, those should keep going to the sentence generator.
+        _NOTES_LIKE = ("note", "notes", "comment", "comments", "remark",
+                       "remarks", "detail", "details", "memo", "feedback")
+        if not any(n in name for n in _NOTES_LIKE):
+            _topic = _table_topic_semantic(table)
+            if _topic:
+                return _topic
         return "description"
 
     def _generate_caption(self, *, size: int, table_data: Optional[pd.DataFrame] = None) -> np.ndarray:  # noqa: ARG002
