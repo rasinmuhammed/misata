@@ -241,7 +241,15 @@ class DataSimulator:
                 each callable receives ``(partial_df, context_tables)`` and returns a
                 ``pd.Series`` or array of length ``len(partial_df)``.
         """
-        from misata.validation import validate_schema
+        from misata.validation import validate_schema, repair_curve_time_columns
+        # Repair before validating, not after: a curve's time_column can
+        # arrive pointing at a plain categorical column (an LLM or a
+        # compositional parser naming it "month" rather than typing it as a
+        # date) regardless of which parser produced this schema. Fixing it
+        # here, once, at the entry point every caller passes through, beats
+        # patching every parser separately. See repair_curve_time_columns's
+        # docstring for the bug this closes.
+        repair_curve_time_columns(config)
         validate_schema(config)
 
 

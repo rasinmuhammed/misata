@@ -59,6 +59,62 @@ except ImportError:
     pass
 
 
+def repair_curve_time_columns(schema: Any) -> None:
+    """Resolve an outcome/rate curve's time_column to a real date column,
+    in place, before validate_schema ever sees it.
+
+    Why this exists: llm_parser.py has carried this exact repair for a while
+    (a dotted path like "orders.order_date", or a non-date column an LLM
+    named "month"), but only for schemas that came through that one parser.
+    Every other producer of a schema, StoryParser's compositional path most
+    notably, a hand-written YAML, an MCP tool call, hit validate_schema
+    first with no chance to self-correct, and validate_schema's job is to
+    reject, not repair. That's an ordering bug: DataSimulator.__init__ calls
+    validate_schema() before apply_semantic_inference() ever runs, so a
+    curve pointing at a plain categorical "month" column failed hard before
+    the fix that would have caught it got a turn.
+
+    Found via a live prompt-to-data run in Studio: "monthly revenue growing
+    through October and November, then a December dip" produced a table
+    with a categorical "month" column and an OutcomeCurve pointing at it,
+    and generation failed with a schema error a user had no obvious way to
+    self-serve past. This closes that gap at the one place every caller
+    passes through, DataSimulator's own __init__, rather than patching each
+    parser separately.
+    """
+    columns = getattr(schema, "columns", None)
+    if not isinstance(columns, dict):
+        return
+
+    for curve_list_name in ("outcome_curves", "rate_curves"):
+        for curve in getattr(schema, curve_list_name, None) or []:
+            table = getattr(curve, "table", None)
+            tc = getattr(curve, "time_column", None)
+            if not table or not tc:
+                continue
+            col_objs = columns.get(table, [])
+            types = {c.name: c.type for c in col_objs}
+            leaf = tc.split(".")[-1] if "." in tc else tc
+            date_cols = [n for n, ty in types.items() if ty in ("date", "datetime")]
+            if leaf in types and types[leaf] in ("date", "datetime"):
+                curve.time_column = leaf
+            elif date_cols:
+                # A real date column already exists on this table — point
+                # the curve at it rather than coercing an unrelated column.
+                curve.time_column = date_cols[0]
+            elif leaf in types:
+                # The referenced column exists but isn't typed as a date
+                # (the "month" case). Coerce it: it's already being used
+                # as a curve's time axis, so a categorical/int type here
+                # was never going to generate meaningful values anyway.
+                for col in col_objs:
+                    if col.name == leaf:
+                        col.type = "date"
+                curve.time_column = leaf
+            else:
+                curve.time_column = leaf
+
+
 def validate_schema(schema: Any) -> None:
     """Validate a SchemaConfig before generation starts.
 
