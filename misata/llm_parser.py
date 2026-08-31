@@ -266,7 +266,103 @@ _BLACKLISTED_VALUES: frozenset = frozenset({
 })
 
 
-SYSTEM_PROMPT = """You are Misata, an expert synthetic data architect. Your job is to generate REALISTIC database schemas based ONLY on the user's story. 
+_ENUMERATION_PATTERN = re.compile(
+    r"\b([a-zA-Z][a-zA-Z_]{2,30}?)s?\s*[\(:]\s*([A-Z][^)\n]{2,150}?)\s*[\)\n]"
+)
+
+
+def extract_explicit_enumerations(story: str) -> Dict[str, List[str]]:
+    """Find, with plain string parsing, every place the story explicitly
+    lists the values for a category: "regions (North America, EMEA, APAC)",
+    "plans: Free, Pro, Enterprise". Returns {topic_word: [values, ...]}.
+
+    This exists because the SYSTEM_PROMPT's "EXACT USER VALUES" rule is an
+    instruction, and an instruction is a probability the model follows, not
+    a guarantee. Found via a live prompt where the story named "regions
+    (North America, EMEA, APAC)" explicitly and the model still invented
+    "Standard, Team, Custom" for one run and "Wisconsin, Distrito Federal,
+    Washington" for the next, despite the rule being stated twice. Extracting
+    the literal list here means the schema can be corrected against ground
+    truth that came from the user, not re-asked of the same model that just
+    got it wrong.
+    """
+    found: Dict[str, List[str]] = {}
+    for m in _ENUMERATION_PATTERN.finditer(story):
+        topic, blob = m.group(1).lower(), m.group(2)
+        items = [v.strip() for v in blob.split(",")]
+        items = [v for v in items if v and len(v) <= 60]
+        # Require at least 2 items and every item to start with a capital —
+        # rules out an incidental parenthetical aside ("revenue (in USD)")
+        # that isn't actually an enumeration.
+        if len(items) >= 2 and all(v[0].isupper() for v in items):
+            found[topic] = items
+    return found
+
+
+def _table_matches_topic(table_name: str, topic: str) -> bool:
+    """Loose singular/plural match between a table name and an extracted
+    topic word — "regions" ~ "region", "payment_methods" ~ "payment_method"."""
+    t = table_name.lower().rstrip("s")
+    p = topic.lower().rstrip("s")
+    return t == p or t.endswith("_" + p) or p in t.split("_")
+
+
+def ground_schema_in_explicit_values(schema_dict: Dict[str, Any], story: str) -> Dict[str, Any]:
+    """Force any table the story explicitly enumerated to use those exact
+    values, in that order, regardless of what the LLM produced for it.
+
+    This is a repair, not a suggestion: it overwrites is_reference/inline_data
+    on the matched table outright. The alternative, trusting the model got it
+    right because the instruction says to, is exactly the failure mode this
+    closes. Columns the story didn't ground (a region's timezone, a plan's
+    price) are left alone if inline_data already had them and the row count
+    still matches; if the row count doesn't match the story's own list, those
+    columns are dropped rather than kept half-aligned with the wrong labels.
+    """
+    enumerations = extract_explicit_enumerations(story)
+    if not enumerations or not isinstance(schema_dict.get("tables"), list):
+        return schema_dict
+
+    for table in schema_dict["tables"]:
+        if not isinstance(table, dict) or not table.get("name"):
+            continue
+        for topic, values in enumerations.items():
+            if not _table_matches_topic(table["name"], topic):
+                continue
+            existing = table.get("inline_data") or []
+            # Pick the label column to overwrite: whichever key in the first
+            # existing row looks like a name/label; otherwise a generic
+            # "name" column, which every "inline_data" example in this
+            # prompt already establishes as the convention.
+            label_key = "name"
+            if existing and isinstance(existing[0], dict):
+                for k in existing[0].keys():
+                    if k != "id" and (k == "name" or k.endswith("_name") or k in ("label", "title")):
+                        label_key = k
+                        break
+            if existing and len(existing) == len(values):
+                # Same row count: keep whatever other grounded columns the
+                # LLM supplied, just fix the label to the literal values.
+                new_rows = []
+                for i, (row, v) in enumerate(zip(existing, values)):
+                    row = dict(row) if isinstance(row, dict) else {}
+                    row["id"] = i + 1
+                    row[label_key] = v
+                    new_rows.append(row)
+            else:
+                # Row count didn't match the story's own list (or there was
+                # no inline_data at all, meaning this table wasn't even
+                # marked is_reference) — the only columns we can vouch for
+                # are id and the label itself.
+                new_rows = [{"id": i + 1, label_key: v} for i, v in enumerate(values)]
+            table["inline_data"] = new_rows
+            table["is_reference"] = True
+            table["row_count"] = len(new_rows)
+            break  # one enumeration per table
+    return schema_dict
+
+
+SYSTEM_PROMPT = """You are Misata, an expert synthetic data architect. Your job is to generate REALISTIC database schemas based ONLY on the user's story.
 
 ## CRITICAL: DO NOT USE DEFAULT EXAMPLES
 - Generate tables that are SPECIFIC to the user's domain.
@@ -1081,6 +1177,10 @@ Output valid JSON. Be creative and domain-specific - DO NOT copy the system prom
             temperature=temperature,
         )
         schema_dict = self._parse_json_response(raw)
+        # Deterministic repair, not a second opinion from the same model: any
+        # table the story explicitly enumerated gets forced to those exact
+        # values regardless of what the LLM produced for it.
+        schema_dict = ground_schema_in_explicit_values(schema_dict, story)
         return self._parse_schema(schema_dict)
 
     def generate_from_graph(
