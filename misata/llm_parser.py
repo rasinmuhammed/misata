@@ -320,15 +320,24 @@ def ground_schema_in_explicit_values(schema_dict: Dict[str, Any], story: str) ->
     columns are dropped rather than kept half-aligned with the wrong labels.
     """
     enumerations = extract_explicit_enumerations(story)
-    if not enumerations or not isinstance(schema_dict.get("tables"), list):
+    if not enumerations:
+        return schema_dict
+    if not isinstance(schema_dict.get("tables"), list):
+        warnings.warn(
+            f"ground_schema_in_explicit_values: found {enumerations!r} in the "
+            f"story but schema_dict had no 'tables' list to search — nothing "
+            f"was grounded."
+        )
         return schema_dict
 
+    grounded: List[str] = []
     for table in schema_dict["tables"]:
         if not isinstance(table, dict) or not table.get("name"):
             continue
         for topic, values in enumerations.items():
             if not _table_matches_topic(table["name"], topic):
                 continue
+            grounded.append(f"{table['name']} <- {topic}: {values}")
             existing = table.get("inline_data") or []
             # Pick the label column to overwrite: whichever key in the first
             # existing row looks like a name/label; otherwise a generic
@@ -359,6 +368,17 @@ def ground_schema_in_explicit_values(schema_dict: Dict[str, Any], story: str) ->
             table["is_reference"] = True
             table["row_count"] = len(new_rows)
             break  # one enumeration per table
+    matched_topics = {g.split(" <- ")[1].split(":")[0] for g in grounded}
+    unmatched = {t: v for t, v in enumerations.items() if t not in matched_topics}
+    if grounded:
+        warnings.warn(f"ground_schema_in_explicit_values: grounded {grounded}")
+    if unmatched:
+        table_names = [t.get("name") for t in schema_dict["tables"] if isinstance(t, dict)]
+        warnings.warn(
+            f"ground_schema_in_explicit_values: story named {unmatched!r} but "
+            f"no table matched (tables present: {table_names}) — nothing "
+            f"grounded for these."
+        )
     return schema_dict
 
 
