@@ -485,6 +485,20 @@ def _col_from_dict(
     elif misata_type == "boolean":
         if col_def.get("probability") is not None:
             params["probability"] = col_def["probability"]
+        elif isinstance(col_def.get("enum"), list) and len(col_def["enum"]) == 1:
+            # A single-value boolean enum (e.g. "enum": [False]) declares a
+            # constant, same as it does for string/int/float columns above.
+            # Before this, "enum" was consumed here silently: it's in
+            # _CONSUMED_COLUMN_KEYS so it never fell through to the generic
+            # passthrough loop below, but nothing on the boolean path ever
+            # read it either -- the engine's BOOLEAN generator branch
+            # (simulator.py) only understands "probability". The result was
+            # an ordinary 50/50 coin flip on every column declared this way,
+            # silently: no error, no warning, just a constraint that did
+            # nothing. Found auditing backlot's Shopify schema (2026-09-02),
+            # where "_fivetran_deleted": {"enum": [False]} was leaving ~50%
+            # of rows flagged deleted and filtered out downstream.
+            params["probability"] = 1.0 if bool(col_def["enum"][0]) else 0.0
 
     # ── Everything else reaches the engine ───────────────────────────────────
     # This was an enumerated allowlist of about thirty keys, and it dropped any
