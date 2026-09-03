@@ -2870,6 +2870,19 @@ class DataSimulator:
         df_batch = self.fact_engine.rebalance(df_batch, plan, column_map)
         df_batch = self.fact_engine.drop_internal_columns(df_batch)
 
+        # The row-wise generation path (_generate_table_batches, below) runs
+        # _apply_null_rates as its own last pass; this exact-curve path had
+        # no equivalent call at all, so any column with a declared null_rate
+        # on a table that also carries an exact outcome curve came back
+        # 100% populated no matter what rate was declared -- found live,
+        # 2026-09-03, building the Snowplow consent/CWV columns: a `user_id`
+        # with null_rate=0.65 on `events` (which carries page_view_unit's
+        # exact curve) generated fully non-null. constrained_columns is
+        # excluded here for the opposite reason null_rates exists elsewhere:
+        # nulling a curve-controlled column would silently break the exact
+        # aggregate this whole code path exists to guarantee.
+        df_batch = self._apply_null_rates(df_batch, table_name, extra_protected=set(constrained_columns))
+
         ordered_columns = [column.name for column in columns if column.name in df_batch.columns]
         remaining_columns = [col for col in df_batch.columns if col not in ordered_columns]
         return df_batch[ordered_columns + remaining_columns]
@@ -4743,7 +4756,9 @@ class DataSimulator:
     # null_rate / nullable — applied last so statistical passes see values
     # ------------------------------------------------------------------
 
-    def _apply_null_rates(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
+    def _apply_null_rates(
+        self, df: pd.DataFrame, table_name: str, extra_protected: set[str] | None = None,
+    ) -> pd.DataFrame:
         """Honour each column's explicit ``null_rate``.
 
         Nulls are only injected when a column declares an explicit ``null_rate``
@@ -4761,6 +4776,12 @@ class DataSimulator:
         self-referential hierarchy it was worse than pedantic: with no nulls
         possible, no row can be a root, so the hierarchy is forced to contain a
         cycle. Found by the Warren suite, which is what a second shape is for.
+
+        ``extra_protected`` covers columns a caller knows must stay exactly
+        as generated regardless of any declared null_rate -- currently only
+        an exact-outcome-curve fact table's own constrained columns (see
+        ``_generate_fact_table``), where a null would silently break the
+        aggregate target this whole code path exists to guarantee.
         """
         pk_cols = {
             c.name for c in self.config.get_columns(table_name)
@@ -4774,7 +4795,7 @@ class DataSimulator:
             r.child_key for r in self.config.relationships
             if r.child_table == table_name and r.child_key not in optional_fk
         }
-        protected = pk_cols | fk_cols
+        protected = pk_cols | fk_cols | (extra_protected or set())
 
         # Rows a `when_then ... not_null` protects must survive this pass. It
         # runs after `apply_constraints`, so without this the later declaration
