@@ -558,6 +558,24 @@ def _detect_pk(table_def: Dict[str, Any]) -> Optional[str]:
     return "id" if "id" in table_def else None
 
 
+def _column_defs_of(table_def: Any) -> Dict[str, Any]:
+    """Extract the flat column-definitions dict from a table def, unwrapping
+    the nested ``{"rows": N, "columns": {...}}`` form when present. Shared by
+    the per-table PK detection below and by the FK-default-column lookup in
+    ``from_dict_schema`` (a parent table can be in either shape regardless of
+    which shape the child referencing it happens to use)."""
+    if not isinstance(table_def, dict):
+        return {}
+    raw_columns = table_def.get("columns")
+    if (
+        isinstance(raw_columns, dict)
+        and raw_columns
+        and all(isinstance(v, dict) for v in raw_columns.values())
+    ):
+        return raw_columns
+    return table_def
+
+
 def _looks_like_table_def(value: Any) -> bool:
     """A table definition (vs a column definition) has a ``columns`` dict or a
     row-count key; a column definition has a ``type``/``enum``-shaped body."""
@@ -980,14 +998,7 @@ def from_dict_schema(
         # Nested per-table format: {"rows": N, "columns": {...}} — read the
         # column defs from the sub-dict while table-level keys stay on the
         # outer def. (This is the misata.yaml shape handed to dict callers.)
-        _raw_columns = table_def.get("columns")
-        col_source = (
-            _raw_columns
-            if isinstance(_raw_columns, dict)
-            and _raw_columns
-            and all(isinstance(v, dict) for v in _raw_columns.values())
-            else table_def
-        )
+        col_source = _column_defs_of(table_def)
 
         pk_col = _detect_pk(col_source)
         table_cols: List[Column] = []
@@ -1047,10 +1058,32 @@ def from_dict_schema(
             # ``references: "parent_table.parent_key"`` string form.
             fk_ref = col_def.get("foreign_key")
             if fk_ref and isinstance(fk_ref, dict):
+                # ``{"table": "parent"}`` with no explicit ``column`` used to
+                # default straight to the literal string "id" -- correct for
+                # a schema built around an "id" convention, silently wrong
+                # for one that isn't. A parent table whose real primary key
+                # is named something else (explicit ``primary_key: true`` on
+                # a differently-named column, or no "id" column at all) got
+                # a Relationship pointing at a column that doesn't exist,
+                # and every downstream `.set_index(rel.parent_key)` in the
+                # engine raised `KeyError: "None of ['id'] are in the
+                # columns"` the first time it tried to resolve that FK.
+                # Found live, 2026-09-04: a wave of these on the public
+                # /engine/try-generate taster, arriving with a traffic spike
+                # from a shared link, one bad FK away from a first
+                # impression. Resolve the parent's ACTUAL primary key the
+                # same way _detect_pk already does everywhere else in this
+                # file, and only fall back to "id" when the parent table
+                # itself can't be found (or hasn't been declared yet in this
+                # dict) to resolve against.
+                _parent_def = schemas.get(fk_ref["table"])
+                _resolved_pk = (
+                    _detect_pk(_column_defs_of(_parent_def)) if _parent_def is not None else None
+                )
                 relationships.append(Relationship(
                     parent_table=fk_ref["table"],
                     child_table=table_name,
-                    parent_key=fk_ref.get("column", "id"),
+                    parent_key=fk_ref.get("column") or _resolved_pk or "id",
                     child_key=col_name,
                 ))
             elif isinstance(fk_ref, str) and "." in fk_ref:

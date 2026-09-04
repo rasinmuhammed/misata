@@ -1103,3 +1103,87 @@ class TestTopLevelMetadataOnTheDictPath:
             warnings.simplefilter("always")
             self._cfg({"t": "not a table"})
         assert any("must be a mapping" in str(w.message) for w in caught)
+
+
+class TestForeignKeyDefaultColumnResolvesTheRealParentKey:
+    """A live production incident, 2026-09-04: ``foreign_key: {"table": "x"}``
+    with no explicit ``column`` used to default straight to the literal
+    string "id". Correct for a schema built around an "id" convention,
+    silently wrong for a parent table whose real primary key is named
+    something else -- and every downstream `.set_index(rel.parent_key)` in
+    the engine then raised `KeyError: "None of ['id'] are in the columns"`
+    the first time it tried to resolve that relationship. Hit in production
+    on misata.studio's public, no-login /engine/try-generate taster, right
+    as a shared link sent a wave of first-time visitors at it -- one
+    omitted FK column away from a broken first impression for every one of
+    them. Traced to a normal user schema (canvas-built, default name
+    "Imported schema") declaring a customer_id-keyed parent table and a
+    plain ``foreign_key: {"table": "customers"}`` with no column."""
+
+    def test_column_omitted_resolves_to_the_declared_primary_key(self):
+        schema = misata.from_dict_schema({
+            "customers": {"__rows__": 20,
+                "customer_id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string", "enum": ["A", "B", "C"]}},
+            "orders": {"__rows__": 50,
+                "id": {"type": "integer", "primary_key": True},
+                "customer_ref": {"type": "integer",
+                                  "foreign_key": {"table": "customers"}}},
+        }, seed=1)
+        rel = next(r for r in schema.relationships if r.child_table == "orders")
+        assert rel.parent_key == "customer_id"
+
+        tables = misata.generate_from_schema(schema)
+        assert set(tables["orders"]["customer_ref"]).issubset(
+            set(tables["customers"]["customer_id"])
+        )
+
+    def test_column_omitted_still_resolves_when_parent_key_really_is_id(self):
+        # The pre-fix default happened to be right for an "id"-keyed parent;
+        # this must keep working exactly as before.
+        schema = misata.from_dict_schema({
+            "customers": {"__rows__": 20,
+                "id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string", "enum": ["A", "B", "C"]}},
+            "orders": {"__rows__": 50,
+                "order_id": {"type": "integer", "primary_key": True},
+                "customer_ref": {"type": "integer",
+                                  "foreign_key": {"table": "customers"}}},
+        }, seed=1)
+        rel = next(r for r in schema.relationships if r.child_table == "orders")
+        assert rel.parent_key == "id"
+        tables = misata.generate_from_schema(schema)
+        assert set(tables["orders"]["customer_ref"]).issubset(
+            set(tables["customers"]["id"])
+        )
+
+    def test_explicit_column_still_wins_over_detection(self):
+        schema = misata.from_dict_schema({
+            "customers": {"__rows__": 20,
+                "customer_id": {"type": "integer", "primary_key": True},
+                "legacy_id": {"type": "integer", "unique": True, "min": 1000, "max": 1019}},
+            "orders": {"__rows__": 30,
+                "id": {"type": "integer", "primary_key": True},
+                "customer_ref": {"type": "integer",
+                                  "foreign_key": {"table": "customers", "column": "legacy_id"}}},
+        }, seed=1)
+        rel = next(r for r in schema.relationships if r.child_table == "orders")
+        assert rel.parent_key == "legacy_id"
+
+    def test_nested_columns_form_parent_still_resolves_correctly(self):
+        # The parent can be declared in the {"rows": N, "columns": {...}}
+        # shape even when the child referencing it uses the flat shape --
+        # _column_defs_of has to unwrap the PARENT specifically, not just
+        # whichever shape the table currently being processed happens to use.
+        schema = misata.from_dict_schema({
+            "customers": {"rows": 20, "columns": {
+                "customer_id": {"type": "integer", "primary_key": True},
+                "name": {"type": "string", "enum": ["A", "B"]},
+            }},
+            "orders": {"__rows__": 40,
+                "id": {"type": "integer", "primary_key": True},
+                "customer_ref": {"type": "integer",
+                                  "foreign_key": {"table": "customers"}}},
+        }, seed=1)
+        rel = next(r for r in schema.relationships if r.child_table == "orders")
+        assert rel.parent_key == "customer_id"
