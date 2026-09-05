@@ -81,6 +81,7 @@ _ENVELOPE_KEYS: Tuple[Tuple[str, str], ...] = (
     ("typos", "__typos__"),
     ("bitemporal", "__bitemporal__"),
     ("dag_edges", "__dag_edges__"),
+    ("graph_motifs", "__graph_motifs__"),
     ("closures", "__closures__"),
     ("noise", "__noise__"),
     ("realism", "__realism__"),
@@ -861,9 +862,9 @@ def from_dict_schema(
     # not from YAML, so `misata lint` rejected the very files the docs showed.
     # One table, so the next declaration is one line rather than a new branch.
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
-                               Duplicates, EventLog, LateArrival, Lifecycle,
-                               Missingness, Outliers, ScenarioEvent, TimeGrid,
-                               TransitiveClosure, Typos)
+                               Duplicates, EventLog, GraphMotifs, LateArrival,
+                               Lifecycle, Missingness, Outliers, ScenarioEvent,
+                               TimeGrid, TransitiveClosure, Typos)
     declared: Dict[str, List[Any]] = {}
     for key, model in (("events", ScenarioEvent),
                        ("lifecycles", Lifecycle),
@@ -877,6 +878,7 @@ def from_dict_schema(
                        ("typos", Typos),
                        ("bitemporal", Bitemporal),
                        ("dag_edges", DagEdges),
+                       ("graph_motifs", GraphMotifs),
                        ("closures", TransitiveClosure)):
         out: List[Any] = []
         for i, raw in enumerate(schemas.get(f"__{key}__") or []):
@@ -1179,6 +1181,7 @@ def from_dict_schema(
         typos=declared["typos"],
         bitemporal=declared["bitemporal"],
         dag_edges=declared["dag_edges"],
+        graph_motifs=declared["graph_motifs"],
         closures=declared["closures"],
         generation_mode=(schemas.get("__generation_mode__")
                          or schemas.get("generation_mode") or "anchored"),

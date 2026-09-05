@@ -1,4 +1,4 @@
-"""Directed acyclic edge tables and the closures that must agree with them.
+"""Directed acyclic edge tables, declared motifs, and derived closures.
 
 0.9.2 made a self-referential *column* acyclic by construction. An edge table is
 the same guarantee in a different shape, and it needs a different construction:
@@ -184,18 +184,191 @@ def apply_closure(
     return tables
 
 
+
+
+# ---------------------------------------------------------------------------
+# Declared motifs
+# ---------------------------------------------------------------------------
+
+# Edge counts one case of each motif may take. Offering several sizes is what
+# lets a declared total land exactly instead of approximately, and it stops a
+# pack being uniformly visible or uniformly invisible to whichever detector is
+# pointed at it.
+_MOTIF_SIZES: Dict[str, Tuple[int, ...]] = {
+    "cycle": (3, 4, 5, 6),
+    "fan_out": (4, 5, 6, 7, 8),
+    "fan_in": (4, 5, 6, 7, 8),
+    "scatter_gather": (6, 8, 10),
+    "chain": (3, 4, 5),
+}
+
+
+def _split_exactly(total: int, shares: Dict[str, float]) -> Dict[str, int]:
+    """Largest remainder, so the parts sum to exactly `total`."""
+    raw = {k: total * v for k, v in shares.items()}
+    base = {k: int(np.floor(x)) for k, x in raw.items()}
+    order = sorted(raw, key=lambda k: raw[k] - base[k], reverse=True)
+    for i in range(total - sum(base.values())):
+        base[order[i % len(order)]] += 1
+    return base
+
+
+def _case_sizes(target: int, sizes: Tuple[int, ...],
+                rng: np.random.Generator) -> List[int]:
+    """Allowed case sizes summing to exactly `target`."""
+    if target <= 0:
+        return []
+    lo = min(sizes)
+    if target < lo:
+        return []
+    out: List[int] = []
+    left = target
+    while left >= lo:
+        pick = int(rng.choice(sizes))
+        if left - pick < lo and left != pick:
+            pick = max((x for x in sizes if x <= left - lo), default=lo)
+        out.append(pick)
+        left -= pick
+    if left:                      # fold the tail into an existing case
+        out[-1] += left
+    return out
+
+
+def _motif_edges(kind: str, pool: np.ndarray, size: int,
+                 rng: np.random.Generator) -> List[Tuple[Any, Any]]:
+    """Endpoint pairs for one case. Consumes exactly `size` edges."""
+    if kind == "cycle":
+        ring = rng.choice(pool, size=size, replace=False)
+        return [(ring[i], ring[(i + 1) % size]) for i in range(size)]
+    if kind == "chain":
+        path = rng.choice(pool, size=size + 1, replace=False)
+        return [(path[i], path[i + 1]) for i in range(size)]
+    if kind == "fan_out":
+        src = pool[rng.integers(len(pool))]
+        return [(src, d) for d in rng.choice(pool, size=size, replace=False)]
+    if kind == "fan_in":
+        dst = pool[rng.integers(len(pool))]
+        return [(s, dst) for s in rng.choice(pool, size=size, replace=False)]
+    if kind == "scatter_gather":
+        half = size // 2
+        src, dst = pool[rng.integers(len(pool))], pool[rng.integers(len(pool))]
+        mids = rng.choice(pool, size=half, replace=False)
+        return ([(src, m) for m in mids] + [(m, dst) for m in mids])[:size]
+    raise ValueError(f"unknown motif kind {kind!r}")
+
+
+def apply_graph_motifs(
+    tables: Dict[str, pd.DataFrame],
+    spec: Any,
+    rng: np.random.Generator,
+) -> Dict[str, pd.DataFrame]:
+    """Overwrite part of an edge table with declared, labeled motifs.
+
+    Runs after :func:`apply_dag_edges`, so every row it does not touch is
+    still an edge of the acyclic graph that pass built. Rewriting a subset
+    cannot introduce a cycle among the rows left alone, which is what makes
+    the guarantee exact: the un-cased subgraph is acyclic, so every cycle in
+    the emitted table belongs to a case somebody declared.
+    """
+    edges = tables.get(spec.table)
+    nodes = tables.get(spec.node_table)
+    if edges is None or nodes is None or edges.empty or nodes.empty:
+        return tables
+    for col, df, name in ((spec.from_column, edges, spec.table),
+                          (spec.to_column, edges, spec.table),
+                          (spec.node_key, nodes, spec.node_table)):
+        if col not in df.columns:
+            warnings.warn(
+                f"GraphMotifs '{spec.name}': column '{col}' missing from "
+                f"'{name}'. Skipping.")
+            return tables
+
+    ids = nodes[spec.node_key].dropna().to_numpy()
+    n_edges = len(edges)
+    pool_n = max(int(len(ids) * spec.node_pool_fraction), min(8, len(ids)))
+    if pool_n < 3:
+        warnings.warn(
+            f"GraphMotifs '{spec.name}': node pool of {pool_n} is too small to "
+            f"carry a motif. Raise node_pool_fraction or {spec.node_table}."
+            f"row_count.")
+        return tables
+    pool = rng.choice(ids, size=pool_n, replace=False)
+
+    plan: List[Tuple[str, str, bool]] = []      # (kind, case_id, flagged)
+    rows: List[Tuple[Any, Any]] = []
+    case_no = 0
+
+    for shares, rate, flagged, prefix in (
+            (spec.shares, spec.rate, True, "M"),
+            (spec.benign_shares, spec.benign_rate, False, "B")):
+        if not shares or rate <= 0:
+            continue
+        budget = int(round(rate * n_edges))
+        for kind, target in _split_exactly(budget, shares).items():
+            for size in _case_sizes(target, _MOTIF_SIZES[kind], rng):
+                case_no += 1
+                cid = f"{prefix}{case_no:06d}"
+                for a, b in _motif_edges(kind, pool, size, rng):
+                    rows.append((a, b))
+                    plan.append((kind, cid, flagged))
+
+    if not rows:
+        return tables
+    if len(rows) > n_edges:
+        warnings.warn(
+            f"GraphMotifs '{spec.name}': declared motifs need {len(rows)} edges "
+            f"but '{spec.table}' holds {n_edges}. Raise {spec.table}.row_count "
+            f"or lower the rate.")
+        rows, plan = rows[:n_edges], plan[:n_edges]
+
+    out = edges.copy()
+    if spec.label_column not in out.columns:
+        out[spec.label_column] = ""
+    if spec.case_column not in out.columns:
+        out[spec.case_column] = ""
+    out[spec.label_column] = out[spec.label_column].astype(object)
+    out[spec.case_column] = out[spec.case_column].astype(object)
+    out.loc[:, spec.label_column] = ""
+    out.loc[:, spec.case_column] = ""
+    if spec.flag_column:
+        out[spec.flag_column] = False
+
+    # Motifs occupy a random slice of rows rather than the head, so ordering
+    # never leaks the label to a model reading the file top to bottom.
+    idx = rng.choice(n_edges, size=len(rows), replace=False)
+    out.iloc[idx, out.columns.get_loc(spec.from_column)] = [a for a, _ in rows]
+    out.iloc[idx, out.columns.get_loc(spec.to_column)] = [b for _, b in rows]
+    out.iloc[idx, out.columns.get_loc(spec.label_column)] = [k for k, _, _ in plan]
+    out.iloc[idx, out.columns.get_loc(spec.case_column)] = [c for _, c, _ in plan]
+    if spec.flag_column:
+        out.iloc[idx, out.columns.get_loc(spec.flag_column)] = [f for _, _, f in plan]
+
+    tables[spec.table] = out.reset_index(drop=True)
+    return tables
+
+
 def apply_graphs(
     tables: Dict[str, pd.DataFrame],
     config: Any,
     rng: np.random.Generator,
 ) -> Dict[str, pd.DataFrame]:
-    """Edges first, then closures, because a closure is derived from its edges."""
+    """Edges, then motifs, then closures.
+
+    Order is load-bearing. Motifs must land on a graph that is already acyclic,
+    because the guarantee they carry is about the rows they do NOT touch. A
+    closure is derived last, from whatever the edges finally are."""
     for spec in (getattr(config, "dag_edges", None) or []):
         try:
             apply_dag_edges(tables, spec, rng)
         except Exception as e:
             warnings.warn(f"DagEdges '{spec.name}' failed ({e}); table left as "
                           f"generated.")
+    for spec in (getattr(config, "graph_motifs", None) or []):
+        try:
+            apply_graph_motifs(tables, spec, rng)
+        except Exception as e:
+            warnings.warn(f"GraphMotifs '{spec.name}' failed ({e}); table left "
+                          f"as generated.")
     for spec in (getattr(config, "closures", None) or []):
         try:
             apply_closure(tables, spec, rng, config)
@@ -208,6 +381,9 @@ def apply_graphs(
 def graph_tables(config: Any) -> set:
     out: set = set()
     for spec in (getattr(config, "dag_edges", None) or []):
+        out.add(spec.table)
+        out.add(spec.node_table)
+    for spec in (getattr(config, "graph_motifs", None) or []):
         out.add(spec.table)
         out.add(spec.node_table)
     for spec in (getattr(config, "closures", None) or []):

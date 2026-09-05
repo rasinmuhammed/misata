@@ -154,3 +154,4 @@ examples/bank_evalpack_out/
 !tests/test_contact_center_queueing.py
 !tests/test_manufacturing_spc.py
 !tests/test_null_rate_exact_curve_fact_table.py
+!tests/test_graph_motifs.py

@@ -1248,6 +1248,9 @@ class Bitemporal(BaseModel):
     avg_versions: float = Field(default=3.0, ge=1.0)
 
 
+MOTIF_KINDS = ("cycle", "fan_out", "fan_in", "scatter_gather", "chain")
+
+
 class DagEdges(BaseModel):
     """An edge table that is a directed acyclic graph.
 
@@ -1289,6 +1292,99 @@ class TransitiveClosure(BaseModel):
     ancestor_column: str
     descendant_column: str
     depth_column: Optional[str] = None
+
+
+class GraphMotifs(BaseModel):
+    """Declared subgraph patterns injected into an otherwise-acyclic edge table.
+
+    :class:`DagEdges` guarantees a graph with no cycles. That is the right
+    default and the wrong dataset for anyone building a detector, because the
+    patterns worth detecting are exactly the ones a DAG forbids: a ring that
+    returns money to its origin, a hub that fans value out to many accounts and
+    gathers it back through another.
+
+    This declares those patterns instead of hoping they emerge. A stated
+    fraction of the edge table is rewritten into motifs of stated shapes in
+    stated proportions, each one labeled and given a case id. Every other edge
+    is left as the DAG put it.
+
+    The property that follows is the useful one, and it is exact rather than
+    statistical:
+
+        **the subgraph of edges with no case id is acyclic**
+
+    So every cycle in the emitted table belongs to a motif somebody declared.
+    A detector run against it cannot produce an unexplained hit, because an
+    accidental pattern is not merely unlikely, it cannot exist. Simulators
+    that grow a graph and measure what appears cannot offer that, which is why
+    their false-positive rates are uninterpretable: nobody can separate the
+    detector's error from the data's own noise.
+
+    Set ``benign_shares`` to declare hard negatives, motifs of the same shapes
+    labeled as legitimate. A detector is then measured on whether it tells a
+    real ring from an innocent loop rather than merely on finding loops.
+
+    Attributes:
+        name: Identifier used in warnings and conflict messages.
+        table: Edge table to rewrite. Usually also carried by a DagEdges spec.
+        node_table: Table holding the nodes.
+        node_key: Node identifier column in ``node_table``.
+        from_column: Source endpoint column in ``table``.
+        to_column: Destination endpoint column in ``table``.
+        rate: Fraction of the edge table that becomes flagged motif edges.
+            Hit exactly, subject to integer rounding on the row count.
+        shares: Motif mix for flagged motifs, summing to 1.0. Keys must be
+            drawn from ``cycle``, ``fan_out``, ``fan_in``, ``scatter_gather``
+            and ``chain``.
+        benign_shares: Optional second mix generating declared hard negatives,
+            labeled but not flagged.
+        benign_rate: Fraction of the edge table given over to hard negatives.
+        label_column: Column written with the motif name, or the empty string
+            for ordinary DAG edges.
+        case_column: Column written with the case id. Empty means "not part of
+            any declared motif", which is what makes the acyclicity claim
+            checkable by a reader who does not trust the generator.
+        flag_column: Optional boolean column set True for motif edges and
+            False for hard negatives and background.
+        node_pool_fraction: Share of nodes eligible to carry motifs. A small
+            pool concentrates motifs the way real networks reuse the same
+            intermediaries.
+    """
+
+    name: str
+    table: str
+    node_table: str
+    node_key: str
+    from_column: str
+    to_column: str
+    rate: float = Field(default=0.01, ge=0.0, le=0.5)
+    shares: Dict[str, float] = Field(
+        default_factory=lambda: {"cycle": 0.4, "fan_out": 0.2, "fan_in": 0.2,
+                                 "scatter_gather": 0.1, "chain": 0.1})
+    benign_shares: Dict[str, float] = Field(default_factory=dict)
+    benign_rate: float = Field(default=0.0, ge=0.0, le=0.5)
+    label_column: str = "motif"
+    case_column: str = "motif_case"
+    flag_column: Optional[str] = None
+    node_pool_fraction: float = Field(default=0.08, gt=0.0, le=1.0)
+    description: Optional[str] = None
+
+    @field_validator("shares", "benign_shares")
+    @classmethod
+    def _known_and_normalised(cls, v: Dict[str, float]) -> Dict[str, float]:
+        if not v:
+            return v
+        unknown = set(v) - set(MOTIF_KINDS)
+        if unknown:
+            raise ValueError(
+                f"unknown motif kind(s) {sorted(unknown)}; "
+                f"choose from {sorted(MOTIF_KINDS)}")
+        total = sum(v.values())
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(
+                f"motif shares must sum to 1.0, got {total:.6f}. A share that "
+                f"does not sum to one is a specification nobody wrote.")
+        return v
 
 
 class RealismConfig(BaseModel):
@@ -1378,6 +1474,7 @@ class SchemaConfig(BaseModel):
     bitemporal: List[Bitemporal] = Field(default_factory=list)
     dag_edges: List[DagEdges] = Field(default_factory=list)
     closures: List[TransitiveClosure] = Field(default_factory=list)
+    graph_motifs: List[GraphMotifs] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="anchored",
         description=(

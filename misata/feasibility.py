@@ -457,6 +457,61 @@ def _check_temporal_eligibility(config: Any) -> List[Conflict]:
     return out
 
 
+def _check_graph_motifs(config: Any) -> List[Conflict]:
+    """Refuse motif declarations the graph cannot physically hold.
+
+    Two ways this is arithmetically impossible rather than merely awkward: the
+    declared motif edges outnumber the edge table, or the node pool is too
+    small to lay out the widest motif without reusing a node inside one case,
+    which would silently emit a malformed ring."""
+    from misata.graphs import _MOTIF_SIZES
+
+    out: List[Conflict] = []
+    for spec in (getattr(config, "graph_motifs", None) or []):
+        rows = _row_count(config, spec.table)
+        nodes = _row_count(config, spec.node_table)
+        if rows is None or nodes is None:
+            continue
+
+        total_rate = float(spec.rate) + float(spec.benign_rate)
+        need = int(round(total_rate * rows))
+        if need > rows:
+            out.append(Conflict(
+                kind="graph_motif_overflow",
+                where=spec.table,
+                declarations=[f"GraphMotifs '{spec.name}' rate + benign_rate = "
+                              f"{total_rate:.4f}",
+                              f"row_count on {spec.table}"],
+                arithmetic=(f"{total_rate:.4f} × {rows} = {need} motif edges "
+                            f"needed, but {spec.table} holds only {rows}"),
+                remedy=(f"lower rate/benign_rate so they sum below 1.0, or "
+                        f"raise {spec.table}.row_count above {need}"),
+            ))
+
+        pool = max(int(nodes * spec.node_pool_fraction), min(8, nodes))
+        kinds = set(spec.shares) | set(spec.benign_shares)
+        # A chain of length n spans n+1 distinct nodes; every other motif's
+        # widest case spans at most its own size.
+        widest = max((max(_MOTIF_SIZES[k]) + (1 if k == "chain" else 0)
+                      for k in kinds if k in _MOTIF_SIZES), default=0)
+        if widest and pool < widest:
+            out.append(Conflict(
+                kind="graph_motif_pool_too_small",
+                where=spec.node_table,
+                declarations=[f"GraphMotifs '{spec.name}' node_pool_fraction = "
+                              f"{spec.node_pool_fraction:g}",
+                              f"motif kinds {sorted(kinds)}"],
+                arithmetic=(f"pool = max({spec.node_pool_fraction:g} × {nodes}, 8) "
+                            f"= {pool} nodes, but the widest declared motif "
+                            f"needs {widest} distinct nodes in one case"),
+                remedy=(f"raise node_pool_fraction to at least "
+                        f"{widest / max(nodes, 1):.4f}, raise "
+                        f"{spec.node_table}.row_count, or drop the widest "
+                        f"motif kind"),
+            ))
+    return out
+
+
 def _check_event_log_capacity(config: Any) -> List[Conflict]:
     """An event log needs a row for every event its entities' states imply.
 
@@ -555,6 +610,7 @@ _CHECKS = (
     _check_min_children,
     _check_temporal_eligibility,
     _check_event_log_capacity,
+    _check_graph_motifs,
 )
 
 

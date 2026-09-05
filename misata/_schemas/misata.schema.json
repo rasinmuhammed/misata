@@ -1154,6 +1154,117 @@
           }
         }
       }
+    },
+    "graph_motifs": {
+      "type": "array",
+      "description": "Declared subgraph patterns injected into an otherwise-acyclic edge table. The subgraph of edges carrying no case id stays acyclic, so every cycle in the output belongs to a declared case and an accidental pattern cannot exist.",
+      "items": {
+        "type": "object",
+        "description": "Declared motifs (rings, fan-in, fan-out, scatter-gather, chains) at an exact rate and an exact mix, each labeled with a case id. Set benign_shares to declare hard negatives: real motifs labeled as legitimate.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string",
+            "description": "Edge table to rewrite."
+          },
+          "node_table": {
+            "type": "string"
+          },
+          "node_key": {
+            "type": "string"
+          },
+          "from_column": {
+            "type": "string"
+          },
+          "to_column": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.5,
+            "description": "Fraction of edges that become flagged motifs."
+          },
+          "shares": {
+            "type": "object",
+            "description": "Motif kind -> share of the motif budget. Must sum to 1.0.",
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "propertyNames": {
+              "enum": [
+                "cycle",
+                "fan_out",
+                "fan_in",
+                "scatter_gather",
+                "chain"
+              ]
+            }
+          },
+          "benign_shares": {
+            "type": "object",
+            "description": "Motif mix for declared hard negatives: labeled, never flagged.",
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "propertyNames": {
+              "enum": [
+                "cycle",
+                "fan_out",
+                "fan_in",
+                "scatter_gather",
+                "chain"
+              ]
+            }
+          },
+          "benign_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.5
+          },
+          "label_column": {
+            "type": "string",
+            "default": "motif"
+          },
+          "case_column": {
+            "type": "string",
+            "default": "motif_case"
+          },
+          "flag_column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "node_pool_fraction": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "default": 0.08
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "table",
+          "node_table",
+          "node_key",
+          "from_column",
+          "to_column"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "$defs": {
