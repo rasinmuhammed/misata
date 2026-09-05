@@ -3330,21 +3330,32 @@ the schema it produced.</p>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="p">)</span>
 </code></pre></div>
 <h3 id="what-does-not-measured">What does not, measured</h3>
-<p>These are real results from the current parser, not cautions in principle.</p>
+<p>The parser is a recogniser over a fixed set of phrasings, not a language model.
+It handles what it knows well and returns nothing for the rest.</p>
 <ul>
-<li><strong>An entity can be dropped silently.</strong> <code>"800 customers, 1200 subscriptions and
-  5000 invoices"</code> produces <code>customers</code> and <code>subscriptions</code> only. No warning, no
-  invoices table.</li>
-<li><strong>A relative clause can become a table.</strong> <code>"...where 12% of admissions are
-  readmissions within 30 days"</code> produces a table named <code>are_readmissions</code>.
-  Splitting the rate into its own sentence avoids it.</li>
-<li><strong>Row counts drift when a curve is in the same sentence.</strong> Adding "where
-  revenue grows from X to Y" to a sentence that also declares counts can leave a
-  table at the default row count instead of the one you asked for.</li>
+<li><strong>An entity you named may produce no table.</strong> <code>"800 customers, 1200
+  subscriptions and 5000 invoices"</code> builds customers and subscriptions only. The
+  SaaS template has no invoices table, so the count is dropped. It is <em>not</em>
+  silent: the parser raises <code>UserWarning: This parser could not turn '5000
+  invoices' into a declaration</code>, so do not run it with warnings suppressed.</li>
+<li><strong>A count is sized for you when you did not state one.</strong> If your sentence
+  declares a revenue curve but no count for the table that carries it, the
+  template's assumed average transaction value sizes that table, which is
+  usually more rows than the schema's own derived figure. State the count if you
+  want a specific one.</li>
 </ul>
-<p>So: always check what you got before you trust it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"..."</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">11</span><span class="p">)</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">print</span><span class="p">({</span><span class="n">name</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">tables</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+<p>So: run it with warnings visible, and check what you got.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">(</span><span class="n">record</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">caught</span><span class="p">:</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">"always"</span><span class="p">)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"..."</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">11</span><span class="p">)</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">caught</span><span class="p">:</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="nb">print</span><span class="p">({</span><span class="n">name</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">tables</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">tables</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"..."</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">11</span><span class="p">)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">print</span><span class="p">({</span><span class="n">name</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">df</span> <span class="ow">in</span> <span class="n">tables</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
 </code></pre></div>
 <p>If a table is missing or a count is wrong, move to a dict schema. The plain
 English path is a draft; the schema is the specification. Sections 1 and 2 above
