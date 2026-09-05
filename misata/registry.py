@@ -81,14 +81,17 @@ class Declaration:
 #: so it stays visible in CI instead of in somebody's memory.
 DECLARATIONS: Tuple[Declaration, ...] = (
     # ── exact aggregates: linear in (row count, measure sum) per cell ──
+    # Not _check_curve_bounds: that one is deliberately unregistered, because
+    # an unreachable period target keeps the aggregate and reports the
+    # sacrifice rather than refusing. See the note in feasibility.py.
     Declaration("outcome_curves", "An aggregate over time, hit exactly.",
-                "_check_curve_bounds", "rollup_mismatch", linear=True),
+                "_check_curve_point_shape", "rollup_mismatch", linear=True),
     Declaration("rate_curves", "A rate over time, hit exactly.",
                 None, None, linear=True),
     Declaration("group_shares", "Exact shares of a measure across a category.",
                 "_check_group_shares", "group_share_mismatch", linear=True),
     Declaration("joint_distributions", "Several margins holding at once.",
-                None, None, linear=True),
+                "_check_joint_margins", "joint_margin_mismatch", linear=True),
     Declaration("waterfalls", "Movements reconciling to declared balances.",
                 None, "waterfall_mismatch", linear=True),
     Declaration("stock_flows", "closing = opening + received - shipped, per unit.",
@@ -96,13 +99,13 @@ DECLARATIONS: Tuple[Declaration, ...] = (
     Declaration("constraints", "Row-level bounds, inequalities and uniqueness.",
                 "_check_numeric_ranges", "when_then_violation", linear=True),
     Declaration("missingness", "Why values are missing, conditionally.",
-                None, "missingness_mismatch", linear=True),
+                "_check_declared_fractions", "missingness_mismatch", linear=True),
     Declaration("duplicates", "Exactly this many duplicate rows.",
-                None, "duplicate_count", linear=True),
+                "_check_injected_counts", "duplicate_count", linear=True),
     Declaration("typos", "Exactly this many corrupted values.",
-                None, "typo_count", linear=True),
+                "_check_injected_counts", "typo_count", linear=True),
     Declaration("outliers", "Declared outliers, at a stated count.",
-                None, "outlier_count", linear=True),
+                "_check_injected_counts", "outlier_count", linear=True),
     Declaration("retention", "A cohort curve the cohort table shows.",
                 "_check_retention_budget", "retention_mismatch", linear=True),
 
@@ -112,7 +115,7 @@ DECLARATIONS: Tuple[Declaration, ...] = (
     Declaration("closures", "A closure table equal to its edges' closure.",
                 None, "closure_mismatch", linear=False),
     Declaration("graph_motifs", "Declared subgraph patterns, at an exact mix.",
-                "_check_graph_motifs", None, linear=False),
+                "_check_graph_motifs", "motif_background_cycle", linear=False),
     Declaration("lifecycles", "A state machine, with legal transitions.",
                 "_check_lifecycles", "lifecycle_illegal_state", linear=False),
     Declaration("event_logs", "A log agreeing with the status column.",
@@ -124,7 +127,7 @@ DECLARATIONS: Tuple[Declaration, ...] = (
     Declaration("time_grids", "Timestamps on a declared grid, in declared hours.",
                 None, "time_grid", linear=False),
     Declaration("late_arrivals", "Events landing after the fact.",
-                None, "late_arrival_mismatch", linear=False),
+                "_check_declared_fractions", "late_arrival_mismatch", linear=False),
     Declaration("degradations", "Units wearing out, and when.",
                 None, None, linear=False),
 

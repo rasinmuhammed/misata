@@ -34,6 +34,20 @@ class TestTheRegistryIsTrue:
             f"function exists in feasibility.py"
         )
 
+    @pytest.mark.parametrize("decl", [d for d in registry.DECLARATIONS if d.refusal],
+                             ids=lambda d: d.key)
+    def test_the_named_refusal_actually_runs(self, decl):
+        """Existing is not running. _check_curve_bounds was seventy lines of
+        feasibility for outcome_curves, the flagship declaration, defined and
+        never registered, so it had never executed. The first version of this
+        test only checked the function existed and waved it straight through."""
+        from misata import feasibility
+        registered = {fn.__name__ for fn in feasibility._CHECKS}
+        assert decl.refusal in registered, (
+            f"{decl.key} names {decl.refusal!r}, which is defined but not in "
+            f"feasibility._CHECKS, so it never runs"
+        )
+
     @pytest.mark.parametrize("decl", [d for d in registry.DECLARATIONS if d.audit],
                              ids=lambda d: d.key)
     def test_the_named_audit_exists(self, decl):
@@ -72,7 +86,7 @@ class TestTheRegistryIsTrue:
 class TestCoverageOnlyGoesUp:
     """The floor. Raise it when you close a gap; never lower it."""
 
-    FLOOR = 7
+    FLOOR = 14
 
     def test_certified_coverage_holds(self):
         certified, total = registry.coverage()

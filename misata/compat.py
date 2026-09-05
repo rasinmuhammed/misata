@@ -102,6 +102,17 @@ HANDLED_TOP_LEVEL_KEYS = frozenset(
     [k for k, _ in _ENVELOPE_KEYS] + list(_DIRECT_TOP_LEVEL_KEYS)
 )
 
+#: Declarations this parse could not build, collected rather than only warned
+#: about. A malformed directive used to be skipped with a warning and nothing
+#: else: generation ran, produced data, and the property the user declared was
+#: simply absent. That is the failure mode this engine exists to prevent, and it
+#: was happening at the front door. Feasibility turns each of these into a
+#: refusal, so a declaration is honoured or refused and never merely ignored.
+#:
+#: A list rather than a raise, because from_dict_schema reports every problem at
+#: once and fixing them one run at a time is miserable.
+_DROPPED: List[Tuple[str, int, str]] = []
+
 #: Published in the JSON Schema and deliberately not acted on here. Listed so
 #: the contract test passes for a stated reason rather than by omission.
 #: ``description`` is prose for the reader and changes no data.
@@ -783,6 +794,7 @@ def from_dict_schema(
 
         tables = misata.generate_from_schema(schema)
     """
+    _DROPPED.clear()
     schemas = _unwrap_envelope(schemas)
 
     tables: List[Table] = []
@@ -825,24 +837,28 @@ def from_dict_schema(
             outcome_curves.append(OutcomeCurve(**curve_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __outcome_curves__[{i}]: {e}")
+            _DROPPED.append(("outcome_curves", i, str(e)))
     rate_curves: List[RateCurve] = []
     for i, rate_def in enumerate(schemas.get("__rate_curves__") or []):
         try:
             rate_curves.append(RateCurve(**rate_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __rate_curves__[{i}]: {e}")
+            _DROPPED.append(("rate_curves", i, str(e)))
     group_shares: List[GroupShares] = []
     for i, share_def in enumerate(schemas.get("__group_shares__") or []):
         try:
             group_shares.append(GroupShares(**share_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __group_shares__[{i}]: {e}")
+            _DROPPED.append(("group_shares", i, str(e)))
     waterfalls: List[WaterfallIdentity] = []
     for i, wf_def in enumerate(schemas.get("__waterfalls__") or []):
         try:
             waterfalls.append(WaterfallIdentity(**wf_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __waterfalls__[{i}]: {e}")
+            _DROPPED.append(("waterfalls", i, str(e)))
     # Units that wear out. Registering the envelope key is not the same as
     # building the object: the key was accepted and nothing was constructed,
     # which is the same silence three other declarations shipped with.
@@ -856,6 +872,7 @@ def from_dict_schema(
             degradations.append(Degradation(**d_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __degradations__[{i}]: {e}")
+            _DROPPED.append(("degradations", i, str(e)))
 
     stock_flows: List[StockFlowIdentity] = []
     for i, sf_def in enumerate(schemas.get("__stock_flows__") or []):
@@ -863,6 +880,7 @@ def from_dict_schema(
             stock_flows.append(StockFlowIdentity(**sf_def))
         except Exception as e:
             warnings.warn(f"Skipping invalid __stock_flows__[{i}]: {e}")
+            _DROPPED.append(("stock_flows", i, str(e)))
 
     # Every declaration added since 0.8.9.4 was reachable from SchemaConfig but
     # not from YAML, so `misata lint` rejected the very files the docs showed.
@@ -894,6 +912,7 @@ def from_dict_schema(
                 out.append(model(**raw))
             except Exception as e:
                 warnings.warn(f"Skipping invalid __{key}__[{i}]: {e}")
+                _DROPPED.append((key, i, str(e)))
         declared[key] = out
 
     # __noise__ injects declared data-quality defects (nulls, outliers, typos,
@@ -1166,7 +1185,7 @@ def from_dict_schema(
         ))
         columns_map[table_name] = table_cols
 
-    return SchemaConfig(
+    config = SchemaConfig(
         name=schema_name,
         tables=tables,
         columns=columns_map,
@@ -1207,6 +1226,10 @@ def from_dict_schema(
         domain=domain,
         vocabularies=({**_table_vocabularies, **(vocabularies or {})} or None),
     )
+    # Carry what this parse could not build, so feasibility can refuse it by
+    # name instead of the schema quietly arriving one declaration short.
+    object.__setattr__(config, "_dropped_declarations", tuple(_DROPPED))
+    return config
 
 
 # ---------------------------------------------------------------------------

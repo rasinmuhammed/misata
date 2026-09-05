@@ -101,6 +101,12 @@ So every cycle in the output belongs to a case somebody declared, and an
 accidental pattern cannot exist rather than merely being unlikely. A detector
 run against it cannot produce an unexplained hit.
 
+This holds only when `dag_edges` covers the same table and endpoints. Motifs
+rewrite a fraction of an edge table; they do not make the rest of it acyclic.
+Measured over 60,000 edges: 879 background cycles without the `dag_edges` spec,
+zero with it. The audit reports `motif_background_not_declared_acyclic` when it
+is missing.
+
 `benign_shares` declares hard negatives: real motifs of the same shapes,
 labelled legitimate. A detector is then measured on telling a ring from an
 innocent loop rather than on finding loops.

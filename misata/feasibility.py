@@ -672,10 +672,181 @@ _CHECKS = (
     _check_lexicon_capacity,
 )
 
+# _check_curve_bounds is deliberately NOT registered, and this note exists
+# because I wired it once on the assumption that dead code was an oversight.
+# It is not. When a period target cannot hold under a column's declared
+# min/max, the engine keeps the aggregate and reports the sacrifice, which
+# tests/test_curve_respects_bounds.py pins as "the aggregate wins, and the
+# sacrifice is reported". Registering the check turns that reported sacrifice
+# into a refusal and contradicts a decision somebody already made on purpose.
+# Leave it here as the analysis a caller can run deliberately, not as a gate.
+
 
 # --------------------------------------------------------------------------- #
 # entry point
 # --------------------------------------------------------------------------- #
+
+def _rows_of(config: Any, table_name: str) -> int:
+    """Declared row count for a table, or 0 when the table is not declared."""
+    for t in (getattr(config, "tables", None) or []):
+        if t.name == table_name:
+            return int(getattr(t, "row_count", 0) or 0)
+    return 0
+
+
+def _check_injected_counts(config: Any) -> List[Conflict]:
+    """You cannot corrupt, duplicate or spike more rows than a table has.
+
+    duplicates, typos and outliers each declare an exact count against a table,
+    and each was accepted without checking it fit. A count over the row count
+    is not a near miss to be clamped quietly; it is a statement that cannot be
+    true, and clamping it is how a test asserting "exactly 500 duplicates"
+    passes against 200.
+    """
+    out: List[Conflict] = []
+    families = (
+        ("duplicates", "duplicates", "duplicate rows"),
+        ("typos", "typos", "corrupted values"),
+        ("outliers", "outliers", "outliers"),
+    )
+    for attr, label, noun in families:
+        for spec in (getattr(config, attr, None) or []):
+            table = getattr(spec, "table", None)
+            if not table:
+                continue
+            rows = _rows_of(config, table)
+            count = getattr(spec, "count", None)
+            if not rows or count is None:
+                continue
+            count = int(count)
+            if count > rows:
+                out.append(Conflict(
+                    kind=f"{label}_exceed_rows",
+                    where=f"{table}.{getattr(spec, 'column', '') or ''}".rstrip("."),
+                    declarations=[f"{label} count = {count:,}",
+                                  f"{table} row_count = {rows:,}"],
+                    arithmetic=(f"{count:,} {noun} asked for over {rows:,} rows, "
+                                f"which is {count - rows:,} more than exist"),
+                    remedy=(f"lower the count to at most {rows:,}, raise "
+                            f"{table}'s row count, or declare a fraction instead"),
+                ))
+    return out
+
+
+def _check_dropped_declarations(config: Any) -> List[Conflict]:
+    """A declaration the parser could not build is refused, not skipped.
+
+    A malformed directive used to warn and vanish. Generation then ran, emitted
+    data, and the property the user asked for was simply not there, which is
+    the exact failure this engine exists to prevent, happening at the front
+    door. Every silent no-op chased this week reduced to this: a late_arrivals
+    spec with late_fraction 5 (a percentage written as a whole number) was
+    dropped by field validation before any check could see it, and a
+    joint_distributions spec whose margins summed to 1.4 went the same way.
+
+    Warnings do not stop anything, and a warning is what a suppressed logger
+    eats first. This turns each drop into a refusal carrying the parser's own
+    reason.
+    """
+    out: List[Conflict] = []
+    for key, index, reason in (getattr(config, "_dropped_declarations", None) or ()):
+        # Pydantic's message is several lines of field-by-field detail; the
+        # first line is the one a human reads.
+        head = str(reason).strip().splitlines()
+        detail = " ".join(x.strip() for x in head[:3])
+        out.append(Conflict(
+            kind="declaration_rejected",
+            where=f"__{key}__[{index}]",
+            declarations=[f"__{key}__[{index}]"],
+            arithmetic=f"the parser could not build it: {detail}",
+            remedy=(f"correct __{key}__[{index}], or remove it if it was not "
+                    f"meant to apply. It cannot be honoured as written, and it "
+                    f"is not silently skipped any more"),
+        ))
+    return out
+
+
+def _check_declared_fractions(config: Any) -> List[Conflict]:
+    """A rate is a fraction, and a fraction outside [0, 1] is not one.
+
+    Cheap, and it catches the commonest transcription slip there is: a rate
+    written as a percentage. 5 means five times every row, not five percent,
+    and nothing said so.
+    """
+    out: List[Conflict] = []
+    fields = (
+        ("duplicates", "fraction", "duplicates.fraction"),
+        ("typos", "fraction", "typos.fraction"),
+        ("late_arrivals", "late_fraction", "late_arrivals.late_fraction"),
+        ("missingness", "rate", "missingness.rate"),
+        ("missingness", "else_rate", "missingness.else_rate"),
+        ("graph_motifs", "rate", "graph_motifs.rate"),
+        ("graph_motifs", "benign_rate", "graph_motifs.benign_rate"),
+    )
+    for attr, field, label in fields:
+        for spec in (getattr(config, attr, None) or []):
+            value = getattr(spec, field, None)
+            if value is None:
+                continue
+            value = float(value)
+            if 0.0 <= value <= 1.0:
+                continue
+            hint = (f" (a percentage: {value} means {value * 100:.0f}%, so write "
+                    f"{value / 100:g})") if 1.0 < value <= 100.0 else ""
+            out.append(Conflict(
+                kind="fraction_out_of_range",
+                where=str(getattr(spec, "table", "") or "schema"),
+                declarations=[f"{label} = {value:g}"],
+                arithmetic=f"a fraction must lie in [0, 1] and {value:g} does not{hint}",
+                remedy=f"set {label} between 0 and 1",
+            ))
+    return out
+
+
+def _check_joint_margins(config: Any) -> List[Conflict]:
+    """Declared margins that cannot all hold, named before any data exists.
+
+    joint.check_margins already knows when a set of margins is incompatible; it
+    was only ever called from inside the solver, so the refusal arrived after
+    generation had begun instead of before it. This is the same knowledge,
+    asked earlier.
+    """
+    out: List[Conflict] = []
+    specs = getattr(config, "joint_distributions", None) or []
+    if not specs:
+        return out
+    try:
+        from misata.joint import MarginsIncompatible, check_margins
+    except Exception:
+        return out
+
+    for spec in specs:
+        margins = dict(getattr(spec, "margins", None) or {})
+        if not margins:
+            continue
+        try:
+            check_margins(margins)
+        except MarginsIncompatible as exc:
+            out.append(Conflict(
+                kind="joint_margins_incompatible",
+                where=str(getattr(spec, "table", "") or "schema"),
+                declarations=[f"joint_distributions[{getattr(spec, 'name', '?')}] "
+                              f"margins over {', '.join(margins)}"],
+                arithmetic=str(exc),
+                remedy="make each margin sum to the same total, or drop one",
+            ))
+    return out
+
+
+#: Registered after definition: these three sit below the tuple above because
+#: they lean on _rows_of, which needs the config helpers defined first.
+_CHECKS = _CHECKS + (
+    _check_injected_counts,
+    _check_declared_fractions,
+    _check_joint_margins,
+    _check_dropped_declarations,
+)
+
 
 def find_conflicts(config: Any) -> List[Conflict]:
     """Every arithmetically impossible combination in the schema."""
