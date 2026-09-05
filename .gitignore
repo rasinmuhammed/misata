@@ -42,6 +42,7 @@ venv/
 # ===================================
 /web
 tests/*
+!tests/test_story_parser_dropped_entities.py
 !tests/test_regressions.py
 !tests/test_regression_fixes.py
 !tests/test_mimic_fidelity.py

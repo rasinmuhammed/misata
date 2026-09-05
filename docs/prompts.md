@@ -259,19 +259,32 @@ misata.generate(
 
 ### What does not, measured
 
-These are real results from the current parser, not cautions in principle.
+The parser is a recogniser over a fixed set of phrasings, not a language model.
+It handles what it knows well and returns nothing for the rest.
 
-- **An entity can be dropped silently.** `"800 customers, 1200 subscriptions and
-  5000 invoices"` produces `customers` and `subscriptions` only. No warning, no
-  invoices table.
-- **A relative clause can become a table.** `"...where 12% of admissions are
-  readmissions within 30 days"` produces a table named `are_readmissions`.
-  Splitting the rate into its own sentence avoids it.
-- **Row counts drift when a curve is in the same sentence.** Adding "where
-  revenue grows from X to Y" to a sentence that also declares counts can leave a
-  table at the default row count instead of the one you asked for.
+- **An entity you named may produce no table.** `"800 customers, 1200
+  subscriptions and 5000 invoices"` builds customers and subscriptions only. The
+  SaaS template has no invoices table, so the count is dropped. It is *not*
+  silent: the parser raises `UserWarning: This parser could not turn '5000
+  invoices' into a declaration`, so do not run it with warnings suppressed.
+- **A count is sized for you when you did not state one.** If your sentence
+  declares a revenue curve but no count for the table that carries it, the
+  template's assumed average transaction value sizes that table, which is
+  usually more rows than the schema's own derived figure. State the count if you
+  want a specific one.
 
-So: always check what you got before you trust it.
+So: run it with warnings visible, and check what you got.
+
+```python
+import warnings
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    tables = misata.generate("...", seed=11)
+for w in caught:
+    print(w.message)
+print({name: len(df) for name, df in tables.items()})
+```
 
 ```python
 tables = misata.generate("...", seed=11)

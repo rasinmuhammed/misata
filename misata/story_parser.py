@@ -744,6 +744,13 @@ class StoryParser:
         # curve produced 24,797 orders, silently, because the guess said each
         # one was worth 75. When the story states a count for this table, the
         # count is the declaration and the average simply falls out of it.
+        #
+        # Only this table's own count, though. A count stated for a different
+        # table leaves this one's row count derived rather than declared, and a
+        # derived count is a guess like the average is, so the average keeps
+        # its say: see tests/test_declared_row_count_wins.py, which pins that
+        # "1200 customers" plus a revenue curve still sizes orders from the
+        # average rather than from 1200 x 3.
         if self.scale_params.get(table) or self.scale_params.get(f"{table}s"):
             avg_transaction_value = None
 
@@ -1175,6 +1182,16 @@ class StoryParser:
 
     _CLAIM_SPLIT = re.compile(r"[.;]|,(?=\s*(?:and\s+)?[a-z]{3,}\s)", re.IGNORECASE)
 
+    #: Nouns that follow a number as a unit rather than as a thing to build.
+    #: "200000 dollars" is the size of a declared curve; "5000 invoices" is a
+    #: table that was asked for. Only the second kind is a dropped promise.
+    _MAGNITUDE_NOUNS = frozenset({
+        "dollars", "dollar", "usd", "eur", "gbp", "euros", "pounds", "cents",
+        "revenue", "sales", "mrr", "arr", "spend", "value", "percent",
+        "days", "day", "weeks", "week", "months", "month", "years", "year",
+        "hours", "hour", "minutes", "minute", "seconds",
+    })
+
     def unhandled_claims(self, story: str, schema: "SchemaConfig") -> List[str]:
         """Fragments of the story carrying a number that reached no declaration."""
         if not story:
@@ -1198,37 +1215,47 @@ class StoryParser:
                 continue
             low = fragment.lower()
 
-            # A month-and-value list is the curve; one curve covers all of it.
-            # "growth" alone is not enough to claim coverage: it is a common
-            # plan name, and "Plans split 55% Starter, 33% Growth" was being
-            # waved through as if it were a revenue statement.
-            if has_curve and re.search(
-                r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|"
-                r"\brevenue\b|\bcurve\b", low
-            ):
-                continue
-            if has_rates and "churn" in low:
-                continue
-            if has_shares and re.search(r"\bsplit\b|\bshare\b|\bmix\b", low):
-                continue
-
             # Report the part that failed, not the sentence around it. A
             # fragment often carries several count-and-noun pairs and only one
             # of them was dropped; naming the whole sentence makes the caller
             # hunt for which.
             pairs = re.findall(r"(\d[\d,]*)\s+([a-z_]{3,})", low)
+
+            # A coverage signal excuses the fragment, not everything inside it.
+            # This check used to run first, so a single mention of the word
+            # "revenue" waved through every other count in the same sentence:
+            # "800 customers and 5000 invoices where revenue grows from ..." is
+            # one fragment, and the 5,000 invoices that produced no table were
+            # never reported. Counts are now judged one at a time below, and
+            # the fragment-level excuse only applies when there are no counts
+            # to judge.
+            covered_fragment = (
+                (has_curve and re.search(
+                    r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|"
+                    r"\brevenue\b|\bcurve\b", low))
+                or (has_rates and "churn" in low)
+                or (has_shares and re.search(r"\bsplit\b|\bshare\b|\bmix\b", low))
+            )
+            if covered_fragment and not pairs:
+                continue
+
             if pairs:
-                def _handled(raw_n: str) -> bool:
+                def _handled(raw_n: str, noun: str) -> bool:
                     n = int(raw_n.replace(",", ""))
                     # A calendar year is context, not a quantity to honour.
                     if 1900 <= n <= 2100 and "," not in raw_n:
+                        return True
+                    # A money or duration word is a magnitude, not a request for
+                    # rows, so "grows to 200000 dollars" is the curve speaking
+                    # and not a table nobody built.
+                    if noun in self._MAGNITUDE_NOUNS:
                         return True
                     # Match on the count alone: this parser renames as it maps
                     # ("1,500 customers" becomes the users table), so requiring
                     # the noun to survive reports work it actually did.
                     return n in honoured_counts
 
-                missed = [f"{n} {noun}" for n, noun in pairs if not _handled(n)]
+                missed = [f"{n} {noun}" for n, noun in pairs if not _handled(n, noun)]
                 if not missed:
                     continue
                 unhandled.extend(missed)

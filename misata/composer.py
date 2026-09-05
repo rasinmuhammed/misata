@@ -183,6 +183,18 @@ NON_ENTITY_WORDS = {
     "dollar", "dollars", "euro", "euros", "unit", "units", "piece", "pieces",
 }
 
+# Copulas and auxiliaries. Grammatically incapable of modifying a noun, so
+# "12% of admissions are readmissions" must not compose the table name
+# `are_readmissions`. Kept separate from VERB_S_BLACKLIST because most of these
+# do not end in -s and so never reach the plural detector at all; the modifier
+# check is where they did damage.
+COPULAS = {
+    "are", "is", "was", "were", "be", "been", "being", "am",
+    "has", "have", "had", "do", "does", "did",
+    "will", "would", "can", "could", "should", "may", "might", "must",
+    "become", "becomes", "became", "remain", "remains", "stay", "stays",
+}
+
 # Common verbs ending in -s that a plural detector would misread.
 VERB_S_BLACKLIST = {
     "tracks", "manages", "includes", "handles", "has", "contains", "sells",
@@ -313,6 +325,13 @@ def extract_entities(story: str) -> List[ComposedEntity]:
     for i, token in enumerate(tokens):
         if not _is_plural_noun(token):
             continue
+        # "12% of admissions are readmissions" says something about admissions.
+        # The noun after the copula is a predicate nominative, classifying the
+        # subject, and building a table for it invents a collection the story
+        # never asked for. English introduces entities with "with 5000 invoices"
+        # or "1500 patients", never with "X are Y".
+        if i > 0 and tokens[i - 1] in COPULAS:
+            continue
         phrase = [token]
         # one noun-ish modifier may precede: "battery swaps", "treatment notes"
         if i > 0:
@@ -322,6 +341,7 @@ def extract_entities(story: str) -> List[ComposedEntity]:
                 and prev not in STOPWORDS
                 and prev not in NON_ENTITY_WORDS
                 and prev not in VERB_S_BLACKLIST
+                and prev not in COPULAS
                 and prev != ","
                 and not _is_plural_noun(prev)
                 and not prev.isdigit()
