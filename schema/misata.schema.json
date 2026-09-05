@@ -1265,6 +1265,64 @@
         ],
         "additionalProperties": false
       }
+    },
+    "joint_distributions": {
+      "type": "array",
+      "description": "Several margins over the same rows, holding together and exactly. Solved by Iterative Proportional Fitting, which converges to the unique maximum-entropy distribution consistent with the declared margins. Contradictory margins are refused with the arithmetic.",
+      "items": {
+        "type": "object",
+        "description": "Declare each column's margin and, optionally, the dependency between them via cell emphasis or forbidden combinations.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          },
+          "margins": {
+            "type": "object",
+            "description": "Column -> {value: share}. Each margin must sum to 1.0.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "emphasis": {
+            "type": "object",
+            "description": "Cell weights keyed by joined category values, e.g. \"enterprise|apac\". Above 1 pulls mass toward that combination while the margins still hold.",
+            "additionalProperties": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "forbidden": {
+            "type": "array",
+            "description": "Combinations declared impossible: structural zeros.",
+            "items": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "table",
+          "margins"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "$defs": {

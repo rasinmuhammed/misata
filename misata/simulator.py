@@ -5674,6 +5674,13 @@ class DataSimulator:
                        if t in set(sorted_tables)}
         dyn_tables |= {t for t in bitemporal_tables(self.config)
                        if t in set(sorted_tables)}
+        # Joint satisfaction rewrites whole columns from a solved cell table,
+        # so its table must be materialised rather than streamed past. Without
+        # this the pass ran against an empty buffer and the declared margins
+        # silently did not appear in the output.
+        dyn_tables |= {spec.table
+                       for spec in (getattr(self.config, "joint_distributions", None) or [])
+                       if spec.table in set(sorted_tables)}
 
         # A degraded table is produced whole and must reach the dynamics pass,
         # or every declaration written against it (missingness, outliers,
@@ -5890,11 +5897,23 @@ class DataSimulator:
         # Graphs and bitemporal histories run before event logs: both rewrite
         # whole tables from a structure, and the later passes only ever adjust
         # clocks and values on rows that already exist.
-        if getattr(self.config, "dag_edges", None) or getattr(
-                self.config, "closures", None):
+        # graph_motifs belongs in this gate too: a schema declaring motifs
+        # without dag_edges skipped the pass entirely and emitted an ordinary
+        # table with none of the declared structure in it.
+        if (getattr(self.config, "dag_edges", None)
+                or getattr(self.config, "closures", None)
+                or getattr(self.config, "graph_motifs", None)):
             from misata.graphs import apply_graphs
             with self._anchor("identity", "graphs"):
                 apply_graphs(buffered, self.config, self.rng)
+
+        # Joint satisfaction rewrites whole columns from a solved cell table,
+        # so it runs with the other structure passes and before the clock and
+        # value adjustments that follow.
+        if getattr(self.config, "joint_distributions", None):
+            from misata.joint import apply_joint_distributions
+            with self._anchor("identity", "joint"):
+                apply_joint_distributions(buffered, self.config, self.rng)
 
         if getattr(self.config, "bitemporal", None):
             from misata.bitemporal import apply_bitemporals

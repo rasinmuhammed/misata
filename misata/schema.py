@@ -1301,6 +1301,63 @@ class TransitiveClosure(BaseModel):
     depth_column: Optional[str] = None
 
 
+class JointDistribution(BaseModel):
+    """Several margins over the same rows, holding together and exactly.
+
+    Declaring "40% enterprise" and "15% APAC" separately gets both margins and
+    whatever relationship between them the sampler happens to produce, which is
+    a specification nobody wrote. This declares the relationship too.
+
+    Solved by Iterative Proportional Fitting, which converges to the unique
+    MAXIMUM-ENTROPY distribution consistent with the declared margins: the
+    provably least-assuming answer to everything left unstated. The real-valued
+    result is then rounded so the emitted rows match every margin exactly, not
+    approximately, which for two dimensions is always possible because the
+    rounding is a transportation problem with a totally unimodular constraint
+    matrix.
+
+    Margins that cannot hold together are refused with the arithmetic before
+    generation rather than quietly averaged during it.
+
+    Attributes:
+        name: Identifier used in warnings and conflict messages.
+        table: Table whose rows these margins describe.
+        margins: Column -> {value: share}. Each margin must sum to 1.0,
+            because every margin is a view of the same rows and so must
+            account for all of them.
+        emphasis: Cell weights keyed by the joined category values, e.g.
+            ``{"enterprise|apac": 4.0}``. Above 1 pulls mass toward that
+            combination while the margins still hold. This is how a dependency
+            is declared without writing out a whole joint distribution.
+        forbidden: Combinations declared impossible, as structural zeros.
+    """
+
+    name: str
+    table: str
+    margins: Dict[str, Dict[str, float]]
+    emphasis: Dict[str, float] = Field(default_factory=dict)
+    forbidden: List[Dict[str, str]] = Field(default_factory=list)
+    description: Optional[str] = None
+
+    @field_validator("margins")
+    @classmethod
+    def _each_margin_accounts_for_all_rows(cls, v):
+        for col, m in v.items():
+            if not m:
+                raise ValueError(f"margin for '{col}' is empty")
+            total = sum(float(x) for x in m.values())
+            if abs(total - 1.0) > 1e-6:
+                raise ValueError(
+                    f"margin for '{col}' sums to {total:.6f}, not 1.0. Every "
+                    f"margin describes the same rows, so each must account for "
+                    f"all of them.")
+        if len(v) < 2:
+            raise ValueError(
+                "a joint distribution needs at least two margins; one margin "
+                "on its own is an ordinary categorical declaration")
+        return v
+
+
 class GraphMotifs(BaseModel):
     """Declared subgraph patterns injected into an otherwise-acyclic edge table.
 
@@ -1482,6 +1539,7 @@ class SchemaConfig(BaseModel):
     dag_edges: List[DagEdges] = Field(default_factory=list)
     closures: List[TransitiveClosure] = Field(default_factory=list)
     graph_motifs: List[GraphMotifs] = Field(default_factory=list)
+    joint_distributions: List[JointDistribution] = Field(default_factory=list)
     generation_mode: Literal["legacy", "anchored"] = Field(
         default="anchored",
         description=(
