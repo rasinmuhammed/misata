@@ -47,6 +47,27 @@ _SLOT = re.compile(r"\{(\w+)\}")
 Pool = Union[List[str], Dict[str, float]]
 
 
+
+_GEMINABLE = set("bcdfgklmnprstvwz")
+
+
+def _degeminate_join(left: str, right: str) -> str:
+    """Concatenate two morphemes the way English orthography does.
+
+    Hart + ton is written Harton and Ell + ley is written Elley, so a composer
+    that concatenates blindly produces spellings no surname has. Only the two
+    characters that meet are considered: run this over a whole string instead
+    and "Bell" comes out "Bel", which is the same class of error pointing the
+    other way.
+    """
+    if not left or not right:
+        return left + right
+    a, b = left[-1], right[0]
+    if a.lower() == b.lower() and a.lower() in _GEMINABLE:
+        return left + right[1:]
+    return left + right
+
+
 class LexiconSpec(BaseModel):
     """How a kind of value is formed. Small enough for a human to audit.
 
@@ -75,6 +96,11 @@ class LexiconSpec(BaseModel):
             30,000 rows over a few thousand distinct is what real data looks
             like, while 30,000 customers sharing 2,000 names is not. Feasibility
             refuses only a column MORE degenerate than its type naturally is.
+        elide_boundary_doubles: Collapse a consonant repeated across a morpheme
+            join, the way English orthography does. Without it "Hart" + "ton"
+            emits "Hartton" and "Ell" + "ley" emits "Ellley" — a defect that
+            only shows up when every pairing is enumerated, because it hides in
+            twelve of two hundred and sixty and sampling never lands on it.
     """
 
     name: str
@@ -85,6 +111,7 @@ class LexiconSpec(BaseModel):
     distinct_slots: List[List[str]] = Field(default_factory=list)
     blocklist: List[str] = Field(default_factory=list)
     rows_per_distinct: float = Field(default=2.0, gt=0.0)
+    elide_boundary_doubles: bool = False
     # True when an existing locale-aware provider already answers this type
     # better than composition can. Person names are region-specific and the
     # locale machinery gets them right; a lexicon that overrode it would
@@ -165,6 +192,17 @@ class Lexicon:
         self._pat_w = pw / pw.sum() if pw.size else pw
         self._pools = {s: spec._pool(s) for s in spec.slots}
 
+    def _join(self, pat: str, chosen: Dict[str, str]) -> str:
+        """Fill a pattern, eliding a doubled consonant only where two
+        morphemes actually touch."""
+        if not self.spec.elide_boundary_doubles:
+            return _SLOT.sub(lambda m: chosen.get(m.group(1), ""), pat)
+        out = ""
+        for piece in _SLOT.split(pat):
+            out = _degeminate_join(out, chosen.get(piece, piece)
+                                   if piece in chosen else piece)
+        return out
+
     def _compose_one(self) -> str:
         out = ""
         for _ in range(8):
@@ -178,8 +216,8 @@ class Lexicon:
                    != len({chosen[g] for g in grp if g in chosen})
                    for grp in self.spec.distinct_slots):
                 continue
-            out = re.sub(r"\s+", " ",
-                         _SLOT.sub(lambda m: chosen.get(m.group(1), ""), pat)).strip()
+            joined = self._join(pat, chosen)
+            out = re.sub(r"\s+", " ", joined).strip()
             if out and out not in self.spec.blocklist:
                 return out
         return out or (self.spec.head[0] if self.spec.head else "")
@@ -231,9 +269,26 @@ def _build_builtins() -> Dict[str, LexiconSpec]:
               "Maria Garcia", "David Miller", "Michael Davis", "Patricia Jones"],
         head_share=0.02,
         slots={"given": given, "family": family,
-               "initial": [f"{c}." for c in "ABCDEFGHJKLMNPRSTW"]},
-        patterns=[("{given} {family}", 0.88), ("{given} {initial} {family}", 0.12)],
+               "initial": [f"{c}." for c in "ABCDEFGHJKLMNPRSTW"],
+               # Surnames also COMPOSE, and the tail of a real surname
+               # distribution is where the composed ones live. A provider's
+               # thousand-name list puts a hundred people per surname in a
+               # hundred-thousand-row table, which is a tell no amount of
+               # value-level variety hides. Morphemes stay inside one naming
+               # tradition, because crossing traditions is what turns
+               # composition into nonsense: an Irish prefix on an English root
+               # is not a rare surname, it is not a surname.
+               "anglo_stem": ("Ash Brad Whit Hart Nor Sut Wes Ell Har Kirk Mars Nether Pen Rad "
+                              "Shel Stan Thorn Wal Wex Bram Cald Dun Farn Gres Hal Old").split(),
+               "anglo_suffix": ("ton field wood ford worth bury ley don ridge brook").split(),
+               "nordic_stem": ("Erik Ander Lar Nil Sven Karl Bjorn Olaf Peter Johan Henrik "
+                               "Gunnar Sigurd Halvor Jen").split(),
+               "nordic_suffix": ["sson", "sen", "son"]},
+        patterns=[("{given} {family}", 0.80), ("{given} {initial} {family}", 0.11),
+                  ("{given} {anglo_stem}{anglo_suffix}", 0.06),
+                  ("{given} {nordic_stem}{nordic_suffix}", 0.03)],
         rows_per_distinct=1.6,   # people mostly differ
+        elide_boundary_doubles=True,
         locale_sensitive=True,   # the locale pack owns region-correct names
     )
 

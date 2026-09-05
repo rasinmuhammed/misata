@@ -14,7 +14,7 @@ import pytest
 
 import misata
 from misata.feasibility import InfeasibleSchema, check_feasibility
-from misata.lexicon import Lexicon, LexiconSpec, builtin_specs, get_spec
+from misata.lexicon import _degeminate_join, Lexicon, LexiconSpec, builtin_specs, get_spec
 from misata.schema import Column, SchemaConfig, Table
 
 
@@ -122,3 +122,67 @@ class TestReproducible:
         a = list(Lexicon(get_spec("vessel_name"), np.random.default_rng(5)).draw(200))
         b = list(Lexicon(get_spec("vessel_name"), np.random.default_rng(5)).draw(200))
         assert a == b
+
+
+class TestComposedSurnameTail:
+    """A provider's thousand-name list puts a hundred people per surname in a
+    hundred-thousand-row table. Real surname stock composes, so the tail here
+    does too — inside one naming tradition, because crossing traditions turns
+    composition into nonsense rather than into a rare name."""
+
+    def test_no_pairing_geminates_across_the_join(self):
+        """Hart + ton is Harton, not Hartton, and Anders + sson is Andersson
+        with two s and never three. Twelve of two hundred and sixty pairings
+        are wrong this way, which is why they are enumerated rather than
+        sampled: a defect in five percent of a pool hides for a long time.
+        A double INSIDE a morpheme is left alone — Ellwood is a surname."""
+        import re
+
+        from misata.lexicon import get_spec
+        spec = get_spec("person_name")
+        pairs = [(a, b)
+                 for group in (("anglo_stem", "anglo_suffix"),
+                               ("nordic_stem", "nordic_suffix"))
+                 for a in spec.slots[group[0]] for b in spec.slots[group[1]]]
+        assert len(pairs) > 250
+        for a, b in pairs:
+            joined = _degeminate_join(a, b)
+            assert not re.search(r"(.)\1\1", joined), joined
+            if a[-1].lower() == b[0].lower() and a[-1].lower() in "bcdfgklmnprstvwz":
+                assert len(joined) == len(a) + len(b) - 1, joined
+
+    def test_real_surnames_keep_their_doubles(self):
+        """The same rule applied to a whole string turns Bell into Bel, which
+        is the identical error pointing the other way. Every surname drawn is
+        either a real one, unaltered, or one this spec's morphemes compose."""
+        import numpy as np
+
+        from misata.lexicon import Lexicon, _person_pools, get_spec
+        spec = get_spec("person_name")
+        _given, family = _person_pools()
+        composed = {_degeminate_join(a, b)
+                    for group in (("anglo_stem", "anglo_suffix"),
+                                  ("nordic_stem", "nordic_suffix"))
+                    for a in spec.slots[group[0]] for b in spec.slots[group[1]]}
+        legal = set(family) | composed | {h.split()[-1] for h in spec.head}
+        drawn = {str(v).split()[-1] for v in
+                 Lexicon(spec, np.random.default_rng(11)).draw(200_000)}
+        assert not (drawn - legal), sorted(drawn - legal)[:10]
+        # and the doubles the pool really carries are among what came out
+        doubled = {f for f in family if any(f[i] == f[i + 1] for i in range(len(f) - 1))}
+        assert len(doubled & drawn) > 50
+
+    def test_the_tail_widens_the_surname_stock(self):
+        import numpy as np
+
+        from misata.lexicon import Lexicon, _person_pools, get_spec
+        _given, family = _person_pools()
+        drawn = {str(v).split()[-1] for v in
+                 Lexicon(get_spec("person_name"), np.random.default_rng(3)).draw(200_000)}
+        assert len(drawn) > len(family) + 200
+
+    def test_elision_is_off_unless_a_spec_asks_for_it(self):
+        from misata.lexicon import builtin_specs
+        for name, spec in builtin_specs().items():
+            if name != "person_name":
+                assert not spec.elide_boundary_doubles, name

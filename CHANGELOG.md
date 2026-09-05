@@ -5,6 +5,87 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.50] - 2026-09-05
+
+### Vocabulary that grows with the table, and joint margins that hold at once
+
+Four releases folded into one. Graph motifs shipped separately in 0.9.6.46;
+everything below has been sitting on main unreleased.
+
+**Generative lexicons.** A text column used to draw from a fixed pool, so a
+30,000-row vessel column repeated "Plus" for most of it. `semantic:` now names
+what a column means, and a lexicon answers for that meaning: a small head of
+real high-frequency values drawn with Zipfian weight over rank, plus
+composition over morpheme slots for everything past the head. The spec is a
+few dozen lines and ships with the data, so a reader who knows the domain can
+correct it (tankers take MT, not MV). One spec per semantic type is what makes
+a cross-type collision impossible rather than unlikely.
+
+`effective_capacity()` is the number that matters, not the raw product. A
+pattern drawn 4% of the time contributes 4% of the draws however many values
+it can form, so a corpus duplicates at the rate of the pattern that saturates
+first. Raw capacity overstates by up to 300x. Feasibility refuses a column
+whose declared row count exceeds what its lexicon can actually carry, before
+generating anything, and it uses a per-type `rows_per_distinct` to do it:
+clinical coding genuinely concentrates on a handful of procedures, so 30,000
+rows over a few thousand distinct values is what real data looks like, while
+30,000 customers sharing 2,000 names is not.
+
+Region-aware naming is untouched. Locale-sensitive types are marked as such
+and the locale pack keeps them, so `ja_JP` still returns 鈴木 くみ子.
+
+**Surnames compose in the tail.** A provider's thousand-name list puts a
+hundred people per surname in a hundred-thousand-row table, which is a tell
+that no amount of value-level variety hides. Composed forms now fill the tail,
+inside one naming tradition, because crossing traditions turns composition
+into nonsense rather than into a rare name. Surname stock goes from 1,000 to
+1,287. Morphemes join the way English orthography joins them: Hart plus ton is
+Harton, Anders plus sson is Andersson with two s and never three. Twelve of
+two hundred and sixty pairings were wrong before that rule, which is why every
+pairing is enumerated in a test rather than sampled. The elision applies only
+where two morphemes actually meet, because the same rule over a whole string
+turns Bell into Bel.
+
+**Joint satisfaction (IPF).** Two declared margins used to be satisfiable one
+at a time and silently inconsistent together. `joint_distributions` now solves
+for the unique maximum-entropy table consistent with every declared margin,
+via iterative proportional fitting, and refuses up front when the margins
+cannot all hold. Two-way tables integerise with both margins exact, which is
+always solvable; three-way and above preserve the grand total exactly and say
+so rather than implying more.
+
+**Review prose.** Aspect sentences were twenty-two hand-written strings, which
+is why half of any twenty thousand reviews were byte-identical to another one
+against a docstring claiming tens of thousands. Aspects now compose within a
+topic, subject and predicate drawn from the same pool so they always agree,
+and the row's own entity is woven into the prose. Duplicate rate over 8,000
+rows goes from 49.9% to 0.21%; word stock over the same table goes from 285 to
+1,070 and rises with the entity column rather than being capped by the grammar.
+
+Three defect classes fixed on the way, all found by enumerating every
+reachable pairing rather than reading samples:
+
+- Clause capitalisation. Whether a clause starts a sentence depends on the
+  template that placed it, so every mixed review read "That said, The quality
+  feels flimsy." Clauses are stored lowercase and one pass capitalises whatever
+  actually ended up first, after the whole string exists, which is the only
+  place the answer is known.
+- Self-contradicting contrasts. Two independent draws that both named the
+  subject produced "X feels nothing like the photos. To be fair, X feels
+  genuinely premium." One side of a contrast names the subject now.
+- Articles. "the" is correct before a product and wrong before a company, and
+  the grammar cannot tell which the column holds, so it uses neither.
+
+**What is not claimed.** Prose vocabulary does not reach the Heaps exponent of
+natural English (0.45 to 0.60) and cannot. That exponent comes from an open
+world of proper nouns, numerals and misspellings; a column drawn from a finite
+universe saturates, measuring 0.157 over 100,000 rows. Reaching the band would
+mean minting non-words, which is a worse column than the one it replaced. The
+property actually claimed, and tested, is that prose word stock is a function
+of the table rather than a constant of the grammar.
+
+2,017 tests green.
+
 ## [0.9.6.18] - 2026-08-19
 
 ### The library now points at Studio, once

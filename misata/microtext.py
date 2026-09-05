@@ -29,6 +29,25 @@ from typing import Dict, List, Optional, Sequence, Union
 
 import numpy as np
 
+
+_SENTENCE_START = re.compile(r"(^|[.!?]\s+)([a-z])")
+
+
+def _capitalise_sentences(text: str) -> str:
+    """Capitalise whatever ended up starting a sentence.
+
+    Clause rules store their first word lowercase, because whether a clause
+    begins a sentence depends on the template that placed it: "the quality
+    feels flimsy" opens a review in one expansion and follows "That said," in
+    another. Deciding here, once, after the whole string exists, is the only
+    place the answer is actually known. The pass never lowercases, so entity
+    names and hand-written full sentences pass through untouched.
+    """
+    out = _SENTENCE_START.sub(lambda m: m.group(1) + m.group(2).upper(), text)
+    # "i ordered" is the one word that is capital wherever it stands.
+    return re.sub(r"\bi\b(?=\s)", "I", out)
+
+
 Rule = Union[str, tuple]  # plain template, or (weight, template)
 
 
@@ -44,8 +63,12 @@ class Grammar:
     _PLACEHOLDER = re.compile(r"\{([a-z0-9_]+)\}")
     MAX_DEPTH = 12
 
-    def __init__(self, rules: Dict[str, List[Rule]], rng: np.random.Generator):
+    def __init__(self, rules: Dict[str, List[Rule]], rng: np.random.Generator,
+                 capitalise: bool = False):
         self.rng = rng
+        # Off by default: capitalisation is a property of the grammar that
+        # asked for it, not of every caller of this class.
+        self.capitalise = capitalise
         self._templates: Dict[str, List[str]] = {}
         self._weights: Dict[str, np.ndarray] = {}
         for symbol, options in rules.items():
@@ -75,7 +98,10 @@ class Grammar:
                 return self.expand(name, _depth + 1, **slots)
             raise KeyError(f"grammar symbol or slot '{name}' is not defined")
 
-        return self._PLACEHOLDER.sub(_fill, template)
+        filled = self._PLACEHOLDER.sub(_fill, template)
+        if self.capitalise and _depth == 0:
+            return _capitalise_sentences(filled)
+        return filled
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +137,8 @@ _REVIEW_RULES: Dict[str, List[Rule]] = {
     ],
     # ── bodies: one or two aspect sentences ──
     "body_pos": ["{aspect_pos}", (1.5, "{aspect_pos} {aspect_pos2}")],
-    "body_mixed": ["{aspect_pos} {but} {aspect_neg}", "{aspect_neg} {but_pos} {aspect_pos}"],
+    "body_mixed": ["{aspect_pos_c} {but} {aspect_neg_c}",
+                   "{aspect_neg_c} {but_pos} {aspect_pos_c}"],
     "body_neg": ["{aspect_neg}", (1.5, "{aspect_neg} {aspect_neg2}")],
     "body_neg_strong": ["{aspect_neg} {aspect_neg2} {escalation}"],
     # ── openers ──
@@ -146,50 +173,75 @@ _REVIEW_RULES: Dict[str, List[Rule]] = {
     # predicate are drawn from the same topic so they always agree.
     "aspect_pos": [
         "{ap_quality}", "{ap_setup}", "{ap_support}", "{ap_delivery}",
-        "{ap_perf}", "{ap_ui}", "{ap_value}", "{ap_fit}",
+        "{ap_perf}", "{ap_ui}", "{ap_value}", "{ap_fit}", (9.0, "{ap_named}"),
     ],
-    "ap_quality": ["The {n_quality} {v_seems} {t_quality_pos}"],
-    "n_quality": ["quality", "build", "finish", "materials", "construction",
-                  "casing", "stitching", "hardware"],
+    "aspect_pos_c": [
+        "{ap_quality}", "{ap_setup}", "{ap_support}", "{ap_delivery}",
+        "{ap_perf}", "{ap_ui}", "{ap_value}", "{ap_fit}", (6.0, "{ap_named_desc}"),
+    ],
+    "ap_quality": ["the {n_quality} {v_seems} {t_quality_pos}"],
+    "n_quality": ["quality", "build", "finish", "construction",
+                  "casing", "stitching", "hardware", "packaging"],
     "v_seems": ["feels", "seems", "looks", "comes across as"],
     "t_quality_pos": ["genuinely premium.", "solid and well made.",
                       "a clear step above the price.", "sturdier than I expected.",
                       "built to last.", "far better than the photos suggest."],
     "ap_setup": ["{n_setup} {v_took} {t_setup_pos}"],
-    "n_setup": ["Setup", "Installation", "Getting started", "The first run",
-                "Onboarding", "Unboxing to working"],
+    "n_setup": ["setup", "installation", "getting started", "the first run",
+                "onboarding", "unboxing to working"],
     "v_took": ["took", "needed", "was done in", "wrapped up in"],
     "t_setup_pos": ["under five minutes.", "about ten minutes, start to finish.",
                     "one evening and no swearing.", "less time than the manual claims.",
                     "barely any effort."],
     "ap_support": ["{n_support} {v_replied} {t_support_pos}"],
-    "n_support": ["Customer service", "Support", "The team", "Their help desk"],
+    "n_support": ["customer service", "support", "the team", "their help desk"],
     "v_replied": ["replied", "got back to me", "answered", "followed up"],
     "t_support_pos": ["within the hour.", "the same day, and actually solved it.",
                       "quickly and without a script.", "before I had to chase them.",
                       "with a real answer, not a template."],
     "ap_delivery": ["{n_delivery} {v_arrived} {t_delivery_pos}"],
-    "n_delivery": ["Delivery", "Shipping", "The parcel", "The order"],
+    "n_delivery": ["delivery", "shipping", "the parcel", "the order"],
     "v_arrived": ["arrived", "turned up", "landed", "showed up"],
     "t_delivery_pos": ["two days early, well packaged.", "on time and undamaged.",
                        "faster than the estimate.", "properly boxed, no dents."],
     "ap_perf": ["{n_perf} {v_runs} {t_perf_pos}"],
-    "n_perf": ["Performance", "Battery life", "Speed", "Throughput",
-               "Responsiveness", "Range"],
+    "n_perf": ["performance", "battery life", "speed", "throughput",
+               "responsiveness", "range"],
     "v_runs": ["has been", "stays", "remains"],
     "t_perf_pos": ["excellent so far.", "smooth even under heavy use.",
                    "steady all week.", "consistent under load.",
                    "strong after months of daily use."],
-    "ap_ui": ["The {n_ui} {v_is} {t_ui_pos}"],
+    "ap_ui": ["the {n_ui} {v_is} {t_ui_pos}"],
     "n_ui": ["interface", "app", "dashboard", "layout", "menu", "controls"],
     "v_is": ["is", "stays", "feels"],
     "t_ui_pos": ["clean and intuitive.", "obvious without a manual.",
                  "quick to learn.", "uncluttered.", "well thought through."],
-    "ap_value": ["The {n_price} {v_is} {t_value_pos}"],
+    "ap_value": ["the {n_price} {v_is_price} {t_value_pos}"],
     "n_price": ["price", "cost", "pricing"],
     "t_value_pos": ["more than fair for what you get.", "honest.",
                     "the reason I would buy again.", "well below what I expected to pay."],
-    "ap_fit": ["It {v_works} {t_fit_pos}"],
+    # Entity-bearing aspects. `subject` carries the row's own value, so the
+    # word stock grows with the table rather than being capped by the grammar.
+    # Split descriptive from narrative. A description of the subject contrasts
+    # cleanly against another aspect; a first-person story does not, and a
+    # mixed review that draws two of them says it returned the thing and also
+    # never looked back. Only the descriptive half is reachable from a
+    # contrastive body.
+    # No article, either: "the" is correct before a product and wrong before a
+    # company, and the grammar cannot tell which the column holds.
+    "ap_named": [(3.0, "{ap_named_desc}"), (2.0, "{ap_named_story}")],
+    "ap_named_desc": ["{subject} {v_seems} {t_quality_pos}",
+                      "{subject} {v_runs} {t_perf_pos}"],
+    "ap_named_story": ["i tried {subject} {when} and it {v_works} {t_fit_pos}",
+                       "{agent} on support sorted it {when} without any fuss.",
+                       "i came back to {subject} {when} and have not regretted it."],
+    "an_named": [(3.0, "{an_named_desc}"), (2.0, "{an_named_story}")],
+    "an_named_desc": ["{subject} {v_seems} {t_quality_neg}",
+                      "{subject} {v_drops} {t_perf_neg}"],
+    "an_named_story": ["i tried {subject} {when} and it {v_fails} {t_fit_neg}",
+                       "{agent} on support promised a callback {when} that never came.",
+                       "i gave up on {subject} {when} and switched to something else."],
+    "ap_fit": ["it {v_works} {t_fit_pos}"],
     "v_works": ["works", "performs", "fits", "runs"],
     "t_fit_pos": ["exactly as described.",
                   "with everything I already use.",
@@ -204,9 +256,17 @@ _REVIEW_RULES: Dict[str, List[Rule]] = {
     ],
     "aspect_neg": [
         "{an_quality}", "{an_setup}", "{an_support}", "{an_delivery}",
+        "{an_perf}", "{an_ui}", "{an_value}", "{an_fit}", (9.0, "{an_named}"),
+    ],
+    # Deliberately carries no named production: body_mixed reaches this and
+    # aspect_pos_c in the same expansion, and two independent draws that both
+    # name the subject produce "X feels nothing like the photos. To be fair, X
+    # feels genuinely premium." One side names it; the contrast is real.
+    "aspect_neg_c": [
+        "{an_quality}", "{an_setup}", "{an_support}", "{an_delivery}",
         "{an_perf}", "{an_ui}", "{an_value}", "{an_fit}",
     ],
-    "an_quality": ["The {n_quality} {v_seems} {t_quality_neg}"],
+    "an_quality": ["the {n_quality} {v_seems} {t_quality_neg}"],
     "t_quality_neg": ["much cheaper than advertised.", "flimsy in the hand.",
                       "nothing like the photos.", "rushed.",
                       "a downgrade on the previous version."],
@@ -231,14 +291,15 @@ _REVIEW_RULES: Dict[str, List[Rule]] = {
     "t_perf_neg": ["far faster than claimed.", "after about a week.",
                    "the moment you actually load it.",
                    "under any real workload."],
-    "an_ui": ["The {n_ui} {v_is} {t_ui_neg}"],
+    "an_ui": ["the {n_ui} {v_is} {t_ui_neg}"],
     "t_ui_neg": ["clunky and slow.", "buried three menus deep.",
                  "clearly never user-tested.", "a maze."],
-    "an_value": ["The {n_price} {v_is} {t_value_neg}"],
+    "an_value": ["the {n_price} {v_is_price} {t_value_neg}"],
+    "v_is_price": ["is", "feels", "seems"],
     "t_value_neg": ["hard to justify for what you get.",
                     "well above what this is worth.",
                     "the main reason I would not repeat it."],
-    "an_fit": ["It {v_fails} {t_fit_neg}"],
+    "an_fit": ["it {v_fails} {t_fit_neg}"],
     "v_fails": ["stopped working", "gave up", "started failing"],
     "t_fit_neg": ["properly after a few days.",
                   "on the one feature I bought it for.",
@@ -386,7 +447,7 @@ class MicrotextGenerator:
 
     def __init__(self, rng: Optional[np.random.Generator] = None):
         self.rng = rng or np.random.default_rng(42)
-        self._review = Grammar(_REVIEW_RULES, self.rng)
+        self._review = Grammar(_REVIEW_RULES, self.rng, capitalise=True)
         self._title = Grammar(_TITLE_RULES, self.rng)
         self._note = Grammar(_NOTE_RULES, self.rng)
         self._comment = Grammar(_COMMENT_RULES, self.rng)
@@ -414,9 +475,53 @@ class MicrotextGenerator:
             )
         return arr.astype(int)
 
-    def reviews(self, size: int, ratings: Optional[Sequence] = None) -> np.ndarray:
+    # Fallbacks so an entity production still reads correctly when the caller
+    # has no row context to give it. Prose must never depend on plumbing.
+    _GENERIC_SUBJECT = ("unit", "item", "product", "model", "order")
+    _GENERIC_WHEN = ("last month", "back in the spring", "a few weeks ago",
+                     "over the summer", "just before Christmas", "in the new year")
+    _GENERIC_AGENT = ("The advisor", "The rep", "Someone", "The agent")
+
+    def reviews(self, size: int, ratings: Optional[Sequence] = None,
+                context: Optional[Dict[str, Sequence]] = None) -> np.ndarray:
+        """Reviews whose sentiment follows the rating.
+
+        Args:
+            size: How many.
+            ratings: Star levels the text must agree with.
+            context: Optional per-row values woven into the prose, e.g.
+                ``{"subject": product_names}``. This is the only source of OPEN
+                vocabulary here: recombining a fixed morpheme pool multiplies
+                sentences but never mints a new word, so the Heaps exponent
+                stays at zero however large a grammar grows. A row's own entity
+                name does mint one, and it also ties the review to the row it
+                belongs to rather than leaving it floating free.
+        """
         levels = self.normalize_ratings(ratings, size, self.rng)
-        return np.array([self._review.expand(f"review_{lvl}") for lvl in levels], dtype=object)
+        subjects = self._slot_series(context, "subject", size, self._GENERIC_SUBJECT)
+        whens = self._slot_series(context, "when", size, self._GENERIC_WHEN)
+        agents = self._slot_series(context, "agent", size, self._GENERIC_AGENT)
+        return np.array(
+            [self._review.expand(f"review_{lvl}", subject=subjects[i],
+                                 when=whens[i], agent=agents[i])
+             for i, lvl in enumerate(levels)], dtype=object)
+
+    def _slot_series(self, context: Optional[Dict[str, Sequence]], key: str,
+                     size: int, fallback: Sequence[str]) -> List[str]:
+        """Per-row values for a slot, falling back to a generic pool."""
+        values = (context or {}).get(key)
+        if values is None:
+            idx = self.rng.integers(0, len(fallback), size=size)
+            return [fallback[i] for i in idx]
+        arr = list(values)[:size]
+        if len(arr) < size:
+            arr += [arr[i % max(len(arr), 1)] if arr else fallback[0]
+                    for i in range(size - len(arr))]
+        out = []
+        for v in arr:
+            t = str(v).strip()
+            out.append(t if t and t.lower() not in ("nan", "none", "") else fallback[0])
+        return out
 
     def review_titles(self, size: int, ratings: Optional[Sequence] = None) -> np.ndarray:
         levels = self.normalize_ratings(ratings, size, self.rng)

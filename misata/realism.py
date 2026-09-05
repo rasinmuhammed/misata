@@ -1329,7 +1329,8 @@ class RealisticTextGenerator:
         # Sentiment is conditioned on the row's rating: a 1-star review reads
         # angry, a 5-star review reads delighted. Without a rating column the
         # grammar falls back to the J-shaped marginal real review sites show.
-        return self.microtext.reviews(size, ratings=self._ratings_from(table_data, size))
+        return self.microtext.reviews(size, ratings=self._ratings_from(table_data, size),
+                                      context=_prose_context(table_data, size))
 
     def _generate_support_ticket(self, *, size: int) -> np.ndarray:
         _ISSUES = [
@@ -2328,6 +2329,38 @@ def apply_realism_rules(
 # ─── TEXT / SENTIMENT RULES ──────────────────────────────────────────────────
 
 _REVIEW_TEXT_COLS = ("review", "review_text", "review_body", "feedback_text")
+
+# Columns whose value the prose can legitimately name. A review that never
+# mentions what it is reviewing is the giveaway: the grammar's word stock is
+# fixed, so without these the whole column is drawn from a few hundred words
+# however many rows it has.
+_SUBJECT_COLS = ("product_name", "product", "item_name", "item", "model",
+                 "service_name", "service", "vessel_name", "vessel", "sku_name",
+                 "plan_name", "listing_title", "course_name", "merchant_name")
+_AGENT_COLS = ("agent_name", "agent", "support_agent", "representative", "rep_name",
+               "employee_name", "handled_by", "assigned_to", "staff_name")
+
+
+def _prose_context(df, size: int) -> dict:
+    """Row values the review grammar can weave into its prose.
+
+    Only string columns of real variety qualify. A two-value status column
+    naming itself in every review reads worse than not naming anything, so a
+    column has to carry at least a handful of distinct values to be used.
+    """
+    if df is None or getattr(df, "empty", True):
+        return {}
+    ctx = {}
+    for slot, candidates in (("subject", _SUBJECT_COLS), ("agent", _AGENT_COLS)):
+        for col in candidates:
+            if col not in df.columns:
+                continue
+            values = df[col].astype(str).values[:size]
+            if len(set(values[: min(len(values), 500)])) < 5:
+                continue
+            ctx[slot] = list(values)
+            break
+    return ctx
 _RATING_COLS = ("rating", "stars", "score", "rating_given")
 
 
@@ -2366,7 +2399,8 @@ def _fix_review_sentiment(
     gen = MicrotextGenerator(rng)
     ratings = df[rating_col].values
     if text_col is not None:
-        df[text_col] = gen.reviews(len(df), ratings=ratings)
+        df[text_col] = gen.reviews(len(df), ratings=ratings,
+                                   context=_prose_context(df, len(df)))
     if title_col is not None:
         df[title_col] = gen.review_titles(len(df), ratings=ratings)
 
