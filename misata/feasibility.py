@@ -457,6 +457,64 @@ def _check_temporal_eligibility(config: Any) -> List[Conflict]:
     return out
 
 
+def _check_lexicon_capacity(config: Any) -> List[Conflict]:
+    """Refuse a declared lexicon that cannot fill the declared row count.
+
+    Sized on EFFECTIVE capacity, never raw. A pattern drawn most of the time
+    with few reachable strings saturates long before a rare pattern with
+    millions, and a column duplicates at the rate of whichever saturates
+    first. Raw capacity once read 13,863,212 where the honest figure was
+    46,860, which would have passed a 100,000-row column that shipped 52%
+    duplicated."""
+    from misata.lexicon import get_spec
+
+    out: List[Conflict] = []
+    for table in (getattr(config, "tables", None) or []):
+        rows = _row_count(config, table.name)
+        if not rows:
+            continue
+        for col in _columns_of(config, table.name).values():
+            name = getattr(col, "semantic", None)
+            if not name:
+                continue
+            spec = get_spec(name)
+            if spec is None:
+                out.append(Conflict(
+                    kind="unknown_semantic_type",
+                    where=f"{table.name}.{col.name}",
+                    declarations=[f"semantic='{name}'"],
+                    arithmetic=(f"no lexicon is registered for '{name}'; "
+                                f"known types are "
+                                f"{', '.join(sorted(__import__('misata.lexicon', fromlist=['x']).builtin_specs()))}"),
+                    remedy=("declare a LexiconSpec for this type, or use one of the "
+                            "registered names"),
+                ))
+                continue
+            eff = spec.effective_capacity()
+            # Repetition is a property of the type, not a defect. The spec
+            # states how many rows per distinct value a real column of this
+            # kind carries, and only a column MORE degenerate than that is
+            # refused. Refusing all repetition would reject clinical procedure
+            # columns, which repeat heavily in reality.
+            budget = int(eff * spec.rows_per_distinct)
+            if eff and rows > budget:
+                out.append(Conflict(
+                    kind="lexicon_capacity_exhausted",
+                    where=f"{table.name}.{col.name}",
+                    declarations=[f"semantic='{name}'",
+                                  f"row_count on {table.name}"],
+                    arithmetic=(f"{rows:,} rows requested; '{name}' reaches {eff:,} "
+                                f"distinct before its busiest pattern repeats, and "
+                                f"real columns of this type carry about "
+                                f"{spec.rows_per_distinct:g} rows per distinct value, "
+                                f"so {budget:,} is the honest ceiling"),
+                    remedy=(f"lower {table.name}.row_count below {budget:,}, widen the "
+                            f"spec's morpheme pools, or raise rows_per_distinct if "
+                            f"this column really does repeat that hard"),
+                ))
+    return out
+
+
 def _check_graph_motifs(config: Any) -> List[Conflict]:
     """Refuse motif declarations the graph cannot physically hold.
 
@@ -611,6 +669,7 @@ _CHECKS = (
     _check_temporal_eligibility,
     _check_event_log_capacity,
     _check_graph_motifs,
+    _check_lexicon_capacity,
 )
 
 

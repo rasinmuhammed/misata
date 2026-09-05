@@ -433,6 +433,25 @@ class RealisticTextGenerator:
         table_data: Optional[pd.DataFrame] = None,
         semantic_declared: bool = False,
     ) -> np.ndarray:
+        # A DECLARED semantic type outranks every heuristic below, including
+        # the reference-label shortcut. Without this, a column explicitly
+        # declared `vessel_name` was answered by the label heuristic purely
+        # because the name ends in `_name`, and came back "Plus" thirty
+        # thousand times. A declaration is honoured or refused, never quietly
+        # replaced by a guess.
+        if semantic_declared and semantic_type:
+            try:
+                from misata.lexicon import Lexicon, get_spec
+
+                _spec = get_spec(semantic_type)
+                # Step aside for anything the locale machinery does better.
+                # Composition adds scale; it must never cost region-correctness.
+                if _spec is not None and not (
+                        _spec.locale_sensitive and self.locale != "en_US"):
+                    return Lexicon(_spec, self.rng).draw(size)
+            except Exception:
+                pass  # vocabulary must never break a generation
+
         # Lookup-table labels win over everything: a reference table's label
         # column is an enumeration, not a distribution. A column named
         # `plan_name` or `account_name` is a label even when something upstream

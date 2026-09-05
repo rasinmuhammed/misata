@@ -28,6 +28,13 @@ class Column(BaseModel):
     distribution_params: Dict[str, Any] = Field(default_factory=dict, validate_default=True)
     nullable: bool = False
     unique: bool = False
+    # Declared semantic type, resolved against misata.lexicon. Inference stays
+    # as the convenience default, but a column whose meaning is INFERRED at
+    # generation time is how thirteen distinct column names (full_name,
+    # ceo_name, vessel_name, chemical_name among them) all ended up drawing
+    # from one three-word pool of plan tiers. A declared type cannot collide,
+    # and it is what the certificate checks against.
+    semantic: Optional[str] = None
     description: Optional[str] = None  # Human-readable context; used by LLM enrichment
 
     @staticmethod

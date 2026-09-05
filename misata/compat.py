@@ -523,6 +523,10 @@ def _col_from_dict(
     nullable = bool(col_def.get("nullable", True))
     unique = bool(col_def.get("unique", False))
     description = col_def.get("description") or None
+    # A declared semantic type reaches the Column rather than being swallowed
+    # into distribution_params, so the dict path can state a column's meaning
+    # instead of leaving it to be guessed from the name.
+    semantic = col_def.get("semantic") or None
 
     return Column(
         name=col_name,
@@ -530,6 +534,7 @@ def _col_from_dict(
         distribution_params=params,
         nullable=nullable,
         unique=unique,
+        semantic=semantic,
         description=description,
     )
 

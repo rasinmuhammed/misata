@@ -2593,10 +2593,20 @@ class DataSimulator:
             # published JSON schema, so it fell through to free text and the
             # column was filled with business-note sentences. Accept it rather
             # than silently ignoring it.
-            declared = params.get("text_type") or params.get("subtype")
+            # An explicit Column.semantic outranks everything. It is the only
+            # signal here that a human actually stated, and a declaration is
+            # honoured or refused, never quietly replaced by inference.
+            _explicit_semantic = (getattr(column, "semantic", None)
+                                  or params.get("semantic"))
+            declared = (_explicit_semantic
+                        or params.get("text_type") or params.get("subtype"))
             # A text_type the dict path guessed from the column name is not a
             # declaration and must not suppress domain inference.
-            if params.get("_text_type_is_default"):
+            # Only a GUESSED text_type is discarded here. An explicit
+            # Column.semantic is a declaration and must survive: the dict path
+            # guesses text_type='name' from any column ending in _name, and
+            # that guess was wiping out `semantic: vessel_name` alongside it.
+            if params.get("_text_type_is_default") and not _explicit_semantic:
                 declared = None
             if declared in ("sentence", "word", "address", "phone", "url"):
                 declared = None  # legacy free-text types: handled below
