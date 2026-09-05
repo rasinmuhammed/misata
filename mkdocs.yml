@@ -68,6 +68,8 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Quick Start: quickstart.md
+  - Prompts: prompts.md
+  - Declaration Reference: reference/declarations.md
   - Generation:
     - generation/index.md
     - Plain English: generation/story.md
