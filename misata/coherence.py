@@ -1433,6 +1433,182 @@ def _detect_graph_violation(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _detect_wear_violation(tables, schema) -> List[CoherenceFinding]:
+    """Wear only goes one way, and a failed unit has nothing left.
+
+    degradations declares that units wear out. Three things follow on the rows
+    and all three are recomputable: remaining useful life never rises as a unit
+    accumulates cycles, a unit marked failed has a remaining life of zero, and
+    accumulated damage stays a fraction. A dataset where a machine gets younger
+    is not a subtle statistical drift, it is a defect anyone plotting it would
+    see, and nothing was checking for it.
+    """
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "degradations", None) or []):
+        df = tables.get(getattr(spec, "table", None))
+        if df is None or df.empty:
+            continue
+        unit = getattr(spec, "unit_column", None)
+        cycle = getattr(spec, "cycle_column", None)
+        rul = getattr(spec, "rul_column", None)
+        damage = getattr(spec, "damage_column", None)
+        failure = getattr(spec, "failure_column", None)
+
+        if unit in df.columns and cycle in df.columns and rul in df.columns:
+            ordered = df.sort_values([unit, cycle])
+            rising = ordered.groupby(unit)[rul].diff() > 1e-9
+            climbed = int(rising.sum())
+            if climbed:
+                out.append(CoherenceFinding(
+                    kind="wear_reversed", severity="high",
+                    table=spec.table, column=rul,
+                    message=(f"{climbed:,} row(s) where remaining life rises as "
+                             f"cycles accumulate: a unit gets younger"),
+                    rows_affected=climbed,
+                ))
+
+        if failure in (df.columns if failure else ()) and rul in df.columns:
+            failed = df[df[failure].astype(bool)]
+            alive = int((_numeric(failed[rul]) > 1e-9).sum()) if len(failed) else 0
+            if alive:
+                out.append(CoherenceFinding(
+                    kind="wear_failed_with_life_left", severity="high",
+                    table=spec.table, column=rul,
+                    message=(f"{alive:,} failed row(s) still carry remaining life"),
+                    rows_affected=alive,
+                ))
+
+        if damage in (df.columns if damage else ()):
+            values = _numeric(df[damage])
+            outside = int(((values < -1e-9) | (values > 1.0 + 1e-9)).sum())
+            if outside:
+                out.append(CoherenceFinding(
+                    kind="wear_damage_out_of_range", severity="medium",
+                    table=spec.table, column=damage,
+                    message=(f"{outside:,} row(s) with accumulated damage outside "
+                             f"[0, 1]"),
+                    rows_affected=outside,
+                ))
+    return out
+
+
+def _detect_vocabulary_leak(tables, schema) -> List[CoherenceFinding]:
+    """A column given a vocabulary contains only that vocabulary.
+
+    A declared pool is the whole point of declaring one: if the generator can
+    still reach outside it, every downstream assumption about the column's
+    domain is wrong, and a filler value that slips in reads as real data.
+    """
+    out: List[CoherenceFinding] = []
+    vocab = dict(getattr(schema, "vocabularies", None) or {})
+    if not vocab:
+        return out
+    for table, df in (tables or {}).items():
+        if not isinstance(df, pd.DataFrame) or df.empty:
+            continue
+        for column, allowed in vocab.items():
+            if column not in df.columns or not allowed:
+                continue
+            permitted = {str(v) for v in allowed}
+            seen = df[column].dropna().astype(str)
+            stray = seen[~seen.isin(permitted)]
+            if len(stray):
+                out.append(CoherenceFinding(
+                    kind="vocabulary_leak", severity="high",
+                    table=table, column=column,
+                    message=(f"{len(stray):,} value(s) outside the declared "
+                             f"vocabulary of {len(permitted)}: "
+                             f"{sorted(set(stray))[:4]}"),
+                    rows_affected=int(len(stray)),
+                ))
+    return out
+
+
+def _detect_noise_rate_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Declared defect rates, recomputed from the rows.
+
+    noise exists so a data-quality pipeline can be tested against ground truth,
+    which only works if the ground truth is true. Measured with a wide value
+    space so accidental collisions do not confuse the count: a declared
+    duplicate_rate of 0.05 emitted 0.0476 against a baseline of 0.0000.
+    """
+    out: List[CoherenceFinding] = []
+    noise = getattr(schema, "noise_config", None)
+    if noise is None:
+        return out
+    declared = getattr(noise, "duplicate_rate", None)
+    if not declared:
+        return out
+    for table, df in (tables or {}).items():
+        if not isinstance(df, pd.DataFrame) or len(df) < 100:
+            continue
+        observed = 1.0 - (len(df.drop_duplicates()) / len(df))
+        # Generous: accidental collisions inflate this whenever the columns
+        # have a small value space, so only a gross miss is worth reporting.
+        if abs(observed - float(declared)) > max(0.05, float(declared)):
+            out.append(CoherenceFinding(
+                kind="noise_rate_mismatch", severity="medium",
+                table=table, column=None,
+                message=(f"declared duplicate_rate {float(declared):.4f}, "
+                         f"emitted {observed:.4f} over {len(df):,} rows"),
+                rows_affected=int(abs(observed - float(declared)) * len(df)),
+            ))
+    return out
+
+
+def _detect_rate_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Every declared per-period rate, recomputed from the rows.
+
+    rate_curves is one of the two primitives the whole engine is sold on, and it
+    works: a declared 2% in January and 8% in December came back 0.0200 and
+    0.0800. Nothing checked it. A guarantee nobody recomputes is a claim, and
+    the first regression to break it would have shipped looking clean.
+    """
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "rate_curves", None) or []):
+        df = tables.get(spec.table)
+        points = list(getattr(spec, "rate_points", None) or [])
+        if df is None or df.empty or not points:
+            continue
+        column = getattr(spec, "column", None)
+        time_column = getattr(spec, "time_column", None)
+        if column not in df.columns or time_column not in df.columns:
+            continue
+        stamps = pd.to_datetime(df[time_column], errors="coerce")
+        if stamps.isna().all():
+            continue
+        freq = "QS" if str(getattr(spec, "time_unit", "month")) == "quarter" else "MS"
+        period = stamps.dt.to_period("Q" if freq == "QS" else "M").astype(str)
+        true_value = getattr(spec, "true_value", True)
+        hit = df[column] == true_value
+
+        for point in points:
+            label = str(point.get("period", "") if isinstance(point, dict)
+                        else getattr(point, "period", ""))
+            declared = point.get("rate") if isinstance(point, dict) \
+                else getattr(point, "rate", None)
+            if not label or declared is None:
+                continue
+            # "2026-01" against a monthly period index, or "2026-Q1".
+            mask = period.str.startswith(label[:7])
+            n = int(mask.sum())
+            if n == 0:
+                continue
+            observed = float(hit[mask].mean())
+            # A rate over n rows lands on a multiple of 1/n, so the bound is one
+            # row rather than a round number somebody liked the look of.
+            tolerance = max(0.005, 1.5 / n)
+            if abs(observed - float(declared)) > tolerance:
+                out.append(CoherenceFinding(
+                    kind="rate_curve_mismatch", severity="high",
+                    table=spec.table, column=column,
+                    message=(f"{label}: declared {float(declared):.4f}, emitted "
+                             f"{observed:.4f} over {n:,} rows"),
+                    rows_affected=int(round(abs(observed - float(declared)) * n)),
+                ))
+    return out
+
+
 def _detect_joint_margin_mismatch(tables, schema) -> List[CoherenceFinding]:
     """Every declared margin, recomputed from the rows that were emitted.
 
@@ -2064,6 +2240,10 @@ def coherence_audit(
         report.findings.extend(_detect_graph_violation(tables, schema))
         report.findings.extend(_detect_motif_violation(tables, schema))
         report.findings.extend(_detect_joint_margin_mismatch(tables, schema))
+        report.findings.extend(_detect_rate_curve_mismatch(tables, schema))
+        report.findings.extend(_detect_wear_violation(tables, schema))
+        report.findings.extend(_detect_vocabulary_leak(tables, schema))
+        report.findings.extend(_detect_noise_rate_mismatch(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
         report.findings.extend(_detect_waterfall_mismatch(tables, schema))
         report.findings.extend(_detect_scd2_violations(tables, schema))

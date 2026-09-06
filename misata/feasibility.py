@@ -737,6 +737,112 @@ def _columns_of(config: Any, table: str) -> Dict[str, Any]:
     return {c.name: c for c in (getattr(config, "columns", None) or {}).get(table, [])}
 
 
+def _check_wear_envelope(config: Any) -> List[Conflict]:
+    """A life distribution whose bounds exclude its own mean.
+
+    degradations declares how long units last: a mean, a spread, and a floor
+    and ceiling. A mean outside the floor and ceiling describes no distribution
+    at all, and a floor above the ceiling describes an empty one. Neither can
+    be resolved by sampling harder.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "degradations", None) or []):
+        lo = getattr(spec, "life_min", None)
+        hi = getattr(spec, "life_max", None)
+        mean = getattr(spec, "life_mean", None)
+        where = str(getattr(spec, "table", "") or "schema")
+        if lo is not None and hi is not None and float(lo) > float(hi):
+            out.append(Conflict(
+                kind="wear_envelope_inverted",
+                where=where,
+                declarations=[f"life_min = {float(lo):g}", f"life_max = {float(hi):g}"],
+                arithmetic=f"{float(lo):g} > {float(hi):g}, so no unit life is admissible",
+                remedy="swap them, or widen the range",
+            ))
+        elif mean is not None and lo is not None and hi is not None \
+                and not (float(lo) <= float(mean) <= float(hi)):
+            out.append(Conflict(
+                kind="wear_mean_outside_envelope",
+                where=where,
+                declarations=[f"life_mean = {float(mean):g}",
+                              f"life_min = {float(lo):g}",
+                              f"life_max = {float(hi):g}"],
+                arithmetic=(f"the mean {float(mean):g} lies outside "
+                            f"[{float(lo):g}, {float(hi):g}], so the bounds and the "
+                            f"centre describe different distributions"),
+                remedy="move the mean inside the bounds, or widen the bounds",
+            ))
+    return out
+
+
+def _check_history_depth(config: Any) -> List[Conflict]:
+    """A history needs room for its own versions.
+
+    ``avg_versions`` says how many rows each entity carries. Ten rows with
+    avg_versions 50 emitted ten entities holding one version each: the number
+    was accepted and then ignored, which is the failure this whole layer
+    exists to catch. One entity at the declared depth is the floor.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "bitemporal", None) or []):
+        rows = _rows_of(config, getattr(spec, "table", "") or "")
+        versions = getattr(spec, "avg_versions", None)
+        if not rows or not versions:
+            continue
+        versions = float(versions)
+        if versions > rows:
+            out.append(Conflict(
+                kind="bitemporal_depth_exceeds_rows",
+                where=str(spec.table),
+                declarations=[f"{spec.table} row_count = {rows:,}",
+                              f"bitemporal.avg_versions = {versions:g}"],
+                arithmetic=(f"{versions:g} versions per entity needs at least "
+                            f"{int(versions):,} rows for a single entity, and "
+                            f"{rows:,} exist"),
+                remedy=(f"raise {spec.table} to at least {int(versions):,} rows, "
+                        f"or lower avg_versions to {rows:,}"),
+            ))
+    return out
+
+
+def _check_closure_source(config: Any) -> List[Conflict]:
+    """A closure is the closure OF something, and that something must be acyclic.
+
+    The declaration promises the table equals the transitive closure of its edge
+    table. Over a cyclic edge table the closure is every reachable pair in both
+    directions and the depth column has no meaning, so the promise is not one
+    that can be kept. Only a dag_edges spec over the same endpoints makes the
+    source acyclic, exactly as it does for graph_motifs.
+    """
+    out: List[Conflict] = []
+    dag_specs = getattr(config, "dag_edges", None) or []
+    for spec in (getattr(config, "closures", None) or []):
+        edge_table = getattr(spec, "edge_table", None)
+        if not edge_table:
+            continue
+        covered = any(
+            d.table == edge_table
+            and d.from_column == getattr(spec, "edge_from", None)
+            and d.to_column == getattr(spec, "edge_to", None)
+            for d in dag_specs
+        )
+        if covered:
+            continue
+        out.append(Conflict(
+            kind="closure_source_not_acyclic",
+            where=str(getattr(spec, "table", "") or edge_table),
+            declarations=[f"closures[{getattr(spec, 'name', '?')}] over {edge_table}",
+                          f"no dag_edges over {edge_table}"
+                          f".({getattr(spec, 'edge_from', '?')}, "
+                          f"{getattr(spec, 'edge_to', '?')})"],
+            arithmetic=("a transitive closure is only well defined over an acyclic "
+                        "edge table, and nothing declares this one acyclic"),
+            remedy=(f"add a dag_edges spec for {edge_table} on the same two "
+                    f"columns, which is what makes the closure meaningful"),
+        ))
+    return out
+
+
 def _check_dag_capacity(config: Any) -> List[Conflict]:
     """A DAG over n nodes holds at most n(n-1)/2 distinct edges.
 
@@ -992,6 +1098,9 @@ _CHECKS = _CHECKS + (
     _check_dag_capacity,
     _check_grid_capacity,
     _check_identity_shares,
+    _check_history_depth,
+    _check_closure_source,
+    _check_wear_envelope,
 )
 
 

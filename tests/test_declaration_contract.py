@@ -26,16 +26,20 @@ _COHERENCE = Path(registry.__file__).with_name("coherence.py").read_text()
 class TestTheRegistryIsTrue:
     """A registry nobody checks is a second place for the docs to be wrong."""
 
-    @pytest.mark.parametrize("decl", [d for d in registry.DECLARATIONS if d.refusal],
-                             ids=lambda d: d.key)
+    @pytest.mark.parametrize(
+        "decl", [d for d in registry.DECLARATIONS
+                 if d.refusal and d.refusal != registry.AT_PARSE],
+        ids=lambda d: d.key)
     def test_the_named_refusal_exists(self, decl):
         assert re.search(rf"def {re.escape(decl.refusal)}\b", _FEASIBILITY), (
             f"{decl.key} claims {decl.refusal!r} refuses it early, and no such "
             f"function exists in feasibility.py"
         )
 
-    @pytest.mark.parametrize("decl", [d for d in registry.DECLARATIONS if d.refusal],
-                             ids=lambda d: d.key)
+    @pytest.mark.parametrize(
+        "decl", [d for d in registry.DECLARATIONS
+                 if d.refusal and d.refusal != registry.AT_PARSE],
+        ids=lambda d: d.key)
     def test_the_named_refusal_actually_runs(self, decl):
         """Existing is not running. _check_curve_bounds was seventy lines of
         feasibility for outcome_curves, the flagship declaration, defined and
@@ -83,10 +87,23 @@ class TestTheRegistryIsTrue:
                 )
 
 
+class TestParseTimeRefusalReallyRefuses:
+    """AT_PARSE is a claim like any other and gets checked like any other."""
+
+    def test_an_out_of_range_noise_rate_is_rejected_before_a_schema_exists(self):
+        import misata
+
+        assert registry.BY_KEY["noise"].refusal == registry.AT_PARSE
+        with pytest.raises(ValueError, match="noise"):
+            misata.from_dict_schema(
+                {"r": {"__rows__": 500, "v": {"type": "float"}},
+                 "__noise__": {"null_rate": 10}}, seed=1)
+
+
 class TestCoverageOnlyGoesUp:
     """The floor. Raise it when you close a gap; never lower it."""
 
-    FLOOR = 18
+    FLOOR = 24
 
     def test_certified_coverage_holds(self):
         certified, total = registry.coverage()

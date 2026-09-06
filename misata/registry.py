@@ -4,8 +4,11 @@ Misata's stated rule is that a capability earns a place only if it can be
 *declared* and *verified*. Measured against the code rather than the docs, 7 of
 24 declarations met it: seventeen had no pre-generation refusal, five had no
 post-generation audit, and ``joint_distributions`` had neither despite shipping
-in 0.9.6.48. The rule was true of the design and false of a third of the
-language, which is the worst of both, because nothing said so.
+in 0.9.6.48. The rule was true of the design and false of most of the language,
+which is the worst of both, because nothing said so.
+
+All 24 keep it now. The floor in the contract test only moves up, so that
+cannot quietly stop being true.
 
 The failure was structural, not careless. Feasibility lives in one module and
 the audit in another, each a growing pile of hand-written functions, and
@@ -37,6 +40,13 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 
+#: A refusal that happens in the model, before feasibility is ever reached.
+#: ``__noise__`` with null_rate 10 raises "Input should be less than or equal
+#: to 1" out of from_dict_schema; a feasibility check for the same thing could
+#: never execute.
+AT_PARSE = "parse"
+
+
 @dataclass(frozen=True)
 class Declaration:
     """One declaration and the two obligations it owes.
@@ -45,8 +55,14 @@ class Declaration:
         key: Schema-level name, as it appears in YAML. The dict form is this
             wrapped in dunders.
         summary: What the declaration states, in one line.
-        refusal: Name of the feasibility check that refuses it early, or None
-            while that is still owed.
+        refusal: Name of the feasibility check that refuses it early, the
+            sentinel :data:`AT_PARSE` when the model's own field validation
+            rejects it before a schema exists at all, or None while that is
+            still owed. AT_PARSE is not a weaker answer: it refuses earlier
+            than feasibility does. It is recorded rather than papered over with
+            a duplicate check, because a check for something already refused is
+            code that can never run, and this file has already caught one of
+            those.
         audit: ``kind`` string the coherence audit reports when the property
             does not hold on the emitted rows, or None while that is owed.
         aliases: Other spellings ``from_dict_schema`` accepts for the same
@@ -87,7 +103,7 @@ DECLARATIONS: Tuple[Declaration, ...] = (
     Declaration("outcome_curves", "An aggregate over time, hit exactly.",
                 "_check_curve_point_shape", "rollup_mismatch", linear=True),
     Declaration("rate_curves", "A rate over time, hit exactly.",
-                None, None, linear=True),
+                "_check_declared_fractions", "rate_curve_mismatch", linear=True),
     Declaration("group_shares", "Exact shares of a measure across a category.",
                 "_check_group_shares", "group_share_mismatch", linear=True),
     Declaration("joint_distributions", "Several margins holding at once.",
@@ -113,7 +129,7 @@ DECLARATIONS: Tuple[Declaration, ...] = (
     Declaration("dag_edges", "An edge table with no cycles.",
                 "_check_dag_capacity", "dag_cycle", linear=False),
     Declaration("closures", "A closure table equal to its edges' closure.",
-                None, "closure_mismatch", linear=False),
+                "_check_closure_source", "closure_mismatch", linear=False),
     Declaration("graph_motifs", "Declared subgraph patterns, at an exact mix.",
                 "_check_graph_motifs", "motif_background_cycle", linear=False),
     Declaration("lifecycles", "A state machine, with legal transitions.",
@@ -121,7 +137,7 @@ DECLARATIONS: Tuple[Declaration, ...] = (
     Declaration("event_logs", "A log agreeing with the status column.",
                 "_check_event_log_capacity", "event_log", linear=False),
     Declaration("bitemporal", "Two independent time axes.",
-                None, "bitemporal", linear=False),
+                "_check_history_depth", "bitemporal", linear=False),
     Declaration("events", "Occurrences over a time axis.",
                 "_check_temporal_eligibility", "temporal_causality", linear=False),
     Declaration("time_grids", "Timestamps on a declared grid, in declared hours.",
@@ -129,14 +145,14 @@ DECLARATIONS: Tuple[Declaration, ...] = (
     Declaration("late_arrivals", "Events landing after the fact.",
                 "_check_declared_fractions", "late_arrival_mismatch", linear=False),
     Declaration("degradations", "Units wearing out, and when.",
-                None, None, linear=False),
+                "_check_wear_envelope", "wear_reversed", linear=False),
 
     # ── realism: shapes values, declares no arithmetic anyone can check ──
     Declaration("vocabularies", "Value pools for a column.",
-                "_check_lexicon_capacity", None, linear=False,
+                "_check_lexicon_capacity", "vocabulary_leak", linear=False,
                 aliases=("vocabulary",)),
     Declaration("noise", "Measurement noise on a numeric column.",
-                None, None, linear=False),
+                AT_PARSE, "noise_rate_mismatch", linear=False),
 )
 
 BY_KEY: Dict[str, Declaration] = {d.key: d for d in DECLARATIONS}
