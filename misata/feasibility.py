@@ -733,6 +733,150 @@ def _check_injected_counts(config: Any) -> List[Conflict]:
     return out
 
 
+def _columns_of(config: Any, table: str) -> Dict[str, Any]:
+    return {c.name: c for c in (getattr(config, "columns", None) or {}).get(table, [])}
+
+
+def _check_dag_capacity(config: Any) -> List[Conflict]:
+    """A DAG over n nodes holds at most n(n-1)/2 distinct edges.
+
+    Asking for more is not a preference to be met approximately. Measured
+    before this check existed: 60,000 edges declared over 200 nodes emitted
+    19,900 and said nothing, so a schema asking for a graph three times the size
+    of the one it got looked like a success.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "dag_edges", None) or []):
+        nodes = _rows_of(config, getattr(spec, "node_table", "") or "")
+        edges = _rows_of(config, getattr(spec, "table", "") or "")
+        if nodes < 2 or edges <= 0:
+            continue
+        ceiling = nodes * (nodes - 1) // 2
+        if edges > ceiling:
+            out.append(Conflict(
+                kind="dag_edges_exceed_capacity",
+                where=str(spec.table),
+                declarations=[f"{spec.table} row_count = {edges:,}",
+                              f"{spec.node_table} row_count = {nodes:,}",
+                              f"dag_edges[{getattr(spec, 'name', '?')}]"],
+                arithmetic=(f"a DAG over {nodes:,} nodes holds at most "
+                            f"{nodes:,} x {nodes - 1:,} / 2 = {ceiling:,} distinct "
+                            f"edges, and {edges:,} were asked for"),
+                remedy=(f"raise {spec.node_table} above "
+                        f"{int((1 + (1 + 8 * edges) ** 0.5) / 2) + 1:,} rows, or lower "
+                        f"{spec.table} to at most {ceiling:,}"),
+            ))
+    return out
+
+
+def _check_grid_capacity(config: Any) -> List[Conflict]:
+    """A unique timestamp column cannot hold more rows than the grid has slots.
+
+    A time grid is a restriction: fifteen-minute slots inside business hours
+    over one year is a fixed, countable number of moments. Declaring the column
+    unique and then asking for more rows than there are moments is impossible,
+    and it used to be resolved by repeating: 50,000 rows over a grid with 10,494
+    slots emitted 39,506 duplicates in a column declared unique.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "time_grids", None) or []):
+        rows = _rows_of(config, getattr(spec, "table", "") or "")
+        column = _columns_of(config, spec.table).get(spec.column)
+        if not rows or column is None or not getattr(column, "unique", False):
+            continue
+        params = dict(getattr(column, "distribution_params", None) or {})
+        start, end = params.get("start"), params.get("end")
+        if not start or not end:
+            continue  # a check that cannot be computed must not guess
+        try:
+            import datetime as _dt
+            days = (_dt.date.fromisoformat(str(end)[:10])
+                    - _dt.date.fromisoformat(str(start)[:10])).days + 1
+        except Exception:
+            continue
+        if days <= 0:
+            continue
+        grid = max(1, int(getattr(spec, "minute_grid", 15) or 15))
+        hours = getattr(spec, "hours", None)
+        span_minutes = ((int(hours[1]) - int(hours[0])) * 60) if hours else 24 * 60
+        if span_minutes <= 0:
+            continue
+        slots = days * (span_minutes // grid)
+        if rows > slots:
+            out.append(Conflict(
+                kind="time_grid_exceeds_slots",
+                where=f"{spec.table}.{spec.column}",
+                declarations=[f"{spec.table} row_count = {rows:,}",
+                              f"{spec.column} unique",
+                              f"time_grids minute_grid = {grid}"
+                              + (f", hours = {tuple(hours)}" if hours else "")],
+                arithmetic=(f"{days:,} day(s) x {span_minutes // grid:,} slot(s) per "
+                            f"day = {slots:,} distinct moments, and {rows:,} unique "
+                            f"values were asked for"),
+                remedy=(f"widen the date range, use a finer minute_grid, drop "
+                        f"unique on {spec.column}, or lower the row count to "
+                        f"{slots:,}"),
+            ))
+    return out
+
+
+def _check_identity_shares(config: Any) -> List[Conflict]:
+    """A share set that is not a share set, and a ledger with no room to chain.
+
+    Waterfall inflow and outflow shares each split one period's movement, so
+    each set sums to 1. Declared at 0.7 and 0.9 they were accepted and
+    normalised, which silently generates a different mix from the one written
+    down. Stock flows need at least one row per declared period or the chain
+    they exist to guarantee has a hole in it.
+    """
+    out: List[Conflict] = []
+
+    for spec in (getattr(config, "waterfalls", None) or []):
+        for field in ("inflow_shares", "outflow_shares"):
+            shares = dict(getattr(spec, field, None) or {})
+            if not shares:
+                continue
+            total = sum(float(v) for v in shares.values())
+            if abs(total - 1.0) > 1e-6:
+                out.append(Conflict(
+                    kind="waterfall_shares_not_a_split",
+                    where=str(getattr(spec, "table", "") or "schema"),
+                    declarations=[f"waterfalls.{field} = "
+                                  + ", ".join(f"{k} {float(v):g}" for k, v in shares.items())],
+                    arithmetic=(f"{field} splits one period's movement, so it sums "
+                                f"to 1.0, and these sum to {total:g}"),
+                    remedy=f"scale {field} so the values total 1.0",
+                ))
+
+    for spec in (getattr(config, "stock_flows", None) or []):
+        periods = list(getattr(spec, "periods", None) or [])
+        rows = _rows_of(config, getattr(spec, "table", "") or "")
+        if periods and rows and rows < len(periods):
+            out.append(Conflict(
+                kind="stock_flow_rows_below_periods",
+                where=str(spec.table),
+                declarations=[f"{spec.table} row_count = {rows:,}",
+                              f"stock_flows periods = {len(periods)}"],
+                arithmetic=(f"the ledger chains {len(periods)} period(s) per SKU and "
+                            f"only {rows:,} row(s) exist, so no SKU can carry a "
+                            f"complete chain"),
+                remedy=f"raise {spec.table} to at least {len(periods):,} rows",
+            ))
+        lo = getattr(spec, "starting_min", None)
+        hi = getattr(spec, "starting_max", None)
+        if lo is not None and hi is not None and float(lo) > float(hi):
+            out.append(Conflict(
+                kind="stock_flow_inverted_start",
+                where=str(spec.table),
+                declarations=[f"starting_min = {float(lo):g}",
+                              f"starting_max = {float(hi):g}"],
+                arithmetic=f"{float(lo):g} > {float(hi):g}, so no opening balance exists",
+                remedy="swap them, or widen the range",
+            ))
+
+    return out
+
+
 def _check_dropped_declarations(config: Any) -> List[Conflict]:
     """A declaration the parser could not build is refused, not skipped.
 
@@ -845,6 +989,9 @@ _CHECKS = _CHECKS + (
     _check_declared_fractions,
     _check_joint_margins,
     _check_dropped_declarations,
+    _check_dag_capacity,
+    _check_grid_capacity,
+    _check_identity_shares,
 )
 
 
