@@ -5,6 +5,28 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.52] - 2026-09-06
+
+### A model override can no longer cross providers
+
+Found in production. A deployment carrying `MISATA_MODEL=llama-3.3-70b-versatile`
+from a Groq setup switched its provider to Mercury, and that Groq model id went
+straight to Inception, which answered 400 and listed the five models it serves.
+Schema design was down, and the settings page read
+`Platform - mercury - llama-3.3-70b-versatile`: the mismatch printed plainly and
+still not noticed, because nothing in the path treated it as wrong.
+
+The override is global and models are not. A provider row may now declare the
+models it serves, and a model outside that list falls back to the provider's
+default with a warning naming both. Only providers that publish a catalogue are
+policed: Groq ships new ids constantly and an allowlist there would age into a
+blocker.
+
+Mercury's list comes from Inception's own 400 rather than from documentation:
+`mercury`, `mercury-2`, `mercury-coder`, `mercury-coder-small`, `mercury-small`.
+
+2,186 tests green.
+
 ## [0.9.6.51] - 2026-09-06
 
 ### Every declaration now refuses early and is re-checked after, and three silent defects are gone

@@ -938,6 +938,14 @@ class LLMSchemaGenerator:
             "env_key": "INCEPTION_API_KEY",
             "default_model": "mercury-2",
             "protocol": "openai",
+            # Inception rejects anything outside this list with a 400 naming it,
+            # which is where these came from. Declared so a model meant for a
+            # different provider is caught here rather than at their edge: a
+            # deployment carrying MISATA_MODEL=llama-3.3-70b-versatile from a
+            # previous Groq setup sent that straight to Mercury and took schema
+            # design down, because the override was global and models are not.
+            "models": ("mercury", "mercury-2", "mercury-coder",
+                       "mercury-coder-small", "mercury-small"),
         },
     }
 
@@ -989,6 +997,20 @@ class LLMSchemaGenerator:
         # Set model. Bedrock model ids vary by what's enabled in the account/
         # region, so an env override is honoured before the default.
         self.model = model or config["default_model"]
+        # A provider that publishes its catalogue gets checked against it. The
+        # alternative is a 400 from the vendor mid-generation, which reads as an
+        # outage rather than as a setting pointed at the wrong provider.
+        allowed = config.get("models")
+        if allowed and self.model not in allowed:
+            warnings.warn(
+                f"{provider} cannot serve model {self.model!r}; using "
+                f"{config['default_model']!r} instead. It serves: "
+                f"{', '.join(allowed)}. This usually means a model override is "
+                f"left over from a different provider.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.model = config["default_model"]
         if self.provider == "bedrock":
             self.model = model or os.environ.get("BEDROCK_MODEL_ID") or config["default_model"]
 
