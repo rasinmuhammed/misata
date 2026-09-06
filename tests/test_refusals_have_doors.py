@@ -169,3 +169,42 @@ def test_a_healthy_schema_lints_clean_and_generates():
     schema = misata.from_dict_schema(healthy, seed=1)
     assert not [f for f in lint_schema(schema) if f.severity == "error"]
     assert len(_generate(healthy)["orders"]) == 5000
+
+
+def test_declared_motifs_do_not_read_as_a_broken_dag():
+    """Two declarations on one table must not accuse each other.
+
+    graph_motifs puts cycles in an edge table on purpose; dag_edges audits that
+    table for cycles. Checked over the whole table, every declared ring came
+    back as a dag_cycle finding, which is the audit complaining about a
+    property somebody asked for. The acyclicity that still has to hold is the
+    background's, and the motif audit checks exactly that.
+    """
+    from misata.coherence import coherence_audit
+
+    schema = {
+        "n": {"__rows__": 300, "id": {"type": "integer", "primary_key": True}},
+        "e": {"__rows__": 2000, "p": {"type": "integer"}, "c": {"type": "integer"}},
+        "__dag_edges__": [{"name": "g", "table": "e", "node_table": "n",
+                           "node_key": "id", "from_column": "p", "to_column": "c"}],
+        "__graph_motifs__": [{"name": "m", "table": "e", "from_column": "p",
+                              "to_column": "c", "node_table": "n", "node_key": "id",
+                              "rate": 0.03, "shares": {"cycle": 0.5, "fan_in": 0.5},
+                              "flag_column": "flag"}],
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        config = misata.from_dict_schema(schema, seed=11)
+        tables = misata.generate_from_schema(config)
+
+    findings = coherence_audit(tables, schema=config).findings
+    assert not [f for f in findings if f.severity == "high"], \
+        [f.kind for f in findings if f.severity == "high"]
+    assert (tables["e"]["motif"] == "cycle").sum() > 0, "no rings were declared at all"
+
+    # And a real one is still caught, in both places.
+    edges = tables["e"]
+    edges.loc[edges.index[0], "p"] = edges.loc[edges.index[0], "c"]
+    tables["e"] = edges
+    kinds = {f.kind for f in coherence_audit(tables, schema=config).findings}
+    assert "dag_cycle" in kinds and "motif_background_cycle" in kinds

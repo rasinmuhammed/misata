@@ -1369,6 +1369,26 @@ def _detect_graph_violation(tables, schema) -> List[CoherenceFinding]:
             continue
         if spec.from_column not in df.columns or spec.to_column not in df.columns:
             continue
+
+        # Declared motifs put cycles in this table on purpose, which is the
+        # entire reason graph_motifs exists. Checking the whole table then
+        # reports every declared ring as a broken DAG: nine tables audited
+        # together, and the only complaint was this one, about a property
+        # somebody asked for. The acyclicity that still has to hold is the
+        # background's, and _detect_motif_violation checks exactly that.
+        motif_case = next(
+            (m.case_column for m in (getattr(schema, "graph_motifs", None) or [])
+             if m.table == spec.table
+             and m.from_column == spec.from_column
+             and m.to_column == spec.to_column
+             and m.case_column in df.columns),
+            None,
+        )
+        if motif_case is not None:
+            df = df[df[motif_case].astype("string").fillna("") == ""]
+            if df.empty:
+                continue
+
         frm = df[spec.from_column].to_numpy()
         to = df[spec.to_column].to_numpy()
         anc, des, _ = _closure_of(frm, to)
