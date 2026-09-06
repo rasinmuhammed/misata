@@ -310,9 +310,36 @@ def _check_scd2_and_stock(schema: "SchemaConfig") -> List[LintFinding]:
     return out
 
 
+def _check_feasibility(schema: "SchemaConfig") -> List[LintFinding]:
+    """Everything :mod:`misata.feasibility` would refuse, reported here too.
+
+    Lint's whole promise is "will this generate?", and there were two answers
+    to that question living in two modules with nothing making them agree.
+    `misata lint` called a schema clean and `misata generate` then refused it,
+    which is the exact failure this file already fixed once for
+    ``validate_schema`` and left in a comment. The same reasoning applies to
+    feasibility, and it applies harder: a refusal caught in CI costs nothing,
+    and the same refusal caught at generation time costs a run.
+
+    Reported as errors, because they stop generation. The remedy each conflict
+    carries comes along, since a wall with no door is not a lint result.
+    """
+    from misata.feasibility import find_conflicts
+
+    findings: List[LintFinding] = []
+    for conflict in find_conflicts(schema):
+        findings.append(LintFinding(
+            severity="error",
+            where=conflict.where,
+            message=f"{conflict.arithmetic}. Fix: {conflict.remedy}",
+        ))
+    return findings
+
+
 def lint_schema(schema: "SchemaConfig") -> List[LintFinding]:
     """Run every pre-generation check against a parsed schema."""
     findings: List[LintFinding] = []
+    findings.extend(_check_feasibility(schema))
     findings.extend(_check_relationships(schema))
     findings.extend(_check_date_ranges(schema))
     findings.extend(_check_unique_ranges(schema))
