@@ -1369,6 +1369,26 @@ def _detect_graph_violation(tables, schema) -> List[CoherenceFinding]:
             continue
         if spec.from_column not in df.columns or spec.to_column not in df.columns:
             continue
+
+        # Declared motifs put cycles in this table on purpose, which is the
+        # entire reason graph_motifs exists. Checking the whole table then
+        # reports every declared ring as a broken DAG: nine tables audited
+        # together, and the only complaint was this one, about a property
+        # somebody asked for. The acyclicity that still has to hold is the
+        # background's, and _detect_motif_violation checks exactly that.
+        motif_case = next(
+            (m.case_column for m in (getattr(schema, "graph_motifs", None) or [])
+             if m.table == spec.table
+             and m.from_column == spec.from_column
+             and m.to_column == spec.to_column
+             and m.case_column in df.columns),
+            None,
+        )
+        if motif_case is not None:
+            df = df[df[motif_case].astype("string").fillna("") == ""]
+            if df.empty:
+                continue
+
         frm = df[spec.from_column].to_numpy()
         to = df[spec.to_column].to_numpy()
         anc, des, _ = _closure_of(frm, to)
@@ -1430,6 +1450,329 @@ def _detect_graph_violation(tables, schema) -> List[CoherenceFinding]:
                          f"shortest path"),
                 rows_affected=wrong_depth,
             ))
+    return out
+
+
+def _detect_wear_violation(tables, schema) -> List[CoherenceFinding]:
+    """Wear only goes one way, and a failed unit has nothing left.
+
+    degradations declares that units wear out. Three things follow on the rows
+    and all three are recomputable: remaining useful life never rises as a unit
+    accumulates cycles, a unit marked failed has a remaining life of zero, and
+    accumulated damage stays a fraction. A dataset where a machine gets younger
+    is not a subtle statistical drift, it is a defect anyone plotting it would
+    see, and nothing was checking for it.
+    """
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "degradations", None) or []):
+        df = tables.get(getattr(spec, "table", None))
+        if df is None or df.empty:
+            continue
+        unit = getattr(spec, "unit_column", None)
+        cycle = getattr(spec, "cycle_column", None)
+        rul = getattr(spec, "rul_column", None)
+        damage = getattr(spec, "damage_column", None)
+        failure = getattr(spec, "failure_column", None)
+
+        if unit in df.columns and cycle in df.columns and rul in df.columns:
+            ordered = df.sort_values([unit, cycle])
+            rising = ordered.groupby(unit)[rul].diff() > 1e-9
+            climbed = int(rising.sum())
+            if climbed:
+                out.append(CoherenceFinding(
+                    kind="wear_reversed", severity="high",
+                    table=spec.table, column=rul,
+                    message=(f"{climbed:,} row(s) where remaining life rises as "
+                             f"cycles accumulate: a unit gets younger"),
+                    rows_affected=climbed,
+                ))
+
+        if failure in (df.columns if failure else ()) and rul in df.columns:
+            failed = df[df[failure].astype(bool)]
+            alive = int((_numeric(failed[rul]) > 1e-9).sum()) if len(failed) else 0
+            if alive:
+                out.append(CoherenceFinding(
+                    kind="wear_failed_with_life_left", severity="high",
+                    table=spec.table, column=rul,
+                    message=(f"{alive:,} failed row(s) still carry remaining life"),
+                    rows_affected=alive,
+                ))
+
+        if damage in (df.columns if damage else ()):
+            values = _numeric(df[damage])
+            outside = int(((values < -1e-9) | (values > 1.0 + 1e-9)).sum())
+            if outside:
+                out.append(CoherenceFinding(
+                    kind="wear_damage_out_of_range", severity="medium",
+                    table=spec.table, column=damage,
+                    message=(f"{outside:,} row(s) with accumulated damage outside "
+                             f"[0, 1]"),
+                    rows_affected=outside,
+                ))
+    return out
+
+
+def _detect_vocabulary_leak(tables, schema) -> List[CoherenceFinding]:
+    """A column given a vocabulary contains only that vocabulary.
+
+    A declared pool is the whole point of declaring one: if the generator can
+    still reach outside it, every downstream assumption about the column's
+    domain is wrong, and a filler value that slips in reads as real data.
+    """
+    out: List[CoherenceFinding] = []
+    vocab = dict(getattr(schema, "vocabularies", None) or {})
+    if not vocab:
+        return out
+    for table, df in (tables or {}).items():
+        if not isinstance(df, pd.DataFrame) or df.empty:
+            continue
+        for column, allowed in vocab.items():
+            if column not in df.columns or not allowed:
+                continue
+            permitted = {str(v) for v in allowed}
+            seen = df[column].dropna().astype(str)
+            stray = seen[~seen.isin(permitted)]
+            if len(stray):
+                out.append(CoherenceFinding(
+                    kind="vocabulary_leak", severity="high",
+                    table=table, column=column,
+                    message=(f"{len(stray):,} value(s) outside the declared "
+                             f"vocabulary of {len(permitted)}: "
+                             f"{sorted(set(stray))[:4]}"),
+                    rows_affected=int(len(stray)),
+                ))
+    return out
+
+
+def _detect_noise_rate_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Declared defect rates, recomputed from the rows.
+
+    noise exists so a data-quality pipeline can be tested against ground truth,
+    which only works if the ground truth is true. Measured with a wide value
+    space so accidental collisions do not confuse the count: a declared
+    duplicate_rate of 0.05 emitted 0.0476 against a baseline of 0.0000.
+    """
+    out: List[CoherenceFinding] = []
+    noise = getattr(schema, "noise_config", None)
+    if noise is None:
+        return out
+    declared = getattr(noise, "duplicate_rate", None)
+    if not declared:
+        return out
+    for table, df in (tables or {}).items():
+        if not isinstance(df, pd.DataFrame) or len(df) < 100:
+            continue
+        observed = 1.0 - (len(df.drop_duplicates()) / len(df))
+        # Generous: accidental collisions inflate this whenever the columns
+        # have a small value space, so only a gross miss is worth reporting.
+        if abs(observed - float(declared)) > max(0.05, float(declared)):
+            out.append(CoherenceFinding(
+                kind="noise_rate_mismatch", severity="medium",
+                table=table, column=None,
+                message=(f"declared duplicate_rate {float(declared):.4f}, "
+                         f"emitted {observed:.4f} over {len(df):,} rows"),
+                rows_affected=int(abs(observed - float(declared)) * len(df)),
+            ))
+    return out
+
+
+def _detect_rate_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Every declared per-period rate, recomputed from the rows.
+
+    rate_curves is one of the two primitives the whole engine is sold on, and it
+    works: a declared 2% in January and 8% in December came back 0.0200 and
+    0.0800. Nothing checked it. A guarantee nobody recomputes is a claim, and
+    the first regression to break it would have shipped looking clean.
+    """
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "rate_curves", None) or []):
+        df = tables.get(spec.table)
+        points = list(getattr(spec, "rate_points", None) or [])
+        if df is None or df.empty or not points:
+            continue
+        column = getattr(spec, "column", None)
+        time_column = getattr(spec, "time_column", None)
+        if column not in df.columns or time_column not in df.columns:
+            continue
+        stamps = pd.to_datetime(df[time_column], errors="coerce")
+        if stamps.isna().all():
+            continue
+        freq = "QS" if str(getattr(spec, "time_unit", "month")) == "quarter" else "MS"
+        period = stamps.dt.to_period("Q" if freq == "QS" else "M").astype(str)
+        true_value = getattr(spec, "true_value", True)
+        hit = df[column] == true_value
+
+        for point in points:
+            label = str(point.get("period", "") if isinstance(point, dict)
+                        else getattr(point, "period", ""))
+            declared = point.get("rate") if isinstance(point, dict) \
+                else getattr(point, "rate", None)
+            if not label or declared is None:
+                continue
+            # "2026-01" against a monthly period index, or "2026-Q1".
+            mask = period.str.startswith(label[:7])
+            n = int(mask.sum())
+            if n == 0:
+                continue
+            observed = float(hit[mask].mean())
+            # A rate over n rows lands on a multiple of 1/n, so the bound is one
+            # row rather than a round number somebody liked the look of.
+            tolerance = max(0.005, 1.5 / n)
+            if abs(observed - float(declared)) > tolerance:
+                out.append(CoherenceFinding(
+                    kind="rate_curve_mismatch", severity="high",
+                    table=spec.table, column=column,
+                    message=(f"{label}: declared {float(declared):.4f}, emitted "
+                             f"{observed:.4f} over {n:,} rows"),
+                    rows_affected=int(round(abs(observed - float(declared)) * n)),
+                ))
+    return out
+
+
+def _detect_joint_margin_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Every declared margin, recomputed from the rows that were emitted.
+
+    joint_distributions shipped in 0.9.6.48 with no refusal and no audit, which
+    I wrote, released, and documented the rule against on the same page. The
+    whole claim is that several margins hold at once and exactly; nothing
+    checked whether even one of them did.
+    """
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "joint_distributions", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty:
+            continue
+        margins = dict(getattr(spec, "margins", None) or {})
+        for column, declared in margins.items():
+            if column not in df.columns or not declared:
+                continue
+            observed = df[column].astype("string").value_counts(normalize=True)
+            total = float(sum(float(v) for v in declared.values())) or 1.0
+            # An integer number of rows cannot always land on an exact
+            # proportion, so the bound is one row rather than a round number
+            # somebody liked the look of.
+            tolerance = max(0.005, 2.0 / len(df))
+            for level, share in declared.items():
+                want = float(share) / total
+                got = float(observed.get(str(level), 0.0))
+                if abs(got - want) > tolerance:
+                    out.append(CoherenceFinding(
+                        kind="joint_margin_mismatch", severity="high",
+                        table=spec.table, column=column,
+                        message=(f"{column}={level!r} declared at {want:.4f}, "
+                                 f"emitted {got:.4f} over {len(df):,} rows"),
+                        rows_affected=int(round(abs(got - want) * len(df))),
+                    ))
+    return out
+
+
+def _detect_motif_violation(tables, schema) -> List[CoherenceFinding]:
+    """Declared motifs are exact, so check the exactness rather than assume it.
+
+    ``graph_motifs`` makes one claim no other declaration here makes: *the
+    subgraph of edges carrying no case id is acyclic*, so every cycle in the
+    output belongs to a case somebody declared and an accidental pattern cannot
+    exist. That is the whole reason the primitive exists, it is the sentence the
+    documentation leads with, and until now nothing recomputed it. A regression
+    that let one background cycle through would have read as a success.
+
+    Three things are recomputed from the emitted rows: the background is
+    acyclic, the flagged fraction is the declared rate, and the shape mix is the
+    declared shares. Benign motifs count towards neither the flagged rate nor
+    the acyclicity claim, because they are real motifs on purpose.
+    """
+    out: List[CoherenceFinding] = []
+    from misata.graphs import _closure_of
+
+    for spec in (getattr(schema, "graph_motifs", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty:
+            continue
+        need = {spec.from_column, spec.to_column, spec.case_column, spec.label_column}
+        if not need <= set(df.columns):
+            continue
+
+        case = df[spec.case_column].astype("string").fillna("")
+        background = df[case == ""]
+
+        # The acyclicity claim is conditional and the condition is easy to miss.
+        # Motifs rewrite a fraction of an edge table; they do not make the rest
+        # of it a DAG. Only a DagEdges spec over the same table and endpoints
+        # does that. Declared alone over 60,000 random edges, the background
+        # carried 879 cycles; with dag_edges beside it, zero. Saying "no
+        # accidental pattern can exist" without that spec is simply false, so
+        # the absence is reported rather than the cycles.
+        covered_by_dag = any(
+            d.table == spec.table
+            and d.from_column == spec.from_column
+            and d.to_column == spec.to_column
+            for d in (getattr(schema, "dag_edges", None) or [])
+        )
+        if not covered_by_dag:
+            out.append(CoherenceFinding(
+                kind="motif_background_not_declared_acyclic", severity="medium",
+                table=spec.table, column=spec.from_column,
+                message=("motifs are declared but the edge table is not: without a "
+                         "dag_edges spec over the same endpoints the background is "
+                         "not acyclic, so a cycle found here need not belong to any "
+                         "declared case"),
+                rows_affected=len(background),
+            ))
+
+        # The claim itself, recomputed on the background alone.
+        if covered_by_dag and not background.empty:
+            frm = background[spec.from_column].to_numpy()
+            to = background[spec.to_column].to_numpy()
+            anc, des, _ = _closure_of(frm, to)
+            cyclic = int(np.sum(anc == des)) + int(np.sum(frm == to))
+            if cyclic:
+                out.append(CoherenceFinding(
+                    kind="motif_background_cycle", severity="high",
+                    table=spec.table, column=spec.from_column,
+                    message=(f"{cyclic} cycle(s) among edges carrying no case id: "
+                             f"a pattern exists that nobody declared, so a "
+                             f"detector run against this table can produce a hit "
+                             f"with no explanation"),
+                    rows_affected=cyclic,
+                ))
+
+        # The declared mix, on the rows that carry a case.
+        flagged_col = getattr(spec, "flag_column", None)
+        labelled = df[case != ""]
+        if labelled.empty:
+            continue
+        if flagged_col and flagged_col in df.columns:
+            flagged = labelled[labelled[flagged_col].astype(bool)]
+        else:
+            flagged = labelled
+        observed_rate = len(flagged) / len(df)
+        declared_rate = float(spec.rate)
+        # One motif is an indivisible group of edges, so the rate lands on a
+        # whole number of them; a row of tolerance is the honest bound.
+        tolerance = max(0.002, 8.0 / max(len(df), 1))
+        if abs(observed_rate - declared_rate) > tolerance:
+            out.append(CoherenceFinding(
+                kind="motif_rate_mismatch", severity="high",
+                table=spec.table, column=spec.label_column,
+                message=(f"declared rate {declared_rate:.4f}, emitted "
+                         f"{observed_rate:.4f} ({len(flagged)} of {len(df)} edges)"),
+                rows_affected=len(flagged),
+            ))
+
+        shares = dict(getattr(spec, "shares", None) or {})
+        if shares and len(flagged):
+            counts = flagged[spec.label_column].value_counts()
+            total = int(counts.sum())
+            for shape, declared in shares.items():
+                got = int(counts.get(shape, 0)) / total if total else 0.0
+                if abs(got - float(declared)) > 0.05:
+                    out.append(CoherenceFinding(
+                        kind="motif_share_mismatch", severity="medium",
+                        table=spec.table, column=spec.label_column,
+                        message=(f"{shape!r} declared at {float(declared):.3f} of "
+                                 f"flagged motifs, emitted {got:.3f}"),
+                        rows_affected=int(counts.get(shape, 0)),
+                    ))
     return out
 
 
@@ -1915,6 +2258,12 @@ def coherence_audit(
         report.findings.extend(_detect_typo_count_mismatch(tables, schema))
         report.findings.extend(_detect_bitemporal_violation(tables, schema))
         report.findings.extend(_detect_graph_violation(tables, schema))
+        report.findings.extend(_detect_motif_violation(tables, schema))
+        report.findings.extend(_detect_joint_margin_mismatch(tables, schema))
+        report.findings.extend(_detect_rate_curve_mismatch(tables, schema))
+        report.findings.extend(_detect_wear_violation(tables, schema))
+        report.findings.extend(_detect_vocabulary_leak(tables, schema))
+        report.findings.extend(_detect_noise_rate_mismatch(tables, schema))
         report.findings.extend(_detect_group_share_mismatch(tables, schema))
         report.findings.extend(_detect_waterfall_mismatch(tables, schema))
         report.findings.extend(_detect_scd2_violations(tables, schema))

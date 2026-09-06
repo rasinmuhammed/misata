@@ -171,6 +171,22 @@ declared and an accidental pattern cannot exist. `benign_shares` declares hard
 negatives, real motifs labelled legitimate, so a detector is measured on telling
 a ring from an innocent loop rather than on finding loops.
 
+**That property requires `dag_edges` on the same table.** Motifs rewrite a
+fraction of an edge table; they do not make the rest of it acyclic, and only
+`dag_edges` does. Declared alone over 60,000 random edges the background carried
+879 cycles, and with `dag_edges` beside it, zero. The audit reports
+`motif_background_not_declared_acyclic` when the spec is missing, because
+without it "no accidental pattern can exist" is not true.
+
+```python
+"__dag_edges__": [{
+    "name": "flow", "table": "transfers",
+    "node_table": "accounts", "node_key": "id",
+    "from_column": "src", "to_column": "dst",
+}],
+"__graph_motifs__": [{ ... }],
+```
+
 Full guide: [Lexicons, motifs and joint margins](../guides/declared-vocabulary-and-structure.md).
 Worked example: [the AML case study](https://misata.studio/case-studies).
 

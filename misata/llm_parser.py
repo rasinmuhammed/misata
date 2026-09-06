@@ -874,6 +874,7 @@ class LLMSchemaGenerator:
     - groq: Groq Cloud (Llama 3.3) - Fast, free tier
     - openai: OpenAI (GPT-4o) - Best quality
     - ollama: Local Ollama - Free, private
+    - mercury: Inception Mercury 2 (diffusion, OpenAI-compatible)
 
     This is the "brain" of Misata - what makes it genuinely AI-powered.
     """
@@ -925,6 +926,18 @@ class LLMSchemaGenerator:
             "env_key": "GEMINI_API_KEY",
             "default_model": "gemini-2.0-flash",
             "protocol": "openai",  # Gemini exposes an OpenAI-compatible endpoint
+        },
+        "mercury": {
+            # Inception Labs' diffusion LLM. It generates and refines tokens in
+            # parallel rather than one at a time, which puts it above a thousand
+            # tokens a second, and schema design is exactly the shape of task
+            # that makes a reader wait: one request, one document, nothing to
+            # stream usefully. It speaks the OpenAI protocol, so this is a table
+            # entry rather than an integration.
+            "base_url": "https://api.inceptionlabs.ai/v1",
+            "env_key": "INCEPTION_API_KEY",
+            "default_model": "mercury-2",
+            "protocol": "openai",
         },
     }
 

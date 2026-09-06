@@ -672,10 +672,437 @@ _CHECKS = (
     _check_lexicon_capacity,
 )
 
+# _check_curve_bounds is deliberately NOT registered, and this note exists
+# because I wired it once on the assumption that dead code was an oversight.
+# It is not. When a period target cannot hold under a column's declared
+# min/max, the engine keeps the aggregate and reports the sacrifice, which
+# tests/test_curve_respects_bounds.py pins as "the aggregate wins, and the
+# sacrifice is reported". Registering the check turns that reported sacrifice
+# into a refusal and contradicts a decision somebody already made on purpose.
+# Leave it here as the analysis a caller can run deliberately, not as a gate.
+
 
 # --------------------------------------------------------------------------- #
 # entry point
 # --------------------------------------------------------------------------- #
+
+def _rows_of(config: Any, table_name: str) -> int:
+    """Declared row count for a table, or 0 when the table is not declared."""
+    for t in (getattr(config, "tables", None) or []):
+        if t.name == table_name:
+            return int(getattr(t, "row_count", 0) or 0)
+    return 0
+
+
+def _check_injected_counts(config: Any) -> List[Conflict]:
+    """You cannot corrupt, duplicate or spike more rows than a table has.
+
+    duplicates, typos and outliers each declare an exact count against a table,
+    and each was accepted without checking it fit. A count over the row count
+    is not a near miss to be clamped quietly; it is a statement that cannot be
+    true, and clamping it is how a test asserting "exactly 500 duplicates"
+    passes against 200.
+    """
+    out: List[Conflict] = []
+    families = (
+        ("duplicates", "duplicates", "duplicate rows"),
+        ("typos", "typos", "corrupted values"),
+        ("outliers", "outliers", "outliers"),
+    )
+    for attr, label, noun in families:
+        for spec in (getattr(config, attr, None) or []):
+            table = getattr(spec, "table", None)
+            if not table:
+                continue
+            rows = _rows_of(config, table)
+            count = getattr(spec, "count", None)
+            if not rows or count is None:
+                continue
+            count = int(count)
+            if count > rows:
+                out.append(Conflict(
+                    kind=f"{label}_exceed_rows",
+                    where=f"{table}.{getattr(spec, 'column', '') or ''}".rstrip("."),
+                    declarations=[f"{label} count = {count:,}",
+                                  f"{table} row_count = {rows:,}"],
+                    arithmetic=(f"{count:,} {noun} asked for over {rows:,} rows, "
+                                f"which is {count - rows:,} more than exist"),
+                    remedy=(f"lower the count to at most {rows:,}, raise "
+                            f"{table}'s row count, or declare a fraction instead"),
+                ))
+    return out
+
+
+def _columns_of(config: Any, table: str) -> Dict[str, Any]:
+    return {c.name: c for c in (getattr(config, "columns", None) or {}).get(table, [])}
+
+
+def _check_wear_envelope(config: Any) -> List[Conflict]:
+    """A life distribution whose bounds exclude its own mean.
+
+    degradations declares how long units last: a mean, a spread, and a floor
+    and ceiling. A mean outside the floor and ceiling describes no distribution
+    at all, and a floor above the ceiling describes an empty one. Neither can
+    be resolved by sampling harder.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "degradations", None) or []):
+        lo = getattr(spec, "life_min", None)
+        hi = getattr(spec, "life_max", None)
+        mean = getattr(spec, "life_mean", None)
+        where = str(getattr(spec, "table", "") or "schema")
+        if lo is not None and hi is not None and float(lo) > float(hi):
+            out.append(Conflict(
+                kind="wear_envelope_inverted",
+                where=where,
+                declarations=[f"life_min = {float(lo):g}", f"life_max = {float(hi):g}"],
+                arithmetic=f"{float(lo):g} > {float(hi):g}, so no unit life is admissible",
+                remedy="swap them, or widen the range",
+            ))
+        elif mean is not None and lo is not None and hi is not None \
+                and not (float(lo) <= float(mean) <= float(hi)):
+            out.append(Conflict(
+                kind="wear_mean_outside_envelope",
+                where=where,
+                declarations=[f"life_mean = {float(mean):g}",
+                              f"life_min = {float(lo):g}",
+                              f"life_max = {float(hi):g}"],
+                arithmetic=(f"the mean {float(mean):g} lies outside "
+                            f"[{float(lo):g}, {float(hi):g}], so the bounds and the "
+                            f"centre describe different distributions"),
+                remedy="move the mean inside the bounds, or widen the bounds",
+            ))
+    return out
+
+
+def _check_history_depth(config: Any) -> List[Conflict]:
+    """A history needs room for its own versions.
+
+    ``avg_versions`` says how many rows each entity carries. Ten rows with
+    avg_versions 50 emitted ten entities holding one version each: the number
+    was accepted and then ignored, which is the failure this whole layer
+    exists to catch. One entity at the declared depth is the floor.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "bitemporal", None) or []):
+        rows = _rows_of(config, getattr(spec, "table", "") or "")
+        versions = getattr(spec, "avg_versions", None)
+        if not rows or not versions:
+            continue
+        versions = float(versions)
+        if versions > rows:
+            out.append(Conflict(
+                kind="bitemporal_depth_exceeds_rows",
+                where=str(spec.table),
+                declarations=[f"{spec.table} row_count = {rows:,}",
+                              f"bitemporal.avg_versions = {versions:g}"],
+                arithmetic=(f"{versions:g} versions per entity needs at least "
+                            f"{int(versions):,} rows for a single entity, and "
+                            f"{rows:,} exist"),
+                remedy=(f"raise {spec.table} to at least {int(versions):,} rows, "
+                        f"or lower avg_versions to {rows:,}"),
+            ))
+    return out
+
+
+def _check_closure_source(config: Any) -> List[Conflict]:
+    """A closure is the closure OF something, and that something must be acyclic.
+
+    The declaration promises the table equals the transitive closure of its edge
+    table. Over a cyclic edge table the closure is every reachable pair in both
+    directions and the depth column has no meaning, so the promise is not one
+    that can be kept. Only a dag_edges spec over the same endpoints makes the
+    source acyclic, exactly as it does for graph_motifs.
+    """
+    out: List[Conflict] = []
+    dag_specs = getattr(config, "dag_edges", None) or []
+    for spec in (getattr(config, "closures", None) or []):
+        edge_table = getattr(spec, "edge_table", None)
+        if not edge_table:
+            continue
+        covered = any(
+            d.table == edge_table
+            and d.from_column == getattr(spec, "edge_from", None)
+            and d.to_column == getattr(spec, "edge_to", None)
+            for d in dag_specs
+        )
+        if covered:
+            continue
+        out.append(Conflict(
+            kind="closure_source_not_acyclic",
+            where=str(getattr(spec, "table", "") or edge_table),
+            declarations=[f"closures[{getattr(spec, 'name', '?')}] over {edge_table}",
+                          f"no dag_edges over {edge_table}"
+                          f".({getattr(spec, 'edge_from', '?')}, "
+                          f"{getattr(spec, 'edge_to', '?')})"],
+            arithmetic=("a transitive closure is only well defined over an acyclic "
+                        "edge table, and nothing declares this one acyclic"),
+            remedy=(f"add a dag_edges spec for {edge_table} on the same two "
+                    f"columns, which is what makes the closure meaningful"),
+        ))
+    return out
+
+
+def _check_dag_capacity(config: Any) -> List[Conflict]:
+    """A DAG over n nodes holds at most n(n-1)/2 distinct edges.
+
+    Asking for more is not a preference to be met approximately. Measured
+    before this check existed: 60,000 edges declared over 200 nodes emitted
+    19,900 and said nothing, so a schema asking for a graph three times the size
+    of the one it got looked like a success.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "dag_edges", None) or []):
+        nodes = _rows_of(config, getattr(spec, "node_table", "") or "")
+        edges = _rows_of(config, getattr(spec, "table", "") or "")
+        if nodes < 2 or edges <= 0:
+            continue
+        ceiling = nodes * (nodes - 1) // 2
+        if edges > ceiling:
+            out.append(Conflict(
+                kind="dag_edges_exceed_capacity",
+                where=str(spec.table),
+                declarations=[f"{spec.table} row_count = {edges:,}",
+                              f"{spec.node_table} row_count = {nodes:,}",
+                              f"dag_edges[{getattr(spec, 'name', '?')}]"],
+                arithmetic=(f"a DAG over {nodes:,} nodes holds at most "
+                            f"{nodes:,} x {nodes - 1:,} / 2 = {ceiling:,} distinct "
+                            f"edges, and {edges:,} were asked for"),
+                remedy=(f"raise {spec.node_table} above "
+                        f"{int((1 + (1 + 8 * edges) ** 0.5) / 2) + 1:,} rows, or lower "
+                        f"{spec.table} to at most {ceiling:,}"),
+            ))
+    return out
+
+
+def _check_grid_capacity(config: Any) -> List[Conflict]:
+    """A unique timestamp column cannot hold more rows than the grid has slots.
+
+    A time grid is a restriction: fifteen-minute slots inside business hours
+    over one year is a fixed, countable number of moments. Declaring the column
+    unique and then asking for more rows than there are moments is impossible,
+    and it used to be resolved by repeating: 50,000 rows over a grid with 10,494
+    slots emitted 39,506 duplicates in a column declared unique.
+    """
+    out: List[Conflict] = []
+    for spec in (getattr(config, "time_grids", None) or []):
+        rows = _rows_of(config, getattr(spec, "table", "") or "")
+        column = _columns_of(config, spec.table).get(spec.column)
+        if not rows or column is None or not getattr(column, "unique", False):
+            continue
+        params = dict(getattr(column, "distribution_params", None) or {})
+        start, end = params.get("start"), params.get("end")
+        if not start or not end:
+            continue  # a check that cannot be computed must not guess
+        try:
+            import datetime as _dt
+            days = (_dt.date.fromisoformat(str(end)[:10])
+                    - _dt.date.fromisoformat(str(start)[:10])).days + 1
+        except Exception:
+            continue
+        if days <= 0:
+            continue
+        grid = max(1, int(getattr(spec, "minute_grid", 15) or 15))
+        hours = getattr(spec, "hours", None)
+        span_minutes = ((int(hours[1]) - int(hours[0])) * 60) if hours else 24 * 60
+        if span_minutes <= 0:
+            continue
+        slots = days * (span_minutes // grid)
+        if rows > slots:
+            out.append(Conflict(
+                kind="time_grid_exceeds_slots",
+                where=f"{spec.table}.{spec.column}",
+                declarations=[f"{spec.table} row_count = {rows:,}",
+                              f"{spec.column} unique",
+                              f"time_grids minute_grid = {grid}"
+                              + (f", hours = {tuple(hours)}" if hours else "")],
+                arithmetic=(f"{days:,} day(s) x {span_minutes // grid:,} slot(s) per "
+                            f"day = {slots:,} distinct moments, and {rows:,} unique "
+                            f"values were asked for"),
+                remedy=(f"widen the date range, use a finer minute_grid, drop "
+                        f"unique on {spec.column}, or lower the row count to "
+                        f"{slots:,}"),
+            ))
+    return out
+
+
+def _check_identity_shares(config: Any) -> List[Conflict]:
+    """A share set that is not a share set, and a ledger with no room to chain.
+
+    Waterfall inflow and outflow shares each split one period's movement, so
+    each set sums to 1. Declared at 0.7 and 0.9 they were accepted and
+    normalised, which silently generates a different mix from the one written
+    down. Stock flows need at least one row per declared period or the chain
+    they exist to guarantee has a hole in it.
+    """
+    out: List[Conflict] = []
+
+    for spec in (getattr(config, "waterfalls", None) or []):
+        for field in ("inflow_shares", "outflow_shares"):
+            shares = dict(getattr(spec, field, None) or {})
+            if not shares:
+                continue
+            total = sum(float(v) for v in shares.values())
+            if abs(total - 1.0) > 1e-6:
+                out.append(Conflict(
+                    kind="waterfall_shares_not_a_split",
+                    where=str(getattr(spec, "table", "") or "schema"),
+                    declarations=[f"waterfalls.{field} = "
+                                  + ", ".join(f"{k} {float(v):g}" for k, v in shares.items())],
+                    arithmetic=(f"{field} splits one period's movement, so it sums "
+                                f"to 1.0, and these sum to {total:g}"),
+                    remedy=f"scale {field} so the values total 1.0",
+                ))
+
+    for spec in (getattr(config, "stock_flows", None) or []):
+        periods = list(getattr(spec, "periods", None) or [])
+        rows = _rows_of(config, getattr(spec, "table", "") or "")
+        if periods and rows and rows < len(periods):
+            out.append(Conflict(
+                kind="stock_flow_rows_below_periods",
+                where=str(spec.table),
+                declarations=[f"{spec.table} row_count = {rows:,}",
+                              f"stock_flows periods = {len(periods)}"],
+                arithmetic=(f"the ledger chains {len(periods)} period(s) per SKU and "
+                            f"only {rows:,} row(s) exist, so no SKU can carry a "
+                            f"complete chain"),
+                remedy=f"raise {spec.table} to at least {len(periods):,} rows",
+            ))
+        lo = getattr(spec, "starting_min", None)
+        hi = getattr(spec, "starting_max", None)
+        if lo is not None and hi is not None and float(lo) > float(hi):
+            out.append(Conflict(
+                kind="stock_flow_inverted_start",
+                where=str(spec.table),
+                declarations=[f"starting_min = {float(lo):g}",
+                              f"starting_max = {float(hi):g}"],
+                arithmetic=f"{float(lo):g} > {float(hi):g}, so no opening balance exists",
+                remedy="swap them, or widen the range",
+            ))
+
+    return out
+
+
+def _check_dropped_declarations(config: Any) -> List[Conflict]:
+    """A declaration the parser could not build is refused, not skipped.
+
+    A malformed directive used to warn and vanish. Generation then ran, emitted
+    data, and the property the user asked for was simply not there, which is
+    the exact failure this engine exists to prevent, happening at the front
+    door. Every silent no-op chased this week reduced to this: a late_arrivals
+    spec with late_fraction 5 (a percentage written as a whole number) was
+    dropped by field validation before any check could see it, and a
+    joint_distributions spec whose margins summed to 1.4 went the same way.
+
+    Warnings do not stop anything, and a warning is what a suppressed logger
+    eats first. This turns each drop into a refusal carrying the parser's own
+    reason.
+    """
+    out: List[Conflict] = []
+    for key, index, reason in (getattr(config, "_dropped_declarations", None) or ()):
+        # Pydantic's message is several lines of field-by-field detail; the
+        # first line is the one a human reads.
+        head = str(reason).strip().splitlines()
+        detail = " ".join(x.strip() for x in head[:3])
+        out.append(Conflict(
+            kind="declaration_rejected",
+            where=f"__{key}__[{index}]",
+            declarations=[f"__{key}__[{index}]"],
+            arithmetic=f"the parser could not build it: {detail}",
+            remedy=(f"correct __{key}__[{index}], or remove it if it was not "
+                    f"meant to apply. It cannot be honoured as written, and it "
+                    f"is not silently skipped any more"),
+        ))
+    return out
+
+
+def _check_declared_fractions(config: Any) -> List[Conflict]:
+    """A rate is a fraction, and a fraction outside [0, 1] is not one.
+
+    Cheap, and it catches the commonest transcription slip there is: a rate
+    written as a percentage. 5 means five times every row, not five percent,
+    and nothing said so.
+    """
+    out: List[Conflict] = []
+    fields = (
+        ("duplicates", "fraction", "duplicates.fraction"),
+        ("typos", "fraction", "typos.fraction"),
+        ("late_arrivals", "late_fraction", "late_arrivals.late_fraction"),
+        ("missingness", "rate", "missingness.rate"),
+        ("missingness", "else_rate", "missingness.else_rate"),
+        ("graph_motifs", "rate", "graph_motifs.rate"),
+        ("graph_motifs", "benign_rate", "graph_motifs.benign_rate"),
+    )
+    for attr, field, label in fields:
+        for spec in (getattr(config, attr, None) or []):
+            value = getattr(spec, field, None)
+            if value is None:
+                continue
+            value = float(value)
+            if 0.0 <= value <= 1.0:
+                continue
+            hint = (f" (a percentage: {value} means {value * 100:.0f}%, so write "
+                    f"{value / 100:g})") if 1.0 < value <= 100.0 else ""
+            out.append(Conflict(
+                kind="fraction_out_of_range",
+                where=str(getattr(spec, "table", "") or "schema"),
+                declarations=[f"{label} = {value:g}"],
+                arithmetic=f"a fraction must lie in [0, 1] and {value:g} does not{hint}",
+                remedy=f"set {label} between 0 and 1",
+            ))
+    return out
+
+
+def _check_joint_margins(config: Any) -> List[Conflict]:
+    """Declared margins that cannot all hold, named before any data exists.
+
+    joint.check_margins already knows when a set of margins is incompatible; it
+    was only ever called from inside the solver, so the refusal arrived after
+    generation had begun instead of before it. This is the same knowledge,
+    asked earlier.
+    """
+    out: List[Conflict] = []
+    specs = getattr(config, "joint_distributions", None) or []
+    if not specs:
+        return out
+    try:
+        from misata.joint import MarginsIncompatible, check_margins
+    except Exception:
+        return out
+
+    for spec in specs:
+        margins = dict(getattr(spec, "margins", None) or {})
+        if not margins:
+            continue
+        try:
+            check_margins(margins)
+        except MarginsIncompatible as exc:
+            out.append(Conflict(
+                kind="joint_margins_incompatible",
+                where=str(getattr(spec, "table", "") or "schema"),
+                declarations=[f"joint_distributions[{getattr(spec, 'name', '?')}] "
+                              f"margins over {', '.join(margins)}"],
+                arithmetic=str(exc),
+                remedy="make each margin sum to the same total, or drop one",
+            ))
+    return out
+
+
+#: Registered after definition: these three sit below the tuple above because
+#: they lean on _rows_of, which needs the config helpers defined first.
+_CHECKS = _CHECKS + (
+    _check_injected_counts,
+    _check_declared_fractions,
+    _check_joint_margins,
+    _check_dropped_declarations,
+    _check_dag_capacity,
+    _check_grid_capacity,
+    _check_identity_shares,
+    _check_history_depth,
+    _check_closure_source,
+    _check_wear_envelope,
+)
+
 
 def find_conflicts(config: Any) -> List[Conflict]:
     """Every arithmetically impossible combination in the schema."""

@@ -5,6 +5,65 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.51] - 2026-09-06
+
+### Every declaration now refuses early and is re-checked after, and three silent defects are gone
+
+The rule the docs have always stated, that a capability earns a place only if
+it can be declared and verified, was true of 7 of 24 declarations. Seventeen had
+no pre-generation refusal, five had no post-generation audit, and
+`joint_distributions` had neither despite shipping in 0.9.6.48. All 24 keep it
+now, and `misata/registry.py` plus a contract test hold the floor so it cannot
+quietly stop being true.
+
+The failure was structural. Feasibility lives in one module and the audit in
+another, each a growing pile of hand-written functions, with nothing relating
+either to the list of declarations they cover, so a declaration could be added,
+wired, documented and released with neither half. The registry is the join: a
+refusal naming a function that does not exist fails, an audit naming a kind the
+audit never reports fails, and a declaration the engine accepts but the registry
+omits fails.
+
+**Behaviour change.** A declaration the parser cannot build is now refused
+rather than skipped with a warning. This reverses a decision from 0.8.1.11,
+which chose to skip because a frontend can easily get one curve wrong and losing
+all output is the wrong failure. The output was not the thing being lost: a
+skipped directive means generation runs, data is emitted, and the property the
+caller declared is absent. `strict=False` still generates every row, and each
+half has a test.
+
+### Three defects found by combining guarantees rather than trusting them
+
+- **Declared duplicates orphaned the rows that pointed at them.** `duplicates`
+  on a parent table overwrote whole rows including the primary key, so 3,000
+  customers held 2,970 distinct ids and 211 orders were orphaned, against a
+  guarantee stated without qualification. The default now protects the primary
+  key, any unique column, and anything another table references. It is also the
+  better fixture: a real duplicate record is the same entity under a different
+  surrogate key, which is what a deduplication step is asked to find.
+- **Region-correct naming was broken in every locale but `en_US`.** A column
+  declared `semantic: person_name` came back "Business" under `ja_JP` and
+  `de_DE` while cities localised correctly, because a guard written to catch an
+  LLM mislabelling a lookup table was overruling an explicit declaration. The
+  flat dict form dropped `locale` entirely. `ja_JP` now gives 石井 翔太 in Sapporo.
+- **The DAG audit accused `graph_motifs` of the cycles it was asked to create.**
+
+### Faster
+
+Lexicon composition now draws once per pattern instead of once per value.
+`person_name` goes from 7,418 values a second to 565,154. A 1.1M-row two-table
+schema with an exact revenue curve and exact group shares goes from roughly
+69,000 rows a second to 914,000.
+
+### Also
+
+`misata lint` reports every feasibility conflict, so it answers the question it
+claims to; lint and generate disagreed before. Mercury 2 joins the LLM provider
+table for schema design. Every refusal's stated remedy is executed in a test, so
+a refusal is a door rather than a wall.
+
+2,178 tests green. 44 of 44 documented examples run.
+
 ## [0.9.6.50] - 2026-09-05
 
 ### Vocabulary that grows with the table, and joint margins that hold at once

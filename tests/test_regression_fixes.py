@@ -1295,26 +1295,55 @@ def test_reference_labels_keep_distribution_in_fact_tables():
     assert df["method"].nunique() <= 20 and df["method"].duplicated().sum() > 3000
 
 
-def test_malformed_curve_directive_is_skipped_not_fatal():
-    """0.8.1.11: a single malformed __rate_curves__/__outcome_curves__ directive
-    must be skipped with a warning, not abort the whole generation. (A frontend or
-    hand-written schema can easily get one curve wrong; losing all output is the
-    wrong failure.)"""
-    import warnings as _w
+def test_malformed_curve_directive_is_refused_by_name():
+    """0.8.1.11 chose to skip a malformed directive with a warning rather than
+    abort, reasoning that a frontend can easily get one curve wrong and losing
+    all output is the wrong failure. The output was not the thing being lost.
+
+    A skipped directive means generation runs, data is emitted, and the property
+    the caller declared is absent, with only a warning saying so. That is the
+    failure this engine exists to prevent, happening at the front door, and a
+    warning is the first thing a configured logger swallows. So the default is
+    now a refusal that names the directive and quotes the parser's own reason.
+
+    The capability 0.8.1.11 protected is kept, and moved to where it belongs:
+    ``strict=False`` still generates. See the test below."""
     schema = {
         "loans": {"__rows__": 500, "id": {"type": "integer", "primary_key": True},
                   "loan_date": {"type": "date", "start": "2024-01-01", "end": "2024-12-31"},
                   "defaulted": {"type": "boolean", "probability": 0.1}},
         # malformed: missing `table`, wrong keys (the shape an old studio build sent)
         "__rate_curves__": [{"column": "loans.defaulted", "start_rate": 0.03, "end_rate": 0.11}],
-        # malformed outcome curve too
         "__outcome_curves__": [{"column": "amount"}],
     }
-    with _w.catch_warnings(record=True) as w:
+    from misata.feasibility import InfeasibleSchema
+
+    with pytest.raises(InfeasibleSchema) as excinfo:
+        misata.generate_from_schema(from_dict_schema(schema, seed=1))
+    message = str(excinfo.value)
+    assert "__rate_curves__[0]" in message, message
+    assert "__outcome_curves__[0]" in message, message
+
+
+def test_a_malformed_directive_still_generates_when_strict_is_off():
+    """The escape hatch 0.8.1.11 needed, stated as an argument rather than as a
+    silence. A frontend that would rather show the warning than the error opts
+    in, and gets every row it would have got before."""
+    import warnings as _w
+    schema = {
+        "loans": {"__rows__": 500, "id": {"type": "integer", "primary_key": True},
+                  "loan_date": {"type": "date", "start": "2024-01-01", "end": "2024-12-31"},
+                  "defaulted": {"type": "boolean", "probability": 0.1}},
+        "__rate_curves__": [{"column": "loans.defaulted", "start_rate": 0.03, "end_rate": 0.11}],
+        "__outcome_curves__": [{"column": "amount"}],
+    }
+    with _w.catch_warnings(record=True) as caught:
         _w.simplefilter("always")
-        df = misata.generate_from_schema(from_dict_schema(schema, seed=1))["loans"]
-    assert len(df) == 500, "generation aborted over a bad curve instead of skipping it"
-    assert any("rate_curves" in str(x.message) for x in w), "no skip warning emitted"
+        df = misata.generate_from_schema(from_dict_schema(schema, seed=1),
+                                         strict=False)["loans"]
+    assert len(df) == 500
+    assert any("Skipping invalid" in str(x.message) for x in caught), \
+        "the warning must survive, it is the only signal left in this mode"
 
 
 def test_dict_schema_forwards_depends_on_default():
