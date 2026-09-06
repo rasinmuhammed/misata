@@ -3664,6 +3664,19 @@ no case id is acyclic</strong>, so every cycle in the output belongs to a case s
 declared and an accidental pattern cannot exist. <code>benign_shares</code> declares hard
 negatives, real motifs labelled legitimate, so a detector is measured on telling
 a ring from an innocent loop rather than on finding loops.</p>
+<p><strong>That property requires <code>dag_edges</code> on the same table.</strong> Motifs rewrite a
+fraction of an edge table; they do not make the rest of it acyclic, and only
+<code>dag_edges</code> does. Declared alone over 60,000 random edges the background carried
+879 cycles, and with <code>dag_edges</code> beside it, zero. The audit reports
+<code>motif_background_not_declared_acyclic</code> when the spec is missing, because
+without it "no accidental pattern can exist" is not true.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="s2">"__dag_edges__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"flow"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"transfers"</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="s2">"node_table"</span><span class="p">:</span> <span class="s2">"accounts"</span><span class="p">,</span> <span class="s2">"node_key"</span><span class="p">:</span> <span class="s2">"id"</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="s2">"from_column"</span><span class="p">:</span> <span class="s2">"src"</span><span class="p">,</span> <span class="s2">"to_column"</span><span class="p">:</span> <span class="s2">"dst"</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">}],</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="s2">"__graph_motifs__"</span><span class="p">:</span> <span class="p">[{</span> <span class="o">...</span> <span class="p">}],</span>
+</code></pre></div>
 <p>Full guide: <a href="../../guides/declared-vocabulary-and-structure/">Lexicons, motifs and joint margins</a>.
 Worked example: <a href="https://misata.studio/case-studies">the AML case study</a>.</p>
 <hr />
@@ -3674,13 +3687,13 @@ it, rather than generating rows and hoping.</p>
 <p>"Revenue grows from 50k to 200k over twelve months" becomes rows whose monthly
 sums equal those targets to the cent. Closed-form conditional sampling, not
 rejection sampling and not approximation.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="s2">"__outcome_curves__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"orders"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"revenue"</span><span class="p">,</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="s2">"time_column"</span><span class="p">:</span> <span class="s2">"order_date"</span><span class="p">,</span> <span class="s2">"time_unit"</span><span class="p">:</span> <span class="s2">"month"</span><span class="p">,</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="s2">"value_mode"</span><span class="p">:</span> <span class="s2">"absolute"</span><span class="p">,</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="s2">"curve_points"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"date"</span><span class="p">:</span> <span class="s2">"2026-01-01"</span><span class="p">,</span> <span class="s2">"target_value"</span><span class="p">:</span> <span class="mi">50000</span><span class="p">},</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>                     <span class="p">{</span><span class="s2">"date"</span><span class="p">:</span> <span class="s2">"2026-12-01"</span><span class="p">,</span> <span class="s2">"target_value"</span><span class="p">:</span> <span class="mi">200000</span><span class="p">}],</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="s2">"__outcome_curves__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"orders"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"revenue"</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="s2">"time_column"</span><span class="p">:</span> <span class="s2">"order_date"</span><span class="p">,</span> <span class="s2">"time_unit"</span><span class="p">:</span> <span class="s2">"month"</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="s2">"value_mode"</span><span class="p">:</span> <span class="s2">"absolute"</span><span class="p">,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="s2">"curve_points"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"date"</span><span class="p">:</span> <span class="s2">"2026-01-01"</span><span class="p">,</span> <span class="s2">"target_value"</span><span class="p">:</span> <span class="mi">50000</span><span class="p">},</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>                     <span class="p">{</span><span class="s2">"date"</span><span class="p">:</span> <span class="s2">"2026-12-01"</span><span class="p">,</span> <span class="s2">"target_value"</span><span class="p">:</span> <span class="mi">200000</span><span class="p">}],</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">}]</span>
 </code></pre></div>
 <p>Full guide: <a href="../../guides/outcome_curves/">Outcome curves</a>.</p>
 <h3 id="rate_curves-a-rate-over-time-hit-exactly"><code>rate_curves</code>, a rate over time, hit exactly</h3>
@@ -3690,10 +3703,10 @@ declared per period and true per period.</p>
 <h3 id="group_shares-exact-shares-of-a-measure"><code>group_shares</code>, exact shares of a measure</h3>
 <p>"Electronics is 50% of revenue, Home 30%, Apparel 20%", true on the emitted
 rows, and composing with any curve above it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="s2">"__group_shares__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"sales"</span><span class="p">,</span> <span class="s2">"measure"</span><span class="p">:</span> <span class="s2">"revenue"</span><span class="p">,</span> <span class="s2">"group_column"</span><span class="p">:</span> <span class="s2">"category"</span><span class="p">,</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="s2">"shares"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"Electronics"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s2">"Home"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span> <span class="s2">"Apparel"</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">},</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="s2">"__group_shares__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"sales"</span><span class="p">,</span> <span class="s2">"measure"</span><span class="p">:</span> <span class="s2">"revenue"</span><span class="p">,</span> <span class="s2">"group_column"</span><span class="p">:</span> <span class="s2">"category"</span><span class="p">,</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="s2">"shares"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"Electronics"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s2">"Home"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span> <span class="s2">"Apparel"</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">},</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="p">}]</span>
 </code></pre></div>
 <p>Measured on 900 rows: <code>{Electronics: 0.5, Home: 0.3, Apparel: 0.2}</code> exactly.</p>
 <h3 id="joint_distributions-several-margins-at-once"><code>joint_distributions</code>, several margins at once</h3>
@@ -3701,32 +3714,32 @@ rows, and composing with any curve above it.</p>
 together. This solves for the unique maximum-entropy table consistent with every
 declared margin, by iterative proportional fitting, and refuses up front when
 they cannot all hold.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="s2">"__joint_distributions__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"region_by_tier"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"accounts"</span><span class="p">,</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="s2">"margins"</span><span class="p">:</span> <span class="p">{</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>        <span class="s2">"region"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"emea"</span><span class="p">:</span> <span class="mf">0.42</span><span class="p">,</span> <span class="s2">"apac"</span><span class="p">:</span> <span class="mf">0.31</span><span class="p">,</span> <span class="s2">"amer"</span><span class="p">:</span> <span class="mf">0.27</span><span class="p">},</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>        <span class="s2">"tier"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"free"</span><span class="p">:</span> <span class="mf">0.70</span><span class="p">,</span> <span class="s2">"pro"</span><span class="p">:</span> <span class="mf">0.22</span><span class="p">,</span> <span class="s2">"enterprise"</span><span class="p">:</span> <span class="mf">0.08</span><span class="p">},</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="p">},</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="s2">"__joint_distributions__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"region_by_tier"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"accounts"</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="s2">"margins"</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>        <span class="s2">"region"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"emea"</span><span class="p">:</span> <span class="mf">0.42</span><span class="p">,</span> <span class="s2">"apac"</span><span class="p">:</span> <span class="mf">0.31</span><span class="p">,</span> <span class="s2">"amer"</span><span class="p">:</span> <span class="mf">0.27</span><span class="p">},</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>        <span class="s2">"tier"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"free"</span><span class="p">:</span> <span class="mf">0.70</span><span class="p">,</span> <span class="s2">"pro"</span><span class="p">:</span> <span class="mf">0.22</span><span class="p">,</span> <span class="s2">"enterprise"</span><span class="p">:</span> <span class="mf">0.08</span><span class="p">},</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="p">},</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="p">}]</span>
 </code></pre></div>
 <h3 id="waterfalls-movements-that-reconcile-to-a-balance"><code>waterfalls</code>, movements that reconcile to a balance</h3>
 <p>A movements table whose signed rows per period equal that period's declared
 delta, so the running balance recomputed from raw rows hits every declared
 ending value.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="s2">"__waterfalls__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"mrr_movements"</span><span class="p">,</span> <span class="s2">"starting_value"</span><span class="p">:</span> <span class="mi">100000</span><span class="p">,</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="s2">"points"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"period"</span><span class="p">:</span> <span class="s2">"2026-01"</span><span class="p">,</span> <span class="s2">"ending_value"</span><span class="p">:</span> <span class="mi">106000</span><span class="p">},</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>               <span class="p">{</span><span class="s2">"period"</span><span class="p">:</span> <span class="s2">"2026-02"</span><span class="p">,</span> <span class="s2">"ending_value"</span><span class="p">:</span> <span class="mi">112000</span><span class="p">},</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>               <span class="p">{</span><span class="s2">"period"</span><span class="p">:</span> <span class="s2">"2026-03"</span><span class="p">,</span> <span class="s2">"ending_value"</span><span class="p">:</span> <span class="mi">118000</span><span class="p">}],</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="s2">"inflow_shares"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"new"</span><span class="p">:</span> <span class="mf">0.7</span><span class="p">,</span> <span class="s2">"expansion"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">},</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="s2">"outflow_shares"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"churn"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="s2">"__waterfalls__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"mrr_movements"</span><span class="p">,</span> <span class="s2">"starting_value"</span><span class="p">:</span> <span class="mi">100000</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="s2">"points"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"period"</span><span class="p">:</span> <span class="s2">"2026-01"</span><span class="p">,</span> <span class="s2">"ending_value"</span><span class="p">:</span> <span class="mi">106000</span><span class="p">},</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>               <span class="p">{</span><span class="s2">"period"</span><span class="p">:</span> <span class="s2">"2026-02"</span><span class="p">,</span> <span class="s2">"ending_value"</span><span class="p">:</span> <span class="mi">112000</span><span class="p">},</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>               <span class="p">{</span><span class="s2">"period"</span><span class="p">:</span> <span class="s2">"2026-03"</span><span class="p">,</span> <span class="s2">"ending_value"</span><span class="p">:</span> <span class="mi">118000</span><span class="p">}],</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="s2">"inflow_shares"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"new"</span><span class="p">:</span> <span class="mf">0.7</span><span class="p">,</span> <span class="s2">"expansion"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">},</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="s2">"outflow_shares"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"churn"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="p">}]</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a># The running balance is recomputed from the rows, not stored
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  100,000  ├─ new +8,200 ─ expansion +1,900 ─ churn -4,100 ──▶  106,000  ✓ declared
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  106,000  ├─ new +7,400 ─ expansion +2,300 ─ churn -3,700 ──▶  112,000  ✓ declared
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  112,000  ├─ new +6,900 ─ expansion +2,600 ─ churn -3,500 ──▶  118,000  ✓ declared
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a># The running balance is recomputed from the rows, not stored
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>  100,000  ├─ new +8,200 ─ expansion +1,900 ─ churn -4,100 ──▶  106,000  ✓ declared
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>  106,000  ├─ new +7,400 ─ expansion +2,300 ─ churn -3,700 ──▶  112,000  ✓ declared
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>  112,000  ├─ new +6,900 ─ expansion +2,600 ─ churn -3,500 ──▶  118,000  ✓ declared
 </code></pre></div>
 <p>Measured over six periods: every recomputed balance matched its declared value
 with a delta of 0.0000.</p>
@@ -3735,13 +3748,13 @@ with a delta of 0.0000.</p>
 <h3 id="stock_flows-an-inventory-ledger-that-reconciles-per-unit"><code>stock_flows</code>, an inventory ledger that reconciles per unit</h3>
 <p><code>closing = opening + received - shipped</code>, chained across periods per SKU, so the
 closing balance of one period is the opening balance of the next.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="s2">"__stock_flows__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"inventory"</span><span class="p">,</span> <span class="s2">"sku_column"</span><span class="p">:</span> <span class="s2">"sku"</span><span class="p">,</span> <span class="s2">"period_column"</span><span class="p">:</span> <span class="s2">"period"</span><span class="p">,</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="s2">"open_column"</span><span class="p">:</span> <span class="s2">"opening"</span><span class="p">,</span> <span class="s2">"received_column"</span><span class="p">:</span> <span class="s2">"received"</span><span class="p">,</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="s2">"shipped_column"</span><span class="p">:</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"close_column"</span><span class="p">:</span> <span class="s2">"closing"</span><span class="p">,</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="s2">"periods"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"2026-01"</span><span class="p">,</span> <span class="s2">"2026-02"</span><span class="p">,</span> <span class="s2">"2026-03"</span><span class="p">],</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="s2">"starting_min"</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s2">"starting_max"</span><span class="p">:</span> <span class="mi">500</span><span class="p">,</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="s2">"__stock_flows__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"inventory"</span><span class="p">,</span> <span class="s2">"sku_column"</span><span class="p">:</span> <span class="s2">"sku"</span><span class="p">,</span> <span class="s2">"period_column"</span><span class="p">:</span> <span class="s2">"period"</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="s2">"open_column"</span><span class="p">:</span> <span class="s2">"opening"</span><span class="p">,</span> <span class="s2">"received_column"</span><span class="p">:</span> <span class="s2">"received"</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="s2">"shipped_column"</span><span class="p">:</span> <span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"close_column"</span><span class="p">:</span> <span class="s2">"closing"</span><span class="p">,</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="s2">"periods"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"2026-01"</span><span class="p">,</span> <span class="s2">"2026-02"</span><span class="p">,</span> <span class="s2">"2026-03"</span><span class="p">],</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="s2">"starting_min"</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s2">"starting_max"</span><span class="p">:</span> <span class="mi">500</span><span class="p">,</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="p">}]</span>
 </code></pre></div>
 <p>Measured on 300 rows: maximum residual of <code>opening + received - shipped -
 closing</code> was 0.0000000000. Note <code>periods</code> is a list of period labels, not a
@@ -3751,10 +3764,10 @@ count.</p>
 <h3 id="time_grids-timestamps-that-land-where-real-ones-do"><code>time_grids</code>, timestamps that land where real ones do</h3>
 <p>Appointments at 09:00, 09:15, 09:30, inside business hours. Real systems do not
 scatter timestamps uniformly across the clock, and uniform ones are a tell.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="s2">"__time_grids__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"appointments"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"slot"</span><span class="p">,</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="s2">"minute_grid"</span><span class="p">:</span> <span class="mi">15</span><span class="p">,</span> <span class="s2">"hours"</span><span class="p">:</span> <span class="p">[</span><span class="mi">9</span><span class="p">,</span> <span class="mi">17</span><span class="p">],</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="s2">"__time_grids__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"appointments"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"slot"</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="s2">"minute_grid"</span><span class="p">:</span> <span class="mi">15</span><span class="p">,</span> <span class="s2">"hours"</span><span class="p">:</span> <span class="p">[</span><span class="mi">9</span><span class="p">,</span> <span class="mi">17</span><span class="p">],</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="p">}]</span>
 </code></pre></div>
 <p>Measured on 400 rows: 0 off-grid, 0 outside hours.</p>
 <h3 id="lifecycles-a-state-machine-that-held"><code>lifecycles</code>, a state machine that held</h3>
@@ -3762,15 +3775,15 @@ scatter timestamps uniformly across the clock, and uniform ones are a tell.</p>
 there. Declare the states and the legal transitions, and every row's state is
 reachable, with the timestamps of the states on its path populated and the rest
 null.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="s2">"__lifecycles__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"order_flow"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"orders"</span><span class="p">,</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="s2">"state_column"</span><span class="p">:</span> <span class="s2">"status"</span><span class="p">,</span> <span class="s2">"start_column"</span><span class="p">:</span> <span class="s2">"placed_at"</span><span class="p">,</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="s2">"states"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"paid"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"shipped"</span><span class="p">},</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>               <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"delivered"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"refunded"</span><span class="p">,</span> <span class="s2">"terminal"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}],</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="s2">"transitions"</span><span class="p">:</span> <span class="p">[[</span><span class="s2">"placed"</span><span class="p">,</span> <span class="s2">"paid"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"paid"</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">],</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>                    <span class="p">[</span><span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"delivered"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"delivered"</span><span class="p">,</span> <span class="s2">"refunded"</span><span class="p">]],</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    <span class="s2">"initial"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">,</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="s2">"__lifecycles__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"order_flow"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"orders"</span><span class="p">,</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="s2">"state_column"</span><span class="p">:</span> <span class="s2">"status"</span><span class="p">,</span> <span class="s2">"start_column"</span><span class="p">:</span> <span class="s2">"placed_at"</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="s2">"states"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"paid"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"shipped"</span><span class="p">},</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>               <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"delivered"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"refunded"</span><span class="p">,</span> <span class="s2">"terminal"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}],</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="s2">"transitions"</span><span class="p">:</span> <span class="p">[[</span><span class="s2">"placed"</span><span class="p">,</span> <span class="s2">"paid"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"paid"</span><span class="p">,</span> <span class="s2">"shipped"</span><span class="p">],</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>                    <span class="p">[</span><span class="s2">"shipped"</span><span class="p">,</span> <span class="s2">"delivered"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"delivered"</span><span class="p">,</span> <span class="s2">"refunded"</span><span class="p">]],</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>    <span class="s2">"initial"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">,</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="p">}]</span>
 </code></pre></div>
 <p><code>states</code> takes objects, not bare strings. Give a state a <code>timestamp</code> column to
 have entry times recorded and null-correct.</p>
@@ -3778,24 +3791,24 @@ have entry times recorded and null-correct.</p>
 <p>The same guarantee projected onto an event-sourced child table. In one audited
 corpus this class of defect produced 602 done tasks with no completion event and
 667 completions that happened before the work started.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="s2">"__event_logs__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"case_trail"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"case_events"</span><span class="p">,</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="s2">"entity_table"</span><span class="p">:</span> <span class="s2">"cases"</span><span class="p">,</span> <span class="s2">"entity_key"</span><span class="p">:</span> <span class="s2">"case_id"</span><span class="p">,</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="s2">"event_type_column"</span><span class="p">:</span> <span class="s2">"event"</span><span class="p">,</span> <span class="s2">"event_time_column"</span><span class="p">:</span> <span class="s2">"at"</span><span class="p">,</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="s2">"state_events"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"submitted"</span><span class="p">:</span> <span class="s2">"case_submitted"</span><span class="p">,</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>                     <span class="s2">"reviewed"</span><span class="p">:</span> <span class="s2">"case_reviewed"</span><span class="p">,</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>                     <span class="s2">"approved"</span><span class="p">:</span> <span class="s2">"case_approved"</span><span class="p">},</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="s2">"__event_logs__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"case_trail"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"case_events"</span><span class="p">,</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="s2">"entity_table"</span><span class="p">:</span> <span class="s2">"cases"</span><span class="p">,</span> <span class="s2">"entity_key"</span><span class="p">:</span> <span class="s2">"case_id"</span><span class="p">,</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="s2">"event_type_column"</span><span class="p">:</span> <span class="s2">"event"</span><span class="p">,</span> <span class="s2">"event_time_column"</span><span class="p">:</span> <span class="s2">"at"</span><span class="p">,</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="s2">"state_events"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"submitted"</span><span class="p">:</span> <span class="s2">"case_submitted"</span><span class="p">,</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>                     <span class="s2">"reviewed"</span><span class="p">:</span> <span class="s2">"case_reviewed"</span><span class="p">,</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>                     <span class="s2">"approved"</span><span class="p">:</span> <span class="s2">"case_approved"</span><span class="p">},</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="p">}]</span>
 </code></pre></div>
 <p><code>state_events</code> maps state name to event type name, and pairs with a
 <code>lifecycles</code> declaration on the parent table.</p>
 <h3 id="retention-a-cohort-curve-the-cohort-table-actually-shows"><code>retention</code>, a cohort curve the cohort table actually shows</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="s2">"__retention__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"sessions"</span><span class="p">,</span> <span class="s2">"event_time"</span><span class="p">:</span> <span class="s2">"occurred_at"</span><span class="p">,</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="s2">"cohort_key"</span><span class="p">:</span> <span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"cohort_table"</span><span class="p">:</span> <span class="s2">"users"</span><span class="p">,</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="s2">"cohort_time"</span><span class="p">:</span> <span class="s2">"signed_up"</span><span class="p">,</span> <span class="s2">"unit"</span><span class="p">:</span> <span class="s2">"month"</span><span class="p">,</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="s2">"curve"</span><span class="p">:</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mf">0.55</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="mf">0.40</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span> <span class="mf">0.32</span><span class="p">,</span> <span class="mi">4</span><span class="p">:</span> <span class="mf">0.28</span><span class="p">,</span> <span class="mi">5</span><span class="p">:</span> <span class="mf">0.25</span><span class="p">},</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="s2">"__retention__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"sessions"</span><span class="p">,</span> <span class="s2">"event_time"</span><span class="p">:</span> <span class="s2">"occurred_at"</span><span class="p">,</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="s2">"cohort_key"</span><span class="p">:</span> <span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"cohort_table"</span><span class="p">:</span> <span class="s2">"users"</span><span class="p">,</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="s2">"cohort_time"</span><span class="p">:</span> <span class="s2">"signed_up"</span><span class="p">,</span> <span class="s2">"unit"</span><span class="p">:</span> <span class="s2">"month"</span><span class="p">,</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="s2">"curve"</span><span class="p">:</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="mf">0.55</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="mf">0.40</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span> <span class="mf">0.32</span><span class="p">,</span> <span class="mi">4</span><span class="p">:</span> <span class="mf">0.28</span><span class="p">,</span> <span class="mi">5</span><span class="p">:</span> <span class="mf">0.25</span><span class="p">},</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="p">}]</span>
 </code></pre></div>
 <p><code>curve</code> is a mapping of period offset to retained fraction. <code>unit</code> is <code>day</code>,
 <code>week</code> or <code>month</code>.</p>
@@ -3803,30 +3816,30 @@ corpus this class of defect produced 602 done tasks with no completion event and
 <p>When a fact was true, and when you knew it. The shape every slowly-changing
 dimension and every audited price history really has, and the one hand-made
 fixtures almost never get right.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="s2">"__bitemporal__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"price_history"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"prices"</span><span class="p">,</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="s2">"entity_columns"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"sku"</span><span class="p">],</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="s2">"valid_from"</span><span class="p">:</span> <span class="s2">"valid_from"</span><span class="p">,</span> <span class="s2">"valid_to"</span><span class="p">:</span> <span class="s2">"valid_to"</span><span class="p">,</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="s2">"recorded_at"</span><span class="p">:</span> <span class="s2">"recorded_at"</span><span class="p">,</span> <span class="s2">"superseded_at"</span><span class="p">:</span> <span class="s2">"superseded_at"</span><span class="p">,</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>    <span class="s2">"avg_versions"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="s2">"__bitemporal__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"price_history"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"prices"</span><span class="p">,</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="s2">"entity_columns"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"sku"</span><span class="p">],</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="s2">"valid_from"</span><span class="p">:</span> <span class="s2">"valid_from"</span><span class="p">,</span> <span class="s2">"valid_to"</span><span class="p">:</span> <span class="s2">"valid_to"</span><span class="p">,</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    <span class="s2">"recorded_at"</span><span class="p">:</span> <span class="s2">"recorded_at"</span><span class="p">,</span> <span class="s2">"superseded_at"</span><span class="p">:</span> <span class="s2">"superseded_at"</span><span class="p">,</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="s2">"avg_versions"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="p">}]</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a># Two axes, so "what did we believe on 3 March about 1 January?" has an answer
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>  valid time  ──▶   Jan          Feb          Mar
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>                    ├────────────┤
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>  recorded    Feb 2 │  price 40  │                    superseded Mar 9
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>                    ├────────────┼────────────┐
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>  recorded    Mar 9 │  price 42 (correction)  │       current
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a># Two axes, so "what did we believe on 3 March about 1 January?" has an answer
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>  valid time  ──▶   Jan          Feb          Mar
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>                    ├────────────┤
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>  recorded    Feb 2 │  price 40  │                    superseded Mar 9
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>                    ├────────────┼────────────┐
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>  recorded    Mar 9 │  price 42 (correction)  │       current
 </code></pre></div>
 <h3 id="late_arrivals-events-that-land-after-the-fact"><code>late_arrivals</code>, events that land after the fact</h3>
 <p>A declared fraction of events arrive with an ingest time later than their event
 time, which is what breaks naive incremental pipelines.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="s2">"__late_arrivals__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"events"</span><span class="p">,</span> <span class="s2">"event_time"</span><span class="p">:</span> <span class="s2">"occurred_at"</span><span class="p">,</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    <span class="s2">"ingest_time"</span><span class="p">:</span> <span class="s2">"ingested_at"</span><span class="p">,</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="s2">"late_fraction"</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">"max_delay_days"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="s2">"__late_arrivals__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"events"</span><span class="p">,</span> <span class="s2">"event_time"</span><span class="p">:</span> <span class="s2">"occurred_at"</span><span class="p">,</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="s2">"ingest_time"</span><span class="p">:</span> <span class="s2">"ingested_at"</span><span class="p">,</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="s2">"late_fraction"</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">,</span> <span class="s2">"max_delay_days"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="p">}]</span>
 </code></pre></div>
 <h3 id="events-degradations"><code>events</code>, <code>degradations</code></h3>
 <p><code>events</code> declares occurrences over a time axis. <code>degradations</code> declares that
@@ -3840,21 +3853,21 @@ optional bearing physics, and a maintenance policy. See
 exercises a pipeline from one that only exercises the happy path.</p>
 <h3 id="missingness-why-values-are-missing-not-just-how-often"><code>missingness</code>, why values are missing, not just how often</h3>
 <p>Missing-at-random is the easy case and the rare one. Declare the condition.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="s2">"__missingness__"</span><span class="p">:</span> <span class="p">[{</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"patients"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"discharge_note"</span><span class="p">,</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="s2">"rate"</span><span class="p">:</span> <span class="mf">0.9</span><span class="p">,</span> <span class="s2">"else_rate"</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">,</span>
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="s2">"when_column"</span><span class="p">:</span> <span class="s2">"admitted"</span><span class="p">,</span> <span class="s2">"when_op"</span><span class="p">:</span> <span class="s2">"=="</span><span class="p">,</span> <span class="s2">"when_value"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="s2">"__missingness__"</span><span class="p">:</span> <span class="p">[{</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="s2">"table"</span><span class="p">:</span> <span class="s2">"patients"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"discharge_note"</span><span class="p">,</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="s2">"rate"</span><span class="p">:</span> <span class="mf">0.9</span><span class="p">,</span> <span class="s2">"else_rate"</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">,</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    <span class="s2">"when_column"</span><span class="p">:</span> <span class="s2">"admitted"</span><span class="p">,</span> <span class="s2">"when_op"</span><span class="p">:</span> <span class="s2">"=="</span><span class="p">,</span> <span class="s2">"when_value"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="p">}]</span>
 </code></pre></div>
 <p>Measured on 2,000 rows: 0.9 missing where admitted, 0.05 elsewhere.</p>
 <h3 id="typos-exactly-this-many-corrupted-values"><code>typos</code>, exactly this many corrupted values</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="s2">"__typos__"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"table"</span><span class="p">:</span> <span class="s2">"contacts"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"city"</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">:</span> <span class="mi">25</span><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="s2">"__typos__"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"table"</span><span class="p">:</span> <span class="s2">"contacts"</span><span class="p">,</span> <span class="s2">"column"</span><span class="p">:</span> <span class="s2">"city"</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">:</span> <span class="mi">25</span><span class="p">}]</span>
 </code></pre></div>
 <p>Exactly 25 of the values become corrupted versions of a legal value, so a
 dedupe or cleaning step has a known number of things to find. Use <code>fraction</code>
 instead of <code>count</code> for a proportion.</p>
 <h3 id="duplicates-exactly-this-many-duplicate-rows"><code>duplicates</code>, exactly this many duplicate rows</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="s2">"__duplicates__"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"table"</span><span class="p">:</span> <span class="s2">"contacts"</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">:</span> <span class="mi">10</span><span class="p">}]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="s2">"__duplicates__"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"table"</span><span class="p">:</span> <span class="s2">"contacts"</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">:</span> <span class="mi">10</span><span class="p">}]</span>
 </code></pre></div>
 <p>Pass <code>subset</code> or <code>keys</code> to duplicate on a partial match, which is the harder
 and more realistic case for a matching algorithm.</p>
@@ -3904,13 +3917,13 @@ vocabulary keeps growing with the table instead of cycling a fixed pool. See
 <h2 id="when-a-declaration-cannot-hold">When a declaration cannot hold</h2>
 <p>Misata refuses rather than picking one. A generator picks and carries on; a
 declarative engine names both declarations and shows the arithmetic:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>Infeasible: orders.revenue
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>  outcome_curves  declares  January total = 50,000.00
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>  group_shares    declares  Electronics = 50% of revenue
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>  constraints     declares  revenue &lt;= 900 per row
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>  arithmetic      50,000.00 x 0.5 = 25,000.00 needs &gt;= 28 rows at the cap,
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>                  January has 20
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>  remedy          raise the cap, lower the share, or add rows
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>Infeasible: orders.revenue
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>  outcome_curves  declares  January total = 50,000.00
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>  group_shares    declares  Electronics = 50% of revenue
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>  constraints     declares  revenue &lt;= 900 per row
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>  arithmetic      50,000.00 x 0.5 = 25,000.00 needs &gt;= 28 rows at the cap,
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>                  January has 20
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>  remedy          raise the cap, lower the share, or add rows
 </code></pre></div>
 <p>See <a href="../../failure-modes/">When Misata refuses</a> and
 <a href="https://misata.studio/limitations">Known limitations</a>.</p>
