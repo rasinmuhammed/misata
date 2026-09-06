@@ -46,6 +46,7 @@ tests/*
 !tests/test_declaration_contract.py
 !tests/test_capacity_refusals.py
 !tests/test_locale_naming.py
+!tests/test_mercury_provider.py
 !tests/test_regressions.py
 !tests/test_regression_fixes.py
 !tests/test_mimic_fidelity.py
