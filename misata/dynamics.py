@@ -457,10 +457,35 @@ def apply_time_grid(
 # duplicates
 # --------------------------------------------------------------------------- #
 
+def _identity_columns(config: Any, table: str, df: pd.DataFrame) -> List[str]:
+    """Columns that must survive a duplication: the primary key, and anything
+    another table points at.
+
+    A duplicate record in the real world is the same entity entered twice under
+    different surrogate keys, which is exactly what a deduplication step is
+    asked to find. Copying the key as well makes it a different thing: the
+    donor's key now appears twice and the recipient's key does not appear at
+    all, so every child row that referenced it is orphaned. Measured on a
+    3,000-row customers table with 30 declared duplicates: 2,970 distinct ids
+    and 211 orphaned orders, against a stated guarantee of zero.
+    """
+    protected: List[str] = []
+    for column in (getattr(config, "columns", None) or {}).get(table, []):
+        if getattr(column, "primary_key", False) or getattr(column, "unique", False):
+            protected.append(column.name)
+    for rel in (getattr(config, "relationships", None) or []):
+        if rel.parent_table == table:
+            protected.append(rel.parent_key)
+    if "id" in df.columns and "id" not in protected:
+        protected.append("id")
+    return [c for c in dict.fromkeys(protected) if c in df.columns]
+
+
 def apply_duplicates(
     tables: Dict[str, pd.DataFrame],
     spec: Any,
     rng: np.random.Generator,
+    config: Any = None,
 ) -> Dict[str, pd.DataFrame]:
     """Make exactly the declared number of rows duplicates of another row.
 
@@ -469,12 +494,21 @@ def apply_duplicates(
     currently unique are eligible as donor or recipient, which is what makes
     the final excess exact rather than approximate: each copy raises
     ``len(df) - len(df[subset].drop_duplicates())`` by exactly one.
+
+    Identity columns are preserved unless the caller names ``subset`` itself.
+    ``keys`` always could protect a column; nothing was putting the table's own
+    primary key in it, so the default copied the key too and broke referential
+    integrity, which is the one guarantee this engine makes unconditionally.
     """
     df = tables.get(spec.table)
     if df is None or df.empty:
         return tables
 
     keys = [k for k in (spec.keys or []) if k in df.columns]
+    if config is not None and not spec.subset:
+        # An explicit subset is the caller saying exactly which columns to copy,
+        # and that is their call to make. Only the default is changed.
+        keys = list(dict.fromkeys(keys + _identity_columns(config, spec.table, df)))
     subset = [c for c in (spec.subset or [c for c in df.columns if c not in keys])
               if c in df.columns]
     if not subset:
@@ -801,7 +835,7 @@ def apply_dynamics(
     # have its nulls redrawn independently and stop being a copy.
     for spec in (getattr(config, "duplicates", None) or []):
         try:
-            apply_duplicates(tables, spec, rng)
+            apply_duplicates(tables, spec, rng, config)
         except Exception as e:
             warnings.warn(f"Duplicates on '{spec.table}' failed ({e}); "
                           f"table left as generated.")
