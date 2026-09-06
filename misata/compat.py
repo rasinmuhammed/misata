@@ -797,6 +797,18 @@ def from_dict_schema(
     _DROPPED.clear()
     schemas = _unwrap_envelope(schemas)
 
+    # `locale` is published at the top level by our own JSON Schema, so that is
+    # the spelling editors autocomplete people into, and it lives on
+    # RealismConfig internally. _unwrap_envelope folds it in for the envelope
+    # form and returns early for the flat one, so the flat form dropped it: a
+    # dict schema carrying locale ja_JP produced Philadelphia and an English
+    # name, with no error, which is the documented spelling silently doing
+    # nothing in the form most people write.
+    if isinstance(schemas.get("locale"), str):
+        realism_block = dict(schemas.get("__realism__") or {})
+        realism_block.setdefault("locale", schemas["locale"])
+        schemas = {**schemas, "__realism__": realism_block}
+
     tables: List[Table] = []
     columns_map: Dict[str, List[Column]] = {}
     relationships: List[Relationship] = []

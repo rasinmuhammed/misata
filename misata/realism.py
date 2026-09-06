@@ -510,10 +510,20 @@ class RealisticTextGenerator:
             # Guard: a bare "name"/"full_name"/"display_name" in a non-person
             # table is almost certainly an LLM mislabelling (plans.name, etc.).
             # Column qualifiers or person-table context override this guard.
+            #
+            # So does an explicit declaration, and that exemption is the whole
+            # point. The guard exists to correct a GUESS. Applied to a column
+            # the user wrote `semantic: person_name` on, it overrules them, and
+            # it did: under en_US the lexicon above answered first and hid it,
+            # but under any other locale the lexicon steps aside for the locale
+            # machinery, execution reached here, and `people.name` in a table
+            # not named after people came back "Business" and "Growth" in
+            # ja_JP and de_DE while cities localised correctly.
             _BARE_NAME_COLS = {"name", "full_name", "display_name"}
             _tbl_pn = table_name.lower()
             if (
-                column_name.lower() in _BARE_NAME_COLS
+                not semantic_declared
+                and column_name.lower() in _BARE_NAME_COLS
                 and not any(p in _tbl_pn for p in _PERSON_TABLE_HINTS)
             ):
                 if any(c in _tbl_pn for c in _COMPANY_TABLE_HINTS):
