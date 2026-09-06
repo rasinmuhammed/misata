@@ -37,6 +37,15 @@ class TestTheProviderRow:
 
 
 class TestItConstructs:
+    """Constructing the client needs the `openai` package, which is in the
+    [llm] extra rather than the base install. The publish job installs
+    [dev] only, so these skip there while the provider-row tests above,
+    which touch no client, still run everywhere."""
+
+    @pytest.fixture(autouse=True)
+    def _needs_openai(self):
+        pytest.importorskip("openai")
+
     def test_the_client_is_built_against_the_right_host(self, keyed):
         gen = LLMSchemaGenerator(provider="mercury")
         assert gen.model == "mercury-2"
