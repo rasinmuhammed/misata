@@ -2721,10 +2721,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example-prompts" class="md-nav__link">
+  <a href="#prompts-to-try" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example prompts
+        Prompts to try
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-the-best-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting the best results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-full-worked-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A full worked flow
       
     </span>
   </a>
@@ -2792,6 +2814,39 @@
     <span class="md-ellipsis">
       
         generate_dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit_dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        audit_dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validate_domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_domain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#seed_database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        seed_database
       
     </span>
   </a>
@@ -3107,10 +3162,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example-prompts" class="md-nav__link">
+  <a href="#prompts-to-try" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example prompts
+        Prompts to try
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-the-best-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting the best results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-full-worked-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A full worked flow
       
     </span>
   </a>
@@ -3178,6 +3255,39 @@
     <span class="md-ellipsis">
       
         generate_dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit_dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        audit_dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validate_domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_domain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#seed_database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        seed_database
       
     </span>
   </a>
@@ -3369,19 +3479,105 @@
 </tr>
 </tbody>
 </table>
-<p>The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a <code>species</code> column; Misata is good at guaranteeing the math, FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. <code>generate_from_schema</code>'s tool description teaches the agent the full schema-dict language (per-table <code>__rows__</code>, distributions, formulas with <code>@parent.column</code> references, exact roll-ups, pattern codes), so any MCP-capable model can drive everything Misata's engine supports.</p>
+<p>The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a <code>species</code> column; Misata is good at guaranteeing the math, FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. <code>generate_from_schema</code>'s tool description teaches the agent the full schema-dict language — per-table <code>__rows__</code>, the distribution set, formulas with <code>@parent.column</code> references, exact roll-ups, pattern codes, correlations, ICC cluster effects, state machines, time-series autocorrelation, plus the schema-level declarations (<code>__outcome_curves__</code>, <code>__group_shares__</code>, <code>__waterfalls__</code>, <code>__stock_flows__</code>, <code>__lifecycles__</code>, and the <code>__duplicates__</code> / <code>__typos__</code> / <code>__outliers__</code> trio) — so any MCP-capable model can drive most of what the engine supports without reading these docs first.</p>
 <p>Both generation tools write CSVs to a temp directory by default. The agent gets back file paths and a small preview, it never has to dump millions of rows into the chat context.</p>
 <hr />
-<h2 id="example-prompts">Example prompts</h2>
-<p>Once configured, try these in your assistant:</p>
+<h2 id="prompts-to-try">Prompts to try</h2>
+<p>Paste any of these into your assistant. Each one is chosen to push a
+different part of the engine.</p>
+<p><strong>One sentence, let the parser design it</strong></p>
 <blockquote>
 <p>"Generate a fintech fraud dataset with 10k customers and a 2% fraud rate."</p>
-<p>"Show me what tables and columns Misata would produce for an HR system with 200 employees in Germany."</p>
-<p>"I'm building a BI dashboard. Generate SaaS subscription data with MRR growing from $50k in January to $200k in December, with a Q3 slump and a Black Friday spike."</p>
-<p>"Validate this misata.yaml before I commit it." <em>(paste YAML inline)</em></p>
-<p>"List all available Misata domains and pick the best one for an e-learning platform."</p>
+<p>"Give me an HR system for 200 employees in Germany, with a payroll table."</p>
+<p>"Build a food delivery dataset: 300 restaurants, 2k couriers, 40k orders over the last quarter."</p>
 </blockquote>
-<p>The assistant picks the right tool, calls Misata, and returns a concise summary with the file paths or validation result.</p>
+<p><strong>Declare the outcome, not the rows</strong></p>
+<blockquote>
+<p>"Generate SaaS subscription data where MRR grows from $50k in January to $200k in December, with a dip in Q3 and a spike in November. Starter is 20% of revenue, Pro 50%, Enterprise 30%."</p>
+<p>"Ecommerce orders for 2026 where Q4 revenue lands at exactly $2.4M and the refund rate climbs from 1% to 4% after a pricing change in September."</p>
+<p>"A logistics dataset where on-time delivery is 87% overall, breaching the SLA in Q3, and worst in the Nordics region."</p>
+</blockquote>
+<p><strong>Ask for structure that survives a second look</strong></p>
+<blockquote>
+<p>"Design a clinical trial: 400 patients across 12 sites, three arms, HbA1c measured at 6 visits each. The arms need different treatment effects, measurements within a patient should be autocorrelated, and sites should show a random-intercept effect. Then audit it."</p>
+<p>"Generate an order-fulfilment dataset where every order moves through placed → paid → shipped → delivered, with a small fraction refunded, and status can never skip a step."</p>
+</blockquote>
+<p><strong>Prove data you already have</strong></p>
+<blockquote>
+<p>"Audit the CSVs in ./seed_data and tell me the coherence score and the worst three findings."</p>
+<p>"Validate the dataset in ./trial_export against clinical domain rules."</p>
+</blockquote>
+<p><strong>Fill a real database</strong></p>
+<blockquote>
+<p>"Plan a seed of my dev database at postgresql://localhost/myapp_dev, then show me the plan before writing anything."</p>
+</blockquote>
+<p><strong>Dirty data on purpose</strong></p>
+<blockquote>
+<p>"Generate a contacts table with exactly 60 duplicate rows and 120 typo'd city values, so I can test a cleaning pipeline against a known count."</p>
+</blockquote>
+<hr />
+<h2 id="getting-the-best-results">Getting the best results</h2>
+<p><strong>Let the agent design the schema, you describe the outcome.</strong> The single
+biggest difference between a mediocre result and a good one is whether the
+request states <em>what has to be true of the data</em> — a period total, a rate, a
+share, a correlation — rather than a min/max on a column. "Revenue grows to
+$200k by December" is an <code>__outcome_curves__</code> declaration the engine hits
+exactly. "Revenue between $0 and $200k" is not.</p>
+<p><strong>Read the coherence score before you use the data.</strong> Every
+<code>generate_from_schema</code> and <code>generate_dataset</code> response now carries a
+<code>coherence</code> block with a score from 0 to 100 and its findings. A score in the
+90s means the data holds up. A lower score almost always means the <em>schema</em> is
+missing realism structure — correlations between columns that co-vary, per-group
+<code>profiles</code>, <code>time_series</code> for longitudinal data, a <code>__state_machine__</code> for an
+entity that moves through stages. Ask the agent to add that and regenerate,
+rather than accepting the first pass.</p>
+<p><strong>Use the right tool for the shape of the request:</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">The request is…</th>
+<th style="text-align: left;">Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">one sentence, common domain</td>
+<td style="text-align: left;"><code>generate_dataset</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">specific tables, columns, or declared outcomes</td>
+<td style="text-align: left;"><code>generate_from_schema</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">"will this schema even work?" before a big run</td>
+<td style="text-align: left;"><code>validate_yaml</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">checking data that already exists</td>
+<td style="text-align: left;"><code>audit_dataset</code>, <code>validate_domain</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">loading a real dev database</td>
+<td style="text-align: left;"><code>seed_database</code> (plan first)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Set a seed if you want the run to be repeatable.</strong> The same schema and seed
+produce byte-identical output on any machine. Omit it and each run is fresh.</p>
+<p><strong>For anything touching a real database, expect two calls.</strong> <code>seed_database</code>
+plans by default and writes nothing; it only inserts after a second call with
+<code>apply=true</code>, and it refuses to touch a table that already has rows unless you
+pick <code>truncate</code> (destructive) or <code>append</code>.</p>
+<hr />
+<h2 id="a-full-worked-flow">A full worked flow</h2>
+<p>What a good agent session looks like end to end:</p>
+<ol>
+<li><strong>You:</strong> "I need demo data for a Series B logistics company selling into the Nordics. On-time delivery should be 87% and degrading in Q3."</li>
+<li>Agent calls <code>generate_from_schema</code> with a warehouses / shipments / carriers schema and an <code>__outcome_curves__</code> declaration for the on-time rate.</li>
+<li>Response comes back: files written, <code>integrity.verified: true</code>, <code>coherence.score: 78</code>, with a finding that <code>carrier_cost</code> is near-constant.</li>
+<li>Agent adds a <code>lognormal</code> distribution and a correlation between <code>distance_km</code> and <code>carrier_cost</code>, regenerates. <code>coherence.score: 94</code>.</li>
+<li>Agent calls <code>audit_dataset</code> on the output to confirm, then reports: <em>"Generated and verified. On-time delivery is 87.0% overall, 81% in Q3. Every foreign key resolves. Coherence 94/100."</em></li>
+</ol>
 <hr />
 <h2 id="tool-reference">Tool reference</h2>
 <h3 id="list_domains"><code>list_domains</code></h3>
@@ -3486,17 +3682,36 @@
 <a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="w">  </span><span class="nt">"seed"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span>
 <a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="p">}</span>
 </code></pre></div></p>
-<p><strong>Output:</strong> the same file/preview envelope as <code>generate_dataset</code>, plus:
+<p><strong>Output:</strong> the same file/preview envelope as <code>generate_dataset</code>, plus an
+integrity proof, a coherence score, and — when the schema declares a
+<code>__domain__</code> — a domain-validation pass:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">"integrity"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nt">"verified"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nt">"relationships"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">      </span><span class="p">{</span><span class="nt">"relationship"</span><span class="p">:</span><span class="w"> </span><span class="s2">"orders.customer_id → customers.id"</span><span class="p">,</span><span class="w"> </span><span class="nt">"intact"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"orphans"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">}</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="p">]</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="p">}</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"verified"</span><span class="p">,</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="nt">"declared"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="nt">"checked"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="nt">"relationships"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">      </span><span class="p">{</span><span class="nt">"relationship"</span><span class="p">:</span><span class="w"> </span><span class="s2">"orders.customer_id → customers.id"</span><span class="p">,</span><span class="w"> </span><span class="nt">"intact"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"orphans"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">}</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">  </span><span class="nt">"coherence"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">    </span><span class="nt">"available"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">    </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mf">96.0</span><span class="p">,</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="nt">"clean"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">    </span><span class="nt">"summary"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Coherence: clean — no reader-visible contradictions."</span><span class="p">,</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="w">    </span><span class="nt">"findings"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="w">    </span><span class="nt">"findings_truncated"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a><span class="p">}</span>
 </code></pre></div></p>
-<p>The agent can tell you: <em>"Generated and verified: 0 orphaned foreign keys, and every customer's <code>lifetime_value</code> reconciles exactly with their orders."</em></p>
+<p>The agent can tell you: <em>"Generated and verified: 0 orphaned foreign keys, every
+customer's <code>lifetime_value</code> reconciles exactly with their orders, and the data
+scores 96/100 for coherence with no reader-visible contradictions."</em></p>
+<p>If the coherence score is low, the <code>findings</code> array names what a reader would
+catch — a column that is 98% one value, a <code>total</code> that does not equal
+<code>quantity * unit_price</code>, a <code>shipped_at</code> before its <code>ordered_at</code>. Fix those in
+the schema and regenerate.</p>
 <hr />
 <h3 id="generate_dataset"><code>generate_dataset</code></h3>
 <p>Generates a full dataset and writes one CSV per table to <code>output_dir</code> (defaults to a temp directory).</p>
@@ -3527,71 +3742,160 @@
 <a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="p">}</span>
 </code></pre></div></p>
 <p>The agent can tell you: <em>"Generated 65,200 rows across 4 tables. Files are at <code>/tmp/misata_out/</code>. Here's a preview of the customers table…"</em></p>
+<p>Every <code>files</code> entry also carries a <code>sample</code> of the first few rows, and the
+response carries a <code>coherence</code> block identical in shape to
+<code>generate_from_schema</code>'s.</p>
 <hr />
-<h3 id="validate_yaml"><code>validate_yaml</code></h3>
-<p>Two-layer validation of a <code>misata.yaml</code> string: structural (JSON Schema) then semantic (FK consistency, formula references, distribution params).</p>
+<h3 id="audit_dataset"><code>audit_dataset</code></h3>
+<p>Runs the coherence audit on a folder of CSVs — one per table — and scores it 0
+to 100. Works on anything: a folder Misata just wrote, a folder a person built
+by hand, another tool's output.</p>
 <p><strong>Input:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">"yaml_content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tables:\n  - name: users\n    rows: 1000\n    columns:\n..."</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"dataset_dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/tmp/misata_out"</span><span class="p">,</span><span class="w"> </span><span class="nt">"top_findings"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
-<p><strong>Output (valid):</strong>
+<p><strong>Output:</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">"valid"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">"errors"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">"warnings"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="p">}</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mf">71.0</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">"clean"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">"summary"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Coherence: 3 findings (1 high, 2 medium)."</span><span class="p">,</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">  </span><span class="nt">"tables_audited"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"customers"</span><span class="p">,</span><span class="w"> </span><span class="s2">"orders"</span><span class="p">,</span><span class="w"> </span><span class="s2">"order_items"</span><span class="p">],</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">  </span><span class="nt">"findings"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">    </span><span class="p">{</span><span class="nt">"severity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"high"</span><span class="p">,</span><span class="w"> </span><span class="nt">"table"</span><span class="p">:</span><span class="w"> </span><span class="s2">"orders"</span><span class="p">,</span><span class="w"> </span><span class="nt">"column"</span><span class="p">:</span><span class="w"> </span><span class="s2">"shipped_at"</span><span class="p">,</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">     </span><span class="nt">"finding"</span><span class="p">:</span><span class="w"> </span><span class="s2">"312 rows shipped before they were ordered"</span><span class="p">},</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">    </span><span class="p">{</span><span class="nt">"severity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"medium"</span><span class="p">,</span><span class="w"> </span><span class="nt">"table"</span><span class="p">:</span><span class="w"> </span><span class="s2">"orders"</span><span class="p">,</span><span class="w"> </span><span class="nt">"column"</span><span class="p">:</span><span class="w"> </span><span class="s2">"total"</span><span class="p">,</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">     </span><span class="nt">"finding"</span><span class="p">:</span><span class="w"> </span><span class="s2">"total does not equal quantity * unit_price for 88 rows"</span><span class="p">}</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="w">  </span><span class="nt">"findings_truncated"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="p">}</span>
+</code></pre></div></p>
+<p>Checks include: timestamps that run backwards, derived columns that do not
+reconcile with their inputs, geographic fields that disagree (city / state /
+postcode / country), near-constant columns, filler text, out-of-scale numerics.</p>
+<hr />
+<h3 id="validate_domain"><code>validate_domain</code></h3>
+<p>Checks a folder of CSVs for values that are physiologically or financially
+impossible for a stated domain.</p>
+<p><strong>Input:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"dataset_dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/tmp/trial_export"</span><span class="p">,</span><span class="w"> </span><span class="nt">"domain"</span><span class="p">:</span><span class="w"> </span><span class="s2">"clinical"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><code>domain</code> must be one of <code>clinical_trial</code>, <code>clinical</code>, <code>financial</code>, <code>fintech</code> —
+an unknown domain is refused, not silently passed.</p>
+<p><strong>Output:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">"domain"</span><span class="p">:</span><span class="w"> </span><span class="s2">"clinical"</span><span class="p">,</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="nt">"passed"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="nt">"summary"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1 error, 2 warnings."</span><span class="p">,</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="nt">"errors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">"table"</span><span class="p">:</span><span class="w"> </span><span class="s2">"visits"</span><span class="p">,</span><span class="w"> </span><span class="nt">"column"</span><span class="p">:</span><span class="w"> </span><span class="s2">"hba1c"</span><span class="p">,</span><span class="w"> </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"4 values outside 4-14%"</span><span class="p">}</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">  </span><span class="nt">"warnings"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="w">  </span><span class="nt">"tables_checked"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"patients"</span><span class="p">,</span><span class="w"> </span><span class="s2">"visits"</span><span class="p">]</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="p">}</span>
+</code></pre></div></p>
+<p>Built-in ranges — clinical: HbA1c 4-14%, BMI 10-80, systolic BP 60-260, age
+0-130, glucose 2-40, cholesterol 1-20, hemoglobin 3-25. Financial: price &gt;= 0,
+discount 0-1, rate -1 to 100.</p>
+<hr />
+<h3 id="seed_database"><code>seed_database</code></h3>
+<p>Fills a live Postgres or SQLite database with data read from its own schema.
+<strong>Plans by default</strong> — nothing is written until a second call with <code>apply=true</code>.</p>
+<p><strong>Input (plan):</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"db_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"postgresql://localhost/myapp_dev"</span><span class="p">,</span><span class="w"> </span><span class="nt">"rows"</span><span class="p">:</span><span class="w"> </span><span class="mi">500</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Output (plan):</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="p">{</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span><span class="nt">"applied"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">  </span><span class="nt">"insert_order"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"accounts"</span><span class="p">,</span><span class="w"> </span><span class="s2">"users"</span><span class="p">,</span><span class="w"> </span><span class="s2">"invoices"</span><span class="p">],</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">  </span><span class="nt">"foreign_keys"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">  </span><span class="nt">"tables"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"accounts"</span><span class="p">,</span><span class="w"> </span><span class="nt">"existing_rows"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"will_insert"</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">},</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">    </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"users"</span><span class="p">,</span><span class="w">    </span><span class="nt">"existing_rows"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"will_insert"</span><span class="p">:</span><span class="w"> </span><span class="mi">1240</span><span class="p">},</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="w">    </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"invoices"</span><span class="p">,</span><span class="w"> </span><span class="nt">"existing_rows"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"will_insert"</span><span class="p">:</span><span class="w"> </span><span class="mi">4800</span><span class="p">}</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">  </span><span class="nt">"note"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Plan only, nothing was written. To write, call again with apply=true."</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="p">}</span>
+</code></pre></div></p>
+<p>Then <code>{ "db_url": "...", "apply": true }</code> performs the insert (parents before
+children) and queries the database back to confirm every foreign key resolves.
+If a target table already has rows, the write is refused unless you pass
+<code>truncate=true</code> (wipes it, destructive) or <code>append=true</code> (keeps it, seeds only
+empty tables). Requires the db extra: <code>pip install "misata[db]"</code>.</p>
+<hr />
+<h3 id="validate_yaml"><code>validate_yaml</code></h3>
+<p>Three-layer validation of a <code>misata.yaml</code> string: structural (JSON Schema),
+semantic (FK consistency, formula references, distribution params), then
+feasibility (declarations that each parse but cannot all hold at once — shares
+that sum past 1.0, a period total below the sum of its parts).</p>
+<p><strong>Input:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">"yaml_text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tables:\n  users:\n    rows: 1000\n    columns:\n      ..."</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>Output (valid):</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">  </span><span class="nt">"valid"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">  </span><span class="nt">"errors"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">  </span><span class="nt">"warnings"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="p">}</span>
 </code></pre></div></p>
 <p><strong>Output (invalid):</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">"valid"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="nt">"errors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="s2">"tables[0].columns[2]: 'distribution' must be one of: uniform, normal, lognormal, ..."</span><span class="p">,</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">    </span><span class="s2">"tables[1].columns[0]: formula references column 'gross_pay' which is not defined in this table"</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">  </span><span class="nt">"warnings"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">    </span><span class="s2">"tables[0]: no primary key column — consider adding a unique int column"</span>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="p">{</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span><span class="nt">"valid"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span><span class="nt">"errors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">    </span><span class="s2">"tables[0].columns[2]: 'distribution' must be one of: uniform, normal, lognormal, ..."</span><span class="p">,</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">    </span><span class="s2">"tables[1].columns[0]: formula references column 'gross_pay' which is not defined in this table"</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">  </span><span class="nt">"warnings"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">    </span><span class="s2">"tables[0]: no primary key column — consider adding a unique int column"</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="p">}</span>
 </code></pre></div></p>
 <hr />
 <h2 id="error-handling">Error handling</h2>
 <p>All nine tools return a consistent <code>{"ok": true/false, ...}</code> envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ValueError"</span><span class="p">,</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"No domain could be detected from the story."</span><span class="p">,</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="nt">"suggestion"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Name the domain explicitly — e.g. add 'fintech', 'saas', or 'ecommerce' to your story."</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="p">{</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ValueError"</span><span class="p">,</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"No domain could be detected from the story."</span><span class="p">,</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">  </span><span class="nt">"suggestion"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Name the domain explicitly — e.g. add 'fintech', 'saas', or 'ecommerce' to your story."</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="p">}</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OSError"</span><span class="p">,</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"[Errno 13] Permission denied: '/protected/output'"</span><span class="p">,</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span><span class="nt">"suggestion"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Check that the output_dir path exists and is writable, or omit it to use a temp directory."</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="p">{</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OSError"</span><span class="p">,</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">  </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"[Errno 13] Permission denied: '/protected/output'"</span><span class="p">,</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="w">  </span><span class="nt">"suggestion"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Check that the output_dir path exists and is writable, or omit it to use a temp directory."</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="p">}</span>
 </code></pre></div>
 <p>The agent can read the <code>suggestion</code> field and reformulate its next call without surfacing raw Python errors to the user.</p>
 <hr />
 <h2 id="how-it-works">How it works</h2>
-<p>The server is a thin protocol shim over Misata's existing public API. Each tool maps to one library function:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>list_domains     →  StoryParser.DOMAIN_KEYWORDS
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>preview_story    →  misata.preview()
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>inspect_schema   →  misata.parse()
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>generate_dataset →  misata.generate() + DataFrame.to_csv()
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>validate_yaml    →  misata.json_schema() + misata.validate_schema()
+<p>The server is a thin protocol shim over Misata's existing public API. Each tool maps to library functions you could call yourself:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>list_domains          →  StoryParser.DOMAIN_KEYWORDS
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>preview_story          →  misata.preview()
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>inspect_schema         →  misata.parse()
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>generate_dataset       →  misata.generate() + coherence_audit() + to_csv()
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>generate_from_schema   →  misata.from_dict_schema() + generate_from_schema()
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>                          + verify_integrity() + coherence_audit()
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>audit_dataset          →  misata.coherence_audit()
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>validate_domain        →  misata.validate_domain()
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>validate_yaml          →  json_schema() + validate_schema() + check_feasibility()
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>seed_database          →  misata.introspect + misata.db.seed_database()
 </code></pre></div>
 <p>Because the MCP server is bundled inside the <code>misata</code> package itself, not a separate distribution, the server and library are always in sync. Update Misata, the MCP server updates automatically.</p>
 <hr />
 <h2 id="running-standalone-debugging">Running standalone / debugging</h2>
 <p>You don't normally need to run <code>misata-mcp</code> directly, your AI assistant launches it as a subprocess via stdio. For debugging:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>misata-mcp
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="c1"># Runs on stdio; send JSON-RPC requests on stdin, responses on stdout.</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>misata-mcp
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="c1"># Runs on stdio; send JSON-RPC requests on stdin, responses on stdout.</span>
 </code></pre></div>
 <p>The easiest way to explore the tools interactively is the <a href="https://github.com/modelcontextprotocol/inspector">MCP Inspector</a>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>npx<span class="w"> </span>@modelcontextprotocol/inspector<span class="w"> </span>misata-mcp
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>npx<span class="w"> </span>@modelcontextprotocol/inspector<span class="w"> </span>misata-mcp
 </code></pre></div>
 <p>This opens a web UI where you can call each tool, inspect inputs and outputs, and iterate on prompts. Useful when writing system prompts that use Misata tools.</p>
 <hr />
@@ -3599,7 +3903,16 @@
 <p>Misata is listed on <a href="https://smithery.ai">Smithery.ai</a>, the MCP server discovery directory. If your AI assistant supports one-click MCP installation via Smithery, you can find Misata there and install it without editing config files manually.</p>
 <hr />
 <h2 id="security-note">Security note</h2>
-<p><code>generate_dataset</code> writes files to disk. By default it uses a system temp directory that only the current user can read. If you pass a custom <code>output_dir</code>, ensure it is an appropriate path, the agent will not write outside the directory you specify.</p>
+<p><code>generate_dataset</code> and <code>generate_from_schema</code> write CSV files to disk. By
+default they use a system temp directory that only the current user can read;
+if you pass a custom <code>output_dir</code> the agent writes only inside that directory.
+<code>audit_dataset</code> and <code>validate_domain</code> read the CSVs in a directory and write
+nothing.</p>
+<p><code>seed_database</code> is the only tool that writes to a database. It plans by
+default and inserts nothing until a second call with <code>apply=true</code>, and it will
+not overwrite a table that already contains rows without an explicit
+<code>truncate</code> or <code>append</code>. Point it only at a database you are willing to have
+written to.</p>
 
 
 
