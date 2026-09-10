@@ -3322,7 +3322,7 @@
 <p>The command is always <code>misata-mcp</code>. Refer to your editor's MCP documentation for the exact config file path. The pattern is identical across all clients.</p>
 <hr />
 <h2 id="what-the-agent-can-do">What the agent can do</h2>
-<p>The server exposes six tools:</p>
+<p>The server exposes nine tools:</p>
 <table>
 <thead>
 <tr>
@@ -3333,11 +3333,11 @@
 <tbody>
 <tr>
 <td style="text-align: left;"><code>generate_from_schema</code></td>
-<td style="text-align: left;"><strong>Primary.</strong> The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof: per-relationship orphan counts, exact roll-ups, seeded reproducibility</td>
+<td style="text-align: left;"><strong>Primary.</strong> The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof (per-relationship orphan counts, exact roll-ups, seeded reproducibility), a coherence score, and — when a <code>__domain__</code> is declared — a domain-validation pass</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>generate_dataset</code></td>
-<td style="text-align: left;">Story-based generation: Misata's own parser designs the schema from one sentence</td>
+<td style="text-align: left;">Story-based generation: Misata's own parser designs the schema from one sentence. Also returns a coherence score</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>list_domains</code></td>
@@ -3352,8 +3352,20 @@
 <td style="text-align: left;">Return the full schema (tables, columns, FK relationships) as structured JSON</td>
 </tr>
 <tr>
+<td style="text-align: left;"><code>audit_dataset</code></td>
+<td style="text-align: left;">Run the coherence audit on any folder of CSVs: backwards timestamps, totals that don't reconcile, near-constant columns, scored 0-100</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>validate_domain</code></td>
+<td style="text-align: left;">Flag physiologically or financially impossible values in a folder of CSVs (<code>clinical</code>, <code>financial</code>)</td>
+</tr>
+<tr>
 <td style="text-align: left;"><code>validate_yaml</code></td>
 <td style="text-align: left;">Two-layer validation (structural JSON Schema + semantic coherence checks) of a <code>misata.yaml</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>seed_database</code></td>
+<td style="text-align: left;">Insert generated rows into a real Postgres or SQLite database. Plans by default; writes only on <code>apply=true</code></td>
 </tr>
 </tbody>
 </table>
@@ -3546,7 +3558,7 @@
 </code></pre></div></p>
 <hr />
 <h2 id="error-handling">Error handling</h2>
-<p>All six tools return a consistent <code>{"ok": true/false, ...}</code> envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:</p>
+<p>All nine tools return a consistent <code>{"ok": true/false, ...}</code> envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ValueError"</span><span class="p">,</span>
