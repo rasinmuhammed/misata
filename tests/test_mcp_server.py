@@ -370,6 +370,86 @@ def test_generate_from_schema_bad_schema_returns_recoverable_error():
         assert result["suggestion"]
 
 
+# ---------------------------------------------------------------------------
+# coherence in generation responses, and the audit / validate tools
+# ---------------------------------------------------------------------------
+
+
+def test_generate_from_schema_response_carries_a_coherence_score(tmp_path):
+    result = generate_from_schema(
+        schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=0
+    )
+    assert result["ok"]
+    coh = result["coherence"]
+    assert coh["available"] is True
+    assert isinstance(coh["score"], (int, float))
+    assert 0 <= coh["score"] <= 100
+    assert "findings" in coh
+
+
+def test_generate_dataset_response_carries_a_coherence_score(tmp_path):
+    result = generate_dataset(
+        "A SaaS company with 100 customers and 200 subscriptions",
+        seed=1, output_dir=str(tmp_path), sample_rows=0,
+    )
+    assert result["ok"]
+    assert result["coherence"]["available"] is True
+    assert 0 <= result["coherence"]["score"] <= 100
+
+
+def test_declared_domain_triggers_automatic_validation(tmp_path):
+    schema = dict(_agent_schema())
+    schema["__domain__"] = "financial"
+    result = generate_from_schema(schema=schema, seed=7, output_dir=str(tmp_path), sample_rows=0)
+    assert result["ok"]
+    assert "domain_validation" in result
+    assert result["domain_validation"]["domain"] == "financial"
+    assert "passed" in result["domain_validation"]
+
+
+def test_no_domain_declared_means_no_domain_validation_block(tmp_path):
+    result = generate_from_schema(schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=0)
+    assert "domain_validation" not in result
+
+
+from misata.mcp.server import audit_dataset, validate_domain  # noqa: E402
+
+
+def test_audit_dataset_scores_a_generated_folder(tmp_path):
+    generate_from_schema(schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=0)
+    result = audit_dataset(str(tmp_path))
+    assert result["ok"]
+    assert 0 <= result["score"] <= 100
+    assert set(result["tables_audited"]) >= {"customers", "orders"}
+
+
+def test_audit_dataset_on_a_missing_folder_is_a_recoverable_error(tmp_path):
+    result = audit_dataset(str(tmp_path / "nope"))
+    assert result["ok"] is False
+    assert result["suggestion"]
+
+
+def test_audit_dataset_on_an_empty_folder_is_a_recoverable_error(tmp_path):
+    result = audit_dataset(str(tmp_path))
+    assert result["ok"] is False
+    assert result["suggestion"]
+
+
+def test_validate_domain_tool_checks_a_generated_folder(tmp_path):
+    generate_from_schema(schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=0)
+    result = validate_domain(str(tmp_path), domain="financial")
+    assert result["ok"]
+    assert result["domain"] == "financial"
+    assert "passed" in result
+
+
+def test_validate_domain_tool_rejects_an_unknown_domain(tmp_path):
+    generate_from_schema(schema=_agent_schema(), seed=7, output_dir=str(tmp_path), sample_rows=0)
+    result = validate_domain(str(tmp_path), domain="not-a-domain")
+    assert result["ok"] is False
+    assert result["suggestion"]
+
+
 class TestDirectoryAnnotations:
     """Every tool carries the annotations the Connectors Directory requires.
 

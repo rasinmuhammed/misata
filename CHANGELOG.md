@@ -5,6 +5,39 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.53] - 2026-09-10
+
+### The MCP server proves the data, not just the joins
+
+`generate_from_schema` and `generate_dataset` already returned a foreign-key
+integrity report. They now also fold a coherence score (0-100) and its findings
+into the response: backwards timestamps, totals that do not reconcile with their
+inputs, geographic fields that disagree, near-constant columns. A low score
+means the schema is missing realism structure, not that rows need patching, and
+the tool description says so, so an agent reads it and revises the schema
+instead of accepting the data. When a `__domain__` is declared, domain
+validation (physiologically or financially impossible values) runs in the same
+call and comes back as `domain_validation`.
+
+Two new tools expose what was previously CLI-only. `audit_dataset` runs the
+coherence audit on any folder of CSVs, so an agent can check data it generated
+in an earlier step, data a user built by hand, or another tool's output.
+`validate_domain` does the same for domain value ranges, and unlike the library
+call it refuses an unknown domain outright rather than returning a hollow
+"passed".
+
+### The schema tool teaches the full declaration vocabulary
+
+`generate_from_schema`'s description covered `__outcome_curves__` and
+`__rate_curves__` but not `__group_shares__`, `__waterfalls__`,
+`__stock_flows__`, `__lifecycles__`, schema-level `__missingness__`, or the
+`__duplicates__` / `__typos__` / `__outliers__` trio. An agent could not reach
+for a capability it was never told about. All are documented now, with a pointer
+to the full reference for the rest.
+
+The module docstring and the desktop-bundle manifest said "six tools". It is
+nine.
+
 ## [0.9.6.52] - 2026-09-06
 
 ### A model override can no longer cross providers

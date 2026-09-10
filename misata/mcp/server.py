@@ -2,10 +2,27 @@
 
 Thin protocol shim that exposes Misata's public API to AI agents over
 the Model Context Protocol. The server runs over stdio and registers
-six tools — ``generate_from_schema`` (primary: the agent designs the
-schema, Misata guarantees the math), ``generate_dataset``,
-``list_domains``, ``preview_story``, ``inspect_schema``,
-``validate_yaml`` — that map onto the existing :mod:`misata` functions.
+nine tools that map onto the existing :mod:`misata` functions:
+
+Design a schema, get data
+    ``generate_from_schema``  (primary: the agent designs the schema,
+                               Misata guarantees the math)
+    ``generate_dataset``      (from one sentence; Misata's parser designs it)
+
+Look before you generate
+    ``list_domains`` · ``preview_story`` · ``inspect_schema``
+
+Prove the result holds
+    ``audit_dataset``    (coherence: reader-visible contradictions, scored)
+    ``validate_domain``  (physiologically / financially impossible values)
+    ``validate_yaml``    (will this schema generate at all?)
+
+Fill a real database
+    ``seed_database``  (plans by default; writes only on apply=true)
+
+Both generation tools already fold a coherence score and, where a
+``__domain__`` is declared, a domain-validation pass into their own
+response, so an agent gets a realism read-out without a second call.
 
 This module is part of Misata itself (not a separate package) because
 the server is a *protocol adapter*, not a new product. It calls the
@@ -69,7 +86,13 @@ mcp = FastMCP(
         "children, and verifies every foreign key against the database afterwards. It "
         "PLANS BY DEFAULT — show the user the plan, and only re-call with apply=true "
         "once they agree; never pass apply=true on a first call, and never choose "
-        "truncate (which destroys data) on the user's behalf."
+        "truncate (which destroys data) on the user's behalf. "
+        "AFTER generating, the response already carries a coherence score (0-100) "
+        "and its findings: a low score means the schema is missing realism "
+        "structure (correlations, profiles, time_series, state machines), so read "
+        "it and revise the schema rather than the rows. audit_dataset re-runs "
+        "that check on any folder of CSVs, and validate_domain flags values that "
+        "are physiologically or financially impossible for a stated domain."
     ),
 )
 
@@ -114,6 +137,76 @@ def _domain_catalogue() -> List[Dict[str, Any]]:
 def _df_preview(df, n: int = 5) -> List[Dict[str, Any]]:
     """Return up to N rows as JSON-safe dicts."""
     return json.loads(df.head(n).to_json(orient="records", date_format="iso", default_handler=str))
+
+
+def _load_csv_dir(path: str):
+    """Read every ``*.csv`` in a directory into a ``{table: DataFrame}`` map.
+
+    The output of both generation tools is a directory of CSVs, so this is
+    how ``audit_dataset`` and ``validate_domain`` pick that output back up.
+    """
+    import pandas as pd
+
+    folder = Path(path).expanduser().resolve()
+    if not folder.is_dir():
+        raise NotADirectoryError(f"{path!r} is not a directory")
+    csvs = sorted(folder.glob("*.csv"))
+    if not csvs:
+        raise FileNotFoundError(f"no .csv files in {path!r}")
+    return {p.stem: pd.read_csv(p) for p in csvs}
+
+
+def _coherence_block(tables, *, schema=None, top: int = 8) -> Dict[str, Any]:
+    """A compact coherence read-out for a generation response.
+
+    Full detail lives in ``audit_dataset``; this is the "is anything visibly
+    wrong, and how wrong" summary an agent should act on without a second
+    round trip. A score under ~85 means the schema is missing realism
+    structure, not that individual rows need patching.
+    """
+    try:
+        report = misata.coherence_audit(tables, schema=schema)
+    except Exception as exc:  # noqa: BLE001 - never let the audit break a good generation
+        return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+    d = report.to_dict()
+    findings = d.get("findings") or []
+    return {
+        "available": True,
+        "score": d.get("score"),
+        "clean": d.get("clean"),
+        "counts": d.get("counts"),
+        "summary": report.summary(),
+        "findings": findings[:top],
+        "findings_truncated": max(0, len(findings) - top),
+    }
+
+
+_VALIDATION_DOMAINS = frozenset({"clinical_trial", "clinical", "financial", "fintech"})
+
+
+def _domain_block(tables, domain: str) -> Dict[str, Any]:
+    """Domain validation for a generation response, when a ``__domain__`` was declared."""
+    if domain not in _VALIDATION_DOMAINS:
+        return {
+            "available": False,
+            "reason": (
+                f"__domain__ {domain!r} has no validation rules; "
+                f"use one of {sorted(_VALIDATION_DOMAINS)} to get a plausibility check."
+            ),
+        }
+    try:
+        report = misata.validate_domain(tables, domain=domain)
+    except Exception as exc:  # noqa: BLE001
+        return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+    d = report.to_dict() if hasattr(report, "to_dict") else {}
+    return {
+        "available": True,
+        "domain": domain,
+        "passed": report.passed,
+        "summary": report.summary(),
+        "errors": d.get("errors", getattr(report, "errors", [])),
+        "warnings": d.get("warnings", getattr(report, "warnings", [])),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -369,6 +462,7 @@ def generate_dataset(
         "total_rows": total_rows,
         "table_count": len(files),
         "seed": seed,
+        "coherence": _coherence_block(tables),
     }
 
 
@@ -592,13 +686,63 @@ def generate_from_schema(
         ]}]
       Use when fraud rate, churn rate, or conversion rate changes over time.
 
+    __group_shares__  Exact shares of a measure across a categorical column.
+      [{"table": "orders", "measure": "amount", "group_column": "plan",
+        "shares": {"Starter": 0.2, "Pro": 0.5, "Enterprise": 0.3}}]
+      The measure sums to those proportions per group, exactly. Paired with an
+      __outcome_curves__ on the same table+measure, the split holds inside
+      every declared period. Use for any "A is 40% of revenue, B is 35%..."
+      statement.
+
+    __waterfalls__  Movements that reconcile to declared running balances.
+      [{"table": "mrr_movements", "starting_value": 100000,
+        "points": [{"period": "2026-01", "ending_value": 106000}, ...],
+        "inflow_shares": {"new": 0.7, "expansion": 0.3},
+        "outflow_shares": {"churn": 1.0}}]
+      Use for MRR bridges, cash-flow statements, any "opening + inflows -
+      outflows = closing" ledger that has to tie out.
+
+    __stock_flows__  Per-unit inventory identity: closing = opening + received
+      - shipped, enforced for every SKU across every period. Use for warehouse
+      / inventory data where stock levels must be internally consistent.
+
+    __lifecycles__  A state machine with *legal* transitions (stricter than a
+      table-level __state_machine__: illegal jumps are impossible, not just
+      unlikely).
+      [{"name": "order_flow", "table": "orders", "state_column": "status",
+        "start_column": "placed_at", "initial": "placed",
+        "states": [{"name": "placed"}, {"name": "paid"}, {"name": "shipped"},
+                   {"name": "delivered"}, {"name": "refunded", "terminal": true}],
+        "transitions": [["placed","paid"],["paid","shipped"],
+                        ["shipped","delivered"],["delivered","refunded"]]}]
+
+    __missingness__  Why a value is missing, conditionally (schema-level MNAR).
+      [{"table": "contacts", "column": "notes", "rate": 0.75, "else_rate": 0.05,
+        "when_column": "is_active", "when_op": "==", "when_value": false}]
+      The null rate is exact per branch. Use when missingness itself carries
+      signal a cleaning step should be tested against.
+
+    DIRTY DATA ON PURPOSE  (exact counts, so a test has a known number to find)
+      __duplicates__  [{"table": "contacts", "count": 60}]
+      __typos__       [{"table": "contacts", "column": "city", "count": 120}]
+      __outliers__    [{"table": "orders", "column": "amount", "count": 40}]
+      Each injects exactly that many defects, leaving primary/unique/foreign
+      keys intact. Use when the user is building or testing a data-quality or
+      cleaning pipeline.
+
     __domain__  Domain hint for post-generation validation.
       "__domain__": "clinical_trial"   # or "clinical", "financial", "fintech"
-      After generating, call misata.validate_domain(tables, domain="clinical_trial")
-      to surface any physiologically or financially impossible values.
-      Built-in ranges: HbA1c 4-14 %, BMI 10-80, systolic BP 60-260, age 0-130,
-      glucose 2-40, cholesterol 1-20, hemoglobin 3-25 for clinical;
-      price ≥ 0, discount 0-1, rate -1 to 100 for financial.
+      When set, generate_from_schema runs domain validation automatically and
+      returns it as `domain_validation` in the response — no second call
+      needed. Built-in ranges: HbA1c 4-14 %, BMI 10-80, systolic BP 60-260,
+      age 0-130, glucose 2-40, cholesterol 1-20, hemoglobin 3-25 for clinical;
+      price >= 0, discount 0-1, rate -1 to 100 for financial.
+
+    There are ~24 schema-level declarations in total. The ones above cover the
+    common cases; for the rest (retention cohorts, DAG edges, closure tables,
+    graph motifs, time grids, bitemporal history) fetch
+    https://misata.studio/docs/reference/declarations.md and check the exact
+    key before inventing one.
 
 
     DESIGN RULES — follow these to get the best result in one pass
@@ -715,7 +859,7 @@ def generate_from_schema(
     else:
         _status = "failed"
 
-    return {
+    result = {
         "ok": True,
         "output_dir": str(out_path),
         "files": files,
@@ -733,7 +877,17 @@ def generate_from_schema(
             "relationships": verification,
             "skipped": _skipped,
         },
+        # FK integrity says the joins hold; coherence says the rows don't
+        # contradict each other in ways a reader would catch (dates that run
+        # backwards, totals that don't add up, a column that's 98% one value).
+        # An agent should read the score and, if it's low, add realism
+        # structure to the schema rather than accept the data.
+        "coherence": _coherence_block(tables, schema=config),
     }
+    _declared_domain = schema.get("__domain__") if isinstance(schema, dict) else None
+    if _declared_domain:
+        result["domain_validation"] = _domain_block(tables, str(_declared_domain))
+    return result
 
 
 # WRITES to the database you point it at, and can be asked to truncate existing tables. Plans by default and only applies when explicitly told to.
@@ -1072,6 +1226,144 @@ def validate_yaml(yaml_text: str) -> Dict[str, Any]:
         }
 
     return {"ok": True, "valid": True, "errors": [], "stage": "ok"}
+
+
+# Reads CSVs and scores them. Writes nothing.
+@mcp.tool(
+    title="Audit a dataset for reader-visible contradictions",
+    annotations=ToolAnnotations(
+        title="Audit a dataset for reader-visible contradictions",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+def audit_dataset(dataset_dir: str, top_findings: int = 20) -> Dict[str, Any]:
+    """Score a folder of CSVs for the contradictions a human reader would catch.
+
+    This is Misata's coherence audit run on data that already exists — data
+    an agent generated in an earlier step, data a user built by hand, or the
+    output of some other tool. It checks, among other things:
+
+      * timestamps that run backwards (shipped before ordered, resolved
+        before opened),
+      * derived columns that do not reconcile with their inputs
+        (``total`` != ``quantity * unit_price``),
+      * geographic fields that disagree (city / state / postcode / country),
+      * near-constant columns (98% one value — a distribution tell),
+      * filler text and out-of-scale numerics.
+
+    A score of 100 is clean. Below ~85 usually means the *schema* is missing
+    realism structure, not that individual rows need patching: add
+    ``__correlations__``, ``profiles``, ``time_series``, a ``__state_machine__``,
+    or an ``__outcome_curves__`` declaration and regenerate.
+
+    Args:
+        dataset_dir:   Directory containing one CSV per table (e.g. the
+                       ``output_dir`` returned by ``generate_from_schema``).
+        top_findings:  Max findings to include in the response (default 20).
+
+    Returns:
+        ``{"score": 0-100, "clean": bool, "counts": {...}, "findings": [...]}``.
+    """
+    try:
+        tables = _load_csv_dir(dataset_dir)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "Point dataset_dir at a folder with one CSV per table. The "
+            "output_dir from generate_from_schema or generate_dataset is "
+            "exactly this shape.",
+        )
+    try:
+        report = misata.coherence_audit(tables)
+    except Exception as exc:  # noqa: BLE001
+        return _tool_error(exc, "The CSVs loaded but the audit failed — please report this.")
+
+    d = report.to_dict()
+    findings = d.get("findings") or []
+    top_findings = max(0, min(top_findings, 200))
+    return {
+        "ok": True,
+        "score": d.get("score"),
+        "clean": d.get("clean"),
+        "counts": d.get("counts"),
+        "summary": report.summary(),
+        "tables_audited": list(tables.keys()),
+        "findings": findings[:top_findings],
+        "findings_truncated": max(0, len(findings) - top_findings),
+    }
+
+
+# Reads CSVs and checks value ranges. Writes nothing.
+@mcp.tool(
+    title="Validate a dataset against domain rules",
+    annotations=ToolAnnotations(
+        title="Validate a dataset against domain rules",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+def validate_domain(dataset_dir: str, domain: str) -> Dict[str, Any]:
+    """Flag values that are physiologically or financially impossible for a domain.
+
+    Where ``audit_dataset`` checks internal consistency, this checks values
+    against what the outside world allows. Built-in ranges include, for
+    ``clinical`` / ``clinical_trial``: HbA1c 4-14%, BMI 10-80, systolic BP
+    60-260, age 0-130, glucose 2-40, cholesterol 1-20, hemoglobin 3-25; for
+    ``financial`` / ``fintech``: price >= 0, discount 0-1, rate -1 to 100.
+
+    Use after generating a dataset in a regulated or measurement-heavy
+    domain, or when the user asks "is this data plausible for a real
+    clinic / bank?".
+
+    Args:
+        dataset_dir: Directory containing one CSV per table.
+        domain:      One of ``clinical_trial``, ``clinical``, ``financial``,
+                     ``fintech``.
+
+    Returns:
+        ``{"passed": bool, "errors": [...], "warnings": [...]}``. ``passed``
+        is True when there are no ERROR-level findings.
+    """
+    if domain not in _VALIDATION_DOMAINS:
+        # validate_domain does not raise on an unknown domain — it runs zero
+        # checks and reports "all passed", which is a dangerous thing to hand
+        # back to an agent that will relay it as reassurance.
+        return {
+            "ok": False,
+            "error": "UnknownDomain",
+            "message": f"{domain!r} has no built-in validation rules.",
+            "suggestion": f"Use one of: {', '.join(sorted(_VALIDATION_DOMAINS))}.",
+        }
+
+    try:
+        tables = _load_csv_dir(dataset_dir)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "Point dataset_dir at a folder with one CSV per table.",
+        )
+    try:
+        report = misata.validate_domain(tables, domain=domain)
+    except Exception as exc:
+        return _tool_error(
+            exc,
+            "domain must be one of: clinical_trial, clinical, financial, fintech.",
+        )
+    d = report.to_dict() if hasattr(report, "to_dict") else {}
+    return {
+        "ok": True,
+        "domain": domain,
+        "passed": report.passed,
+        "summary": report.summary(),
+        "errors": d.get("errors", getattr(report, "errors", [])),
+        "warnings": d.get("warnings", getattr(report, "warnings", [])),
+        "tables_checked": list(tables.keys()),
+    }
 
 
 # ---------------------------------------------------------------------------

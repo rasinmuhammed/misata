@@ -77,16 +77,19 @@ The command is always `misata-mcp`. Refer to your editor's MCP documentation for
 
 ## What the agent can do
 
-The server exposes six tools:
+The server exposes nine tools:
 
 | Tool | Purpose |
 |:--|:--|
-| `generate_from_schema` | **Primary.** The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof: per-relationship orphan counts, exact roll-ups, seeded reproducibility |
-| `generate_dataset` | Story-based generation: Misata's own parser designs the schema from one sentence |
+| `generate_from_schema` | **Primary.** The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof (per-relationship orphan counts, exact roll-ups, seeded reproducibility), a coherence score, and — when a `__domain__` is declared — a domain-validation pass |
+| `generate_dataset` | Story-based generation: Misata's own parser designs the schema from one sentence. Also returns a coherence score |
 | `list_domains` | List all 18 built-in domains with a sample story for each |
 | `preview_story` | Detect domain, scale, locale, and table layout: zero rows generated |
 | `inspect_schema` | Return the full schema (tables, columns, FK relationships) as structured JSON |
+| `audit_dataset` | Run the coherence audit on any folder of CSVs: backwards timestamps, totals that don't reconcile, near-constant columns, scored 0-100 |
+| `validate_domain` | Flag physiologically or financially impossible values in a folder of CSVs (`clinical`, `financial`) |
 | `validate_yaml` | Two-layer validation (structural JSON Schema + semantic coherence checks) of a `misata.yaml` |
+| `seed_database` | Insert generated rows into a real Postgres or SQLite database. Plans by default; writes only on `apply=true` |
 
 The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a `species` column; Misata is good at guaranteeing the math, FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. `generate_from_schema`'s tool description teaches the agent the full schema-dict language (per-table `__rows__`, distributions, formulas with `@parent.column` references, exact roll-ups, pattern codes), so any MCP-capable model can drive everything Misata's engine supports.
 
@@ -334,7 +337,7 @@ Two-layer validation of a `misata.yaml` string: structural (JSON Schema) then se
 
 ## Error handling
 
-All six tools return a consistent `{"ok": true/false, ...}` envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:
+All nine tools return a consistent `{"ok": true/false, ...}` envelope. When something goes wrong the agent receives a structured error instead of a Python traceback, and can take corrective action:
 
 ```json
 {
