@@ -127,15 +127,70 @@ _LOCALE_SIGNALS: List[Tuple[str, int, List[str]]] = [
         "alibaba", "tencent", "baidu",
     ]),
 
-    # ── Saudi Arabia / UAE ────────────────────────────────────────────────────
+    # ── Saudi Arabia ──────────────────────────────────────────────────────────
+    # "uae" / "dubai" / "abu dhabi" used to sit in this block, so a story
+    # mentioning Dubai detected as ar_SA and got Saudi Iqama-format IDs and
+    # SAR currency. Split into a real ar_AE block below.
     ("ar_SA", 3, [
         "saudi arabia", "saudi company", "saudi startup",
         "sar", "riyal", "iqama", "vision 2030",
     ]),
     ("ar_SA", 2, [
         "saudi", "riyadh", "jeddah", "mecca", "medina",
-        "dammam", "khobar", "uae", "dubai", "abu dhabi",
+        "dammam", "khobar",
+        # Kept as the largest GCC economy's fallback signal when no specific
+        # GCC country is named.
         "arabic company", "middle east",
+    ]),
+
+    # ── Qatar ─────────────────────────────────────────────────────────────────
+    ("ar_QA", 3, [
+        "qatar", "qatari company", "qatari startup",
+        "qar", "qatari riyal", "qid",
+    ]),
+    ("ar_QA", 2, [
+        "qatari", "doha", "al rayyan", "al wakrah", "al khor",
+        "lusail", "vision 2030 qatar",
+    ]),
+
+    # ── United Arab Emirates ──────────────────────────────────────────────────
+    ("ar_AE", 3, [
+        "united arab emirates", "emirati company", "emirati startup",
+        "aed", "emirates id", "uae vision 2030",
+    ]),
+    ("ar_AE", 2, [
+        "uae", "emirati", "dubai", "abu dhabi", "sharjah",
+        "al ain", "ajman", "ras al khaimah", "fujairah",
+    ]),
+
+    # ── Kuwait ────────────────────────────────────────────────────────────────
+    ("ar_KW", 3, [
+        "kuwait", "kuwaiti company", "kuwaiti startup",
+        "kwd", "kuwaiti dinar", "civil id",
+    ]),
+    ("ar_KW", 2, [
+        "kuwaiti", "kuwait city", "hawalli", "al ahmadi",
+        "al farwaniyah", "al jahra", "salmiya",
+    ]),
+
+    # ── Bahrain ───────────────────────────────────────────────────────────────
+    ("ar_BH", 3, [
+        "bahrain", "bahraini company", "bahraini startup",
+        "bhd", "bahraini dinar", "cpr number",
+    ]),
+    ("ar_BH", 2, [
+        "bahraini", "manama", "riffa", "muharraq", "hamad town",
+        "isa town", "sitra",
+    ]),
+
+    # ── Oman ──────────────────────────────────────────────────────────────────
+    ("ar_OM", 3, [
+        "oman", "omani company", "omani startup",
+        "omr", "omani rial", "civil number",
+    ]),
+    ("ar_OM", 2, [
+        "omani", "muscat", "seeb", "salalah", "bawshar",
+        "sohar", "nizwa",
     ]),
 
     # ── South Korea ───────────────────────────────────────────────────────────
@@ -253,6 +308,10 @@ def locale_from_currency_symbol(symbol: str) -> Optional[str]:
 
     Note: ``€`` maps to ``de_DE`` (most common euro-zone country in dev data),
     ``¥`` maps to ``ja_JP`` (Chinese yuan uses same symbol but different code).
+    ``﷼`` (the Unicode RIAL SIGN) maps to ``ar_SA`` for the same reason: it's
+    shared across SAR, QAR, and other Gulf riyal currencies, and this
+    function already resolves ambiguous symbols to the single most likely
+    locale rather than refusing to answer.
     """
     _MAP = {
         "$": "en_US",

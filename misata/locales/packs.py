@@ -87,6 +87,17 @@ class LocalePack:
 #   IT: ISTAT 2023 (~€29k)
 #   PL: GUS 2023 (~PLN 72k)
 #   TR: TÜİK 2023 (~TRY 300k; high inflation, use carefully)
+#   QA: Qatar National Planning Council, Labour Force Sample Survey Q4 2024
+#       (~QAR 12,400/mo average; no official median is published)
+#   AE: Federal Competitiveness and Statistics Centre, 2024 Labour Force
+#       Survey (~AED 13,800/mo median)
+#   KW: MenaJobs GCC Salary Report 2026 (~KWD 1,200/mo average across the
+#       formal private sector; KWD 1,592 for Kuwaitis vs KWD 352 for
+#       non-Kuwaitis)
+#   BH: official published median for Bahrainis, ~BHD 575/mo
+#       (expat-inclusive averages run higher)
+#   OM: National Centre for Statistics and Information, private-sector
+#       modal bracket for insured Omanis, OMR 325-400/mo (2025)
 
 import math
 
@@ -457,6 +468,196 @@ _reg(LocalePack(
     company_suffixes=["شركة ذات مسؤولية محدودة", "شركة مساهمة", "مؤسسة فردية"],
     vat_rate=0.15,
     timezone="Asia/Riyadh",
+))
+
+# ── Gulf Cooperation Council ──────────────────────────────────────────────────
+# None of these five states levy personal income tax. tax_rate_typical is set
+# low (≈0.05) for all of them, standing in for mandatory pension /
+# social-security-style contributions on nationals (near-zero for the
+# expat-majority workforce) — not an income tax, which doesn't exist here.
+# Faker has no native ar_QA / ar_KW / ar_OM provider (only ar_AE and ar_BH),
+# so those three fall back to faker_locale="ar_AE" for name/address pools —
+# the closest Gulf Arabic name pool Faker ships — rather than silently
+# dropping to en_US, which is what LocaleRegistry.get_faker would otherwise
+# do on an unrecognised Faker locale.
+
+# ── Qatar ─────────────────────────────────────────────────────────────────────
+_lm, _ls = _lognorm(149_000)
+_reg(LocalePack(
+    locale_code="ar_QA",
+    country_name="Qatar",
+    language="Arabic",
+    faker_locale="ar_AE",   # no native ar_QA provider
+    currency_code="QAR",
+    currency_symbol="﷼",
+    salary_min=37_000,
+    salary_median=149_000,
+    salary_max=900_000,
+    salary_lognormal_mean=_lm,
+    salary_lognormal_std=_ls,
+    date_format="DD/MM/YYYY",
+    phone_prefix="+974",
+    # Qatar has no postal/ZIP code system — addresses are P.O. Box based.
+    postcode_pattern="",
+    national_id_label="QID",
+    national_id_pattern=r"\d{11}",
+    age_mean=32.0,
+    age_std=11.0,
+    top_cities=[
+        "Doha", "Al Rayyan", "Al Wakrah", "Al Khor", "Umm Salal",
+        "Lusail", "Al Daayen", "Mesaieed", "Dukhan", "Al Shamal",
+    ],
+    common_banks=["Qatar National Bank", "Doha Bank", "Qatar Islamic Bank",
+                  "Commercial Bank", "Al Rayan Bank", "Dukhan Bank", "Ahli Bank"],
+    tax_rate_typical=0.05,
+    company_suffixes=["ذ.م.م"],
+    # Not implemented as of 2026 — the e-invoicing law passed May 2026 is
+    # pre-VAT groundwork, with rollout not realistically expected before 2027.
+    # Do not "fix" this to 0.05 without checking whether Qatar has actually
+    # introduced VAT by then.
+    vat_rate=0.0,
+    timezone="Asia/Qatar",
+))
+
+# ── United Arab Emirates ──────────────────────────────────────────────────────
+_lm, _ls = _lognorm(166_000)
+_reg(LocalePack(
+    locale_code="ar_AE",
+    country_name="United Arab Emirates",
+    language="Arabic",
+    faker_locale="ar_AE",   # native provider
+    currency_code="AED",
+    currency_symbol="د.إ",
+    salary_min=40_000,
+    salary_median=166_000,
+    salary_max=1_000_000,
+    salary_lognormal_mean=_lm,
+    salary_lognormal_std=_ls,
+    date_format="DD/MM/YYYY",
+    phone_prefix="+971",
+    # UAE has no postal/ZIP code system — addresses are P.O. Box based.
+    postcode_pattern="",
+    national_id_label="Emirates ID",
+    national_id_pattern=r"\d{15}",
+    age_mean=33.5,
+    age_std=11.0,
+    top_cities=[
+        "Dubai", "Abu Dhabi", "Sharjah", "Al Ain", "Ajman",
+        "Ras Al Khaimah", "Fujairah", "Umm Al Quwain",
+    ],
+    common_banks=["Emirates NBD", "First Abu Dhabi Bank", "Abu Dhabi Commercial Bank",
+                  "Dubai Islamic Bank", "Mashreq", "RAKBANK", "Commercial Bank of Dubai"],
+    tax_rate_typical=0.05,
+    company_suffixes=["ذ.م.م", "ش.م.ع"],
+    # VAT introduced 2018. Corporate tax is 9% (2023) but that's corporate,
+    # not personal income — tax_rate_typical reflects the 0% personal
+    # income tax reality, not the corporate rate.
+    vat_rate=0.05,
+    timezone="Asia/Dubai",
+))
+
+# ── Kuwait ────────────────────────────────────────────────────────────────────
+_lm, _ls = _lognorm(14_400)
+_reg(LocalePack(
+    locale_code="ar_KW",
+    country_name="Kuwait",
+    language="Arabic",
+    faker_locale="ar_AE",   # no native ar_KW provider
+    currency_code="KWD",
+    currency_symbol="د.ك",
+    salary_min=3_600,
+    salary_median=14_400,
+    salary_max=90_000,
+    salary_lognormal_mean=_lm,
+    salary_lognormal_std=_ls,
+    date_format="DD/MM/YYYY",
+    phone_prefix="+965",
+    postcode_pattern=r"\d{5}",
+    national_id_label="Civil ID",
+    national_id_pattern=r"\d{12}",
+    age_mean=31.0,
+    age_std=11.0,
+    top_cities=[
+        "Kuwait City", "Hawalli", "Al Ahmadi", "Al Farwaniyah", "Al Jahra",
+        "Mubarak Al-Kabeer", "Salmiya", "Fahaheel",
+    ],
+    common_banks=["National Bank of Kuwait", "Kuwait Finance House", "Gulf Bank",
+                  "Commercial Bank of Kuwait", "Burgan Bank", "Boubyan Bank"],
+    tax_rate_typical=0.05,
+    company_suffixes=["ذ.م.م", "ش.م.ك"],
+    # Kuwait has not implemented VAT.
+    vat_rate=0.0,
+    timezone="Asia/Kuwait",
+))
+
+# ── Bahrain ───────────────────────────────────────────────────────────────────
+_lm, _ls = _lognorm(6_900)
+_reg(LocalePack(
+    locale_code="ar_BH",
+    country_name="Bahrain",
+    language="Arabic",
+    faker_locale="ar_BH",   # native provider
+    currency_code="BHD",
+    currency_symbol=".د.ب",
+    salary_min=1_700,
+    salary_median=6_900,
+    salary_max=43_000,
+    salary_lognormal_mean=_lm,
+    salary_lognormal_std=_ls,
+    date_format="DD/MM/YYYY",
+    phone_prefix="+973",
+    postcode_pattern=r"\d{3,4}",
+    national_id_label="CPR number",
+    national_id_pattern=r"\d{9}",
+    age_mean=30.5,
+    age_std=11.0,
+    top_cities=[
+        "Manama", "Riffa", "Muharraq", "Hamad Town", "A'ali",
+        "Isa Town", "Sitra", "Budaiya",
+    ],
+    common_banks=["Ahli United Bank", "National Bank of Bahrain",
+                  "Bank of Bahrain and Kuwait", "Bahrain Islamic Bank",
+                  "Al Salam Bank", "Ithmaar Bank"],
+    tax_rate_typical=0.05,
+    company_suffixes=["ذ.م.م", "ش.م.ب"],
+    # Raised from 5% to 10% in 2022.
+    vat_rate=0.10,
+    timezone="Asia/Bahrain",
+))
+
+# ── Oman ──────────────────────────────────────────────────────────────────────
+_lm, _ls = _lognorm(4_320)
+_reg(LocalePack(
+    locale_code="ar_OM",
+    country_name="Oman",
+    language="Arabic",
+    faker_locale="ar_AE",   # no native ar_OM provider
+    currency_code="OMR",
+    currency_symbol="ر.ع.",
+    salary_min=1_100,
+    salary_median=4_320,
+    salary_max=27_000,
+    salary_lognormal_mean=_lm,
+    salary_lognormal_std=_ls,
+    date_format="DD/MM/YYYY",
+    phone_prefix="+968",
+    postcode_pattern=r"\d{3}",
+    national_id_label="Civil Number",
+    national_id_pattern=r"\d{8}",
+    age_mean=29.0,
+    age_std=11.0,
+    top_cities=[
+        "Muscat", "Seeb", "Salalah", "Bawshar", "Sohar",
+        "Nizwa", "Sur", "Ibri",
+    ],
+    common_banks=["Bank Muscat", "National Bank of Oman", "Bank Dhofar",
+                  "Oman Arab Bank", "Sohar International", "Ahli Bank"],
+    tax_rate_typical=0.05,
+    company_suffixes=["ذ.م.م", "ش.م.ع.ع"],
+    # Introduced 2021. No personal income tax; corporate tax is 15%
+    # (tax_rate_typical reflects the personal-income side, not corporate).
+    vat_rate=0.05,
+    timezone="Asia/Muscat",
 ))
 
 # ── South Korea ───────────────────────────────────────────────────────────────

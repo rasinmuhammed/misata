@@ -71,6 +71,25 @@ class TestLocaleDetector:
     def test_currency_symbol_unknown(self):
         assert locale_from_currency_symbol("XYZ") is None
 
+    def test_dubai_no_longer_detects_as_ar_SA(self):
+        """The concrete bug this GCC expansion fixes: 'uae'/'dubai'/'abu dhabi'
+        used to sit in the ar_SA keyword block, so a story mentioning Dubai
+        got Saudi Iqama-format IDs and SAR currency."""
+        assert detect_locale_from_story("A Dubai startup with 500 users") == "ar_AE"
+        assert detect_locale_from_story("An Abu Dhabi fintech with AED payments") == "ar_AE"
+
+    def test_qatar_keywords(self):
+        assert detect_locale_from_story("Qatari company in Doha with QAR payroll") == "ar_QA"
+
+    def test_kuwait_keywords(self):
+        assert detect_locale_from_story("Kuwaiti startup in Kuwait City with KWD salaries") == "ar_KW"
+
+    def test_bahrain_keywords(self):
+        assert detect_locale_from_story("Bahraini company in Manama with BHD accounts") == "ar_BH"
+
+    def test_oman_keywords(self):
+        assert detect_locale_from_story("Omani company in Muscat with OMR salaries") == "ar_OM"
+
 
 # ── Locale packs ─────────────────────────────────────────────────────────────
 
@@ -130,6 +149,57 @@ class TestLocalePacks:
 
     def test_ja_JP_currency(self):
         assert LOCALE_PACKS["ja_JP"].currency_code == "JPY"
+
+
+# ── GCC locale packs ─────────────────────────────────────────────────────────
+
+class TestGCCLocalePacks:
+    GCC_LOCALES = ["ar_QA", "ar_AE", "ar_KW", "ar_BH", "ar_OM"]
+
+    def test_all_five_present(self):
+        assert set(self.GCC_LOCALES).issubset(set(LOCALE_PACKS.keys()))
+
+    @pytest.mark.parametrize("code", GCC_LOCALES)
+    def test_currency_code_set(self, code):
+        assert LOCALE_PACKS[code].currency_code
+
+    @pytest.mark.parametrize("code", GCC_LOCALES)
+    def test_national_id_pattern_set(self, code):
+        assert LOCALE_PACKS[code].national_id_pattern
+
+    @pytest.mark.parametrize("code", GCC_LOCALES)
+    def test_faker_locale_resolves_to_a_real_faker_locale(self, code):
+        from faker.config import AVAILABLE_LOCALES
+        pack = LOCALE_PACKS[code]
+        assert pack.faker_locale in AVAILABLE_LOCALES
+
+    @pytest.mark.parametrize("code", GCC_LOCALES)
+    def test_no_personal_income_tax_reflected_as_low_rate(self, code):
+        # None of the GCC states levy personal income tax; the field stands
+        # in for pension/social-security contributions, not an income tax.
+        assert LOCALE_PACKS[code].tax_rate_typical <= 0.10
+
+    def test_ar_AE_uses_native_faker_provider(self):
+        assert LOCALE_PACKS["ar_AE"].faker_locale == "ar_AE"
+
+    def test_ar_BH_uses_native_faker_provider(self):
+        assert LOCALE_PACKS["ar_BH"].faker_locale == "ar_BH"
+
+    def test_ar_QA_falls_back_to_ar_AE_faker_pool(self):
+        # No native ar_QA Faker provider exists.
+        assert LOCALE_PACKS["ar_QA"].faker_locale == "ar_AE"
+
+    def test_ar_KW_falls_back_to_ar_AE_faker_pool(self):
+        assert LOCALE_PACKS["ar_KW"].faker_locale == "ar_AE"
+
+    def test_ar_OM_falls_back_to_ar_AE_faker_pool(self):
+        assert LOCALE_PACKS["ar_OM"].faker_locale == "ar_AE"
+
+    def test_qatar_has_no_vat_as_of_2026(self):
+        assert LOCALE_PACKS["ar_QA"].vat_rate == 0.0
+
+    def test_kuwait_has_no_vat(self):
+        assert LOCALE_PACKS["ar_KW"].vat_rate == 0.0
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────

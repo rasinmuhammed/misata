@@ -1,9 +1,10 @@
 """
 Locale-aware data generation for Misata.
 
-Supports 15 locales with real statistical data:
+Supports 20 locales with real statistical data:
   en_US, en_GB, de_DE, fr_FR, pt_BR, es_ES, hi_IN,
-  ja_JP, zh_CN, ar_SA, ko_KR, nl_NL, it_IT, pl_PL, tr_TR
+  ja_JP, zh_CN, ar_SA, ko_KR, nl_NL, it_IT, pl_PL, tr_TR,
+  ar_QA, ar_AE, ar_KW, ar_BH, ar_OM
 
 Usage::
 
