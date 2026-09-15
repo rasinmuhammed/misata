@@ -138,6 +138,22 @@ def _mentions(text: str, phrase: str) -> bool:
 _STORY_VALUE = r"\$?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:\s?[kmb](?![a-z]))?"
 
 
+def _is_bare_year(raw_value: str) -> bool:
+    """True when a captured ``{_STORY_VALUE}`` match is actually a calendar
+    year sitting next to a period token, not a target value.
+
+    "$50,000 in January 2026" must not read the "2026" as a second target
+    for a different anchor; the number is a bare 4-digit token in a
+    plausible calendar-year range with no currency sign, comma, or k/m/b
+    suffix attached, which real dollar/count figures almost always carry.
+    Every extractor that captures ``{_STORY_VALUE}`` immediately next to a
+    period token (a month name, "Q1", etc.) needs this guard, or a
+    year mention corrupts that anchor's value.
+    """
+    cleaned = raw_value.strip().lower().replace("$", "").replace(",", "")
+    return cleaned.isdigit() and len(cleaned) == 4 and 1900 <= int(cleaned) <= 2100
+
+
 class StoryParser:
     """
     Parses natural language stories into SchemaConfig objects.
@@ -444,15 +460,9 @@ class StoryParser:
             month_number = self.MONTHS.get(month_token[:3], self.MONTHS.get(month_token))
             if month_number is None:
                 continue
-            raw_value = match.group("value").strip().lower()
             # Skip "January 2023" — when the value is a bare 4-digit number in
             # the year range, it's a calendar year, not a target value.
-            cleaned = raw_value.replace("$", "").replace(",", "").strip()
-            if (
-                cleaned.isdigit()
-                and len(cleaned) == 4
-                and 1900 <= int(cleaned) <= 2100
-            ):
+            if _is_bare_year(match.group("value")):
                 continue
             anchors[month_number] = self._parse_numeric_value(match.group("value"))
 
@@ -574,6 +584,12 @@ class StoryParser:
             rf"\b(?P<q>q[1-4])\b\s*(?::|=|at|was|is|=)?\s*(?P<value>{_STORY_VALUE})",
         ):
             for match in re.finditer(pattern, story, re.IGNORECASE):
+                # Skip "Q1 2026" / "2026 Q1" — the year sitting next to the
+                # quarter token is not a target value. Same gap this had as
+                # _extract_target_month_points did for "January 2023" before
+                # it got this guard.
+                if _is_bare_year(match.group("value")):
+                    continue
                 quarter = match.group("q").lower()
                 months = self.QUARTER_MONTHS.get(quarter, [])
                 val = self._parse_numeric_value(match.group("value"))
@@ -769,25 +785,73 @@ class StoryParser:
         )
 
     # ── Rate-noun → (candidate column names, true_value) ──────────────────
-    # Each entry maps a natural-language rate noun to the boolean column names
-    # that domain templates may produce, plus the value that represents the
-    # positive class.  The simulator's _enforce_rate_curve picks the first
-    # candidate column name that actually exists in the generated table.
+    # Each entry maps a natural-language rate CONCEPT to the boolean column
+    # names that domain templates may produce, plus the value that
+    # represents the positive class.  The simulator's _enforce_rate_curve
+    # picks the first candidate column name that actually exists in the
+    # generated table.
+    #
+    # "forms" lists every realistic word a person would actually type for
+    # that concept — noun, verb, adjective, gerund — not just the one form
+    # that happened to get tested first. Adding one-off string variants by
+    # hand as they're found (the state this was in before) means every
+    # untested phrasing silently fails to extract at all: "cancellation"
+    # never matched a map keyed only on "cancelled". Extend "forms" rather
+    # than adding a new top-level key when a new phrasing turns up — a new
+    # key needs its own true_value/columns decision, a new form doesn't.
     RATE_NOUN_MAP: Dict[str, Dict[str, Any]] = {
-        "fraud":       {"columns": ["is_fraud", "is_fraudulent", "fraud"], "true_value": True},
-        "fraudulent":  {"columns": ["is_fraudulent", "is_fraud"],          "true_value": True},
-        "churn":       {"columns": ["is_churned", "churned"],               "true_value": True},
-        "churned":     {"columns": ["is_churned", "churned"],               "true_value": True},
-        "defect":      {"columns": ["is_defective", "defective"],           "true_value": True},
-        "defective":   {"columns": ["is_defective", "defective"],           "true_value": True},
-        "late":        {"columns": ["is_late", "late", "is_delayed"],       "true_value": True},
-        "delayed":     {"columns": ["is_delayed", "is_late"],               "true_value": True},
-        "default":     {"columns": ["is_defaulted", "defaulted"],           "true_value": True},
-        "defaulted":   {"columns": ["is_defaulted", "defaulted"],           "true_value": True},
-        "cancelled":   {"columns": ["is_cancelled", "cancelled", "status"], "true_value": True},
-        "returned":    {"columns": ["is_returned", "returned"],              "true_value": True},
-        "active":      {"columns": ["is_active", "active"],                 "true_value": True},
-        "inactive":    {"columns": ["is_active", "active"],                 "true_value": False},
+        "fraud": {
+            "forms": ["fraud", "fraudulent", "fraudulently"],
+            "columns": ["is_fraud", "is_fraudulent", "fraud"], "true_value": True,
+        },
+        "churn": {
+            "forms": ["churn", "churned", "churning"],
+            "columns": ["is_churned", "churned"], "true_value": True,
+        },
+        "defect": {
+            "forms": ["defect", "defects", "defective"],
+            "columns": ["is_defective", "defective"], "true_value": True,
+        },
+        # Late and delayed collapse into one concept: both phrasings target
+        # the same candidate columns, and keeping them separate is exactly
+        # how "cancelled" without "cancellation" happened in the first
+        # place — a form gets added to one entry and not its sibling.
+        "delayed": {
+            "forms": ["late", "delayed", "delay", "delays"],
+            "columns": ["is_late", "is_delayed", "late", "delayed"], "true_value": True,
+        },
+        "default": {
+            "forms": ["default", "defaulted", "defaulting", "defaults"],
+            "columns": ["is_defaulted", "defaulted"], "true_value": True,
+        },
+        "cancelled": {
+            "forms": ["cancelled", "canceled", "cancellation", "cancelling", "canceling"],
+            "columns": ["is_cancelled", "cancelled", "status"], "true_value": True,
+            # "status" is a categorical column (active/cancelled/paused/
+            # trialing on the SaaS template), not a boolean one like the
+            # other two candidates — true_value has to be the string
+            # "cancelled" there, or the enforcement would overwrite every
+            # real status value with a plain True/False, destroying the
+            # column's actual categories.
+            "column_true_values": {"status": "cancelled"},
+        },
+        "returned": {
+            "forms": ["returned", "return", "returns"],
+            # No domain template has an is_returned/returned boolean column
+            # today; "status" is the only real home for this concept
+            # (ecommerce orders and logistics shipments both carry
+            # "returned" as one of their status categories).
+            "columns": ["is_returned", "returned", "status"], "true_value": True,
+            "column_true_values": {"status": "returned"},
+        },
+        "active": {
+            "forms": ["active"],
+            "columns": ["is_active", "active"], "true_value": True,
+        },
+        "inactive": {
+            "forms": ["inactive"],
+            "columns": ["is_active", "active"], "true_value": False,
+        },
     }
 
     # Column names considered as the "time" axis, in priority order.
@@ -858,11 +922,36 @@ class StoryParser:
                 return _Q_LAST[tok]
             return self.MONTHS.get(tok[:3], self.MONTHS.get(tok, 12))
 
-        # Try each known rate noun in the story
+        # Only attach a real calendar year when the story literally names
+        # one ("churn rises... in 2024"), the same "only when explicit,
+        # never invented" rule _extract_explicit_year already documents for
+        # outcome curves. A bare "Q1"/"January" with no year named is a
+        # recurring calendar pattern, not a pin to one specific absent
+        # year — _enforce_rate_curve applies a bare-month anchor to every
+        # year actually present in the data for exactly this reason, so
+        # inventing a year here (e.g. defaulting to "now") would instead
+        # pin the curve to a year that may not intersect the data at all.
+        explicit_year = self._extract_explicit_year(story)
+
+        def _period_str(month: int) -> str:
+            if explicit_year is not None:
+                return f"{explicit_year}-{month:02d}"
+            return str(month)
+
+        # Try each known rate concept in the story
         for noun, spec in self.RATE_NOUN_MAP.items():
-            # Must appear in the story
-            if not re.search(rf"\b{re.escape(noun)}\b", story_lower):
+            forms = spec.get("forms", [noun])
+            # Must appear in the story, in ANY of its realistic word forms —
+            # not just the one the map happens to be keyed on. This is the
+            # actual fix for "cancellation" never matching a map keyed on
+            # "cancelled": that gap wasn't one bad regex, it was matching a
+            # single literal string per concept instead of the concept's
+            # whole word family.
+            if not any(re.search(rf"\b{re.escape(f)}\b", story_lower) for f in forms):
                 continue
+            # Alternation of every form, for the proximity regexes below
+            # that need to match whichever form actually appeared.
+            noun_alt = "(?:" + "|".join(re.escape(f) for f in forms) + ")"
 
             # Find the target table and column in the schema
             target_table: Optional[str] = None
@@ -880,12 +969,19 @@ class StoryParser:
             if target_table is None or target_col is None:
                 continue  # noun present but column not in schema — skip
 
+            # Most candidate columns are genuinely boolean (is_cancelled,
+            # is_churned, ...) and share the concept's one true_value. A
+            # categorical fallback like "status" needs its OWN true_value
+            # (the actual category string, e.g. "cancelled") or enforcement
+            # would overwrite every real category with a bare True/False.
+            true_value = spec.get("column_true_values", {}).get(target_col, spec["true_value"])
+
             time_col = self._resolve_rate_time_column(schema, target_table)
 
             # ── Pattern 3: rising / falling range ─────────────────────────
             # "3% fraud in Q1 rising/climbing/growing/dropping to 8% by Q4"
             range_match = re.search(
-                rf"(\d+(?:\.\d+)?)%\s*(?:[\w\s]{{0,12}})?{re.escape(noun)}[\w\s]{{0,30}}?"
+                rf"(\d+(?:\.\d+)?)%\s*(?:[\w\s]{{0,12}})?{noun_alt}[\w\s]{{0,30}}?"
                 rf"(?:in|during|at)?\s*({_PERIOD_RE})\s*"
                 rf"(?:rising|climbing|growing|increasing|falling|dropping|declining)\s*to\s*"
                 rf"(\d+(?:\.\d+)?)%\s*(?:by|in|at)?\s*({_PERIOD_RE})",
@@ -895,7 +991,7 @@ class StoryParser:
             if not range_match:
                 # Also try reversed noun-first form: "fraud rising from 3% in Q1 to 8% by Q4"
                 range_match = re.search(
-                    rf"{re.escape(noun)}[\w\s]{{0,20}}?"
+                    rf"{noun_alt}[\w\s]{{0,40}}?"
                     rf"(?:from)?\s*(\d+(?:\.\d+)?)%\s*(?:in|at)?\s*({_PERIOD_RE})\s*"
                     rf"(?:to|through|until)\s*(\d+(?:\.\d+)?)%\s*(?:by|in|at)?\s*({_PERIOD_RE})",
                     story_lower,
@@ -912,12 +1008,12 @@ class StoryParser:
                         table=target_table,
                         column=target_col,
                         time_column=time_col,
-                        true_value=spec["true_value"],
+                        true_value=true_value,
                         interpolate=True,
                         description=f"NL-extracted: {noun} {r1*100:.1f}%→{r2*100:.1f}%",
                         rate_points=[
-                            {"period": str(p1), "rate": round(r1, 6)},
-                            {"period": str(p2), "rate": round(r2, 6)},
+                            {"period": _period_str(p1), "rate": round(r1, 6)},
+                            {"period": _period_str(p2), "rate": round(r2, 6)},
                         ],
                     ))
                     continue  # Don't also add a flat anchor for the same noun
@@ -925,14 +1021,14 @@ class StoryParser:
             # ── Pattern 2: single period anchor ───────────────────────────
             # "3% fraud in Q1" / "fraud rate of 5% in January"
             period_match = re.search(
-                rf"(\d+(?:\.\d+)?)%\s*(?:[\w\s]{{0,12}})?{re.escape(noun)}[\w\s]{{0,20}}?"
+                rf"(\d+(?:\.\d+)?)%\s*(?:[\w\s]{{0,12}})?{noun_alt}[\w\s]{{0,20}}?"
                 rf"(?:in|during|at|for)?\s*({_PERIOD_RE})",
                 story_lower,
                 re.IGNORECASE,
             )
             if not period_match:
                 period_match = re.search(
-                    rf"{re.escape(noun)}[\w\s]{{0,20}}?"
+                    rf"{noun_alt}[\w\s]{{0,40}}?"
                     rf"(?:of|at|=)?\s*(\d+(?:\.\d+)?)%\s*(?:in|during|at)?\s*({_PERIOD_RE})",
                     story_lower,
                     re.IGNORECASE,
@@ -946,21 +1042,21 @@ class StoryParser:
                         table=target_table,
                         column=target_col,
                         time_column=time_col,
-                        true_value=spec["true_value"],
+                        true_value=true_value,
                         interpolate=False,
                         description=f"NL-extracted: {noun} {r*100:.1f}% at period {p}",
-                        rate_points=[{"period": str(p), "rate": round(r, 6)}],
+                        rate_points=[{"period": _period_str(p), "rate": round(r, 6)}],
                     ))
                     continue
 
             # ── Pattern 1: flat rate — no period qualifier ─────────────────
             # "2% fraud rate" / "fraud rate of 2%" / "2% fraudulent transactions"
             flat_match = re.search(
-                rf"(\d+(?:\.\d+)?)%\s*(?:[\w]{{0,15}}\s*){{0,3}}{re.escape(noun)}",
+                rf"(\d+(?:\.\d+)?)%\s*(?:[\w]{{0,15}}\s*){{0,3}}{noun_alt}",
                 story_lower,
                 re.IGNORECASE,
             ) or re.search(
-                rf"{re.escape(noun)}\s+(?:rate\s+)?(?:of\s+)?(\d+(?:\.\d+)?)%",
+                rf"{noun_alt}\s+(?:rate\s+)?(?:of\s+)?(\d+(?:\.\d+)?)%",
                 story_lower,
                 re.IGNORECASE,
             )
@@ -971,7 +1067,7 @@ class StoryParser:
                         table=target_table,
                         column=target_col,
                         time_column=time_col,
-                        true_value=spec["true_value"],
+                        true_value=true_value,
                         interpolate=False,
                         description=f"NL-extracted: flat {noun} rate {r*100:.1f}%",
                         rate_points=[{"period": "all", "rate": round(r, 6)}],

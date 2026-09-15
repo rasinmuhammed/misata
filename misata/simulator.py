@@ -3519,13 +3519,16 @@ class DataSimulator:
 
         # ── Parse anchor points ──────────────────────────────────────────
         # rate_points: [{"period": "2024-01" | "01" | integer_month | "all", "rate": 0.03}]
-        # Anchors are stored as (year, month) tuples for YYYY-MM formats, or as
-        # bare 1-based month integers for the short forms.  We convert everything
-        # to running-month indices AFTER we know the data's start_year/start_month
-        # so that multi-year curves ("2025-01" → idx 1, "2026-01" → idx 13) are
-        # handled correctly rather than silently colliding on the bare month number.
-        ym_anchors: Dict[tuple, float] = {}   # (year, month) → rate  (YYYY-MM form)
-        bare_anchors: Dict[int, float] = {}   # 1-based running index → rate (short form)
+        # Anchors are stored as (year, month) tuples for YYYY-MM formats, a
+        # bare 1-based CALENDAR month (01-12) for the single-year shorthand,
+        # or a bare running-period index for anything past 12.  We convert
+        # everything to running-month indices AFTER we know the data's
+        # start_year/start_month so that multi-year curves ("2025-01" → idx
+        # 1, "2026-01" → idx 13) are handled correctly rather than silently
+        # colliding on the bare month number.
+        ym_anchors: Dict[tuple, float] = {}          # (year, month) → rate  (YYYY-MM form)
+        calendar_month_anchors: Dict[int, float] = {}  # calendar month 1-12 → rate (bare shorthand, no year named)
+        bare_anchors: Dict[int, float] = {}          # 1-based running index → rate (period > 12)
         all_period_rate: Optional[float] = None
 
         for point in rc.rate_points:
@@ -3543,9 +3546,18 @@ class DataSimulator:
                     continue
                 except ValueError:
                     pass
-            # "01" … "12" → bare month integer (single-year shorthand)
+            # "01" … "12" — no year named. Ambiguous between "the Nth
+            # period of the series" and "this calendar month" when the
+            # series is exactly one year long, which is by far the most
+            # common case (RateCurveBuilder's default is 12 periods, one
+            # per calendar month); treated as calendar month below, applied
+            # to EVERY year actually present in the data, since a
+            # no-year-named anchor is a recurring seasonal pattern, not a
+            # pin to a specific absent year. A story-extracted "Q1"/
+            # "January" with no explicit year lands here for exactly this
+            # reason — see _extract_rate_curves in story_parser.py.
             if period_str.isdigit() and 1 <= int(period_str) <= 12:
-                bare_anchors[int(period_str)] = rate
+                calendar_month_anchors[int(period_str)] = rate
                 continue
             # bare integer > 12 → period index (1-based running month)
             try:
@@ -3553,7 +3565,7 @@ class DataSimulator:
             except ValueError:
                 warnings.warn(f"RateCurve: unrecognised period format '{period_str}'. Skipping anchor.")
 
-        if not ym_anchors and not bare_anchors and all_period_rate is None:
+        if not ym_anchors and not calendar_month_anchors and not bare_anchors and all_period_rate is None:
             return df
 
         # ── Compute 1-based running month index for every row ────────────
@@ -3569,46 +3581,80 @@ class DataSimulator:
             + 1
         ).fillna(-1).astype(int)
 
-        # Convert YYYY-MM anchors to running indices now that we know the origin
-        anchors: Dict[int, float] = dict(bare_anchors)
-        for (y, m), rate in ym_anchors.items():
-            running_idx = (y - start_year) * 12 + (m - start_month) + 1
-            anchors[running_idx] = rate
-
-        # ── Interpolate rates across all observed period indices ──────────
         observed_indices = sorted(idx for idx in row_month_idx.unique() if idx > 0)
         if not observed_indices:
             return df
-
         max_idx = max(observed_indices)
-        interp_months = np.arange(1, max_idx + 1, dtype=float)
 
-        # "all" sentinel: flat rate across every period — fill anchors for
-        # all observed indices if no explicit anchors were provided, or if
-        # there are observed months not covered by explicit anchors.
-        if all_period_rate is not None:
-            for obs_idx in observed_indices:
-                anchors.setdefault(obs_idx, all_period_rate)
+        if calendar_month_anchors and not ym_anchors and not bare_anchors:
+            # Pure calendar-month case (no year named anywhere): interpolate
+            # ONCE across months 1-12 and reuse that single 12-month curve
+            # for every year present. Converting these to running indices
+            # and interpolating across the WHOLE multi-year axis instead
+            # would blend December's high rate into next January's low one
+            # linearly across the anchor gap between them (e.g. December at
+            # idx 12 and the next February at idx 14 would leave January at
+            # idx 13 roughly halfway between the two rates) — a real,
+            # measured bleed-over this avoids by never treating year
+            # boundaries as points on one continuous line in the first
+            # place.
+            cal_months = np.array(sorted(calendar_month_anchors.keys()), dtype=float)
+            cal_rates = np.array([calendar_month_anchors[int(m)] for m in cal_months], dtype=float)
+            all_cal_months = np.arange(1, 13, dtype=float)
+            if rc.interpolate and len(cal_months) >= 2:
+                cal_curve = np.clip(np.interp(all_cal_months, cal_months, cal_rates), 0.0, 1.0)
+                calendar_rate_by_month = {int(m): float(r) for m, r in zip(all_cal_months, cal_curve)}
+            else:
+                calendar_rate_by_month = {int(m): float(r) for m, r in calendar_month_anchors.items()}
 
-        anchor_months = np.array(sorted(anchors.keys()), dtype=float)
-        anchor_rates = np.array([anchors[int(m)] for m in anchor_months], dtype=float)
-
-        if rc.interpolate and len(anchor_months) >= 2:
-            interp_rates = np.clip(
-                np.interp(interp_months, anchor_months, anchor_rates), 0.0, 1.0
-            )
+            month_to_rate: Dict[int, float] = {}
+            for idx in observed_indices:
+                calendar_month = ((start_month - 1 + idx - 1) % 12) + 1
+                if calendar_month in calendar_rate_by_month:
+                    month_to_rate[idx] = calendar_rate_by_month[calendar_month]
+            if all_period_rate is not None:
+                for obs_idx in observed_indices:
+                    month_to_rate.setdefault(obs_idx, all_period_rate)
         else:
-            # Nearest-anchor (no interpolation): only declared periods are constrained
-            interp_rates = np.full(len(interp_months), np.nan)
-            for i, m in enumerate(interp_months):
-                if int(m) in anchors:
-                    interp_rates[i] = anchors[int(m)]
+            # Mixed or explicit-year case: convert everything to running
+            # indices and interpolate across the whole axis, since an
+            # explicit year is a pin to one specific point in time, not a
+            # recurring pattern to replicate.
+            anchors: Dict[int, float] = dict(bare_anchors)
+            for month, rate in calendar_month_anchors.items():
+                anchors[month - start_month + 1] = rate
+            for (y, m), rate in ym_anchors.items():
+                running_idx = (y - start_year) * 12 + (m - start_month) + 1
+                anchors[running_idx] = rate
 
-        month_to_rate = {
-            int(m): float(r)
-            for m, r in zip(interp_months, interp_rates)
-            if not np.isnan(r)
-        }
+            interp_months = np.arange(1, max_idx + 1, dtype=float)
+
+            # "all" sentinel: flat rate across every period — fill anchors
+            # for all observed indices if no explicit anchors were
+            # provided, or if there are observed months not covered.
+            if all_period_rate is not None:
+                for obs_idx in observed_indices:
+                    anchors.setdefault(obs_idx, all_period_rate)
+
+            anchor_months = np.array(sorted(anchors.keys()), dtype=float)
+            anchor_rates = np.array([anchors[int(m)] for m in anchor_months], dtype=float)
+
+            if rc.interpolate and len(anchor_months) >= 2:
+                interp_rates = np.clip(
+                    np.interp(interp_months, anchor_months, anchor_rates), 0.0, 1.0
+                )
+            else:
+                # Nearest-anchor (no interpolation): only declared periods are constrained
+                interp_rates = np.full(len(interp_months), np.nan)
+                for i, m in enumerate(interp_months):
+                    if int(m) in anchors:
+                        interp_rates[i] = anchors[int(m)]
+
+            month_to_rate = {
+                int(m): float(r)
+                for m, r in zip(interp_months, interp_rates)
+                if not np.isnan(r)
+            }
 
         # ── Prop. 2 enforcement per period ───────────────────────────────
         df = df.copy()

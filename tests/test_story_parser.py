@@ -391,3 +391,213 @@ class TestDomainDetectionMatchesWordsNotSubstrings:
         assert _mentions("a cro running trials", "cro")
         assert not _mentions("a crowdfunding platform", "cro")
         assert not _mentions("revenue rising through 2025", "hr")
+
+
+# ---------------------------------------------------------------------------
+# STORY_PARSER_AUDIT.md — bugs found by generating data and checking the
+# numbers, not by reading code and assuming it works. Every test below
+# checks what the simulator DID with an extracted declaration, not just
+# what the extractor returned — that gap in how this file tested itself
+# was the actual root cause behind all three bugs.
+# ---------------------------------------------------------------------------
+
+class TestBareYearNextToAPeriodIsNotAValue:
+    """Bug 1: "January 2026" / "Q1 2026" must never read the bare "2026" as
+    a target value — a real symptom was every month between two such
+    mentions interpolating to ~2026 dollars, not a formatting glitch."""
+
+    def test_quarter_anchors_ignore_the_bare_year(self):
+        parser = StoryParser()
+        story = ("revenue grows from $50,000 in January 2026 to $500,000 in "
+                  "December 2026, and churn rate rises from 2% in Q1 2026 to "
+                  "15% by Q4 2026")
+        anchors = parser._extract_quarter_anchors(story)
+        assert 2026 not in anchors.values()
+        assert not anchors, f"a bare year next to Q1/Q4 produced anchors: {anchors}"
+
+    def test_month_points_still_correct_with_year_present(self):
+        parser = StoryParser()
+        story = ("revenue grows from $50,000 in January 2026 to $500,000 in "
+                  "December 2026")
+        anchors = parser._extract_target_month_points(story, 12)
+        assert anchors[1] == pytest.approx(50000.0)
+        assert anchors[12] == pytest.approx(500000.0)
+
+    def test_the_full_monthly_curve_is_a_smooth_interpolation_not_a_repeated_year(self):
+        """The originally reported symptom: every month between Jan and Dec
+        came back as literally 2026, not a smooth ramp."""
+        parser = StoryParser()
+        schema = parser.parse(
+            "An ecommerce company with 500 customers where revenue grows from "
+            "$50,000 in January 2026 to $500,000 in December 2026",
+            default_rows=500,
+        )
+        assert len(schema.outcome_curves) == 1
+        points = {p["month"]: p["target_value"] for p in schema.outcome_curves[0].curve_points}
+        assert len(points) == 12
+        values = [points[m] for m in range(1, 13)]
+        # Monotonically non-decreasing, and no value anywhere near a bare year.
+        assert all(v2 >= v1 - 1e-6 for v1, v2 in zip(values, values[1:]))
+        assert all(v > 3000 for v in values), f"a value collapsed to a bare-year figure: {values}"
+
+    def test_a_single_quarter_year_mention_is_not_polluted_either(self):
+        """A single "Q_ YYYY" mention is just as real a bug as two -- the
+        original repro needed two mentions to make the interpolated middle
+        visibly wrong, but one bad anchor is still one bad anchor."""
+        parser = StoryParser()
+        anchors = parser._extract_quarter_anchors("$100k in Q2 2026")
+        assert anchors == {4: 100000.0, 5: 100000.0, 6: 100000.0}
+
+    def test_reverse_order_year_then_quarter_does_not_pollute_either(self):
+        parser = StoryParser()
+        anchors = parser._extract_quarter_anchors("2026 Q1: $100k")
+        assert 2026 not in anchors.values()
+
+
+class TestRateCurvePeriodsCarryTheRightYear:
+    """Bug 2: a bare month/quarter anchor with no year named in the story
+    must repeat as an annual seasonal pattern across every year the data
+    actually spans, not pin to a running index that only happens to land
+    inside the data's first year. A year the story DOES name gets pinned
+    to that one specific year instead."""
+
+    def test_rising_churn_curve_hits_the_declared_rate_every_year_present(self):
+        import warnings
+        import misata
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate(
+                "Churn rate rises from 2% in Q1 to 15% by Q4", rows=4000, seed=42,
+            )
+        users = tables["users"]
+        dates = pd.to_datetime(users["signup_date"])
+        years = dates.dt.year.unique()
+        assert len(years) > 1, "widen the sample so the multi-year bug has somewhere to hide"
+
+        for year in years:
+            in_year = users[dates.dt.year == year]
+            jan = in_year[dates[dates.dt.year == year].dt.month == 1]
+            dec = in_year[dates[dates.dt.year == year].dt.month == 12]
+            if len(jan) < 10 or len(dec) < 10:
+                continue
+            jan_rate = jan["churned"].mean()
+            dec_rate = dec["churned"].mean()
+            # The declared range is 2%-15%; every year present should show
+            # January low and December high, not just the first one.
+            assert jan_rate < 0.08, f"{year}: January churn {jan_rate:.3f} is not near the declared 2% floor"
+            assert dec_rate > 0.10, f"{year}: December churn {dec_rate:.3f} is not near the declared 15% ceiling"
+
+    def test_explicit_year_pins_to_that_year_specifically(self):
+        parser = StoryParser()
+        schema = parser.parse(
+            "A fintech company with 2000 transactions. Fraud rate rises from "
+            "1% in Q1 2024 to 6% by Q4 2024.",
+            default_rows=2000,
+        )
+        fraud_curves = [rc for rc in (schema.rate_curves or []) if "fraud" in rc.column]
+        assert fraud_curves, "expected a fraud RateCurve"
+        periods = [p["period"] for p in fraud_curves[0].rate_points]
+        assert all("2024" in str(p) for p in periods), f"year was not attached: {periods}"
+
+    def test_flat_rate_with_no_period_is_unaffected(self):
+        parser = StoryParser()
+        schema = parser.parse(
+            "A fintech payments platform with 5000 transactions and a 2% fraud "
+            "rate across all periods.",
+            default_rows=5000,
+        )
+        assert schema.rate_curves
+        assert schema.rate_curves[0].rate_points[0]["period"] == "all"
+
+    def test_single_period_anchored_rate_still_works(self):
+        parser = StoryParser()
+        schema = parser.parse(
+            "A fintech company with 2000 transactions and a 5% fraud rate in Q2.",
+            default_rows=2000,
+        )
+        fraud_curves = [rc for rc in (schema.rate_curves or []) if "fraud" in rc.column]
+        assert fraud_curves
+        assert len(fraud_curves[0].rate_points) == 1
+        assert abs(fraud_curves[0].rate_points[0]["rate"] - 0.05) < 1e-6
+
+
+class TestRateNounMorphologicalForms:
+    """Bug 3: a rate noun must match its realistic word family (noun, verb,
+    adjective, gerund), not only the one exact string form the map happens
+    to be keyed on. "Cancellation" produced zero rate curves against a map
+    keyed only on "cancelled" -- the systematic version of that gap, not
+    just the one word that got caught, is what this class checks."""
+
+    @pytest.mark.parametrize("story,concept", [
+        ("A fintech company with 2000 transactions where fraudulent activity "
+         "rises from 1% in Q1 to 6% by Q4.", "fraud"),
+        ("A SaaS startup with 3000 subscribers where subscribers keep churning "
+         "-- churn rises from 2% in Q1 to 10% by Q4.", "churn"),
+        ("A SaaS company with 2000 subscriptions where the cancellation rate "
+         "for subscriptions rises from 5% in Q1 to 30% in Q4.", "cancellation"),
+        ("An ecommerce store with 3000 orders where the return rate rises "
+         "from 3% in Q1 to 12% by Q4.", "returned"),
+        ("A logistics company with 3000 shipments where the return rate "
+         "rises from 2% in Q1 to 9% by Q4.", "returned (logistics)"),
+    ])
+    def test_every_documented_morphological_variant_extracts_a_curve(self, story, concept):
+        parser = StoryParser()
+        schema = parser.parse(story, default_rows=2000)
+        assert schema.rate_curves, f"{concept!r} form produced zero rate curves: {story!r}"
+
+    @pytest.mark.parametrize("form", ["defect", "defects", "defective"])
+    def test_defect_concept_has_no_domain_home_yet_but_does_not_crash(self, form):
+        """None of the 18 built-in domains has a manufacturing table with a
+        defect column, so this concept can never resolve today -- that's a
+        template-coverage gap, not a regex bug, and the parser's documented
+        behavior for "noun present but column not in schema" is to skip
+        silently, not raise. Pinned here so this stays a known, deliberate
+        gap rather than a silent crash if it regresses."""
+        parser = StoryParser()
+        story = f"A manufacturing plant with 5000 units where the {form} rate rises from 1% in Q1 to 8% by Q4."
+        schema = parser.parse(story, default_rows=2000)
+        assert schema.rate_curves == []
+
+    def test_cancellation_status_column_keeps_its_real_categories(self):
+        """A "status" fallback column is categorical (active/cancelled/
+        paused/trialing), not boolean -- enforcement used to overwrite every
+        real category with a bare True/False the moment "status" was picked
+        as the target column."""
+        import warnings
+        import misata
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate(
+                "A SaaS company where the cancellation rate for subscriptions "
+                "rises from 5% in Q1 to 30% in Q4",
+                rows=2000, seed=3,
+            )
+        status = tables["subscriptions"]["status"]
+        assert set(status.unique()) - {True, False}, (
+            f"status column was overwritten with plain booleans: {sorted(status.unique())}"
+        )
+        assert "cancelled" in set(status.unique())
+
+
+class TestGroupShareLanguageFailsLoudly:
+    """Bug 4: plain-English plan-tier/group splits ("20% from Starter, 50%
+    from Pro, 30% from Enterprise") have no extractor at all. Until that's
+    built, the failure must be loud (a UserWarning naming what was dropped),
+    never silent-and-wrong, which is worse."""
+
+    def test_a_percentage_split_with_no_extractor_warns_by_name(self):
+        import warnings
+
+        parser = StoryParser()
+        story = ("A SaaS company with 5000 users. Of that revenue, exactly 20% "
+                  "comes from Starter plans, 50% from Pro plans, and 30% from "
+                  "Enterprise plans")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            parser.parse(story, default_rows=5000)
+        messages = [str(w.message) for w in caught]
+        assert any("20%" in m or "Starter" in m for m in messages), (
+            f"the dropped plan-tier split produced no warning naming it: {messages}"
+        )
