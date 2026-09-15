@@ -158,6 +158,10 @@ examples/bank_evalpack_out/
 !tests/test_healthcare_comorbidity.py
 !tests/test_credit_risk_portfolio.py
 !tests/test_islamic_finance_murabahah.py
+!tests/test_islamic_finance_ijarah.py
+!tests/test_islamic_finance_mudarabah.py
+!tests/test_islamic_finance_sukuk.py
+!tests/test_islamic_finance_takaful.py
 !tests/test_date_type_has_no_time.py
 !tests/test_network_intrusion_netflow.py
 !tests/test_contact_center_queueing.py
