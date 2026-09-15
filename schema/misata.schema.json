@@ -1424,6 +1424,72 @@
               "default": true
             }
           }
+        },
+        "outcome_curves": {
+          "$ref": "#/properties/outcome_curves"
+        },
+        "rate_curves": {
+          "$ref": "#/properties/rate_curves"
+        },
+        "group_shares": {
+          "$ref": "#/properties/group_shares"
+        },
+        "waterfalls": {
+          "$ref": "#/properties/waterfalls"
+        },
+        "stock_flows": {
+          "$ref": "#/properties/stock_flows"
+        },
+        "degradations": {
+          "$ref": "#/properties/degradations"
+        },
+        "lifecycles": {
+          "$ref": "#/properties/lifecycles"
+        },
+        "retention": {
+          "$ref": "#/properties/retention"
+        },
+        "missingness": {
+          "$ref": "#/properties/missingness"
+        },
+        "late_arrivals": {
+          "$ref": "#/properties/late_arrivals"
+        },
+        "time_grids": {
+          "$ref": "#/properties/time_grids"
+        },
+        "duplicates": {
+          "$ref": "#/properties/duplicates"
+        },
+        "event_logs": {
+          "$ref": "#/properties/event_logs"
+        },
+        "outliers": {
+          "$ref": "#/properties/outliers"
+        },
+        "typos": {
+          "$ref": "#/properties/typos"
+        },
+        "bitemporal": {
+          "$ref": "#/properties/bitemporal"
+        },
+        "dag_edges": {
+          "$ref": "#/properties/dag_edges"
+        },
+        "graph_motifs": {
+          "$ref": "#/properties/graph_motifs"
+        },
+        "joint_distributions": {
+          "$ref": "#/properties/joint_distributions"
+        },
+        "closures": {
+          "$ref": "#/properties/closures"
+        },
+        "noise": {
+          "$ref": "#/properties/noise"
+        },
+        "events": {
+          "$ref": "#/properties/events"
         }
       }
     },

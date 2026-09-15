@@ -113,3 +113,57 @@ def test_each_domain_yaml_validates(domain, story, tmp_path):
             f"  - {list(e.absolute_path)}: {e.message[:200]}" for e in errors[:10]
         )
     )
+
+
+class TestTableNestedDirectivesValidate:
+    """The engine accepts __group_shares__ (and its siblings) nested inside
+    the table dict it describes, the way __correlations__ is written -- the
+    published JSON Schema used to reject that placement outright (every
+    directive lived only under $defs/table's now-extended property list),
+    which would have made `misata lint` fail a document the engine itself
+    generates correctly."""
+
+    def test_group_shares_nested_in_its_table_validates(self):
+        schema = misata.json_schema()
+        doc = {
+            "name": "nested_test",
+            "tables": {
+                "sales": {
+                    "rows": 900,
+                    "columns": {
+                        "category": {"type": "string", "enum": ["Electronics", "Home", "Apparel"]},
+                        "revenue": {"type": "float", "min": 10, "max": 500},
+                    },
+                    "group_shares": [{
+                        "table": "sales", "measure": "revenue", "group_column": "category",
+                        "shares": {"Electronics": 0.5, "Home": 0.3, "Apparel": 0.2},
+                    }],
+                }
+            },
+        }
+        errors = list(Draft202012Validator(schema).iter_errors(doc))
+        assert errors == [], "\n".join(str(e) for e in errors)
+
+    def test_lifecycles_nested_in_its_table_validates(self):
+        schema = misata.json_schema()
+        doc = {
+            "name": "nested_test",
+            "tables": {
+                "orders": {
+                    "rows": 500,
+                    "columns": {
+                        "status": {"type": "string"},
+                        "placed_at": {"type": "date"},
+                    },
+                    "lifecycles": [{
+                        "table": "orders", "name": "order_flow",
+                        "state_column": "status", "start_column": "placed_at",
+                        "states": [{"name": "placed"}, {"name": "shipped"}],
+                        "transitions": [["placed", "shipped"]],
+                        "initial": "placed",
+                    }],
+                }
+            },
+        }
+        errors = list(Draft202012Validator(schema).iter_errors(doc))
+        assert errors == [], "\n".join(str(e) for e in errors)

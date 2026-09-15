@@ -684,6 +684,50 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
     return flat
 
 
+# Envelope directives that are lists of dicts, each already carrying its own
+# "table" field ({"table": "sales", "measure": "revenue", ...}) -- unlike
+# __correlations__ and __constraints__, which are read only from inside a
+# table's own dict, every one of these is read only from the schema's TOP
+# level. That split is not documented anywhere a reader would see it before
+# getting it wrong: nesting __group_shares__ inside its table (the pattern
+# __correlations__ actually uses) does not raise, does not warn, and
+# silently generates a completely different, wrong distribution -- found by
+# checking the measured shares against docs/reference/declarations.md's own
+# example, which is exactly the failure mode this file exists to not have.
+_TABLE_HOISTABLE_ENVELOPE_KEYS: Tuple[str, ...] = tuple(
+    dunder for _attr, dunder in _ENVELOPE_KEYS
+    if dunder not in ("__realism__", "__vocabulary__")
+)
+
+
+def _hoist_table_scoped_envelope_directives(schemas: Dict[str, Any]) -> Dict[str, Any]:
+    """A directive nested inside the table it describes is accepted the same
+    as one declared at the schema's top level -- merged in, "table" filled
+    in from context when the entry omits it, never silently dropped."""
+    if not isinstance(schemas, dict):
+        return schemas
+    hoisted: Dict[str, list] = {}
+    patched: Dict[str, Any] = dict(schemas)
+    for key, value in schemas.items():
+        if key.startswith("__") or not isinstance(value, dict):
+            continue
+        misplaced = [k for k in _TABLE_HOISTABLE_ENVELOPE_KEYS if k in value]
+        if not misplaced:
+            continue
+        table_def = dict(value)
+        for dunder in misplaced:
+            entries = table_def.pop(dunder) or []
+            for entry in entries:
+                if isinstance(entry, dict):
+                    entry = {**entry}
+                    entry.setdefault("table", key)
+                hoisted.setdefault(dunder, []).append(entry)
+        patched[key] = table_def
+    for dunder, entries in hoisted.items():
+        patched[dunder] = list(patched.get(dunder) or []) + entries
+    return patched
+
+
 def _dedupe_relationships(rels: List[Relationship]) -> List[Relationship]:
     """One relationship per edge, keeping the one that says the most.
 
@@ -741,7 +785,11 @@ def from_dict_schema(
     ``email``, ``phone``, ``url``, ``uuid``, ``date``, ``datetime``,
     ``timestamp``, ``boolean``, ``foreign_key``.
 
-    Schema-level directives (top-level keys, siblings of the tables):
+    Schema-level directives (top-level keys, siblings of the tables). Every
+    one below may ALSO be nested inside the table dict it describes (the
+    ``__correlations__``/``__constraints__`` placement) — each entry's own
+    ``"table"`` field is filled in from that nesting when omitted, and
+    either placement reaches the same declaration:
 
     - ``__outcome_curves__``: list of declared aggregate targets, e.g.
       ``[{"table": "orders", "column": "amount", "time_column": "order_date",
@@ -796,6 +844,7 @@ def from_dict_schema(
     """
     _DROPPED.clear()
     schemas = _unwrap_envelope(schemas)
+    schemas = _hoist_table_scoped_envelope_directives(schemas)
 
     # `locale` is published at the top level by our own JSON Schema, so that is
     # the spelling editors autocomplete people into, and it lives on

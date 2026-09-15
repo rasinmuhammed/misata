@@ -1187,3 +1187,98 @@ class TestForeignKeyDefaultColumnResolvesTheRealParentKey:
         }, seed=1)
         rel = next(r for r in schema.relationships if r.child_table == "orders")
         assert rel.parent_key == "customer_id"
+
+
+class TestTableScopedEnvelopeDirectivesAreHoisted:
+    """`__correlations__` and `__constraints__` are documented nested inside
+    the table they describe. Every other envelope directive
+    (`__group_shares__`, `__waterfalls__`, `__lifecycles__`, ...) is read
+    only from the schema's top level -- an inconsistency nowhere documented,
+    and nesting one of them the __correlations__ way used to neither warn
+    nor raise: it silently generated a completely different, wrong
+    distribution. Found by checking the measured group shares against
+    docs/reference/declarations.md's own worked example (0.5/0.3/0.2),
+    which the misplaced form missed by double digits with zero warning."""
+
+    def test_group_shares_nested_inside_its_table_still_hits_the_exact_split(self):
+        schema = {
+            "sales": {
+                "__rows__": 900,
+                "category": {"type": "string", "enum": ["Electronics", "Home", "Apparel"]},
+                "revenue": {"type": "float", "min": 10, "max": 500},
+                "__group_shares__": [{
+                    "measure": "revenue", "group_column": "category",
+                    "shares": {"Electronics": 0.5, "Home": 0.3, "Apparel": 0.2},
+                }],
+            }
+        }
+        tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=1))
+        df = tables["sales"]
+        shares = (df.groupby("category")["revenue"].sum() / df["revenue"].sum()).round(3)
+        assert shares["Electronics"] == pytest.approx(0.5, abs=0.01)
+        assert shares["Home"] == pytest.approx(0.3, abs=0.01)
+        assert shares["Apparel"] == pytest.approx(0.2, abs=0.01)
+
+    def test_the_documented_top_level_placement_still_works_unchanged(self):
+        schema = {
+            "sales": {
+                "__rows__": 900,
+                "category": {"type": "string", "enum": ["Electronics", "Home", "Apparel"]},
+                "revenue": {"type": "float", "min": 10, "max": 500},
+            },
+            "__group_shares__": [{
+                "table": "sales", "measure": "revenue", "group_column": "category",
+                "shares": {"Electronics": 0.5, "Home": 0.3, "Apparel": 0.2},
+            }],
+        }
+        tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=1))
+        df = tables["sales"]
+        shares = (df.groupby("category")["revenue"].sum() / df["revenue"].sum()).round(3)
+        assert shares["Electronics"] == pytest.approx(0.5, abs=0.01)
+
+    def test_lifecycle_nested_inside_its_table_resolves_without_a_table_key(self):
+        schema = {
+            "orders": {
+                "__rows__": 500,
+                "order_id": {"type": "integer", "primary_key": True},
+                "status": {"type": "string"},
+                "placed_at": {"type": "date"},
+                "__lifecycles__": [{
+                    "name": "order_flow", "state_column": "status", "start_column": "placed_at",
+                    "states": [{"name": "placed"}, {"name": "paid"}, {"name": "shipped"},
+                               {"name": "delivered"}, {"name": "refunded", "terminal": True}],
+                    "transitions": [["placed", "paid"], ["paid", "shipped"],
+                                    ["shipped", "delivered"], ["delivered", "refunded"]],
+                    "initial": "placed",
+                }],
+            },
+        }
+        tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=1))
+        statuses = set(tables["orders"]["status"].unique())
+        assert statuses <= {"placed", "paid", "shipped", "delivered", "refunded"}
+        assert len(statuses) > 1
+
+    def test_nested_directive_merges_with_a_top_level_one_for_a_different_table(self):
+        schema = {
+            "sales": {
+                "__rows__": 300,
+                "category": {"type": "string", "enum": ["A", "B"]},
+                "revenue": {"type": "float", "min": 10, "max": 500},
+                "__group_shares__": [{"measure": "revenue", "group_column": "category",
+                                       "shares": {"A": 0.6, "B": 0.4}}],
+            },
+            "orders": {
+                "__rows__": 300,
+                "channel": {"type": "string", "enum": ["online", "retail"]},
+                "amount": {"type": "float", "min": 10, "max": 500},
+            },
+            "__group_shares__": [{"table": "orders", "measure": "amount", "group_column": "channel",
+                                   "shares": {"online": 0.8, "retail": 0.2}}],
+        }
+        tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=1))
+        sales = tables["sales"]
+        sales_shares = (sales.groupby("category")["revenue"].sum() / sales["revenue"].sum()).round(2)
+        assert sales_shares["A"] == pytest.approx(0.6, abs=0.02)
+        orders = tables["orders"]
+        order_shares = (orders.groupby("channel")["amount"].sum() / orders["amount"].sum()).round(2)
+        assert order_shares["online"] == pytest.approx(0.8, abs=0.02)
