@@ -1251,6 +1251,7 @@ class StoryParser:
         # for six thousand invoices, a plan split and an unpaid rate came back
         # as two tables and looked like a success.
         self._unhandled = self.unhandled_claims(story, schema)
+        self._unhandled += self._unsupported_declaration_mentions(story, schema)
         for claim in self._unhandled:
             warnings.warn(
                 f"This parser could not turn {claim!r} into a declaration, so it "
@@ -1360,6 +1361,53 @@ class StoryParser:
             unhandled.append(fragment)
 
         return unhandled
+
+    # ── Declaration types this parser cannot extract from plain English ────
+    #
+    # `docs/reference/declarations.md` documents 29 declaration types.
+    # Outcome curves, rate curves, and group-share splits each get (or, for
+    # shares, get a loud refusal for) a real extraction pass. The rest --
+    # correlations, waterfalls, joint distributions, graph motifs, and
+    # anomaly/outlier injection below -- have no extractor at all, and
+    # unlike `unhandled_claims` above, the story fragments that ask for them
+    # usually carry no digit ("age correlates with salary"), so they were
+    # invisible to that check too: not just unhandled, but undetectable as
+    # unhandled. Each entry is a (declaration attribute, regex, human label)
+    # triple; a keyword hit with an empty result on that attribute is
+    # reported the same way a dropped count or split is. Deliberately
+    # limited to jargon-specific phrasing (kept literally as it is,
+    # correlates with, joint distribution, ...) rather than generic verbs
+    # like "depends on" or "cannot" -- those read as ordinary business
+    # language far too often to gate a warning on without flooding
+    # unrelated stories with false positives.
+    _UNSUPPORTED_DECLARATION_SIGNALS: List[tuple] = [
+        ("correlations", re.compile(r"\bcorrelat(?:es?|ion|ing)\b.{0,20}\b(?:with|between)\b", re.IGNORECASE),
+         "a correlation between two columns"),
+        ("waterfalls", re.compile(r"\bwaterfall\b|\bopening balance\b.{0,60}\bclosing balance\b", re.IGNORECASE),
+         "a waterfall of balance movements"),
+        ("joint_distributions", re.compile(r"\bjoint distribution\b", re.IGNORECASE),
+         "a joint distribution across columns"),
+        ("graph_motifs", re.compile(r"\bgraph motifs?\b", re.IGNORECASE),
+         "a declared graph motif"),
+        ("outliers", re.compile(r"\banomal(?:y|ies)\b.{0,20}\binject", re.IGNORECASE),
+         "injected anomalies/outliers"),
+    ]
+
+    def _unsupported_declaration_mentions(self, story: str, schema: "SchemaConfig") -> List[str]:
+        """Jargon naming a declaration type this parser cannot extract at
+        all, reported the same way unhandled_claims reports a dropped count
+        -- loud, not silent, until real extraction exists for each."""
+        if not story:
+            return []
+        found: List[str] = []
+        for attr, pattern, label in self._UNSUPPORTED_DECLARATION_SIGNALS:
+            m = pattern.search(story)
+            if not m:
+                continue
+            if getattr(schema, attr, None):
+                continue  # a real extractor for this landed after all -- nothing to report
+            found.append(f"{label} ({m.group(0)!r})")
+        return found
 
     def _enrich_schema_text_types(self, schema: "SchemaConfig") -> "SchemaConfig":
         """Post-processing: set text_type for any text column whose name

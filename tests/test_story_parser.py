@@ -601,3 +601,43 @@ class TestGroupShareLanguageFailsLoudly:
         assert any("20%" in m or "Starter" in m for m in messages), (
             f"the dropped plan-tier split produced no warning naming it: {messages}"
         )
+
+
+class TestUnsupportedDeclarationsFailLoudly:
+    """docs/reference/declarations.md documents 29 declaration types.
+    Correlations, waterfalls, joint distributions, graph motifs, and
+    anomaly/outlier injection have no plain-English extractor at all, and
+    unlike a dropped count or plan split, the fragments that ask for them
+    usually carry no digit -- invisible to unhandled_claims, and silent."""
+
+    @pytest.mark.parametrize("story,fragment", [
+        ("An HR dataset with 5000 employees where age correlates with salary",
+         "correlat"),
+        ("A SaaS company with 5000 subscriptions where MRR moves through a "
+         "waterfall of new business, expansion, contraction and churn",
+         "waterfall"),
+        ("An HR dataset with 5000 employees using a joint distribution "
+         "between department and salary", "joint distribution"),
+        ("A social network with 5000 users using declared graph motifs for "
+         "friend triangles", "graph motif"),
+        ("A fintech company with 5000 transactions with anomalies injected "
+         "at a 2% rate", "anomal"),
+    ])
+    def test_jargon_with_no_extractor_warns_by_name(self, story, fragment):
+        import warnings
+        parser = StoryParser()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            parser.parse(story, default_rows=5000)
+        messages = " ".join(str(w.message) for w in caught)
+        assert fragment in messages.lower(), f"no warning named {fragment!r}: {messages}"
+
+    def test_an_ordinary_story_with_no_such_jargon_stays_quiet(self):
+        import warnings
+        parser = StoryParser()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            parser.parse("A SaaS company with 5000 users and 20% churn", default_rows=5000)
+        messages = [str(w.message) for w in caught]
+        assert not any("correlat" in m or "waterfall" in m or "joint distribution" in m
+                       or "graph motif" in m or "anomal" in m for m in messages)
