@@ -12,6 +12,7 @@ RELEASE_NOTES_v*.md
 /Misata_EDA_Report.ipynb
 /MISATA_VOICE.md
 /GCC_EXPANSION.md
+/STORY_PARSER_AUDIT.md
 
 # Environment files
 .env
