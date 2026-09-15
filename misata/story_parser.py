@@ -846,11 +846,18 @@ class StoryParser:
         },
         "active": {
             "forms": ["active"],
-            "columns": ["is_active", "active"], "true_value": True,
+            # "status" candidate is guarded by the choices check below: it
+            # only matches a table whose status column actually declares
+            # "active" as one of its real categories (logistics drivers,
+            # not logistics vehicles, whose status choices are
+            # available/in_use/maintenance).
+            "columns": ["is_active", "active", "status"], "true_value": True,
+            "column_true_values": {"status": "active"},
         },
         "inactive": {
             "forms": ["inactive"],
-            "columns": ["is_active", "active"], "true_value": False,
+            "columns": ["is_active", "active", "status"], "true_value": False,
+            "column_true_values": {"status": "inactive"},
         },
     }
 
@@ -953,16 +960,31 @@ class StoryParser:
             # that need to match whichever form actually appeared.
             noun_alt = "(?:" + "|".join(re.escape(f) for f in forms) + ")"
 
-            # Find the target table and column in the schema
+            # Find the target table and column in the schema. A candidate
+            # with a column_true_values override (a shared categorical
+            # column like "status") only counts as a match when its
+            # OVERRIDE VALUE is actually one of that column's own declared
+            # choices — column name alone is not enough. Without this, a
+            # fintech story asking about "cancellation" matched accounts.status
+            # (real choices: active/frozen/closed) purely because a column
+            # named "status" existed on the first table checked, and
+            # injected a "cancelled" category that column never declared.
+            column_overrides = spec.get("column_true_values", {})
             target_table: Optional[str] = None
             target_col: Optional[str] = None
             for table in schema.tables:
-                col_names = {c.name for c in schema.get_columns(table.name)}
+                cols_by_name = {c.name: c for c in schema.get_columns(table.name)}
                 for cand in spec["columns"]:
-                    if cand in col_names:
-                        target_table = table.name
-                        target_col = cand
-                        break
+                    col = cols_by_name.get(cand)
+                    if col is None:
+                        continue
+                    if cand in column_overrides:
+                        choices = (col.distribution_params or {}).get("choices") or []
+                        if column_overrides[cand] not in choices:
+                            continue
+                    target_table = table.name
+                    target_col = cand
+                    break
                 if target_col:
                     break
 

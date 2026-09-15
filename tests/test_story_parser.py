@@ -641,3 +641,55 @@ class TestUnsupportedDeclarationsFailLoudly:
         messages = [str(w.message) for w in caught]
         assert not any("correlat" in m or "waterfall" in m or "joint distribution" in m
                        or "graph motif" in m or "anomal" in m for m in messages)
+
+
+class TestStatusColumnFallbackChecksItsOwnChoices:
+    """A category-column fallback like "status" only matches a table whose
+    status column ACTUALLY declares that category -- not whichever table
+    with a column literally named "status" the schema happens to build
+    first. A fintech story asking about "cancellation" used to match
+    accounts.status (real choices: active/frozen/closed) purely on column
+    name and inject a "cancelled" category that column never declared,
+    corrupting a column the story never actually asked about."""
+
+    def test_cancellation_does_not_leak_into_an_unrelated_status_column(self):
+        import warnings
+        import misata
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate(
+                "A fintech company with 2000 transactions where the "
+                "cancellation rate rises from 5% in Q1 to 20% by Q4",
+                rows=2000, seed=1,
+            )
+        assert set(tables["accounts"]["status"].unique()) <= {"active", "frozen", "closed"}
+        assert set(tables["transactions"]["status"].unique()) <= {
+            "completed", "pending", "failed", "reversed"}
+
+    def test_cancellation_still_resolves_where_it_actually_belongs(self):
+        import warnings
+        import misata
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate(
+                "A SaaS company where the cancellation rate for subscriptions "
+                "rises from 5% in Q1 to 30% in Q4",
+                rows=2000, seed=3,
+            )
+        assert "cancelled" in set(tables["subscriptions"]["status"].unique())
+
+    def test_inactive_rate_targets_drivers_not_vehicles(self):
+        import warnings
+        import misata
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate(
+                "A logistics company with 2000 drivers where inactive rate "
+                "rises from 5% in Q1 to 20% by Q4",
+                rows=2000, seed=5,
+            )
+        assert "inactive" in set(tables["drivers"]["status"].unique())
+        assert set(tables["vehicles"]["status"].unique()) <= {"in_use", "available", "maintenance"}
