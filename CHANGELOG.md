@@ -5,6 +5,96 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6.59] - 2026-09-16
+
+### GCC locale support, and the Dubai bug it exposed
+
+Five new Gulf locale packs: `ar_QA`, `ar_AE`, `ar_KW`, `ar_BH`, `ar_OM`, each
+with sourced salary, currency, national-ID, bank, and city data, and the
+right Faker fallback (`ar_AE`, the closest Gulf Arabic name pool, for the
+three states with no native Faker provider). Fixing the detector to add them
+surfaced a real bug already in production: `ar_SA`'s keyword block included
+`"uae"`, `"dubai"`, `"abu dhabi"`, so a story mentioning Dubai detected as
+Saudi Arabia and got Iqama-format IDs and SAR currency. Split out and
+regression-tested. 20 locales now, up from 15.
+
+### Islamic finance: five primitives, one AAOIFI standard each
+
+A new domain, each script a runnable, independently-verified example rather
+than a docstring claim: **Murabahah** (Standard 8) checks
+`selling_price = cost_price + profit_margin` exactly and a repayment schedule
+with no interest signature anywhere. **Ijarah / Ijarah Muntahia Bittamleek**
+(Standard 9) checks the lessor retains asset ownership through every rental
+period, with a nominal, non-interest-shaped ownership-transfer price for
+lease-to-own contracts. **Mudarabah** (Standard 13) and its Standard 40
+pooled-account rule check the actual hard part: a non-negligent loss leaves
+the managing partner's realized P&L at exactly zero, the opposite of the
+symmetric split most synthetic generators default to. **Sukuk** (Standard
+17) pays a Periodic Distribution Amount traced to a real underlying Ijarah
+pool's rental income, never called "interest" or "coupon". **Takaful** keeps
+the participants' fund and the operator's fund on separate ledgers that a
+claim can never cross.
+
+### Four story-parser bugs, found by checking the generated numbers
+
+Existing unit tests passed on all four; none of them checked what the
+simulator did with what the extractor returned, which is how they shipped.
+A bare year sitting next to a quarter ("Q1 2026") was read as a target value,
+so an outcome curve between two such mentions interpolated to ~2,026 dollars
+across every month in between. A rate curve with no year named in the story
+("churn rate rises from 2% in Q1 to 15% by Q4") only applied to the first
+calendar year of a multi-year date column and flattened for every year after
+it; fixed by resolving a no-year anchor as a recurring annual pattern
+computed once over a 12-month reference curve, rather than replicating it
+across a multi-year running-index axis where it bled between December and
+the following January. `RATE_NOUN_MAP` matched a rate concept's one tested
+word form ("cancelled") and missed its realistic siblings ("cancellation");
+restructured to a `forms` list per concept, and along the way found that its
+categorical `status`-column fallback was hardcoded to `true_value=True`,
+silently overwriting a subscription's real status categories
+(active/paused/trialing) with plain booleans.
+
+### A status-column fallback now checks its own declared choices
+
+Follow-on from the fix above: a rate concept resolving to a shared `status`
+column used to match on column NAME alone, so a fintech story asking about
+"cancellation" matched `accounts.status` (real choices: active/frozen/closed)
+purely because it was the first column named `status` the schema built, and
+injected a `cancelled` category that column never declared. It now checks
+the override value is actually one of that column's own choices before
+matching.
+
+### Every envelope directive can now nest inside its own table
+
+`__correlations__` has always been written nested inside the table it
+describes. Every other directive — `__group_shares__`, `__waterfalls__`,
+`__lifecycles__`, and the rest — was silently top-level-only: nesting one
+inside its table (the natural thing to try, by analogy) neither raised nor
+warned, and generated a completely different, wrong result. Caught by
+checking `docs/reference/declarations.md`'s own group-shares example
+(0.5/0.3/0.2) against measured output and getting 0.41/0.26/0.34 back with
+no error. Fixed generally: a directive nested in its table is hoisted to the
+schema's directive list with `"table"` inferred from context, for every
+directive, and the published JSON Schema (`misata lint`) now accepts the
+same placement it used to reject.
+
+### Silent failures for five more declaration types, made loud
+
+`docs/reference/declarations.md` documents 29 declaration types. Plain
+English has no extractor at all for eight of them — correlations,
+constraints, lifecycle/state-machine, waterfalls, anomaly injection,
+conditional columns, joint distributions, graph motifs — and unlike a
+dropped row count, most of their trigger phrases ("age correlates with
+salary") carry no digit, so the existing unhandled-claims warning never saw
+them either: not just unhandled, undetectable as unhandled. Five of the
+eight now warn by name when their jargon appears with no matching
+declaration (correlations, waterfalls, joint distributions, graph motifs,
+anomaly injection); the other three were judged too generic in ordinary
+phrasing ("cannot", "flows from X to Y", "depends on") to gate a warning on
+without flooding unrelated stories with false positives.
+
+2,319 tests green.
+
 ## [0.9.6.53] - 2026-09-10
 
 ### The MCP server proves the data, not just the joins
