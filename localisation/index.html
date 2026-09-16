@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Misata generates country-accurate synthetic data for 15 locales including US, UK, Germany, Japan, India, and more, with real salary distributions, national ID formats, and currencies.">
+        <meta name="description" content="Misata generates country-accurate synthetic data for 20 locales including US, UK, Germany, Japan, India, and all six GCC states, with real salary distributions, national ID formats, and currencies.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Localisation, Country-Accurate Synthetic Data in 15 Locales - Misata</title>
+        <title>Localisation, Country-Accurate Synthetic Data in 20 Locales - Misata</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Localisation, Country-Accurate Synthetic Data in 15 Locales
+              Localisation, Country-Accurate Synthetic Data in 20 Locales
             
           </span>
         </div>
@@ -1011,10 +1011,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#15-built-in-locales" class="md-nav__link">
+  <a href="#20-built-in-locales" class="md-nav__link">
     <span class="md-ellipsis">
       
-        15 built-in locales
+        20 built-in locales
       
     </span>
   </a>
@@ -1097,6 +1097,8 @@
   
     
     
+      
+        
       
         
       
@@ -1374,6 +1376,34 @@
     
   
     Credit Risk
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../domains/islamic-finance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Islamic Finance
   
 
     
@@ -2875,10 +2905,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#15-built-in-locales" class="md-nav__link">
+  <a href="#20-built-in-locales" class="md-nav__link">
     <span class="md-ellipsis">
       
-        15 built-in locales
+        20 built-in locales
       
     </span>
   </a>
@@ -2960,7 +2990,7 @@
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Or via CLI</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># misata generate --story "Ecommerce store" --locale ja_JP</span>
 </code></pre></div>
-<h2 id="15-built-in-locales">15 built-in locales</h2>
+<h2 id="20-built-in-locales">20 built-in locales</h2>
 <table>
 <thead>
 <tr>
@@ -3040,7 +3070,7 @@
 <td style="text-align: left;">Saudi Arabia</td>
 <td style="text-align: left;">SAR</td>
 <td style="text-align: right;">SAR 96 000</td>
-<td style="text-align: left;">National ID</td>
+<td style="text-align: left;">Iqama/NID</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>ko_KR</code></td>
@@ -3077,9 +3107,51 @@
 <td style="text-align: right;">TRY 720 000</td>
 <td style="text-align: left;">TC Kimlik</td>
 </tr>
+<tr>
+<td style="text-align: left;"><code>ar_QA</code></td>
+<td style="text-align: left;">Qatar</td>
+<td style="text-align: left;">QAR</td>
+<td style="text-align: right;">QAR 149 000</td>
+<td style="text-align: left;">QID</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ar_AE</code></td>
+<td style="text-align: left;">United Arab Emirates</td>
+<td style="text-align: left;">AED</td>
+<td style="text-align: right;">AED 166 000</td>
+<td style="text-align: left;">Emirates ID</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ar_KW</code></td>
+<td style="text-align: left;">Kuwait</td>
+<td style="text-align: left;">KWD</td>
+<td style="text-align: right;">KWD 14 400</td>
+<td style="text-align: left;">Civil ID</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ar_BH</code></td>
+<td style="text-align: left;">Bahrain</td>
+<td style="text-align: left;">BHD</td>
+<td style="text-align: right;">BHD 6 900</td>
+<td style="text-align: left;">CPR number</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ar_OM</code></td>
+<td style="text-align: left;">Oman</td>
+<td style="text-align: left;">OMR</td>
+<td style="text-align: right;">OMR 4 320</td>
+<td style="text-align: left;">Civil Number</td>
+</tr>
 </tbody>
 </table>
-<p>Salary data sourced from OECD, World Bank, ILO (2023–24).</p>
+<p>Salary data sourced from OECD, World Bank, ILO (2023–24), plus national
+statistics offices for the GCC states: Qatar National Planning Council,
+UAE Federal Competitiveness and Statistics Centre, MenaJobs GCC Salary
+Report 2026, Bahrain's official national-median figure, and Oman's National
+Centre for Statistics and Information — see <code>misata/locales/packs.py</code> for
+per-locale citations. Qatar and the UAE have no median published; those two
+figures are the official average instead, called out as such in the source
+code.</p>
 <h2 id="inspect-a-locale-pack">Inspect a locale pack</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">pack</span> <span class="o">=</span> <span class="n">misata</span><span class="o">.</span><span class="n">get_locale_pack</span><span class="p">(</span><span class="s2">"de_DE"</span><span class="p">)</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>

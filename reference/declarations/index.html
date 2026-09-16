@@ -1445,6 +1445,8 @@
       
         
       
+        
+      
     
     
     
@@ -1673,6 +1675,34 @@
     
   
     Credit Risk
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../domains/islamic-finance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Islamic Finance
   
 
     
@@ -3607,6 +3637,13 @@ your tables. The same document in YAML uses the bare name:</p>
 </code></pre></div>
 <p>Run <code>misata lint schema.yaml</code> to have feasibility checked in CI without
 generating anything.</p>
+<p>Every <code>__dunder__</code> directive below may also be nested inside the table dict
+it describes (the way <code>__correlations__</code> is usually written), not just
+declared at the top level — either placement reaches the engine, and a
+nested entry's <code>"table"</code> field is filled in from context when you leave it
+out. <code>misata lint</code> validates against the published JSON Schema, which keeps
+<code>table</code> required on every entry either way — include it explicitly there
+even when nested, for a validator that can't see the nesting context.</p>
 <hr />
 <h2 id="structure">Structure</h2>
 <p>What rows exist, and how they point at each other.</p>
