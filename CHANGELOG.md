@@ -5,6 +5,25 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Gulf names, and shares that respect declared bounds
+
+- **Gulf locales now return Gulf names.** `ar_QA`, `ar_AE`, `ar_KW`, `ar_BH` and
+  `ar_OM` returned English names ("Gerald Holden") beside correctly localised
+  cities. Faker only ships Arabic person names for `ar_SA`; its `ar_AE` and
+  `ar_BH` providers fall back to English, which the 0.9.6.59 note calling
+  `ar_AE` "the closest Gulf Arabic name pool" got wrong. Each locale now draws
+  Arabic-script first names and family names specific to its country, and
+  leaves out ruling-family surnames.
+- **`__group_shares__` no longer pushes rows outside the column's declared
+  `min`/`max`.** The shares were exact, but each group was rescaled with one
+  multiplier, so next to an exact outcome curve 12-15% of rows fell below a
+  declared minimum with no warning, and on shares alone a `max: 900` column
+  reached 902.44. Values are now fitted to the group total inside the bounds,
+  still to the cent. When a share genuinely cannot hold inside the bounds the
+  exact share still wins, and it now warns.
+
 ## [0.9.6.60] - 2026-09-28
 
 ### The "Never Use Faker Again" Release: Text Realism & Vertical Supremacy

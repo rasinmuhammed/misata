@@ -62,6 +62,11 @@ class LocaleRegistry:
             from faker import Faker
             f = Faker(faker_locale)
             # Seed is set externally by the simulator — don't seed here
+            # Faker only has Arabic person names for ar_SA; the other Gulf
+            # packs would otherwise return English names.
+            from misata.locales.gulf_names import has_gulf_names, install_gulf_names
+            if has_gulf_names(locale):
+                install_gulf_names(f, locale)
         except Exception:
             # faker not installed or locale not supported — use plain en_US
             try:

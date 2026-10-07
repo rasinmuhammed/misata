@@ -94,6 +94,88 @@ def declared_group_targets(
     return out
 
 
+def _declared_bounds(schema: Any, table: str, column: str) -> Tuple[Optional[float], Optional[float]]:
+    """The column's declared ``min``/``max``, read the way the fact engine reads them."""
+    try:
+        cols = schema.get_columns(table)
+    except Exception:
+        return None, None
+    for col in cols or []:
+        if getattr(col, "name", None) != column:
+            continue
+        params = getattr(col, "distribution_params", {}) or {}
+        out = []
+        for key in ("min", "max"):
+            v = params.get(key)
+            ok = isinstance(v, (int, float)) and not isinstance(v, bool)
+            out.append(float(v) if ok else None)
+        return out[0], out[1]
+    return None, None
+
+
+def fit_total_within_bounds(
+    values: np.ndarray,
+    target: float,
+    lo: Optional[float],
+    hi: Optional[float],
+    decimals: int = 2,
+) -> Optional[np.ndarray]:
+    """Rescale ``values`` so they sum to ``target`` without leaving ``[lo, hi]``.
+
+    A plain ``values * target / sum`` hits the total but pushes individual
+    rows past the column's declared bounds, because it moves every row by the
+    same factor. This pins any row that reaches a bound and spreads the
+    remainder over the rows that still have room, until the total is met, then
+    settles the last cents one at a time on rows with headroom, so the sum is
+    exact and no row crosses a bound.
+
+    Returns ``None`` when no assignment can satisfy both (``lo * n > target``
+    or ``hi * n < target``); the caller decides which declaration yields.
+    """
+    n = int(values.size)
+    if n == 0:
+        return values
+    lo_v = -np.inf if lo is None else float(lo)
+    hi_v = np.inf if hi is None else float(hi)
+    if lo_v * n > target + 1e-9 or hi_v * n < target - 1e-9:
+        return None
+
+    x = np.asarray(values, dtype=float).copy()
+    total = x.sum()
+    x = x * (target / total) if total > 0 else np.full(n, target / n)
+    for _ in range(100):
+        x = np.clip(x, lo_v, hi_v)
+        residual = target - x.sum()
+        if abs(residual) < 1e-9:
+            break
+        free = (x < hi_v - 1e-12) if residual > 0 else (x > lo_v + 1e-12)
+        if not free.any():
+            break
+        w = x[free] if x[free].sum() > 0 else np.ones(int(free.sum()))
+        x[free] = x[free] + residual * (w / w.sum())
+
+    scale = 10 ** decimals
+    lo_c = -np.inf if lo is None else np.ceil(lo_v * scale - 1e-9)
+    hi_c = np.inf if hi is None else np.floor(hi_v * scale + 1e-9)
+    cents = np.clip(np.floor(x * scale + 1e-9), lo_c, hi_c)
+    short = int(round(target * scale) - cents.sum())
+    if short:
+        step = 1 if short > 0 else -1
+        room = (hi_c - cents) if step > 0 else (cents - lo_c)
+        frac = (x * scale - np.floor(x * scale))
+        order = np.argsort(-frac if step > 0 else frac, kind="stable")
+        remaining = abs(short)
+        while remaining and (room > 0).any():
+            for i in order:
+                if remaining == 0:
+                    break
+                if room[i] > 0:
+                    cents[i] += step
+                    room[i] -= 1
+                    remaining -= 1
+    return cents / scale
+
+
 def apply_group_shares(
     df: pd.DataFrame, spec: Any, schema: Any, rng: np.random.Generator
 ) -> pd.DataFrame:
@@ -132,6 +214,9 @@ def apply_group_shares(
         df[spec.measure], errors="coerce").fillna(0).to_numpy(dtype=float, copy=True)
     groups = df[spec.group_column].astype(object).to_numpy(copy=True)
 
+    lo, hi = _declared_bounds(schema, spec.table, spec.measure)
+    warned_bounds = False
+
     for idx, total in buckets:
         n = idx.size
         if n == 0:
@@ -164,6 +249,21 @@ def apply_group_shares(
             pos += counts[g_i]
             groups[rows] = label
             t = targets[label]
+            if rows.size and (lo is not None or hi is not None):
+                fitted = fit_total_within_bounds(measure[rows], t, lo, hi)
+                if fitted is not None:
+                    measure[rows] = fitted
+                    continue
+                if not warned_bounds:
+                    warned_bounds = True
+                    warnings.warn(
+                        f"group_shares on {spec.table}.{spec.measure}: a "
+                        f"declared share cannot hold inside the column's "
+                        f"declared bounds (min={lo}, max={hi}) for {rows.size} "
+                        f"rows and a target of {t:,.2f}. The exact share takes "
+                        f"precedence, so per-row values will leave the bounds. "
+                        f"Widen the bounds or change the share."
+                    )
             cur = measure[rows].sum()
             if cur > 0:
                 measure[rows] = np.round(measure[rows] * (t / cur), 2)

@@ -475,11 +475,11 @@ _reg(LocalePack(
 # low (≈0.05) for all of them, standing in for mandatory pension /
 # social-security-style contributions on nationals (near-zero for the
 # expat-majority workforce) — not an income tax, which doesn't exist here.
-# Faker has no native ar_QA / ar_KW / ar_OM provider (only ar_AE and ar_BH),
-# so those three fall back to faker_locale="ar_AE" for name/address pools —
-# the closest Gulf Arabic name pool Faker ships — rather than silently
-# dropping to en_US, which is what LocaleRegistry.get_faker would otherwise
-# do on an unrecognised Faker locale.
+# Faker's ar_AE and ar_BH providers carry no Arabic person names (they fall
+# back to English), and ar_QA / ar_KW / ar_OM do not exist at all, so the
+# faker_locale below only supplies address-shaped fallbacks. Person names for
+# all five come from misata/locales/gulf_names.py, which the registry installs
+# over the Faker instance.
 
 # ── Qatar ─────────────────────────────────────────────────────────────────────
 _lm, _ls = _lognorm(149_000)
@@ -487,7 +487,7 @@ _reg(LocalePack(
     locale_code="ar_QA",
     country_name="Qatar",
     language="Arabic",
-    faker_locale="ar_AE",   # no native ar_QA provider
+    faker_locale="ar_AE",   # names: locales/gulf_names.py
     currency_code="QAR",
     currency_symbol="﷼",
     salary_min=37_000,
@@ -525,7 +525,7 @@ _reg(LocalePack(
     locale_code="ar_AE",
     country_name="United Arab Emirates",
     language="Arabic",
-    faker_locale="ar_AE",   # native provider
+    faker_locale="ar_AE",   # names: locales/gulf_names.py
     currency_code="AED",
     currency_symbol="د.إ",
     salary_min=40_000,
@@ -562,7 +562,7 @@ _reg(LocalePack(
     locale_code="ar_KW",
     country_name="Kuwait",
     language="Arabic",
-    faker_locale="ar_AE",   # no native ar_KW provider
+    faker_locale="ar_AE",   # names: locales/gulf_names.py
     currency_code="KWD",
     currency_symbol="د.ك",
     salary_min=3_600,
@@ -596,7 +596,7 @@ _reg(LocalePack(
     locale_code="ar_BH",
     country_name="Bahrain",
     language="Arabic",
-    faker_locale="ar_BH",   # native provider
+    faker_locale="ar_BH",   # names: locales/gulf_names.py
     currency_code="BHD",
     currency_symbol=".د.ب",
     salary_min=1_700,
@@ -631,7 +631,7 @@ _reg(LocalePack(
     locale_code="ar_OM",
     country_name="Oman",
     language="Arabic",
-    faker_locale="ar_AE",   # no native ar_OM provider
+    faker_locale="ar_AE",   # names: locales/gulf_names.py
     currency_code="OMR",
     currency_symbol="ر.ع.",
     salary_min=1_100,
