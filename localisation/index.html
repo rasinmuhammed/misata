@@ -3171,7 +3171,7 @@ code.</p>
 </code></pre></div>
 <h2 id="what-locale-affects">What locale affects</h2>
 <ul>
-<li><strong>Names</strong>: Faker locale pool (<code>de_DE</code> Faker generates German names, <code>ja_JP</code> generates Japanese names)</li>
+<li><strong>Names</strong>: Faker locale pool (<code>de_DE</code> Faker generates German names, <code>ja_JP</code> generates Japanese names). The Gulf locales (<code>ar_QA</code>, <code>ar_AE</code>, <code>ar_KW</code>, <code>ar_BH</code>, <code>ar_OM</code>) use curated Arabic-script name pools with family names specific to each country, because Faker only ships Arabic person names for <code>ar_SA</code>. Names are Arabic script while cities stay in Latin script, so a Gulf table is mixed-script by default</li>
 <li><strong>Salary &amp; age distributions</strong>: lognormal/normal priors from national statistics replace the en_US defaults</li>
 <li><strong>Postcodes</strong>: pattern-generated to match the country format (e.g. 5 digits for DE, <code>SW1A 1AA</code> format for GB)</li>
 <li><strong>National IDs</strong>: pattern-generated to match country format (CPF, SSN, Aadhaar, etc.)</li>
