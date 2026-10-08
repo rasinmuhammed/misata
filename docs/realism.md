@@ -68,11 +68,9 @@ skeleton twice at sentence length, while slot-filling templates do on every
 row.
 
 These checks are strict. Misata's own text passes the repetition and context
-checks for every kind, and `text_diversity` for reviews, ticket text, notes,
-feedback, audit reasons, posts, captions, email subjects and bios. Product
-descriptions, clinical text, delivery instructions and churn, cancellation
-and return reasons still warn on `text_diversity` (gzip 4.0-4.9x at 2,000
-rows); see [LIMITATIONS](https://github.com/rasinmuhammed/misata/blob/main/LIMITATIONS.md).
+checks for every kind, and `text_diversity` for every kind except chief
+complaints (gzip about 4.2x at 2,000 rows): seven-word triage fragments,
+which real triage text does not beat either; see [LIMITATIONS](https://github.com/rasinmuhammed/misata/blob/main/LIMITATIONS.md).
 Skip `text_diversity` when the vocabulary does not matter to you, for example
 in UI fixtures.
 

@@ -29,13 +29,11 @@ bug worth reporting.
   does not repeat itself: every kind passes the exact-duplicate, skeleton and
   near-copy checks. On vocabulary, measured by `realism_report` at 2,000 rows
   (real text compresses under 3x under gzip; the check warns above 4x):
-  reviews, review titles, ticket text, notes, survey feedback, audit reasons,
-  post titles and bodies, captions, email subjects and bios pass. Still above
-  4x: churn, cancellation and return reasons (4.0-4.3), clinical notes (about
-  4.1), product descriptions (4.3-4.5), delivery instructions (about 4.7),
-  chief complaints (about 4.8) and discharge instructions (about 4.9, with
-  34% distinct trigrams). Short, formulaic fields are the hardest to vary
-  without inventing content. A reader skimming rows will not notice; a
+  every kind passes except chief complaints, which compress about 4.2x. They
+  are seven-word triage fragments, and real triage text is at least as
+  repetitive, so there is no real reference to calibrate that kind against.
+  Several kinds pass with little margin (3.9-4.0x): product descriptions,
+  delivery instructions, discharge instructions, churn reasons and bios. A reader skimming rows will not notice; a
   classifier trained on word n-grams still could. Closing the rest needs
   larger phrase banks or a language model in the data path; Misata keeps
   generation deterministic, seedable and offline instead.

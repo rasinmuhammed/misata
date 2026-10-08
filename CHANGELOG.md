@@ -174,10 +174,9 @@ New free-text tells in `realism_report`:
 Thresholds come from a local calibration on seven real English corpora at
 2,000 rows each, and sit well outside every one of them. They are strict on
 purpose. Misata's own text passes the repetition and context checks for every
-kind, and `text_diversity` for reviews, ticket text, notes, feedback, audit
-reasons, posts, captions, email subjects and bios. Product descriptions,
-clinical text, delivery instructions and churn, cancellation and return
-reasons still compress 4.0-4.9x (real text: under 3x); see LIMITATIONS.md.
+kind, and `text_diversity` for every kind but chief complaints (about 4.2x),
+short triage fragments with no real reference to calibrate against; see
+LIMITATIONS.md.
 
 ### Realism report: the statistical tells of generated data
 
