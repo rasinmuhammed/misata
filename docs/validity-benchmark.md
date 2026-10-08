@@ -22,6 +22,13 @@ Each schema is generated two ways:
 - **`faker_script`**: the script people usually write instead. One Faker or
   NumPy call per column, foreign keys drawn uniformly from the parent ids,
   CHECK clauses not read.
+- **`sdv_hma`**: SDV 1.38's multi-table model (HMA), used the way it is
+  meant to be: fitted on a valid sample of the same schema (Misata's output
+  under another seed, checked to have zero violations), told every primary
+  and foreign key, and sampled at the same size. It is not given the CHECK
+  clauses: SDV enforces those only when each one is re-declared as an SDV
+  constraint, which is not what most users do. Optional; it runs only when
+  `sdv` is installed.
 
 The checker restates every rule in plain pandas and shares no code with
 Misata, so a pass is not Misata grading itself. It counts duplicate primary
@@ -40,19 +47,32 @@ python benchmarks/validity_bench.py
 
 | Schema | Generator | Rows | pk duplicates | fk orphans | nulls | unique duplicates | enum violations | range violations | check violations | cycles | Total | Seconds |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| saas_billing | misata_from_ddl | 35,000 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 1.1 |
-| saas_billing | faker_script | 35,000 | 0 | 0 | 0 | 211 | 32,957 | 1,495 | 1,487 | 0 | **36,150** | 1.79 |
-| org_chart | misata_from_ddl | 5,040 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.05 |
-| org_chart | faker_script | 5,040 | 0 | 0 | 0 | 52 | 0 | 9,962 | 0 | 5,000 | **15,014** | 0.58 |
-| marketplace_m2m | misata_from_ddl | 35,785 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.12 |
+| saas_billing | misata_from_ddl | 35,000 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 1.25 |
+| saas_billing | faker_script | 35,000 | 0 | 0 | 0 | 211 | 32,957 | 1,495 | 1,487 | 0 | **36,150** | 1.09 |
+| saas_billing | sdv_hma | — | — | — | — | — | — | — | — | — | could not run: SynthesizerInputError: HMASynthesizer is not designed to handle a schema with more than 5 tables or relationship depth greater than 2. | 0 |
+| org_chart | misata_from_ddl | 5,040 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.03 |
+| org_chart | faker_script | 5,040 | 0 | 0 | 0 | 52 | 0 | 9,962 | 0 | 5,000 | **15,014** | 0.34 |
+| org_chart | sdv_hma | 5,040 | 0 | 4,736 | 0 | 71 | 0 | 0 | 0 | 0 | **4,807** | 6.33 |
+| marketplace_m2m | misata_from_ddl | 35,785 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.14 |
 | marketplace_m2m | faker_script | 37,060 | 97 | 0 | 0 | 2,115 | 0 | 38,622 | 1,553 | 0 | **42,387** | 0.04 |
-| hotel_bookings | misata_from_ddl | 32,300 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.28 |
-| hotel_bookings | faker_script | 32,300 | 0 | 0 | 0 | 324 | 20,000 | 20,207 | 9,885 | 0 | **50,416** | 1.92 |
-| retail_chain_6_levels | misata_from_ddl | 45,836 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.23 |
-| retail_chain_6_levels | faker_script | 45,836 | 0 | 0 | 0 | 0 | 23,975 | 50 | 0 | 0 | **24,025** | 0.36 |
+| marketplace_m2m | sdv_hma | 35,799 | 155 | 0 | 0 | 5,292 | 0 | 0 | 110 | 0 | **5,557** | 469.64 |
+| hotel_bookings | misata_from_ddl | 32,300 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.17 |
+| hotel_bookings | faker_script | 32,300 | 0 | 0 | 0 | 324 | 20,000 | 20,207 | 9,885 | 0 | **50,416** | 1.1 |
+| hotel_bookings | sdv_hma | 32,300 | 0 | 0 | 0 | 404 | 0 | 0 | 2,651 | 0 | **3,055** | 660.02 |
+| retail_chain_6_levels | misata_from_ddl | 45,836 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **0** | 0.15 |
+| retail_chain_6_levels | faker_script | 45,836 | 0 | 0 | 0 | 0 | 23,975 | 50 | 0 | 0 | **24,025** | 0.27 |
+| retail_chain_6_levels | sdv_hma | — | — | — | — | — | — | — | — | — | could not run: SynthesizerInputError: HMASynthesizer is not designed to handle a schema with more than 5 tables or relationship depth greater than 2. | 0 |
 
-Misata reports zero violations on every schema. Two things it costs, stated
-plainly:
+Misata reports zero violations on every schema. SDV's multi-table model,
+trained on valid data, still breaks rules it was never told: composite keys
+(5,292 repeated `(order_id, line_no)` pairs), `check_out > check_in` (2,651
+stays) and the manager hierarchy (4,736 `manager_id` values pointing at no
+employee, because HMA does not model self-references). Its open-source
+version refuses two of the five schemas outright (more than five tables, or
+foreign keys more than two levels deep), and took 8 to 11 minutes to fit the
+two it could, where Misata takes under two seconds.
+
+Two things Misata's result costs, stated plainly:
 
 - **Composite keys can shorten a table.** Where a composite key cannot be
   made unique by renumbering (a junction table of two foreign keys), repeated

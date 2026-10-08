@@ -200,7 +200,7 @@ frames = misata.to_polars(tables)                             # json/array -> st
 
 ## 6. Guarantees, and the evidence for them
 
-- **Valid by construction**: zero foreign-key orphans, primary-key or UNIQUE duplicates, NULLs in NOT NULL columns, CHECK violations or self-reference cycles on five DDL schemas, counted by an independent pandas checker (`python -m benchmarks.validity_bench`); the per-column Faker script has 15,000 to 50,000 violations per schema.
+- **Valid by construction**: zero foreign-key orphans, primary-key or UNIQUE duplicates, NULLs in NOT NULL columns, CHECK violations or self-reference cycles on five DDL schemas, counted by an independent pandas checker (`python -m benchmarks.validity_bench`); the per-column Faker script has 15,000 to 50,000 violations per schema, and SDV's multi-table model trained on valid data has 3,000 to 5,600 on the three schemas it accepts.
 - **Topological insertion order**: parents are generated and inserted before children; seeding a database runs in one transaction.
 - **Outcome conformance**: declared curves, rates, shares, roll-ups, lifecycles and ledger identities hold exactly and are re-checked from the rows by `misata audit`.
 - **No LLM in the row path**: offline, no token cost.

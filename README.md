@@ -150,8 +150,10 @@ column of noise.
 **Does it obey the schema?** On five SQL schemas with CHECK rules,
 composite keys, a self-referencing hierarchy and a six-level foreign-key
 chain, Misata generated from the DDL alone has zero violations; the Faker
-script people write instead has 15,000 to 50,000 per schema, counted by a
-checker that shares no code with Misata
+script people write instead has 15,000 to 50,000 per schema, and SDV's
+multi-table model, trained on valid data, has 3,000 to 5,600 on the three
+schemas it accepts (it refuses the other two). Counted by a checker that
+shares no code with Misata
 ([validity benchmark](https://github.com/rasinmuhammed/misata/blob/main/docs/validity-benchmark.md)).
 
 **How realistic is it?** We test blind generation against held-out real data

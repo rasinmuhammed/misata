@@ -80,7 +80,8 @@ and integrity hold as before. Pin `misata==0.9.6.60` to keep old bytes.
 self-referencing hierarchy, a six-level FK chain) and counts violations with
 a pandas checker that shares no code with Misata. Misata 0.9.7 has zero on
 all five; the Faker script people write instead has 15,000 to 50,000 per
-schema. See `docs/validity-benchmark.md`. Writing it found and fixed:
+schema, and SDV's multi-table model trained on valid data has 3,000 to 5,600
+on the three schemas it accepts. See `docs/validity-benchmark.md`. Writing it found and fixed:
 
 - `from_ddl` dropped self-referencing foreign keys (`manager_id REFERENCES
   employees(id)`), so the column was random integers full of cycles. It now

@@ -386,7 +386,9 @@ def run(seed: int = 7) -> Dict:
                 try:
                     tables = fn(case, seed)
                 except Exception as exc:  # a baseline that cannot run is reported, not hidden
-                    results.setdefault(case.name, {})[name] = {"error": f"{type(exc).__name__}: {exc}"[:200]}
+                    msg = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
+                    results.setdefault(case.name, {})[name] = {"error": f"{type(exc).__name__}: {msg}"[:160],
+                                                               "seconds": round(time.time() - t0, 2)}
                     continue
             secs = time.time() - t0
             v = check(case, tables)
@@ -404,7 +406,8 @@ def to_markdown(results: Dict) -> str:
     for case, by in results.items():
         for name, r in by.items():
             if "error" in r:
-                lines.append(f"| {case} | {name} | could not run: {r['error']} |" + " |" * (len(keys) + 2))
+                lines.append(f"| {case} | {name} | — | " + " | ".join("—" for _ in keys)
+                             + f" | could not run: {r['error'].replace('|', '/')} | {r['seconds']} |")
                 continue
             lines.append(f"| {case} | {name} | {r['rows']:,} | "
                          + " | ".join(f"{r['violations'][k]:,}" for k in keys)

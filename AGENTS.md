@@ -63,7 +63,9 @@ reproduces it.
 
 - **Valid by construction.** On five DDL schemas, zero violations of keys,
   CHECK rules, UNIQUE, NOT NULL and self-reference trees, against 15,000 to
-  50,000 per schema for the per-column Faker script.
+  50,000 per schema for the per-column Faker script and 3,000 to 5,600 for
+  SDV's multi-table model trained on valid data (which refuses two of the
+  five schemas).
 - **Realistic without data, within limits.** Blind e-commerce data comes
   close to a model trained on the real data (detection AUC about 0.74
   against SDV's 0.71 on Olist; 0.5 is indistinguishable). On taxi trips,

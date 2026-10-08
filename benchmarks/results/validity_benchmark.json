@@ -1,0 +1,228 @@
+{
+  "saas_billing": {
+    "misata_from_ddl": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 0,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 0,
+        "cycles": 0
+      },
+      "total": 0,
+      "rows": 35000,
+      "seconds": 1.25
+    },
+    "faker_script": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 211,
+        "enum_violations": 32957,
+        "range_violations": 1495,
+        "check_violations": 1487,
+        "cycles": 0
+      },
+      "total": 36150,
+      "rows": 35000,
+      "seconds": 1.09
+    },
+    "sdv_hma": {
+      "error": "SynthesizerInputError: HMASynthesizer is not designed to handle a schema with more than 5 tables or relationship depth greater than 2.",
+      "seconds": 0
+    }
+  },
+  "org_chart": {
+    "misata_from_ddl": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 0,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 0,
+        "cycles": 0
+      },
+      "total": 0,
+      "rows": 5040,
+      "seconds": 0.03
+    },
+    "faker_script": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 52,
+        "enum_violations": 0,
+        "range_violations": 9962,
+        "check_violations": 0,
+        "cycles": 5000
+      },
+      "total": 15014,
+      "rows": 5040,
+      "seconds": 0.34
+    },
+    "sdv_hma": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 4736,
+        "nulls": 0,
+        "unique_duplicates": 71,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 0,
+        "cycles": 0
+      },
+      "total": 4807,
+      "rows": 5040,
+      "seconds": 6.33
+    }
+  },
+  "marketplace_m2m": {
+    "misata_from_ddl": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 0,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 0,
+        "cycles": 0
+      },
+      "total": 0,
+      "rows": 35785,
+      "seconds": 0.14
+    },
+    "faker_script": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 97,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 2115,
+        "enum_violations": 0,
+        "range_violations": 38622,
+        "check_violations": 1553,
+        "cycles": 0
+      },
+      "total": 42387,
+      "rows": 37060,
+      "seconds": 0.04
+    },
+    "sdv_hma": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 155,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 5292,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 110,
+        "cycles": 0
+      },
+      "total": 5557,
+      "rows": 35799,
+      "seconds": 469.64
+    }
+  },
+  "hotel_bookings": {
+    "misata_from_ddl": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 0,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 0,
+        "cycles": 0
+      },
+      "total": 0,
+      "rows": 32300,
+      "seconds": 0.17
+    },
+    "faker_script": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 324,
+        "enum_violations": 20000,
+        "range_violations": 20207,
+        "check_violations": 9885,
+        "cycles": 0
+      },
+      "total": 50416,
+      "rows": 32300,
+      "seconds": 1.1
+    },
+    "sdv_hma": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 404,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 2651,
+        "cycles": 0
+      },
+      "total": 3055,
+      "rows": 32300,
+      "seconds": 660.02
+    }
+  },
+  "retail_chain_6_levels": {
+    "misata_from_ddl": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 0,
+        "enum_violations": 0,
+        "range_violations": 0,
+        "check_violations": 0,
+        "cycles": 0
+      },
+      "total": 0,
+      "rows": 45836,
+      "seconds": 0.15
+    },
+    "faker_script": {
+      "violations": {
+        "missing_tables": 0,
+        "pk_duplicates": 0,
+        "fk_orphans": 0,
+        "nulls": 0,
+        "unique_duplicates": 0,
+        "enum_violations": 23975,
+        "range_violations": 50,
+        "check_violations": 0,
+        "cycles": 0
+      },
+      "total": 24025,
+      "rows": 45836,
+      "seconds": 0.27
+    },
+    "sdv_hma": {
+      "error": "SynthesizerInputError: HMASynthesizer is not designed to handle a schema with more than 5 tables or relationship depth greater than 2.",
+      "seconds": 0
+    }
+  }
+}
