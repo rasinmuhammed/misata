@@ -1,6 +1,8 @@
 """
 CSV/DataFrame profiler — infers column distributions and generates a
-matching SchemaConfig so Misata can produce privacy-safe synthetic twins.
+matching SchemaConfig so Misata can produce synthetic twins. A twin learns
+its marginals and correlations from the real rows, so it is not anonymous:
+rare values and small groups can come back as they were.
 
 Usage::
 
@@ -626,12 +628,15 @@ def mimic(
     table_name: str = "table",
 ) -> Dict[str, pd.DataFrame]:
     """
-    Generate a privacy-safe synthetic twin of a CSV file or DataFrame.
+    Generate a synthetic twin of a CSV file or DataFrame.
+
+    The twin is fitted to the real rows and is not a privacy guarantee.
 
     Misata analyzes every column's statistical fingerprint — distribution
     shape, cardinality, value range, semantic type — and produces a fresh
-    dataset that matches the original's structure without reusing any real
-    values.
+    dataset with the original's structure, distributions and correlations.
+    Category values and the sample's quantiles are reused, so the twin is not
+    anonymous; see docs/guides/mimic.md.
 
     Parameters
     ----------

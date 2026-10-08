@@ -56,6 +56,11 @@ and integrity hold as before. Pin `misata==0.9.6.60` to keep old bytes.
 
 ### Breaking
 
+- `CopulaGenerator` is Misata's own NumPy Gaussian copula and the
+  `[advanced]` extra no longer installs SDV, which is under the Business
+  Source License. The API (`fit`, `sample`, `get_quality_report`) is the
+  same; `sample` takes an optional `seed`, and the quality report uses
+  KS/total-variation column shapes and rank-correlation pair trends.
 - Dict-schema types `object`, `json`, `jsonb`, `array` and `list` are now
   nested columns and need `fields` (objects) or take `items` (arrays); they
   used to be generated as text.
@@ -67,6 +72,19 @@ and integrity hold as before. Pin `misata==0.9.6.60` to keep old bytes.
   was unreachable under the old name).
 - `poisson` and `binomial` on a float column raise (they were uniform).
 
+
+### Claims Misata no longer makes
+
+- `mimic` twins are no longer called "privacy-safe". A twin is fitted to real
+  rows, reuses their categories and quantiles, and is not anonymous; the
+  mimic guide now says so and points to differential privacy for data that
+  must not leak.
+- Domain pages no longer say "GDPR-safe" or "HIPAA-safe by design". They
+  state the fact instead: data generated from a schema or story involves no
+  real records.
+- `domain_priors.py` no longer claims its sources are all CC0. The priors
+  are hand-set parameters; Olist (CC BY-NC-SA) was used to check one shape
+  and is an evaluation set only. DATA-PROVENANCE.md lists this.
 
 ### Text realism: one story per row
 

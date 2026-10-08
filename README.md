@@ -224,7 +224,7 @@ Misata is built for engineers, testers, data teams, and founders across dozens o
 - **Payment Remittance**: Simulate SWIFT, ACH, and card transactions with valid routing numbers, CVVs, and statement descriptors.
 
 ### 🏥 Healthcare & Clinical Informatics
-- **HIPAA Safe-Harbor Synthetic Cohorts**: Generate realistic patient populations, vital signs, and encounter histories with zero PHI liability.
+- **Synthetic patient cohorts**: Generate realistic patient populations, vital signs, and encounter histories from a schema, with no real patient record involved.
 - **Clinical NLP Model Evaluation**: Evaluate healthcare LLMs against authentic SOAP notes, chief complaints, and discharge summaries.
 - **Ward & Scheduling Simulation**: Simulate hospital appointment grids with realistic 15-minute intervals, business hours, and weekend dips.
 
@@ -236,7 +236,7 @@ Misata is built for engineers, testers, data teams, and founders across dozens o
 ### 🛡️ Cybersecurity & IT Infrastructure
 - **Network Intrusion Datasets**: Generate netflow logs, port scans, and DDoS traffic patterns for security tool benchmarking.
 - **System Exception & Error Analysis**: Populate observability dashboards with realistic deadlocks, HTTP 504 timeouts, and connection pool exhaustion logs.
-- **Compliance Audit Logging**: Simulate SOC2/HIPAA access logs with documented managerial access override justifications.
+- **Compliance Audit Logging**: Simulate SOC2- and HIPAA-style access logs with documented managerial access override justifications.
 
 ### 🔬 Machine Learning & Statistical Research
 - **Synthetic Twins from CSV (`misata.mimic`)**: Clone distributions and correlations from sensitive CSVs without copying a single original row.
@@ -311,7 +311,7 @@ For in-depth guides, API references, and architecture deep dives:
 - **[AI Agent MCP Server Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/mcp.md)**: Setup and tool reference for Cursor, Claude Code, and Windsurf.
 - **[Outcome Curves & Seasonality](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/outcome_curves.md)**: Mathematical specification of revenue and growth curves.
 - **[Database Seeding in Python](https://misata.studio/docs/database-seeding-python)**: Introspecting and seeding production databases.
-- **[Mimic Mode Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/mimic.md)**: Generating privacy-safe synthetic twins from CSVs.
+- **[Mimic Mode Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/mimic.md)**: Synthetic twins of a CSV, and why a twin is not anonymous.
 - **[Export Formats](https://misata.studio/docs/export)**: Exporting to DuckDB, Apache Parquet, Arrow IPC, and ANSI/Postgres SQL.
 - **[Apache Spark & Databricks](https://github.com/rasinmuhammed/misata/blob/main/docs/spark.md)**: Scaling synthetic generation across distributed Spark clusters.
 - **[Full Schema Declarations Reference](https://github.com/rasinmuhammed/misata/blob/main/docs/reference/declarations.md)**: Complete parameter reference for every column type and constraint.

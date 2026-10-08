@@ -76,3 +76,20 @@ it contains no third-party records to encumber it. Wikidata-derived
 vocabulary values are CC0. City population weights contain data from
 GeoNames (https://www.geonames.org), licensed under CC BY 4.0; the weights
 shape the distribution of generated rows and are not copied into them.
+
+Domain priors (`misata/domain_priors.py`) are hand-set distribution families
+and parameters, not data: the order-value shape was checked against the Olist
+dataset (CC BY-NC-SA 4.0), which is used only as an evaluation set and is
+never bundled, and the realism benchmark labels Olist as tuned-on rather than
+blind. No runtime dependency is under a non-open-source licence: the Gaussian
+copula behind `CopulaGenerator` is Misata's own NumPy code (it used to wrap
+SDV, which is under the Business Source License). SDV appears only as an
+optional baseline in `benchmarks/`.
+
+## Fitting to real data is not anonymisation
+
+`misata.mimic()` and `CopulaGenerator.fit()` learn from real rows. Their
+output reuses category values and the sample's quantiles, so it is not
+anonymous and carries no privacy guarantee; see `docs/guides/mimic.md`.
+Everything generated from a schema or story, with no real rows given,
+contains no third-party records.

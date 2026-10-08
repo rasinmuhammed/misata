@@ -238,7 +238,7 @@ assert (~orders["customer_id"].isin(customers["customer_id"])).sum() == 0
 | You want to… | Use |
 |---|---|
 | Generate fake names/emails/addresses for a form or test fixture | **Faker** |
-| Create a privacy-safe copy of your production database | **SDV** |
+| Create a statistical copy of your production database (use DP if it must be private) | **SDV** |
 | Build a realistic multi-table dataset from scratch (no real data) | **Misata** |
 | Seed a test database with consistent relational data | **Misata** |
 | Pin exact KPIs (fraud rate, churn %, MRR targets) in generated data | **Misata** |

@@ -216,7 +216,7 @@ When confidence is low, **say so** instead of guessing:
 For any input, Misata picks the **highest tier that applies** and reports it:
 
 ```
-exact CSV sample?        → T5 mimic            (highest fidelity, privacy-safe twin)
+exact CSV sample?        → T5 mimic            (highest fidelity; fitted to real rows, not anonymous)
 matching capsule?        → T1/T4 capsule        (domain-recognisable values)
 known keyword domain?    → T1 priors            (tuned schema + distributions)
 LLM key + niche story?   → T4 LLM + cache       (open-ended, then frozen)

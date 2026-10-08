@@ -7,12 +7,16 @@ automatically by the semantic inference layer when a column name matches
 a known semantic role — so ``mrr`` in a SaaS schema uses lognormal rather
 than normal, and ``order_amount`` in ecommerce gets a power-law tail.
 
-Sources used for fitting (all CC0 / public domain on Kaggle):
-  - Brazilian E-Commerce Public Dataset by Olist  (ecommerce order values)
-  - SaaS Metrics Dataset  (MRR, churn rates)
-  - NYC Taxi Trip Duration  (session / duration columns)
-  - Superstore Sales Dataset  (retail sales amounts, discounts)
-  - HR Analytics Dataset  (salary, tenure, age distributions)
+Each entry is a distribution family and two or three parameters, set by
+hand. No rows, tables or fitted files from any dataset ship with Misata. The
+shapes were checked against public datasets, which are used only for
+comparison and evaluation, never redistributed:
+  - Brazilian E-Commerce Public Dataset by Olist (CC BY-NC-SA 4.0): order
+    values. Because the ecommerce shape was checked against Olist, the
+    realism benchmark reports Olist as a tuned-on dataset, not a blind one.
+  - NYC TLC trip records (public): session and duration columns.
+  - Kaggle SaaS, Superstore and HR analytics samples (licences vary): MRR,
+    churn, sales, discount, salary, tenure and age shapes.
 
 The structure per entry is the same as ``Column.distribution_params``:
   distribution: str        — one of normal, lognormal, power_law, exponential, beta, uniform
@@ -110,7 +114,7 @@ _PRIORS: Dict[str, Dict[str, Dict[str, Any]]] = {
     # ── E-commerce ──────────────────────────────────────────────────────────
     "ecommerce": {
         "order_amount": {
-            # Olist dataset: median ~$100, heavy right tail
+            # median about $80, heavy right tail (checked against Olist)
             "distribution": "lognormal", "mu": 4.4, "sigma": 0.9,
             "min": 1.0, "decimals": 2,
         },

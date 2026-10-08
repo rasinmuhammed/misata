@@ -67,7 +67,7 @@ print(items.groupby("category")["unit_price"].sum().sort_values(ascending=False)
 - **Warehouse / fulfillment system testing**: validate shipment tracking logic against thousands of orders in all status states
 - **Fraud detection training data**: combine with `anomaly_rate` to inject outlier transactions for classifier training
 - **A/B test simulation**: generate two cohorts with different discount rates and measure the impact on order volume
-- **GDPR-safe data exports**: replace real customer PII with synthetic equivalents that preserve statistical properties for analytics
+- **Exports with no real customers**: share a generated customer base with vendors and analysts instead of real customer records
 
 ## Advanced: seasonal narrative curves
 

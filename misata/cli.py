@@ -1161,7 +1161,7 @@ def serve(port: int, host: str) -> None:
 @click.option("--seed", type=int, default=None, help="Random seed")
 def mimic(source: str, rows: Optional[int], output: str, seed: Optional[int]) -> None:
     """
-    Generate a privacy-safe synthetic twin of a CSV file.
+    Generate a synthetic twin of a CSV file (not a privacy guarantee).
 
     Misata profiles every column's distribution, cardinality, and semantic
     type, then produces a fresh dataset that matches the structure without
