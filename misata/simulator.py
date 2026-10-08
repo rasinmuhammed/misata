@@ -204,6 +204,26 @@ class GenerationResult:
 _MISSING = object()
 
 
+def _truncate_text(values: np.ndarray, max_len: int) -> np.ndarray:
+    """Cut strings longer than ``max_len``, at a word boundary when one is
+    close, so a VARCHAR(40) column holds 40 characters of its sentence rather
+    than failing the insert."""
+    arr = np.asarray(values, dtype=object)
+    lengths = np.fromiter((len(v) if isinstance(v, str) else 0 for v in arr),
+                          dtype=np.int64, count=len(arr))
+    long = lengths > max_len
+    if not long.any():
+        return values
+    out = arr.copy()
+    for i in np.flatnonzero(long):
+        cut = out[i][:max_len]
+        space = cut.rfind(" ")
+        if space >= max_len * 0.6:
+            cut = cut[:space]
+        out[i] = cut.rstrip(" ,;:-")
+    return out
+
+
 class DataSimulator:
     """
     High-performance synthetic data simulator.
@@ -250,6 +270,9 @@ class DataSimulator:
         # patching every parser separately. See repair_curve_time_columns's
         # docstring for the bug this closes.
         repair_curve_time_columns(config)
+        if getattr(config, "preset", None):
+            from misata.presets import apply_preset
+            config = apply_preset(config, config.preset)
         validate_schema(config)
 
 
@@ -503,6 +526,72 @@ class DataSimulator:
         provenances = capsule.provenance.get(key, [])
         if any(getattr(p, "source_name", "") != "misata-defaults" for p in provenances):
             return values
+        return None
+
+    _PROSE_NAME_RE = re.compile(
+        r"(^|_)(description|desc|summary|body|subject|review|reviews|resolution|feedback|"
+        r"comment|comments|bio|about|message|details|notes?|address|street)(_|$)|"
+        r"^(review_title|review_text|ticket_title)$")
+    _PRODUCT_TABLE_RE = re.compile(r"product|item|listing|catalog|sku|inventory|merchandise")
+
+    def _prose_last(self, table_name: str, columns):
+        """Generation order with prose after the columns it describes.
+
+        A review is written about a rating, a ticket's subject about its
+        category, priority and status, a product name about its category, an
+        address in its row's city and country. Generating prose last gives
+        each text generator the row it belongs to, whatever order the schema
+        lists columns in. Output column order is unaffected, and anchored
+        generation keeps every column's own random stream, so reordering
+        changes no other column."""
+        late, early = [], []
+        is_product = bool(self._PRODUCT_TABLE_RE.search(table_name.lower()))
+        for c in columns:
+            p = c.distribution_params or {}
+            n = c.name.lower()
+            text_like = c.type == "text" and not p.get("choices") and not p.get("pattern")
+            prose = bool(self._PROSE_NAME_RE.search(n))
+            product_name = is_product and n in ("name", "title", "product_name", "item_name",
+                                                "product_title", "listing_title")
+            (late if text_like and (prose or product_name) else early).append(c)
+        # Country before city before address: a city is drawn from its row's
+        # country, so a bio or an address written later agrees with both.
+        def geo_rank(c):
+            n = c.name.lower()
+            if n == "country" or n.endswith("_country"):
+                return 0
+            if n in ("state", "province", "region") or n.endswith("_state"):
+                return 1
+            return 2
+        early = sorted(early, key=geo_rank)
+        return early + late
+
+    def _parent_text_context(self, table_name: str, table_data, size: int):
+        """Each row's FK parent name and category, for prose that should name
+        what it is about (a review naming its product)."""
+        if table_data is None or getattr(table_data, "empty", True):
+            return None
+        for rel in self.config.relationships:
+            if rel.child_table != table_name or rel.child_key not in table_data.columns:
+                continue
+            parent = self.context.get(rel.parent_table)
+            if parent is None or rel.parent_key not in parent.columns:
+                continue
+            name_col = next((c for c in ("product_name", "name", "title", "item_name",
+                                         "service_name", "plan_name", "listing_title")
+                             if c in parent.columns), None)
+            if name_col is None:
+                continue
+            idx = parent.drop_duplicates(rel.parent_key).set_index(rel.parent_key)
+            keys = table_data[rel.child_key].values[:size]
+            names = pd.Series(keys).map(idx[name_col]).tolist()
+            cats = (pd.Series(keys).map(idx["category"]).tolist()
+                    if "category" in idx.columns else None)
+            names = ["" if v is None or (isinstance(v, float) and np.isnan(v)) else str(v)
+                     for v in names]
+            if sum(1 for v in names if v) < max(1, len(names) // 2):
+                continue
+            return {"name": names, "category": cats, "table": rel.parent_table}
         return None
 
     @staticmethod
@@ -1086,6 +1175,52 @@ class DataSimulator:
                      c_codes)
         return values, eligibility, partition
 
+    def _fk_popularity_weights(
+        self,
+        relationship: Relationship,
+        parent_ids: np.ndarray,
+        sampling: str,
+        params: Dict[str, Any],
+    ) -> np.ndarray:
+        """A fixed popularity weight per parent, keyed by the parent's ID.
+
+        Real fan-out is concentrated: a few customers place most orders and a
+        few products take most sales. Uniform assignment gives every parent
+        about the same number of children, one of the clearest tells of
+        generated data. Each parent's weight comes from a hash of its ID (and
+        the seed), so it is the same in every batch and under any filter on
+        the parent set, and it draws nothing from the main RNG stream.
+
+        ``auto`` (default) is lognormal with ``popularity_sigma`` (1.1 gives a
+        children-per-parent Gini near 0.55). ``pareto`` keeps its documented
+        ``alpha`` shape.
+        """
+        ids = np.asarray(parent_ids)
+        cache = self.__dict__.setdefault("_fk_weight_cache", {})
+        ckey = (relationship.parent_table, relationship.parent_key, sampling,
+                params.get("alpha"), params.get("popularity_sigma"))
+        hit = cache.get(ckey)
+        if hit is not None and len(hit[0]) == len(ids) and np.array_equal(hit[0], ids):
+            return hit[1]
+        key = (f"{self.config.seed or 0}:{relationship.parent_table}."
+               f"{relationship.parent_key}")
+        hash_key = f"{zlib.crc32(key.encode()):016d}"[:16]
+        h = pd.util.hash_array(ids.astype(str) if ids.dtype == object else ids,
+                               hash_key=hash_key)
+        u = (h >> np.uint64(11)).astype(np.float64) / float(1 << 53)
+        u = np.clip(u, 1e-12, 1 - 1e-12)
+        if sampling == "pareto":
+            alpha = max(float(params.get("alpha", 1.5)), 0.1)
+            weights = np.power(1.0 - u, -1.0 / alpha)
+        else:
+            from scipy.special import ndtri
+            sigma = max(float(params.get(
+                "popularity_sigma",
+                self._default_popularity_sigma(relationship.parent_table))), 0.0)
+            weights = np.exp(sigma * ndtri(u))
+        cache[ckey] = (ids, weights)
+        return weights
+
     def _ensure_min_children(
         self,
         values: np.ndarray,
@@ -1118,28 +1253,53 @@ class DataSimulator:
         from inside its own partition.
         """
         min_children = int(getattr(relationship, "min_children", 0) or 0)
+        if min_children <= 0 and self._partitions_downstream(relationship):
+            # This key partitions a relationship below it (orgs.tenant_id
+            # partitions users -> orgs), so a tenant with no org strands its
+            # users outside any org of their own. Popularity weighting makes
+            # that likely; cover every partition when there are rows enough.
+            table = self.config.get_table(relationship.child_table)
+            planned = (self._planned_row_count(relationship.child_table, table.row_count)
+                       if table is not None else len(values))
+            if planned >= len(parent_ids):
+                min_children = 1
         if min_children <= 0 or len(values) == 0 or len(parent_ids) == 0:
             return values
 
         from collections import Counter
         values = np.asarray(values).copy()
+        # Coverage accumulates across batches. Counting one batch at a time,
+        # every 10k-row batch tried to cover every parent from scratch and
+        # always started with the same first parents, so a child table larger
+        # than one batch left most parents uncovered (and warned each batch).
+        rel_key = (relationship.parent_table, relationship.parent_key,
+                   relationship.child_table, relationship.child_key)
+        state = self.__dict__.setdefault("_min_children_state", {})
+        seen, rows_so_far, warned = state.get(rel_key, (Counter(), 0, False))
         counts = Counter(values.tolist())
+        counts.update(seen)
+        table = self.config.get_table(relationship.child_table)
+        planned = (self._planned_row_count(relationship.child_table, table.row_count)
+                   if table is not None else len(values))
+        last_batch = rows_so_far + len(values) >= planned
+        if not warned and min_children * len(parent_ids) > planned:
+            warnings.warn(
+                f"Relationship {relationship.parent_table}->{relationship.child_table}: "
+                f"min_children={min_children} needs at least "
+                f"{min_children * len(parent_ids)} child rows but only "
+                f"{planned} exist; covering as many parents as possible."
+            )
+            warned = True
         needed: list = []
         for pid in parent_ids:
             short = min_children - counts.get(pid, 0)
             if short > 0:
                 needed.extend([pid] * short)
         if not needed:
+            seen.update(values.tolist())
+            state[rel_key] = (seen, rows_so_far + len(values), warned)
             return values
-
-        if len(needed) > len(values):
-            warnings.warn(
-                f"Relationship {relationship.parent_table}->{relationship.child_table}: "
-                f"min_children={min_children} needs at least "
-                f"{min_children * len(parent_ids)} child rows but only "
-                f"{len(values)} exist; covering as many parents as possible."
-            )
-            needed = needed[: len(values)]
+        needed = needed[: len(values)]
 
         # Steal positions from over-covered parents, never dropping one to
         # (or below) the minimum in the process.
@@ -1165,14 +1325,27 @@ class DataSimulator:
             values[pos] = needed[ni]
             counts[needed[ni]] = counts.get(needed[ni], 0) + 1
             ni += 1
-        if ni < len(needed):
-            warnings.warn(
-                f"Relationship {relationship.parent_table}->{relationship.child_table}: "
-                f"{len(needed) - ni} parent(s) remain under min_children="
-                f"{min_children}; the child table cannot cover them without "
-                "starving other parents."
-            )
+        seen.update(values.tolist())
+        state[rel_key] = (seen, rows_so_far + len(values), warned)
+        if last_batch and not warned:
+            remaining = sum(1 for pid in parent_ids if seen.get(pid, 0) < min_children)
+            if remaining:
+                warnings.warn(
+                    f"Relationship {relationship.parent_table}->{relationship.child_table}: "
+                    f"{remaining} parent(s) remain under min_children="
+                    f"{min_children}; the child table cannot cover them without "
+                    "starving other parents."
+                )
         return values
+
+    def _partitions_downstream(self, relationship: Any) -> bool:
+        """True when this relationship's child key is a ``partition_by``
+        column of a relationship whose parent is this child table."""
+        for rel in self.config.relationships:
+            if (rel.parent_table == relationship.child_table
+                    and relationship.child_key in (getattr(rel, "partition_by", None) or [])):
+                return True
+        return False
 
     def _generate_self_referential_fk(
         self,
@@ -1255,6 +1428,18 @@ class DataSimulator:
             values[roots] = None
         return values
 
+    def _feeds_custom_generator(self, table_name: str) -> bool:
+        """True when a child of this table has a custom generator, which may
+        read any parent row and column through ``ctx.parent()``."""
+        for rel in self.config.relationships:
+            if rel.parent_table != table_name:
+                continue
+            if self.custom_generators.get(rel.child_table) or any(
+                    (c.distribution_params or {}).get("generator")
+                    for c in self.config.columns.get(rel.child_table, [])):
+                return True
+        return False
+
     def _collect_context_columns(self, table_name: str, df: pd.DataFrame) -> List[str]:
         """Return the columns that must be retained for future FK/date/depends_on lookups.
 
@@ -1267,6 +1452,11 @@ class DataSimulator:
             return list(df.columns)
 
         needed_cols = {"id"}
+
+        # A child with a custom generator may read any parent attribute
+        # through ctx.parent(), so its parents keep every column.
+        if self._feeds_custom_generator(table_name):
+            return list(df.columns)
 
         _head = table_name.lower().rstrip("s")
         for rel in self.config.relationships:
@@ -1286,6 +1476,15 @@ class DataSimulator:
                 needed_cols.update(rel.partition_by)
             if rel.parent_table == table_name:
                 needed_cols.add(rel.parent_key)
+                # A child's amount is derived from this parent's price.
+                needed_cols.update(c for c in ("price", "unit_price", "list_price")
+                                   if c in df.columns)
+                # Children's prose names its parent (a review names the
+                # product it reviews), so the name and category survive.
+                needed_cols.update(c for c in ("product_name", "name", "title", "item_name",
+                                               "service_name", "plan_name", "listing_title",
+                                               "category")
+                                   if c in df.columns)
                 if rel.filters:
                     needed_cols.update(rel.filters.keys())
                 # Denormalized copies: a child column named like this parent's
@@ -1444,8 +1643,16 @@ class DataSimulator:
         Enforcing it here rather than at those four sites is deliberate: this is
         the one function every column passes through, so a branch added later
         cannot route around the guarantee.
+
+        A declared ``max_length`` (``VARCHAR(n)``, imported from DDL) is held
+        here for the same reason: a value one character too long is a rejected
+        insert, whichever branch produced it.
         """
-        return self._generate_column_raw(table_name, column, size, table_data)
+        values = self._generate_column_raw(table_name, column, size, table_data)
+        max_len = (column.distribution_params or {}).get("max_length")
+        if max_len and column.type in ("text", "categorical") and len(values):
+            values = _truncate_text(values, int(max_len))
+        return values
 
     def _enforce_unique_text(self, table_name: str, column: Column,
                              values: np.ndarray) -> np.ndarray:
@@ -1466,6 +1673,17 @@ class DataSimulator:
         is_uuid = (column.type == "uuid" or
                    column.distribution_params.get("text_type") == "uuid" or
                    getattr(column, "semantic", None) == "uuid")
+        max_len = column.distribution_params.get("max_length")
+        pattern = column.distribution_params.get("pattern")
+        pattern = pattern if isinstance(pattern, str) else None
+
+        def fit(base: str, suffix: str) -> str:
+            # A disambiguating suffix must not push the value past its
+            # declared width (VARCHAR(12) rejects "CUS-64120992 2").
+            if max_len and len(base) + len(suffix) > int(max_len):
+                base = base[: max(0, int(max_len) - len(suffix))]
+            return base + suffix
+
         for i, val in enumerate(out):
             if val is None or (isinstance(val, float) and pd.isna(val)):
                 continue
@@ -1473,28 +1691,185 @@ class DataSimulator:
             if text not in seen:
                 seen.add(text)
                 continue
-            # Suffix the repeat or draw fresh UUID
+            # Suffix the repeat, or draw a fresh UUID or code. A collided code
+            # gets another code of the same shape rather than " 2" appended,
+            # which is not a code at all.
+            fresh = (self._fresh_pattern_value(pattern, seen)
+                     if pattern is not None and not is_uuid else None)
             if is_uuid:
                 import uuid as _uuid
                 candidate = str(_uuid.UUID(bytes=self.rng.bytes(16), version=4))
                 while candidate in seen:
                     candidate = str(_uuid.UUID(bytes=self.rng.bytes(16), version=4))
+            elif fresh is not None:
+                candidate = fresh
             elif "@" in text:
                 n = 2
                 local, _, domain = text.partition("@")
-                candidate = f"{local}{n}@{domain}"
+                candidate = fit(local, f"{n}@{domain}")
                 while candidate in seen:
                     n += 1
-                    candidate = f"{local}{n}@{domain}"
+                    candidate = fit(local, f"{n}@{domain}")
             else:
                 n = 2
-                candidate = f"{text} {n}"
+                candidate = fit(text, f" {n}")
                 while candidate in seen:
                     n += 1
-                    candidate = f"{text} {n}"
+                    candidate = fit(text, f" {n}")
             seen.add(candidate)
             out[i] = candidate
         return np.array(out, dtype=object)
+
+    @staticmethod
+    def _inner_column(name: str, spec: Any) -> Column:
+        """A field or item spec as a Column, in YAML or dict-schema spelling."""
+        from misata.compat import resolve_column_type
+        if isinstance(spec, str):
+            spec = {"type": spec}
+        spec = dict(spec or {})
+        raw = str(spec.pop("type", "text"))
+        col_type = resolve_column_type(raw, where=f"field {name!r}")
+        choices = spec.pop("enum", None) or spec.pop("choices", None)
+        if choices:
+            col_type = "categorical"
+            spec["choices"] = list(choices)
+        if raw in ("email", "phone", "url", "uuid") and col_type == "text":
+            spec.setdefault("text_type", raw)
+        for k in ("nullable", "unique", "description"):
+            spec.pop(k, None)
+        return Column(name=name, type=col_type, distribution_params=spec)
+
+    def _generate_nested(self, table_name: str, column: Column, size: int,
+                         table_data: Optional[pd.DataFrame]) -> list:
+        """Python values (dicts or lists) for a json/array column."""
+        params = column.distribution_params or {}
+
+        def py(values) -> list:
+            arr = np.asarray(values, dtype=object)
+            out = []
+            for v in arr:
+                if isinstance(v, np.generic):
+                    v = v.item()
+                if isinstance(v, (pd.Timestamp, np.datetime64)):
+                    v = pd.Timestamp(v).isoformat()
+                if isinstance(v, float) and np.isnan(v):
+                    v = None
+                out.append(v)
+            return out
+
+        def decode(col: Column, values) -> list:
+            # A nested json/array field comes back as JSON text; keep it a value.
+            if col.type in ("json", "array"):
+                import json as _json
+                return [_json.loads(v) for v in values]
+            return py(values)
+
+        if column.type == "array":
+            item = self._inner_column(params.get("item_name", f"{column.name}_item"),
+                                      params.get("items", {"type": "text"}))
+            lo = int(params.get("min_items", params.get("length", 0 if "max_items" in params else 1)))
+            hi = int(params.get("max_items", params.get("length", max(lo, 3))))
+            if lo < 0 or hi < lo:
+                raise ValueError(f"{table_name}.{column.name}: need 0 <= min_items <= max_items")
+            lengths = self.rng.integers(lo, hi + 1, size=size)
+            total = int(lengths.sum())
+            flat = decode(item, self.generate_column(table_name, item, total) if total else [])
+            unique = bool(params.get("unique_items"))
+            out, i = [], 0
+            for n in lengths:
+                chunk = flat[i:i + n]
+                if unique:   # drop repeats, keep first-seen order
+                    chunk = list({repr(v): v for v in chunk}.values())
+                if params.get("sorted"):   # login times, version histories
+                    chunk = sorted(chunk, key=lambda v: (v is None, v))
+                out.append(chunk)
+                i += n
+            return out
+
+        fields = params.get("fields") or {}
+        if not fields:
+            raise ValueError(
+                f"{table_name}.{column.name} is type json but declares no fields; "
+                f"give it fields: {{name: spec, ...}}")
+        optional = set(params.get("optional") or [])
+        opt_rate = float(params.get("optional_rate", 0.3))
+        cols = {name: decode(self._inner_column(name, spec),
+                             self.generate_column(table_name, self._inner_column(name, spec), size))
+                for name, spec in fields.items()}
+        drop = {name: self.rng.random(size) < opt_rate for name in optional if name in cols}
+        rows = []
+        for r in range(size):
+            obj = {}
+            for name, vals in cols.items():
+                if name in drop and drop[name][r]:
+                    continue
+                obj[name] = vals[r]
+            rows.append(obj)
+        return rows
+
+    def _call_custom_generator(self, fn, table_name: str, column: Column, size: int,
+                               table_data: Optional[pd.DataFrame]) -> np.ndarray:
+        """Run a user generator. Three calling conventions:
+
+        - ``fn(ctx)``: one parameter, a :class:`misata.plugins.GenContext`
+          (rows so far, aligned parent rows, a seeded rng). The recommended form.
+        - ``fn(partial_df, context_tables)``: vectorised, the original form.
+        - ``fn(row, col_name, context_tables)``: one scalar per row.
+        """
+        import inspect as _inspect
+        import zlib as _zlib
+        partial_df = table_data if table_data is not None else pd.DataFrame()
+        try:
+            nparams = len(_inspect.signature(fn).parameters)
+        except (TypeError, ValueError):
+            nparams = 2
+        where = f"{table_name}.{column.name}"
+
+        if nparams == 1:
+            from misata.plugins import GenContext
+            key = (table_name, column.name)
+            calls = self.__dict__.setdefault("_custom_calls", {})
+            batch = calls.get(key, 0)
+            calls[key] = batch + 1
+            seed = [int(self.config.seed or 0) & 0xFFFFFFFF,
+                    _zlib.crc32(f"{table_name}.{column.name}".encode()), batch]
+            ctx = GenContext(table=table_name, column=column.name, size=size,
+                             rows=partial_df.reset_index(drop=True),
+                             rng=np.random.default_rng(seed),
+                             params=dict(column.distribution_params or {}),
+                             tables=self.context,
+                             _relationships=list(self.config.relationships))
+            result = fn(ctx)
+        elif nparams >= 3:
+            if partial_df.empty:
+                # The first column of a table has no row to pass; call once
+                # per row with an empty one rather than returning zeros.
+                result = [fn(pd.Series(dtype=object), column.name, self.context)
+                          for _ in range(size)]
+            else:
+                result = partial_df.apply(
+                    lambda row: fn(row, column.name, self.context), axis=1)
+        else:
+            result = fn(partial_df, self.context)
+
+        if isinstance(result, pd.Series):
+            result = result.to_numpy()
+        arr = np.asarray(result)
+        if arr.ndim == 0:
+            raise ValueError(f"generator for {where} returned a scalar; return {size} values")
+        if len(arr) != size:
+            raise ValueError(
+                f"generator for {where} returned {len(arr)} values for a batch of {size}")
+        return arr
+
+    def _fresh_pattern_value(self, pattern: str, seen: set, tries: int = 50) -> Optional[str]:
+        """A pattern expansion not yet in ``seen``, or None if the pattern's
+        space looks exhausted."""
+        for _ in range(tries):
+            cand = self.realistic_text._expand_pattern(pattern)
+            if cand not in seen:
+                return cand
+        return None
 
     def _generate_column_raw(
         self,
@@ -1522,30 +1897,12 @@ class DataSimulator:
         #   per-row:    fn(row, col_name, context_tables) → scalar per row
         # The per-row form is detected by inspecting the callable's signature.
         _custom_fn = self.custom_generators.get(table_name, {}).get(column.name)
+        _registered = (column.distribution_params or {}).get("generator")
+        if _custom_fn is None and _registered:
+            from misata.plugins import get_generator
+            _custom_fn = get_generator(str(_registered))
         if callable(_custom_fn):
-            partial_df = table_data if table_data is not None else pd.DataFrame()
-            try:
-                import inspect as _inspect
-                _sig = _inspect.signature(_custom_fn)
-                _nparams = len(_sig.parameters)
-            except (TypeError, ValueError):
-                _nparams = 2  # default to vectorized
-
-            if _nparams >= 3:
-                # Per-row signature: fn(row, col_name, context_tables) → scalar
-                # Graceful fallback: if partial_df is empty generate zeros
-                if partial_df.empty or len(partial_df) == 0:
-                    return np.zeros(size, dtype=object)
-                result = partial_df.apply(
-                    lambda row: _custom_fn(row, column.name, self.context), axis=1
-                )
-            else:
-                # Vectorized signature: fn(partial_df, context_tables) → array
-                result = _custom_fn(partial_df, self.context)
-
-            if isinstance(result, pd.Series):
-                return result.to_numpy()
-            return np.asarray(result)
+            return self._call_custom_generator(_custom_fn, table_name, column, size, table_data)
 
         # Apply domain priors as defaults — user-defined params always win.
         _domain = getattr(self.config, "domain", None) or getattr(
@@ -1982,6 +2339,19 @@ class DataSimulator:
                 n = int(params.get("n", 10))
                 p = float(params.get("p", 0.5))
                 values = self.rng.binomial(n, p, size=size)
+            elif distribution == "exponential":
+                scale = float(params.get("scale", 1.0))
+                values = np.round(self.rng.exponential(scale, size=size)).astype(int)
+            elif distribution == "gamma":
+                values = np.round(self.rng.gamma(float(params.get("shape", 2.0)),
+                                                 float(params.get("scale", 1.0)),
+                                                 size=size)).astype(int)
+            elif distribution == "beta":
+                a = float(params.get("a", 2.0))
+                b = float(params.get("b", 5.0))
+                low = float(params.get("min", 0.0))
+                high = float(params.get("max", 1.0))
+                values = np.round(self.rng.beta(a, b, size=size) * (high - low) + low).astype(int)
             elif distribution == "empirical":
                 # Inverse-CDF sampling from stored quantiles — reproduces any
                 # marginal shape (used by mimic when no parametric fit is good).
@@ -2193,6 +2563,9 @@ class DataSimulator:
             elif distribution == "exponential":
                 scale = params.get("scale", 1.0)
                 values = self.rng.exponential(scale, size=size)
+            elif distribution == "gamma":
+                values = self.rng.gamma(float(params.get("shape", 2.0)),
+                                        float(params.get("scale", 1.0)), size=size)
             elif distribution == "beta":
                 a = float(params.get("a", 2.0))
                 b = float(params.get("b", 5.0))
@@ -2245,7 +2618,13 @@ class DataSimulator:
                 if base_col in table_data.columns:
                     min_delta = params.get("min_delta_days", 1)
                     max_delta = params.get("max_delta_days", 30)
-                    deltas = self.rng.integers(min_delta, max_delta + 1, size=size)
+                    if params.get("delta_shape") == "skewed":
+                        # most gaps are short, a few are long (stays, shipping)
+                        span = max(max_delta - min_delta, 1)
+                        deltas = min_delta + np.minimum(
+                            np.floor(self.rng.exponential(span / 4.0, size)), span).astype(int)
+                    else:
+                        deltas = self.rng.integers(min_delta, max_delta + 1, size=size)
                     base_dates = pd.to_datetime(table_data[base_col], errors="coerce")
                     dates = base_dates + pd.to_timedelta(deltas, unit="D")
                     if params.get("max_date") == "today":
@@ -2325,8 +2704,11 @@ class DataSimulator:
             # loan origination date reading "2025-09-12 08:16:54" gives away
             # a synthetic file as fast as an unrounded dollar figure does.
             # normalize() truncates to midnight, matching what "date" means
-            # everywhere else in this schema.
-            return pd.DatetimeIndex(values).normalize()
+            # everywhere else in this schema. Activity dates still get the
+            # weekly rhythm their semantics imply.
+            return self._shape_activity_times(
+                pd.DatetimeIndex(values).normalize(), table_name, column,
+                start, end, date_only=True)
 
         # FOREIGN KEY
         elif column.type == "foreign_key":
@@ -2412,11 +2794,15 @@ class DataSimulator:
                 return self._ensure_min_children(
                     values, parent_ids, relationship, eligibility=elig)
 
-            sampling = params.get("sampling", "uniform")
-            if sampling == "pareto":
-                alpha = max(float(params.get("alpha", 1.5)), 0.1)
-                weights = self.rng.pareto(alpha, len(parent_ids)) + 1.0
-                probabilities = weights / weights.sum()
+            # Fan-out is popularity-weighted unless the column opts out with
+            # ``sampling="uniform"``; see _fk_popularity_weights.
+            sampling = params.get("sampling", "auto")
+            popularity = (None if sampling == "uniform" else
+                          self._fk_popularity_weights(
+                              relationship, parent_ids, sampling, params))
+            if popularity is not None and relationship.parent_table not in \
+                    self._parent_temporal_density:
+                probabilities = popularity / popularity.sum()
                 values = self.rng.choice(parent_ids, size=size, p=probabilities)
             else:
                 # Gap 3 — Level-1 temporal FK weighting:
@@ -2439,13 +2825,19 @@ class DataSimulator:
                                     all_weights = density_map.compute_fk_weights(parent_ctx)
                                     row_weights = np.ones(len(parent_ids), dtype=float)
                                     row_weights[valid_mask] = all_weights[id_indices[valid_mask]]
+                                    if popularity is not None:
+                                        row_weights = row_weights * popularity
                                     probabilities = row_weights / row_weights.sum()
                                     values = self.rng.choice(parent_ids, size=size, p=probabilities)
                                     return self._ensure_min_children(
                                         values, parent_ids, relationship)
                             except Exception:
-                                pass  # Fall through to uniform sampling on any error
-                values = self.rng.choice(parent_ids, size=size)
+                                pass  # Fall through to popularity sampling on any error
+                if popularity is not None:
+                    values = self.rng.choice(parent_ids, size=size,
+                                             p=popularity / popularity.sum())
+                else:
+                    values = self.rng.choice(parent_ids, size=size)
             return self._ensure_min_children(values, parent_ids, relationship)
 
         # UUID
@@ -2455,11 +2847,14 @@ class DataSimulator:
                 return self._generate_unique_text("uuid", size)
             return np.array([str(_uuid.UUID(bytes=self.rng.bytes(16), version=4)) for _ in range(size)])
 
-        # JSON
-        elif column.type == "json":
-            if column.unique:
-                return np.array([f'{{"id": {i+1}, "status": "active"}}' for i in range(size)])
-            return np.array(['{"status": "active", "source": "system"}' for _ in range(size)])
+        # JSON objects and arrays, built from declared fields and items. Each
+        # field is generated through generate_column, so an `email` field is a
+        # real email and a `city` field a real city; nesting recurses.
+        elif column.type in ("json", "array"):
+            values = self._generate_nested(table_name, column, size, table_data)
+            import json as _json
+            return np.array([_json.dumps(v, separators=(",", ":"), ensure_ascii=False,
+                                         default=str) for v in values], dtype=object)
 
         # TEXT
         elif column.type == "text":
@@ -2549,10 +2944,19 @@ class DataSimulator:
                             self.realistic_text._expand_pattern(str(pats))
                             for _ in range(size)
                         ])
-            # For unique text columns, generate exactly `size` distinct values.
-            if column.unique:
-                return self._generate_unique_text(text_type, size)
             text_strategy = self._text_strategy_for(table_name, column.name)
+            # For unique text columns, generate exactly `size` distinct values.
+            # A column the semantic layer recognises (sku, label, a region's
+            # name) is generated by that layer instead and made unique at the
+            # end of the table; sending it to the unique fallback filled
+            # UNIQUE sku columns with sentences.
+            if column.unique:
+                _spec = self.realistic_text._infer_semantic(column.name, table_name)
+                _own_unique = text_type in ("uuid", "json", "email", "url", "phone", "address")
+                _recognised = (_spec not in (None, "", "sentence", "name", "notes")
+                               or bool(text_strategy))
+                if _own_unique or not _recognised:
+                    return self._generate_unique_text(text_type, size)
             
             # Smart value generation - check for domain-specific content
             smart_generate = params.get("smart_generate", False) or self.smart_mode
@@ -2679,6 +3083,15 @@ class DataSimulator:
             # that guess was wiping out `semantic: vessel_name` alongside it.
             if params.get("_text_type_is_default") and not _explicit_semantic:
                 declared = None
+            # A "name" column on a lookup table (regions, teams, warehouses)
+            # is that entity's name, not a person's: the guess from the
+            # column name loses to what the table says.
+            if (declared == "name" and not _explicit_semantic
+                    and column.name.lower() in ("name", "label")):
+                _topic = self.realistic_text._infer_semantic(column.name, table_name)
+                if _topic not in (None, "", "name", "person_name", "category_label", "company_name",
+                                  "product_name"):
+                    declared = _topic
             _legacy_declared = declared in ("sentence", "word", "address", "phone", "url")
             if _legacy_declared:
                 declared = None  # legacy free-text types: handled below
@@ -2700,14 +3113,19 @@ class DataSimulator:
             # type that is not a legacy free-text type (sentence, word, etc.)
             _LEGACY_ONLY = {"sentence", "word", "address", "phone", "url"}
             if semantic or text_type not in _LEGACY_ONLY:
-                return self.realistic_text.generate(
-                    column_name=column.name,
-                    table_name=table_name,
-                    size=size,
-                    semantic_type=semantic,  # None → _infer_semantic uses column name
-                    table_data=table_data,
-                    semantic_declared=bool(declared),
-                )
+                self.realistic_text.parent_context = self._parent_text_context(
+                    table_name, table_data, size)
+                try:
+                    return self.realistic_text.generate(
+                        column_name=column.name,
+                        table_name=table_name,
+                        size=size,
+                        semantic_type=semantic,  # None → _infer_semantic uses column name
+                        table_data=table_data,
+                        semantic_declared=bool(declared),
+                    )
+                finally:
+                    self.realistic_text.parent_context = None
 
             # Legacy pool sampler for free-text types (sentence, word, address, phone, url)
             _pool_size = min(max(size * 5, 200), self.TEXT_POOL_SIZE)
@@ -2726,6 +3144,11 @@ class DataSimulator:
                 "url":      (self.text_gen.url,       "text_url"),
             }
             gen_fn, pool_key = _LEGACY_GEN_MAP.get(text_type, (_note_fn, "text_sentence"))
+            if gen_fn is _note_fn:
+                # Free-text fallback: the notes grammar, drawn per row rather
+                # than from a fixed pool that repeats once the table outgrows it.
+                from misata import textkit
+                return textkit.render("note", self.rng, size)
             if pool_key not in self._text_pools:
                 self._text_pools[pool_key] = np.array([gen_fn() for _ in range(_pool_size)])
             elif len(self._text_pools[pool_key]) < size:
@@ -2761,7 +3184,8 @@ class DataSimulator:
             start_int, end_int = _datetime_range_ns(start, end)
             random_ints = self.rng.integers(start_int, end_int, size=size)
             values = pd.to_datetime(random_ints)
-            return values
+            return self._shape_activity_times(
+                values, table_name, column, start, end, date_only=False)
 
         else:
             raise ValueError(f"Unknown column type: {column.type}")
@@ -2920,7 +3344,7 @@ class DataSimulator:
 
         df_batch = self.fact_engine.generate(plan, column_map)
 
-        for column in self._dependency_order(columns):
+        for column in self._dependency_order(self._prose_last(table_name, columns)):
             if column.name in df_batch.columns:
                 continue
             values = self.generate_column(table_name, column, len(df_batch), df_batch)
@@ -2976,6 +3400,20 @@ class DataSimulator:
             for column in self.config.get_columns(table_name)
             if column.distribution_params.get("formula")
         }
+
+    def _declared_value_columns(self, table_name: str) -> set[str]:
+        """Columns whose values or ordering the schema states: declared
+        choices or shares, and correlation targets. Realism passes may read
+        these but must not change which values they hold."""
+        out = set()
+        for c in self.config.get_columns(table_name):
+            p = c.distribution_params or {}
+            if p.get("choices") or p.get("probabilities") or p.get("values"):
+                out.add(c.name)
+        table = self.config.get_table(table_name)
+        for spec in (getattr(table, "correlations", None) or []):
+            out.update(str(spec.get(k)) for k in ("col_a", "col_b") if spec.get(k))
+        return out
 
     def _get_protected_generation_columns(self, table_name: str, table: Any) -> set[str]:
         """Columns that coherence/workflows should avoid mutating."""
@@ -3148,18 +3586,20 @@ class DataSimulator:
                 self._pk_store[table_name] = pk_vals
 
         ctx_df = df[cols_to_store].copy()
+        # Parents of a custom generator keep every row: ctx.parent() must find
+        # the parent of each child, not of the first 50,000.
+        cap = None if self._feeds_custom_generator(table_name) else self.MAX_CONTEXT_ROWS
 
         if table_name not in self.context:
-            if len(ctx_df) > self.MAX_CONTEXT_ROWS:
+            if cap is not None and len(ctx_df) > cap:
                 ctx_df = ctx_df.sample(n=self.MAX_CONTEXT_ROWS, random_state=int(self.rng.integers(0, 2**31)))
             self.context[table_name] = ctx_df
         else:
             current_len = len(self.context[table_name])
-            if current_len >= self.MAX_CONTEXT_ROWS:
+            if cap is not None and current_len >= cap:
                 return
 
-            remaining_space = self.MAX_CONTEXT_ROWS - current_len
-            rows_to_add = ctx_df.iloc[:remaining_space]
+            rows_to_add = ctx_df if cap is None else ctx_df.iloc[:cap - current_len]
             self.context[table_name] = pd.concat(
                 [self.context[table_name], rows_to_add],
                 ignore_index=True,
@@ -3232,7 +3672,7 @@ class DataSimulator:
             data = {}
             df_batch = pd.DataFrame()
 
-            for column in self._dependency_order(columns):
+            for column in self._dependency_order(self._prose_last(table_name, columns)):
                 with self._anchor("column", table_name, column.name, rows_generated):
                     values = self.generate_column(table_name, column, batch_size, df_batch)
                 data[column.name] = values
@@ -4259,7 +4699,7 @@ class DataSimulator:
         elif constraint.type == "unique_combination":
             # Ensure unique combinations (e.g., one timesheet per employee-project-date)
             if constraint.action == "drop":
-                df = df.drop_duplicates(subset=constraint.group_by, keep='first')
+                df = self._unique_combination(df, list(constraint.group_by))
 
         elif constraint.type == "min_per_group":
             # Floor values per group
@@ -4289,6 +4729,45 @@ class DataSimulator:
         # not here where only one table's batch is visible.
 
         return df
+
+    def _whole_table_rules(self, table_name: str, df: pd.DataFrame) -> pd.DataFrame:
+        """Re-assert composite keys and column-to-column rules over the
+        concatenated table: batches are each valid, the union may not be."""
+        table = self.config.get_table(table_name)
+        for c in (table.constraints or []):
+            if c.type == "unique_combination":
+                df = self._unique_combination(df, list(c.group_by), table_name)
+            elif c.type == "inequality":
+                df = self._apply_inequality_constraint(df, c)
+        return df.reset_index(drop=True)
+
+    def _unique_combination(self, df: pd.DataFrame, cols: List[str],
+                            table_name: Optional[str] = None) -> pd.DataFrame:
+        """Make ``cols`` unique together. When one of them is a plain integer
+        sequence (``line_no``, ``seq``, ``version``), number it within its
+        group instead, the way real line numbers work, so no row is lost;
+        otherwise drop the repeats."""
+        cols = [c for c in cols if c in df.columns]
+        if not cols or not df.duplicated(cols).any():
+            return df
+        seq = [c for c in cols if pd.api.types.is_integer_dtype(df[c])
+               and not (c == "id" or c.endswith("_id") or c.endswith("id"))]
+        if len(seq) == 1 and len(cols) > 1:
+            c = seq[0]
+            others = [x for x in cols if x != c]
+            params = {}
+            if table_name:
+                params = next((col.distribution_params or {} for col in self.config.get_columns(table_name)
+                               if col.name == c), {})
+            lo = params.get("min", 1)
+            start = int(lo) if lo is not None and lo >= 0 else 1
+            df[c] = (df.groupby(others, sort=False).cumcount() + max(start, 1)).astype(df[c].dtype)
+            hi = params.get("max")
+            if hi is not None:
+                # a group longer than the sequence allows loses its tail rows
+                df = df[df[c] <= hi]
+            return df.drop_duplicates(subset=cols, keep="first").reset_index(drop=True)
+        return df.drop_duplicates(subset=cols, keep="first").reset_index(drop=True)
 
     def _apply_when_then(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
         """Enforce ``when <condition> then <rule on another column>``.
@@ -4503,11 +4982,53 @@ class DataSimulator:
         if constraint.action == "drop":
             return df.loc[~violating].reset_index(drop=True)
 
-        # cap (default): set the violating column_a equal to column_b so the
-        # boundary case satisfies >=/<=; for strict >/< this lands on the edge,
-        # which is the closest feasible value without inventing a gap.
-        df.loc[violating, a] = col_b[violating].values
+        # cap (default): move column_a to the right side of column_b by a gap
+        # drawn from the rows that already satisfy the rule, so the repaired
+        # rows keep the column's real spread (a stay of a few nights, not a
+        # pile of zero-length stays). A strict operator never lands on the
+        # edge: the gap is at least one step (a day, a unit, a cent).
+        df.loc[violating, a] = self._repair_inequality(col_a, col_b, satisfied & both_present,
+                                                       violating, op)
         return df
+
+    def _repair_inequality(self, col_a: pd.Series, col_b: pd.Series, ok: pd.Series,
+                           bad: pd.Series, op: str) -> np.ndarray:
+        is_time = pd.api.types.is_datetime64_any_dtype(col_b)
+        is_int = pd.api.types.is_integer_dtype(col_b) and pd.api.types.is_integer_dtype(col_a)
+        b_bad = col_b[bad]
+        if is_time:
+            gaps = (col_a[ok] - col_b[ok]).abs().dt.total_seconds().to_numpy()
+            dates_only = bool((col_b.dropna().dt.normalize() == col_b.dropna()).all())
+            step = 86400.0 if dates_only else 1.0
+        else:
+            gaps = (pd.to_numeric(col_a[ok]) - pd.to_numeric(col_b[ok])).abs().to_numpy(dtype=float)
+            step = 1.0 if is_int else 0.01
+        gaps = gaps[gaps > 0] if op in (">", "<") else gaps
+        n = int(bad.sum())
+        if len(gaps):
+            g = self.rng.choice(gaps, n)
+        else:
+            g = np.zeros(n)
+        if op in (">", "<"):
+            g = np.maximum(g, step)
+        sign = 1.0 if op in (">", ">=") else -1.0
+        if is_time:
+            if step == 86400.0:
+                g = np.ceil(g / 86400.0) * 86400.0
+            return (b_bad + pd.to_timedelta(sign * g, unit="s")).to_numpy()
+        out = pd.to_numeric(b_bad).to_numpy(dtype=float) + sign * g
+        # Stay inside the range column_a was generated in (a sale price never
+        # goes negative to sit below its list price); where that range leaves
+        # no room, fall back to the boundary itself.
+        a_vals = pd.to_numeric(col_a, errors="coerce").dropna()
+        if len(a_vals):
+            lo, hi = float(a_vals.min()), float(a_vals.max())
+            clipped = np.clip(out, lo, hi)
+            bb = pd.to_numeric(b_bad).to_numpy(dtype=float)
+            ok_after = {">": clipped > bb, ">=": clipped >= bb, "<": clipped < bb, "<=": clipped <= bb}[op]
+            edge = bb + sign * (step if op in (">", "<") else 0.0)
+            out = np.where(ok_after, clipped, edge)
+        return np.round(out).astype(col_a.dtype) if is_int else out
 
     def _apply_col_range_constraint(self, df: pd.DataFrame, constraint: Any) -> pd.DataFrame:
         """Enforce ``low_column <= column <= high_column`` on every row.
@@ -4558,11 +5079,128 @@ class DataSimulator:
         if domain in ("gaming", "social"):
             # Evening/night heavy: 6pm-2am
             return [8,6,4,3,2,1,1,1,2,3,4,5,6,6,6,6,8,10,14,16,18,18,16,12]
+        if domain in ("transport", "mobility", "rideshare", "taxi", "nightlife"):
+            # Ride demand: a morning commute, an evening peak, and a long tail
+            # past midnight; the trough is 4-6am, not midnight. A daytime-only
+            # rhythm was the measured miss on the NYC taxi benchmark.
+            return [7,5,4,3,2,2,3,5,7,7,7,7,7,7,7,7,8,9,10,10,10,10,10,9]
         if domain in ("saas", "edtech"):
             # Workday with morning/afternoon bias
             return [1,1,1,1,1,2,4,9,14,16,15,13,12,14,15,13,11,8,5,4,3,2,2,1]
         # Generic mild daytime bias
         return [1,1,1,1,1,2,4,7,10,12,12,11,11,12,12,11,10,9,7,6,4,3,2,1]
+
+    _PERSON_TABLE_RE = re.compile(
+        r"(customer|user|buyer|client|guest|member|account|patient|shopper|passenger)",
+        re.I)
+
+    def _default_popularity_sigma(self, parent_table: str = "") -> float:
+        """How unequal fan-out is when the schema does not say.
+
+        Products, sellers and content are always concentrated: a few take
+        most of the activity (sigma 1.1, children-per-parent Gini about
+        0.55). People depend on the business. Stores and SaaS have repeat
+        customers, but on a marketplace or a travel site most buyers buy
+        once, and the store weighting invents repeat customers there (the
+        miss the realism benchmark measured on Olist). So in those domains
+        person-like parents get a mild weighting; everything else keeps the
+        concentrated one.
+        """
+        domain = (self.config.domain or "").lower()
+        if (domain in ("marketplace", "travel", "realestate")
+                and self._PERSON_TABLE_RE.search(parent_table or "")):
+            return 0.4
+        return 1.1
+
+    def _domain_weekend_factor(self) -> float:
+        """Share of weekend activity kept, by domain. Work happens on
+        weekdays; consumer activity dips less."""
+        domain = (self.config.domain or "").lower()
+        if domain in ("fintech", "hr", "healthcare", "realestate", "saas", "edtech"):
+            return 0.5
+        if domain in ("gaming", "social", "transport", "mobility", "rideshare", "taxi",
+                      "nightlife"):
+            return 1.0
+        return 0.8
+
+    def _shape_activity_times(
+        self,
+        values: pd.DatetimeIndex,
+        table_name: str,
+        column: Column,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        *,
+        date_only: bool,
+    ) -> pd.DatetimeIndex:
+        """Give generated timestamps the weekly and daily rhythm of their
+        mechanism (see :mod:`misata.temporal_profiles`).
+
+        Uniform draws make 3am as busy as noon and Sunday as busy as
+        Tuesday, two of the fastest tells of generated data. Rows that the
+        weekend shift would push outside the declared range keep their
+        original day. Curve time columns are left alone, because moving a
+        row across a period boundary would break the declared aggregate;
+        ``time_profile: "uniform"`` opts out.
+        """
+        from dataclasses import replace
+
+        from misata.temporal_profiles import (
+            HUMAN_ACTION, apply_temporal_profile, classify_temporal, damp_weekends)
+
+        params = column.distribution_params or {}
+        if params.get("time_profile") == "uniform" or len(values) == 0:
+            return values
+        curve_cols = {getattr(c, "time_column", None)
+                      for c in list(getattr(self.config, "outcome_curves", None) or [])
+                      + list(getattr(self.config, "rate_curves", None) or [])
+                      if getattr(c, "table", None) == table_name}
+        if column.name in curve_cols:
+            return values
+        profile = classify_temporal(column.name, table_name)
+        if profile is HUMAN_ACTION:
+            wf = self._domain_weekend_factor()
+            # Support desks, B2B work and office tools are weekday businesses
+            # whatever the store's own domain is: tickets thin out at weekends.
+            if re.search(r"ticket|support|incident|helpdesk|case|timesheet|meeting",
+                         table_name.lower()):
+                wf = min(wf, 0.45)
+            profile = replace(profile, weekend_factor=wf)
+        # Learned rhythms (from mimic, or declared) replace the name-guessed ones.
+        hour_w = params.get("hour_weights")
+        weekday_w = params.get("weekday_weights")
+        hour_w = hour_w if isinstance(hour_w, (list, tuple)) and len(hour_w) == 24 else None
+        weekday_w = (weekday_w if isinstance(weekday_w, (list, tuple)) and len(weekday_w) == 7
+                     else None)
+        if hour_w is not None:
+            profile = replace(profile, hour_weights=list(hour_w))
+        if weekday_w is not None:
+            profile = replace(profile, weekend_factor=1.0)
+        values = pd.DatetimeIndex(values)
+        if date_only:
+            if profile.date_only:
+                return values
+            shaped = damp_weekends(values, profile.weekend_factor, self.rng)
+        else:
+            shaped = apply_temporal_profile(
+                values, profile, self.rng,
+                domain_hour_weights=self._domain_hour_weights())
+        if weekday_w is not None:
+            # Move each row to a weekday drawn from the declared shares,
+            # within its own week, so the date range barely moves.
+            w = np.asarray(weekday_w, dtype=float)
+            if w.sum() > 0:
+                target = self.rng.choice(7, size=len(shaped), p=w / w.sum())
+                shift = target - np.asarray(shaped.dayofweek)
+                shaped = shaped + pd.to_timedelta(shift, unit="D")
+        lo = pd.Timestamp(start).normalize()
+        hi = pd.Timestamp(end)
+        if hi.normalize() == hi:
+            hi = hi + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+        out_of_range = (shaped < lo) | (shaped > hi)
+        if out_of_range.any():
+            shaped = shaped.where(~out_of_range, values)
+        return shaped
 
     def _add_realistic_time(
         self,
@@ -5363,7 +6001,12 @@ class DataSimulator:
             strict_shift = strict_shift + strict.fillna(pd.Timedelta(0))
 
         if (total_shift > pd.Timedelta(0)).any():
-            total_shift = total_shift.dt.ceil("s")   # never leak sub-second noise
+            # Whole days, not hours: shifting by the exact deficit plus a few
+            # hours parked every moved row in the small hours after its
+            # parent's (often midnight) birth, so a fifth of all orders
+            # landed between 1am and 5am. A whole-day shift still clears the
+            # deficit and keeps each row's own time of day.
+            total_shift = total_shift.dt.ceil("D")
             strict_shift = strict_shift.dt.ceil("s")
             # The comfortable shift must not push any column past its declared
             # end: cap each row's shift at the tightest remaining headroom
@@ -5434,8 +6077,18 @@ class DataSimulator:
                     f"them. Align the parent's date range with the curve "
                     f"window to avoid this."
                 )
+            col_types = {c.name: c.type for c in self.config.columns.get(table_name, [])}
             for c in child_dt:
-                df[c] = df[c] + final_shift
+                shifted = df[c] + final_shift
+                if col_types.get(c) == "date":
+                    # A "date" is a calendar day: a shift of a few hours must
+                    # not hand it a time of day. Round forward to the next
+                    # day (still after the parent), or back to the same day
+                    # where rounding forward would cross a curve bucket.
+                    ceiled = shifted.dt.ceil("D")
+                    over = (final_shift + (ceiled - shifted)) > cap_hard_nonneg
+                    shifted = ceiled.where(~over, shifted.dt.floor("D"))
+                df[c] = shifted
         return df
 
     def _fix_denormalized_parent_columns(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
@@ -5494,6 +6147,53 @@ class DataSimulator:
                     if not seen.issubset(allowed):
                         continue
                 df[c] = mapped.where(mapped.notna(), df[c])
+        return df
+
+    _AMOUNT_COLS = ("amount", "total", "total_amount", "order_total", "subtotal",
+                    "line_total", "total_price")
+    _QTY_COLS = ("quantity", "qty", "units")
+
+    def _fix_amount_from_parent_price(self, df: pd.DataFrame, table_name: str,
+                                      protected: set) -> pd.DataFrame:
+        """An order line's amount is its product's price times its quantity.
+
+        Drawn independently, ``orders.amount`` matched ``price * quantity`` on
+        0.2% of rows and was below a single unit's price on 45%: the first
+        JOIN to products exposes it. When a row has a quantity and references
+        a parent with a price, the amount is derived. Columns that carry a
+        declared outcome (curve, rollup, formula, dependency) or are otherwise
+        protected keep their values: the declaration wins.
+        """
+        qty = next((c for c in self._QTY_COLS if c in df.columns), None)
+        amt = next((c for c in self._AMOUNT_COLS if c in df.columns), None)
+        if qty is None or amt is None or amt in protected:
+            return df
+        params = next((c.distribution_params or {} for c in self.config.columns.get(table_name, [])
+                       if c.name == amt), {})
+        if any(k in params for k in ("formula", "rollup", "depends_on", "after_column")):
+            return df
+        for curve in list(getattr(self.config, "outcome_curves", None) or []):
+            if getattr(curve, "table", None) == table_name and \
+                    getattr(curve, "column", None) == amt:
+                return df
+        for rel in self.config.relationships:
+            if rel.child_table != table_name or rel.child_key not in df.columns:
+                continue
+            parent_df = self.context.get(rel.parent_table)
+            if parent_df is None or rel.parent_key not in parent_df.columns:
+                continue
+            price_col = next((c for c in ("price", "unit_price", "list_price")
+                              if c in parent_df.columns), None)
+            if price_col is None:
+                continue
+            prices = df[rel.child_key].map(
+                parent_df.drop_duplicates(rel.parent_key).set_index(rel.parent_key)[price_col])
+            q = pd.to_numeric(df[qty], errors="coerce")
+            derived = (pd.to_numeric(prices, errors="coerce") * q).round(2)
+            ok = derived.notna()
+            if ok.any():
+                df.loc[ok, amt] = derived[ok]
+            break
         return df
 
     def _apply_state_machine(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
@@ -5664,8 +6364,10 @@ class DataSimulator:
         # Runs here (the choke point every generation path passes through)
         # so denormalized parent copies agree regardless of code path.
         df = self._fix_denormalized_parent_columns(df, table_name)
+        df = self._fix_amount_from_parent_price(df, table_name, protected_columns)
 
-        df = apply_realism_rules(df, table_name, rng=self.rng, protected=protected_columns)
+        df = apply_realism_rules(df, table_name, rng=self.rng, protected=protected_columns,
+                                 declared=self._declared_value_columns(table_name))
 
         realism = self._get_realism_config()
         if realism and realism.coherence != "off":
@@ -5698,7 +6400,7 @@ class DataSimulator:
 
         return df
 
-    def generate_all(self):
+    def generate_all(self, bounded_memory: bool = False):
         """
         Generate all tables in dependency order, then cascade story events
         through the relational graph.
@@ -5765,7 +6467,13 @@ class DataSimulator:
                     continue
                 _kept.append(_s)
             rollup_specs = _kept
-        rollup_tables: set = set()
+        # Bounded memory: a one-hop roll-up is built from per-batch partials
+        # while its child table streams, so only the parent is held.
+        from misata.rollups import RollupAccumulator, is_streamable
+        _stream_specs = [s for s in rollup_specs if bounded_memory and is_streamable(s)]
+        rollup_acc = RollupAccumulator(_stream_specs) if _stream_specs else None
+        rollup_specs = [s for s in rollup_specs if s not in _stream_specs]
+        rollup_tables: set = {s.parent_table for s in _stream_specs}
         for s in rollup_specs:
             rollup_tables.add(s.parent_table)
             rollup_tables.add(s.from_table)
@@ -5812,6 +6520,9 @@ class DataSimulator:
             s.table for s in (getattr(self.config, "lifecycles", None) or [])
             if s.table in set(sorted_tables)
         }
+        # A process reads its whole cases table and may write its final state.
+        dyn_tables |= {p.cases_table for p in (getattr(self.config, "processes", None) or [])
+                       if p.cases_table in set(sorted_tables)}
 
         # Cross-table clamps (refund <= its order's total; payments per order
         # never exceed the order) need both sides materialised too.
@@ -5856,9 +6567,15 @@ class DataSimulator:
         for event in cascade_events:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
+        # A composite key or column-to-column rule has to hold across the
+        # whole table, not one batch at a time, so those tables are buffered.
+        whole_table_rules = {
+            t.name for t in self.config.tables
+            if any(c.type in ("unique_combination", "inequality") for c in (t.constraints or []))
+        }
         buffer_tables = (cascade_tables | rollup_tables | group_share_tables
                          | waterfall_tables | scd2_tables | stock_flow_tables
-                         | lifecycle_tables | dyn_tables)
+                         | lifecycle_tables | dyn_tables | whole_table_rules)
 
         buffered: Dict[str, pd.DataFrame] = {}
         streamed: list = []   # tables already yielded (order record for phase 3)
@@ -5897,6 +6614,9 @@ class DataSimulator:
                     batches.append(batch)
                 if batches:
                     buffered[table_name] = pd.concat(batches, ignore_index=True)
+                    if table_name in whole_table_rules:
+                        buffered[table_name] = self._whole_table_rules(table_name, buffered[table_name])
+                        self._refresh_context(table_name, buffered[table_name])
                     # Lifecycles run HERE, not in phase 2: rewriting the state
                     # column changes which parents a filtered relationship
                     # considers eligible (shipments only attach to shipped
@@ -5917,6 +6637,8 @@ class DataSimulator:
             else:
                 # Stream immediately — no post-pass involvement
                 for batch in self.generate_batches(table_name):
+                    if rollup_acc is not None:
+                        rollup_acc.update(table_name, batch)
                     yield table_name, batch
                 streamed.append(table_name)
 
@@ -5994,6 +6716,16 @@ class DataSimulator:
         # 2. then the clamps (payments rescaled to never exceed that total),
         # 3. then the remaining roll-ups, so an aggregate of clamped values
         #    (customers.lifetime_value from payments) sums the final numbers.
+        if rollup_acc is not None:
+            try:
+                # a child buffered for another reason never streamed past the
+                # accumulator; it is complete now, so feed it in whole
+                for _child in rollup_acc.tables():
+                    if _child in buffered:
+                        rollup_acc.update(_child, buffered[_child])
+                rollup_acc.apply(buffered)
+            except Exception:
+                pass  # a roll-up failure must never corrupt an otherwise-valid run
         if rollup_specs or xt_constraints:
             try:
                 if xt_constraints:
@@ -6046,6 +6778,14 @@ class DataSimulator:
             with self._anchor("identity", "event_logs"):
                 apply_event_logs(buffered, self.config, self.rng)
 
+        # Processes simulate event logs from the finished cases, before the
+        # dynamics pass so missingness or time grids can still apply to them.
+        process_tables: List[str] = []
+        if getattr(self.config, "processes", None):
+            from misata.process import apply_processes
+            with self._anchor("identity", "processes"):
+                process_tables = apply_processes(buffered, self.config, self.rng)
+
         if dyn_tables:
             from misata.dynamics import apply_dynamics
             with self._anchor("identity", "dynamics"):
@@ -6055,6 +6795,8 @@ class DataSimulator:
         for table_name in sorted_tables:
             if table_name in buffered:
                 yield table_name, buffered[table_name]
+        for table_name in process_tables:
+            yield table_name, buffered[table_name]
 
     def generate_with_reports(
         self,

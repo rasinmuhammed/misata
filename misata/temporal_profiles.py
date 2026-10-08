@@ -81,6 +81,24 @@ def classify_temporal(column_name: str, table_name: str = "") -> TemporalProfile
     return HUMAN_ACTION
 
 
+def damp_weekends(
+    days: pd.DatetimeIndex, weekend_factor: float, rng: np.random.Generator
+) -> pd.DatetimeIndex:
+    """Keep each weekend row with probability ``weekend_factor``; move the
+    rest to the nearest weekday (Saturday to Friday, Sunday to Monday), so
+    the overall date distribution barely moves while weekends thin out."""
+    if weekend_factor >= 1.0 or len(days) == 0:
+        return days
+    dow = days.dayofweek.values
+    keep = rng.random(len(days)) < weekend_factor
+    shift = np.zeros(len(days), dtype="int64")
+    shift[(dow == 5) & ~keep] = -1   # Saturday → Friday
+    shift[(dow == 6) & ~keep] = 1    # Sunday → Monday
+    if shift.any():
+        days = days + pd.to_timedelta(shift, unit="D")
+    return days
+
+
 def apply_temporal_profile(
     dates: pd.DatetimeIndex,
     profile: TemporalProfile,
@@ -100,15 +118,7 @@ def apply_temporal_profile(
     if profile.date_only:
         return days
 
-    # Weekend damping: most scheduled events move Sat→Fri, Sun→Mon.
-    if profile.weekend_factor < 1.0:
-        dow = days.dayofweek.values
-        keep = rng.random(size) < profile.weekend_factor
-        shift = np.zeros(size, dtype="int64")
-        shift[(dow == 5) & ~keep] = -1   # Saturday → Friday
-        shift[(dow == 6) & ~keep] = 1    # Sunday → Monday
-        if shift.any():
-            days = days + pd.to_timedelta(shift, unit="D")
+    days = damp_weekends(days, profile.weekend_factor, rng)
 
     weights = profile.hour_weights or domain_hour_weights
     if weights is not None:

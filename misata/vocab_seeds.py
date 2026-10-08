@@ -108,7 +108,7 @@ COMPANY_NAMES: Dict[str, List[str]] = {
         "Kinetic AI", "Lattice HQ", "Momentum Tools", "NexusOne",
     ],
     "ecommerce": [
-        "Acme Retail", "BlueLine Store", "CrestShop", "DeltaMart",
+        "Ashford Retail", "BlueLine Store", "CrestShop", "DeltaMart",
         "Evergreen Goods", "FreshCart", "Gable & Stone", "Harbor Finds",
         "IndigoShop", "Juniper Market", "Kelp Bay Commerce", "Lantern Goods",
         "Maple Retail", "NorthShore Store", "Opal Market", "Pinnacle Shop",

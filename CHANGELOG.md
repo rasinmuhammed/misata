@@ -3,9 +3,75 @@
 All notable changes to Misata will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and versions follow [STABILITY.md](STABILITY.md): batched releases with Output changes and Breaking notes now, [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.
 
-## [Unreleased]
+## [0.9.7] - 2026-10-03
+
+The realism and trust release. Misata now measures its own realism (a
+reference-free tells report, and a benchmark against held-out real data),
+fixes what those measurements found in its defaults, refuses typos instead of
+generating noise, seeds real databases atomically and within their
+constraints, and gains the two things that most often sent people back to
+hand-written scripts: a process layer for event logs, and first-class custom
+generators. Highlights:
+
+- `misata.realism_report` / `misata realism` / MCP `check_realism`: fourteen
+  statistical tells of generated data, checked without real data, including
+  free-text checks calibrated on real reviews, news and forum text.
+- Text that agrees with its row: a product's name, description, brand and
+  price follow its category; a ticket's subject, description and resolution
+  describe one issue and follow its category, priority and status; reviews
+  name the product they review; bios and addresses use the row's own job,
+  city and country.
+- Realistic defaults: popularity-weighted foreign keys, daily and weekly
+  rhythm on timestamps, amounts equal to price times quantity, varied product
+  catalogs, seasonal peaks where declared.
+- `processes:` event logs with loops and per-step durations, audited, with
+  XES export. No SimPy.
+- `@misata.generator` + `generator:` in any schema + `misata --plugin`.
+- Auto-registered pytest plugin (`misata_tables`, `misata_sqlite`).
+- Strict distribution parameters with did-you-mean errors; `gamma` added.
+- Atomic `seed_database`, Postgres `--truncate` with foreign keys, relative
+  SQLite paths, `from_ddl` honouring CHECK, UNIQUE and column widths.
+- `type: json` / `type: array` columns with declared fields and items;
+  nested JSONL, Polars structs, Postgres JSONB.
+- Use-case presets: `preset: demo | test | load | ml | eval`.
+- `misata.from_django()` and `misata.to_polars()`.
+- `import misata` in about 0.7 s (was 1.7 s, and 3.5 s with SDV installed).
+- A realism benchmark (`benchmarks/realism_bench.py`) and an adopted
+  stability policy (`STABILITY.md`).
+
+### Output changes
+
+Generated rows differ from 0.9.6.x for the same seed: foreign-key fan-out,
+timestamp shaping, the causality shift, product names, email providers,
+order amounts and seasonal phase all changed. So does most default text:
+product names and descriptions, brands, ticket subjects, descriptions and
+resolution notes (now empty while a ticket is open), review titles, bios,
+addresses, company names, job titles, and the cities and countries drawn when
+none are declared (now weighted by population). Prose columns are generated
+after the columns they describe, which changes their values but not the
+output column order. Declared outcomes, identities
+and integrity hold as before. Pin `misata==0.9.6.60` to keep old bytes.
+
+### Breaking
+
+- `CopulaGenerator` is Misata's own NumPy Gaussian copula and the
+  `[advanced]` extra no longer installs SDV, which is under the Business
+  Source License. The API (`fit`, `sample`, `get_quality_report`) is the
+  same; `sample` takes an optional `seed`, and the quality report uses
+  KS/total-variation column shapes and rank-correlation pair trends.
+- Dict-schema types `object`, `json`, `jsonb`, `array` and `list` are now
+  nested columns and need `fields` (objects) or take `items` (arrays); they
+  used to be generated as text.
+
+- A schema with an unknown distribution name, a misspelled distribution
+  parameter or an impossible value (negative spread, `min > max`) now raises
+  instead of generating `uniform(0, 1000)`.
+- `misata validate --data-dir/--db-url` moved to `misata validate-data` (it
+  was unreachable under the old name).
+- `poisson` and `binomial` on a float column raise (they were uniform).
+
 
 ### Gulf names, and shares that respect declared bounds
 
@@ -23,6 +89,445 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reached 902.44. Values are now fitted to the group total inside the bounds,
   still to the cent. When a share genuinely cannot hold inside the bounds the
   exact share still wins, and it now warns.
+
+### Validity benchmark: generated data obeys its own DDL
+
+`benchmarks/validity_bench.py` generates five SQL schemas straight from DDL
+(CHECK enums, ranges and column-to-column rules, composite keys, a
+self-referencing hierarchy, a six-level FK chain) and counts violations with
+a pandas checker that shares no code with Misata. Misata 0.9.7 has zero on
+all five; the Faker script people write instead has 15,000 to 50,000 per
+schema, and SDV's multi-table model trained on valid data has 3,000 to 5,600
+on the three schemas it accepts. See `docs/validity-benchmark.md`. Writing it found and fixed:
+
+- `from_ddl` dropped self-referencing foreign keys (`manager_id REFERENCES
+  employees(id)`), so the column was random integers full of cycles. It now
+  keeps them and the hierarchy is generated as a forest.
+- Table-level `CHECK (a > b)` between two columns becomes an inequality
+  constraint; composite `PRIMARY KEY (a, b)` and `UNIQUE (a, b)` become
+  unique-combination constraints. Both now hold over the whole table, not per
+  batch, and survive foreign-key fan-out.
+- A sequence column inside a composite key (`line_no`) is numbered within its
+  group instead of dropping rows; a junction table of two foreign keys drops
+  repeated pairs.
+- Inequality repair moves a violating value by a gap drawn from the rows that
+  already satisfy the rule, inside the column's own range, instead of setting
+  it equal to the other column (which broke strict `>` and stacked rows at a
+  zero gap).
+- UNIQUE text columns skipped semantic generation: a UNIQUE `sku` was filled
+  with sentences, `regions.name` with people's names and `rooms.room_number`
+  with truncated prose. They now get codes, region names and room numbers,
+  and lookup tables (tags, teams, warehouses, offices, cities, skills,
+  languages) get names of their own kind.
+
+### Same data on every platform, and a fingerprint to prove it
+
+`misata.fingerprint(tables)` hashes generated tables in one canonical text
+form (independent of file format, dtype and pandas version) per table and
+for the whole dataset. `benchmarks/golden.py` records fingerprints for story,
+dict and DDL schemas, and a new CI job requires the same fingerprints on
+Linux, macOS and Windows, alongside the validity benchmark.
+
+### Streaming from a schema, with roll-ups in bounded memory
+
+`misata.generate_stream` now takes a dict schema, a `SchemaConfig`, a schema
+file or SQL DDL as well as a story. Roll-ups over one foreign-key hop are
+built from per-batch partials (count, sum, min, max, mean) while the child
+table streams, so the child is never held: 3M orders stream with a 66 MB
+peak and `customers.order_count` and `total_spent` still equal the sums over
+the streamed rows exactly.
+
+### Claims Misata no longer makes
+
+- `mimic` twins are no longer called "privacy-safe". A twin is fitted to real
+  rows, reuses their categories and quantiles, and is not anonymous; the
+  mimic guide now says so and points to differential privacy for data that
+  must not leak.
+- Domain pages no longer say "GDPR-safe" or "HIPAA-safe by design". They
+  state the fact instead: data generated from a schema or story involves no
+  real records.
+- `domain_priors.py` no longer claims its sources are all CC0. The priors
+  are hand-set parameters; Olist (CC BY-NC-SA) was used to check one shape
+  and is an evaluation set only. DATA-PROVENANCE.md lists this.
+
+### Text realism: one story per row
+
+Text columns used to be filled one at a time from small flat pools, so a row's
+columns described different things: a linen dress "lightweight and portable
+with a modern aesthetic", a ticket about a double charge whose resolution
+reset a password. A product table's description column held eight distinct
+sentences; ticket subjects were full sentences drawn from 120; brands were
+business-note prose. Measured on a 6,500-row customers, products, reviews and
+tickets schema:
+
+| Column | 0.9.6.x | 0.9.7 |
+|---|---|---|
+| products.description | 8 distinct of 500, shares a word with the name in 1% | 499 distinct, 99% |
+| products.category (declared, six values) | Toys rewritten down to 3% | kept as declared |
+| products.brand | note sentences | 48 brands, concentrated |
+| support_tickets.subject | 120 full sentences, 89 chars | short lines, 23 chars |
+| ticket subject matches its description | 7% (chance) | same issue by construction |
+| resolution_notes on open tickets | 100% filled | empty |
+| customers.company_name | 28 names, 3.8% "Acme Retail" | 941 distinct |
+| customers.job_title | 22 titles, even shares | 200, skewed |
+| reviews that name their product | 0% | about 45% |
+
+- **Scenarios** (`misata/scenarios.py`). One latent product or support issue
+  is drawn per row and every column renders it. Products come from nineteen
+  families (electronics through baby and tools), each with nouns, attributes,
+  materials, features, uses and care or spec lines tagged to the nouns they
+  fit, so a vacuum never gets "a soft-touch weave". Tickets come from
+  twenty-nine issues across billing, shipping, returns, technical, account
+  and product questions, each with subjects, symptoms, details and paired
+  causes and fixes. The declared category picks the family, the declared
+  priority leans the draw toward severe issues, and the status decides
+  whether there is a resolution. None of those columns are changed.
+- **Every other free-text kind is a grammar conditioned on one profile per
+  row** (`misata/textkit.py`): business notes, survey feedback, churn,
+  cancellation, return, delivery and audit reasons, memos, chief complaints,
+  clinical notes, discharge advice, social captions, post titles and bodies,
+  email subjects and bios. A clinical note draws one of 36 cases, so its
+  complaint, findings, diagnosis, medicines and advice agree; a blog post
+  draws one of 55 topics and stays in its vocabulary; feedback and churn
+  draw one of 23 product kinds with their own features, integrations and
+  users; cancellations one booking, deliveries one property, and return
+  reasons use the faults buyers of that kind of product report. Bios are
+  composed from facets (job, place, interests, history) in any order.
+- **A paraphrase layer** (`misata/paraphrase.py`) varies the rendered text
+  per register (casual, business, product, clinical, patient-facing):
+  meaning-preserving phrase swaps, contractions expanded only, intensifiers,
+  terse and formal styles, shorthand and light typing noise. Ambiguous words
+  ("came", "just", "light") are never matched, hashtags and the row's own
+  product noun or job title are never rewritten, and a/an is repaired after
+  every swap.
+- **Declared vocabulary wins, built-in defaults lose.** Capsule vocabulary
+  tagged `misata-defaults` is now a last resort everywhere, not data: it had
+  let eight generic sentences outrank the category-aware grammar.
+- **Prose after the columns it describes.** Review text, ticket text,
+  descriptions, bios, notes and addresses are generated after ratings,
+  categories, statuses and geography, whatever order the schema lists them
+  in. Output column order is unchanged.
+- **Parent attributes through foreign keys.** A review of `product_id` 42
+  names product 42's type; a ticket can name the customer's product.
+- **Prices follow category** when they were drawn independently of it:
+  existing prices are reassigned between rows, so a declared range or shape
+  holds exactly. Capsule price bands and declared correlations are left alone.
+- **Labels are skewed.** City, country, job title, employer and brand draws
+  follow Zipf curves or real population, not even shares. City weights use
+  GeoNames populations (CC BY 4.0, `misata/data_packs/`, see
+  DATA-PROVENANCE.md). Company names come from the composing lexicon, and
+  the pop-culture placeholders (Acme, Globex, Initech) are gone.
+- **Routing fixes.** `brand`/`manufacturer` get brands; `review_title` gets
+  review titles and a listing's, post's or course's `title` is no longer a
+  job title; a ticket's `subject`/`title` is a subject line and its
+  `description`/`body` a ticket body.
+- **Speed.** Grammar expansion draws one uniform per node instead of calling
+  `rng.choice`, and review text is no longer generated twice. A 130,000-row
+  products, reviews and tickets schema generates in 6.9 s (15.9 s before).
+
+New free-text tells in `realism_report`:
+
+- `text_templates` now also catches repeated sentence skeletons (the same
+  sentence with the nouns swapped) and near-copies (MinHash, Jaccard ≥ 0.8),
+  and uses the top-10 opener share.
+- `text_diversity`: compressibility (gzip ratio), distinct word trigrams,
+  length spread and the word-frequency curve (flat means word salad).
+- `text_context`: review tone against the rating (Spearman), and whether a
+  description shares more words with its own title than with a random row's.
+
+Thresholds come from a local calibration on seven real English corpora at
+2,000 rows each, and sit well outside every one of them. They are strict on
+purpose. Misata's own text passes the repetition and context checks for every
+kind, and `text_diversity` for every kind but chief complaints (about 4.2x),
+short triage fragments with no real reference to calibrate against; see
+LIMITATIONS.md.
+
+### Realism report: the statistical tells of generated data
+
+`misata.realism_report(tables)` and `misata realism DIR` scan any tables,
+whoever generated them, for fourteen shapes real data almost never has:
+uniform money, Benford violations in transaction totals, even FK fan-out
+(every customer with about five orders), perfectly balanced categories, flat
+weekday and hour profiles, timestamps piled up at midnight, placeholder
+values, evenly shared email providers, emails unrelated to names, tiny name
+pools, templated free text, prose with a tiny vocabulary, text that ignores
+its own row, and tables with no nulls at all. No real data is needed. Each finding carries its evidence and a pass/warn/fail status; the
+CLI exits nonzero on failures (or on warnings with `--strict`), so it can
+gate seed data in CI.
+
+Run on Misata's own default ecommerce story (seed 7) it first scored 0.66,
+with three failures. A typical Faker script scores about 0.3. All three are
+fixed below; the same story now scores 0.93, with "no nulls" as the only
+remaining warning (nulls stay opt-in, because NOT NULL seeding must work).
+
+### Realistic defaults, fixed where the realism report pointed
+
+- **Foreign keys are popularity-weighted by default.** Every parent used to
+  get about the same number of children (Gini 0.11 to 0.25). Each parent now
+  carries a lognormal popularity weight derived from a hash of its ID, so the
+  same customers stay heavy buyers in every batch and the main RNG stream is
+  untouched; children-per-parent Gini is about 0.55. `popularity_sigma` tunes
+  it, `sampling: "uniform"` restores the old behaviour. `sampling: "pareto"`
+  used to redraw its weights every 10k-row batch, so a popular parent in one
+  batch was ordinary in the next; it now uses the same stable weights.
+- **datetime columns get a daily and weekly rhythm again.** The temporal
+  profiles (business hours for appointments, waking hours for human actions,
+  sub-second precision for machine events) were unhooked in 0.9.6.36 when the
+  `date` branch stopped calling them, and the `datetime` branch never did, so
+  every datetime was uniform nanosecond noise: 3am as busy as noon, Sunday as
+  busy as Tuesday. They are wired into `datetime` generation now, with a
+  domain-dependent weekend dip that also applies to activity `date` columns.
+  Rows the dip would push outside the declared range keep their day, and
+  curve time columns are left alone. `time_profile: "uniform"` opts out.
+- **The causality shift no longer piles rows into the small hours.** A child
+  row that predated its parent was moved to the parent's birth plus a few
+  hours. Parents are often born at midnight, so about a fifth of all orders
+  landed between 1am and 5am, and on `date` columns half the values carried a
+  time of day. The shift is now whole days, so each row keeps its own time of
+  day and a `date` stays a calendar day.
+- **Seasonal peaks land where `peak_offset` says.** `sin(x - offset)` peaks a
+  quarter period after the offset, so a declared Friday peak landed on Monday
+  and a December peak in March. It is `cos` now, and day-of-year is 0-based as
+  documented. Story phrases set the phase too: "weekend" peaks on Saturday,
+  "winter", "holiday", "Christmas" and "December" in late December, "summer"
+  in July.
+- **The roll-up audit sees a childless parent.** A parent with no children
+  was dropped from the sum/count comparison, so a nonzero total on it was
+  never flagged. Uniform fan-out hid this, because every parent had children.
+
+All of the above change output bytes for the same seed. Declared outcomes,
+identities and integrity are unchanged.
+
+### Typos are errors, not uniform noise
+
+An unknown distribution name or a misspelled parameter used to fall through to
+`uniform(0, 1000)`: `distribution: "gumbel"`, `lamda: 3` and `mena: 40` all
+produced plausible numbers that matched nothing the schema said. They now
+raise when the column is built, naming the closest valid spelling ("unknown
+parameter 'lamda' for poisson; did you mean 'lambda'?"). So do values the
+sampler cannot honour: negative `std`/`sigma`, `min > max`, a binomial `p`
+outside 0..1, non-positive beta or Pareto shapes. Case and common aliases
+(`Gaussian`, `log-normal`, `power-law`) are accepted. Unrecognised keys that
+are not near-misses are left alone, because parameters carry many
+cross-cutting options. LLM-written schemas are repaired with a warning
+instead of failing the parse. int columns gain the `exponential` and `beta`
+samplers they were silently missing; `poisson` and `binomial` on a float
+column now say they are int-only.
+
+### Seeding a real database
+
+- **One transaction.** `seed_database` committed every batch, so a constraint
+  failure in the fifth table left the first four filled. Create, truncate and
+  every insert now commit together; a failure rolls all of it back (SQLite and
+  Postgres both roll back DDL). Probes that may fail run in savepoints, so
+  they no longer poison a Postgres transaction.
+- **`--truncate` works on Postgres with foreign keys.** Tables were truncated
+  one statement at a time, which Postgres refuses for any referenced table.
+  It is one `TRUNCATE` naming every schema table now; `CASCADE` is
+  deliberately not used, since it would also empty tables outside the schema.
+- **`sqlite:///dev.db` is `./dev.db`.** The URL path was used as-is, so the
+  CLI's own example opened `/dev.db` at the filesystem root. Three slashes
+  are relative and four absolute, as in SQLAlchemy.
+- **`from_ddl` reads the constraints the database will enforce**: single-column
+  primary keys and `UNIQUE` become unique, `VARCHAR(n)` becomes a held
+  `max_length`, `CHAR(2)` country/state/language and `CHAR(3)` currency
+  columns get ISO codes, `NUMERIC(p, s)` keeps its scale, and `CHECK` with
+  `IN`, `BETWEEN`, comparisons or `length()` becomes choices, bounds or a
+  width. Text primary keys are codes, not sentences. Untranslatable checks are
+  counted in a warning. A constraint-heavy schema that failed on its first
+  insert in five different ways now seeds into Postgres and reseeds with
+  `--truncate`.
+- **Unique values stay inside their width.** A collided unique value got
+  `" 2"` appended, which overflowed `VARCHAR(12)`; pattern columns now redraw
+  a fresh code, and suffixes trim the base to fit.
+- **`to_sql(dialect="postgres")` writes valid DDL.** Only the spelling
+  `postgresql` was recognised; `postgres` fell to the ANSI branch, which wrote
+  `DOUBLE`, valid in neither. ANSI now writes `DOUBLE PRECISION` too.
+- Emails are derived from a `full_name` column as well as `name` and
+  `first_name`/`last_name`.
+
+### Nested JSON and array columns
+
+`type: json` with `fields` and `type: array` with `items` (`min_items`,
+`max_items`, `unique_items`, `sorted`) generate real nested values. Every
+field and item is generated through the same column machinery, so an `email`
+field holds a real email and a `pattern` a code of that shape; nesting
+recurses, and `optional` fields are left out of a share of rows. Values are
+canonical JSON text, so CSV, SQL and database writers all handle them;
+Postgres columns are created as `JSONB`. `misata.to_jsonl` writes them as
+nested objects, `misata.decode_json_columns` parses them in pandas, and
+`misata.to_polars` returns structs and lists. The dict spellings `object`,
+`list` and `jsonb` map to these types; they used to become prose text, and a
+`json` column used to hold the same constant string on every row.
+
+### Use-case presets
+
+`preset: demo | test | load | ml | eval` (YAML), `"__preset__"` (dict),
+`preset=` (Python) or `--preset` (CLI) fills in what a job needs: `demo`
+shifts declared dates to end today, `test` caps tables at 200 rows with a
+fixed seed, `load` multiplies rows by 10, `ml` declares nulls, outliers,
+typos and duplicates with keys protected and infers correlations, `eval`
+combines current dates with modest dirt. A preset never overrides a
+declaration.
+
+### Django and Polars
+
+`misata.from_django(app_labels=[...])` reads Django models (types,
+`max_length`, `choices`, `unique`, `null`, validators, decimal places,
+foreign keys, one-to-one, many-to-many through tables, `unique_together` and
+`UniqueConstraint`) into a schema whose rows fit the migrated tables.
+`misata.to_polars(tables)` converts output to Polars. New extras:
+`misata[polars]`, `misata[django]`.
+
+### Faster import
+
+`import misata` takes about 0.7 s, down from 1.7 s, and from 3.5 s when the
+`[advanced]` extra was installed: the copula generator imported SDV (and with
+it PyTorch) at import time, and curve fitting imported scipy.optimize. Both
+load when used.
+
+### Benchmark misses addressed
+
+- Ride and nightlife domains (`transport`, `taxi`, `mobility`, `rideshare`,
+  `nightlife`) get a night-heavy hour curve and no weekend dip. NYC taxi hour
+  profile error: 0.24 to 0.08.
+- In `marketplace`, `travel` and `realestate` domains, person-like parents
+  (customers, buyers, guests) get mild popularity weighting while products
+  stay concentrated. Olist customer fan-out error: 0.39 to 0.26.
+- **`min_children` held only within a 10,000-row batch.** Each batch tried to
+  cover every parent from scratch, starting with the same parents, so a large
+  child table left most parents uncovered and warned once per batch.
+  Coverage now accumulates across batches; on Olist, `min_children: 1` closes
+  the customer fan-out gap entirely.
+- `marketplace` gains the retail amount and price priors `ecommerce` had.
+
+The benchmark page records which results followed these fixes.
+
+### Custom generators, from any door
+
+The escape hatch for logic the language cannot express was a Python-only
+argument (`custom_generators=`) whose function saw parent IDs but not parent
+rows, got no seeded random source, and on a table's first column silently
+returned zeros. Now:
+
+- `@misata.generator("name")` registers a function, and any schema (Python,
+  YAML, dict) names it with `generator: name`. The CLI loads the module with
+  `misata --plugin module ...` or `MISATA_PLUGINS`. A schema never imports
+  code, so a schema from someone else or from an agent cannot run anything
+  unregistered.
+- A one-parameter function receives a `GenContext`: the batch's rows so far,
+  `ctx.parent("customers")` with every parent column aligned to the batch,
+  and `ctx.rng` seeded from the schema seed, table, column and batch.
+  Parents of such tables keep all their rows and columns in context, so
+  `ctx.parent()` finds every parent, not the first 50,000.
+- Wrong-length results, reading a foreign key that is not generated yet, and
+  an unregistered name all raise with the fix in the message; the per-row
+  form on a first column runs instead of returning zeros.
+- A YAML foreign key with `references: table.column` now creates its
+  relationship; it was kept on the column and ignored, so validation failed
+  on a relationship the file had just declared.
+
+### Processes: event logs with loops and real durations
+
+`processes:` declares how each case moves through states: transition
+probabilities (with rework loops such as reopened tickets, bounded by
+`max_steps`) and dwell-time distributions per state or per transition. It
+writes an event table (`event_id`, case key, `step`, `activity`,
+`timestamp`) and can set the case's final state, from Python, YAML, dict
+schemas and the CLI. It is a vectorised semi-Markov chain, not a
+discrete-event simulator (200,000 cases in about a second, no SimPy).
+Structural guarantees are exact and `misata.process_audit` re-checks them
+from the rows; path shares and durations are drawn. `misata.to_xes` exports
+any event log as IEEE 1849 XES for ProM, PM4Py, Disco or Celonis.
+
+The lifecycle timestamps it complements used one uniform gap of up to 30
+days for every step; a process gives each step its own distribution.
+
+### A pytest plugin, no conftest needed
+
+Installing misata now registers a pytest plugin (`pytest11` entry point).
+`@pytest.mark.misata(schema="misata.yaml", seed=7)` on a test or module gives
+it `misata_tables` (generated once per session per marker, copied per test)
+and `misata_sqlite` (a seeded SQLite URL in the test's tmp dir), alongside
+`misata_generate`, `misata_parse` and `misata_preview`. The fixtures used to
+need importing into `conftest.py` by hand. The plugin lives in a separate
+`misata_pytest` module that imports misata only when a fixture runs, so it
+adds about 0.1 s to pytest startup; `-p no:misata` disables it.
+
+### In-memory generation is no longer quadratic
+
+`generate_from_schema` (and the dbt and seed CLI paths) concatenated each
+table onto itself once per 10k-row batch. Batches are now collected and
+joined once: 3M rows build in 3.6 s instead of 6.2 s, and the gap grows with
+size (the audit measured 154 s in memory against 15 s streamed at 10M).
+
+### A realism benchmark against held-out real data
+
+`benchmarks/realism_bench.py` scores blind generators (a one-line story, a
+names-and-types schema, a typical Faker script) and fitted ones (`mimic`,
+SDV's Gaussian copula) against the held-out half of two public datasets:
+Olist's real marketplace orders and the NYC taxi sample. Metrics are
+scale-free (amount shape, hour and weekday profiles, fan-out concentration,
+category balance, a real-vs-synthetic classifier, the tells score), and the
+real train half sets the noise floor. Results and an honest reading are in
+`docs/realism-benchmark.md`: blind Misata beats the script and SDV fitted
+to the data on e-commerce (detection AUC 0.63 vs 0.78 and 0.71, mean of five
+seeds); on taxis it beats the script but not SDV (0.75 vs 0.79 and 0.68),
+because its fares are too wide; customer fan-out on a buy-once marketplace
+is a real miss. Nothing was tuned to the test set.
+
+The detection feature normalised discrete amounts by each sample's own
+median, which let the classifier tell the two real halves apart on some
+seeds (AUC up to 0.89 for real vs real). It is now rounded, real vs real
+scores 0.50 on every seed, and the published AUCs are from the fixed metric
+(earlier drafts said 0.74 for Olist and 0.91 for taxis).
+
+The benchmark found four bugs, fixed here:
+
+- **`mimic` dropped the time of day.** Timestamps were profiled as calendar
+  dates, so every mimicked event landed at midnight (detection AUC 1.0). A
+  column with times of day now profiles as a `datetime` and learns its hour
+  and weekday shares (`hour_weights`, `weekday_weights`, also declarable).
+  Olist AUC: 1.0 to 0.54.
+- **Story columns named `*_at` were dates.** `ordered_at`, `joined_at` and the
+  rest are moments, so they are timestamps now; `order_date` stays a date.
+- **The fan-out tell called real data fake.** With about one child per parent
+  the counts are necessarily even; the check now needs two per parent.
+- **Product names were not reproducible.** A coherence pass chose names with
+  Python's `hash()`, which is salted per process, so the same seed gave
+  different products in different runs. It uses CRC32 now.
+
+### More realistic defaults
+
+- **Product catalogs vary.** About twenty base names per category gave a
+  3,200-listing catalog 120 distinct titles. Base names now combine with
+  fictional brands and category-specific variants (size, colour, capacity,
+  edition): 2,067 distinct titles for the same catalog.
+- **An order's amount is price times quantity.** When a row has a quantity
+  and references a parent with a price, the amount is derived, so the first
+  JOIN to products agrees. Declared curves, roll-ups and formulas keep their
+  values.
+- **A story that names a missing entity says so.** "...12000 orders and
+  order items" returned orders and nothing else, silently; it now warns that
+  no table was built for order items.
+
+### The stability policy
+
+`STABILITY.md` sets out what Misata intends to guarantee from 1.0: semantic
+versioning, batched releases with an **Output changes** changelog section,
+declared outcomes and integrity holding across every minor release, rows
+byte-identical within a minor series, and a two-minor deprecation window. It
+is adopted with this release.
+
+### Story counts that name a table are honoured
+
+"An ecommerce shop with 3000 customers, 500 products and 12000 orders" came
+back with 600 products and a warning that "500 products" had no effect,
+although the parser had built a products table. An explicit count now sets
+the row count of the table it names, through plurals, two-word names ("order
+items") and a few synonyms (receipts and purchases for orders, clients and
+buyers for customers). Unique key ranges widen to fit. A count for a table
+the parser did not build ("40 stores") still gets the warning.
 
 ## [0.9.6.60] - 2026-09-28
 

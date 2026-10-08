@@ -25,6 +25,16 @@ misata.to_jsonl(tables, "data/")
 # writes data/users.jsonl, data/orders.jsonl, …
 ```
 
+## Polars
+
+```python
+frames = misata.to_polars(tables)        # pip install "misata[polars]"
+frames["orders"].group_by("customer_id").len()
+```
+
+`json` and `array` columns become Polars structs and lists. JSON Lines output
+likewise writes them as nested objects, not escaped strings.
+
 ## Document generation
 
 Render one document per row from any table, invoices, patient reports, transaction receipts.

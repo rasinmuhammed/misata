@@ -634,7 +634,12 @@ def _detect_rollup_mismatch(tables, schema) -> List[CoherenceFinding]:
         else:
             continue
         got = parent.set_index(s.parent_key)[s.target_column]
-        joined = got.to_frame("got").join(expected.to_frame("want")).dropna()
+        joined = got.to_frame("got").join(expected.to_frame("want"))
+        if s.agg in ("sum", "count"):
+            # A parent with no children sums (and counts) to zero; dropping
+            # it would hide a nonzero total on a childless parent.
+            joined["want"] = joined["want"].fillna(0)
+        joined = joined.dropna()
         if joined.empty:
             continue
         bad = int((abs(joined["got"] - joined["want"]) > 0.01).sum())
@@ -1178,6 +1183,28 @@ def _detect_hierarchy_violation(tables, schema) -> List[CoherenceFinding]:
                 message=(f"no row has a null {rel.child_key}, so the hierarchy "
                          f"has no root; declare a null_rate on it"),
                 rows_affected=len(df),
+            ))
+    return out
+
+
+def _detect_process_violation(tables, schema) -> List[CoherenceFinding]:
+    """A process event log must satisfy its declaration's structural
+    guarantees, re-derived from the rows (see misata.process.process_audit)."""
+    out: List[CoherenceFinding] = []
+    specs = getattr(schema, "processes", None) or []
+    if not specs:
+        return out
+    from misata.process import process_audit
+    for spec in specs:
+        events = tables.get(spec.event_table)
+        if events is None:
+            continue
+        for problem in process_audit(events, spec, tables.get(spec.cases_table)):
+            out.append(CoherenceFinding(
+                kind="process_violation", severity="high",
+                table=spec.event_table, column=spec.activity_column,
+                message=f"process {spec.name}: {problem}",
+                rows_affected=0,
             ))
     return out
 
@@ -2254,6 +2281,7 @@ def coherence_audit(
         report.findings.extend(_detect_partition_leak(tables, schema))
         report.findings.extend(_detect_hierarchy_violation(tables, schema))
         report.findings.extend(_detect_event_log_mismatch(tables, schema))
+        report.findings.extend(_detect_process_violation(tables, schema))
         report.findings.extend(_detect_outlier_count_mismatch(tables, schema))
         report.findings.extend(_detect_typo_count_mismatch(tables, schema))
         report.findings.extend(_detect_bitemporal_violation(tables, schema))

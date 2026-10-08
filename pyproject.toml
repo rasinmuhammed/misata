@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.9.6.60"
+version = "0.9.7"
 description = "Outcome-conformant synthetic data & Instant Sandbox Oracle for AI coding agents (Cursor, Claude Code, Windsurf). Realistic multi-table database seeder with 0 orphan FKs, $0 LLM cost, 2s runtime. MCP server included."
 authors = [
     {name = "Muhammed Rasin", email = "rasin@misata.studio"}
@@ -132,12 +132,17 @@ studio = [
 ]
 # Advanced features for world-class generation
 advanced = [
-    "sdv>=1.0.0",           # Copula-based quality generation
     "langgraph>=0.2.0",     # Multi-agent pipeline
     "z3-solver>=4.12.0",    # Constraint satisfaction
 ]
 documents = [
     "weasyprint>=60.0",       # HTML → PDF conversion
+]
+polars = [
+    "polars>=0.20.0",         # to_polars(): DataFrames with json/array as structs and lists
+]
+django = [
+    "django>=4.2",            # from_django(): schemas from Django models
 ]
 docs = [
     "mkdocs-material>=9.5.0",
@@ -159,13 +164,16 @@ evalpack = [
     "duckdb>=0.9.0",          # Independent SQL verification of evalpack answer keys
 ]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity,evalpack]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity,evalpack,polars,django]",
 ]
 
 [project.scripts]
 misata = "misata.cli:main"
 misata-studio = "misata.studio:launch"
 misata-mcp = "misata.mcp.server:main"
+
+[project.entry-points.pytest11]
+misata = "misata_pytest"
 
 [build-system]
 requires = ["setuptools>=68.0.0", "wheel"]
@@ -176,7 +184,7 @@ include = ["misata*"]
 exclude = ["web*", "tests*"]
 
 [tool.setuptools.package-data]
-misata = ["py.typed", "_schemas/*.json", "capsules_registry/*.json"]
+misata = ["py.typed", "_schemas/*.json", "capsules_registry/*.json", "data_packs/*.json", "data_packs/*.toml"]
 
 [tool.black]
 line-length = 100

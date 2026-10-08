@@ -1,6 +1,6 @@
 ---
 title: Generate Insurance Synthetic Data in Python | Misata
-description: Generate realistic insurance synthetic datasets in Python, customers, policies, claims, and payments with actuarially accurate premium distributions, claim rates, and temporal coherence. GDPR-safe by design.
+description: Generate realistic insurance synthetic datasets in Python, customers, policies, claims, and payments with actuarially accurate premium distributions, claim rates, and temporal coherence. No real policyholder data required or used.
 ---
 
 # Generate Insurance Synthetic Data in Python

@@ -359,7 +359,7 @@ def _build_builtins() -> Dict[str, LexiconSpec]:
     company = LexiconSpec(
         name="company_name",
         description="Root plus sector plus legal suffix, the ordinary morphology of trading names.",
-        head=["Acme Corporation", "Globex", "Initech", "Umbrella Industries"],
+        head=["Northwind Group", "Meridian Holdings", "Cobalt Systems", "Harbor Health"],
         head_share=0.03,
         slots={
             "root": ("Apex Zenith Summit Vertex Northwind Blue Silver Iron Cedar Granite Harbor "

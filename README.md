@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/logo.png" width="180" alt="Misata" />
+<img src="https://raw.githubusercontent.com/rasinmuhammed/misata/main/public/logo.png" width="180" alt="Misata" />
 
 # Misata
 
@@ -11,11 +11,13 @@ Generate complete multi-table databases with foreign keys that resolve, math tha
 [![PyPI version](https://img.shields.io/pypi/v/misata.svg?style=flat-square&color=E89030)](https://pypi.org/project/misata/)
 [![Python versions](https://img.shields.io/pypi/pyversions/misata.svg?style=flat-square)](https://pypi.org/project/misata/)
 [![CI](https://img.shields.io/github/actions/workflow/status/rasinmuhammed/misata/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/rasinmuhammed/misata/actions)
-[![License](https://img.shields.io/github/license/rasinmuhammed/misata.svg?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/github/license/rasinmuhammed/misata.svg?style=flat-square)](https://github.com/rasinmuhammed/misata/blob/main/LICENSE)
 [![Open in Colab](https://img.shields.io/badge/Open%20in-Colab-F9AB00?style=flat-square&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/notebooks/quickstart.ipynb)
 [![Paper](https://img.shields.io/badge/arXiv-2606.08736-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2606.08736v1)
 [![smithery badge](https://smithery.ai/badge/misata/misata)](https://smithery.ai/servers/misata/misata)
 [![Misata Studio](https://img.shields.io/badge/Studio-no--code%20in%20your%20browser-E89030?style=flat-square)](https://misata.studio)
+
+**[Documentation](https://misata.studio/docs)** · **[Misata Studio](https://misata.studio)** · **[Changelog](https://github.com/rasinmuhammed/misata/blob/main/CHANGELOG.md)**
 
 **Prefer a visual interface?** Try [**Misata Studio**](https://misata.studio) to design schemas on an interactive canvas and generate datasets directly in your browser.
 
@@ -77,6 +79,92 @@ df = pd.read_csv("support_cases.csv")
 # Automatically detects semantic columns (subjects, resolution notes, memos, error traces)
 df_enriched = misata.enrich_text(df, seed=42)
 ```
+
+---
+
+## Replace your data script
+
+The Faker + pandas script draws every column on its own: foreign keys are
+uniform, amounts are uniform, timestamps are flat across the clock, emails do
+not match names, and nothing reconciles under a JOIN. Write the shape down
+instead, and check the result:
+
+```yaml
+# misata.yaml
+seed: 7
+tables:
+  customers:
+    rows: 2000
+    columns:
+      customer_id: {type: int, primary_key: true}
+      email: {type: text, text_type: email}
+      signup_at: {type: datetime, start: "2024-01-01", end: "2025-12-31"}
+  orders:
+    rows: 20000
+    columns:
+      order_id: {type: int, primary_key: true}
+      customer_id: {type: foreign_key, references: customers.customer_id}
+      ordered_at: {type: datetime, start: "2024-01-01", end: "2025-12-31"}
+      amount: {type: float, distribution: lognormal, mu: 3.8, sigma: 0.9, decimals: 2}
+```
+
+```bash
+misata generate --config misata.yaml --output-dir data
+misata audit data      # contradictions: shipped before ordered, totals that do not add up
+misata realism data    # synthetic tells: uniform money, even fan-out, flat hours, no nulls
+```
+
+By default customers are unevenly active (a few place most orders), times of
+day and days of the week have a rhythm, and every order postdates its
+customer. A typo such as `lamda: 3` is an error with a suggestion, not a
+column of noise.
+
+**When the schema is not enough:**
+
+- **Event logs.** `processes:` declares how tickets, claims or orders move
+  through steps, with branch probabilities, rework loops and a duration per
+  step, and writes an event-log table (`misata.to_xes` for process mining).
+  [Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/processes.md)
+- **Your own logic.** `@misata.generator("tier")` registers a function that
+  sees the parent row and a seeded RNG; the schema names it with
+  `generator: tier`, and `misata --plugin my_module` loads it on the CLI.
+  [Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/custom-generators.md)
+- **Tests.** Installing misata registers a pytest plugin:
+  `@pytest.mark.misata(schema="misata.yaml")` and a test receives
+  `misata_tables` or a seeded `misata_sqlite` URL. No conftest.
+  [Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/testing.md)
+- **Nested payloads.** `type: json` with `fields` and `type: array` with
+  `items` generate real nested values (emails, cities, codes inside them);
+  `misata.to_jsonl` and `misata.to_polars` keep them nested.
+  [Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/nested-columns.md)
+- **Say what it is for.** `preset: demo | test | load | ml | eval` sets the
+  realism defaults that job needs: current dates, small fixtures, volume, or
+  declared dirt. [Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/presets.md)
+- **Your Django models.** `misata.from_django()` reads fields, choices,
+  lengths, validators and relations.
+  [Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/django.md)
+- **Your existing database.** `misata seed postgresql://...` reads the
+  schema, honours CHECK, UNIQUE and column widths, and inserts everything in
+  one transaction.
+
+**Does it obey the schema?** On five SQL schemas with CHECK rules,
+composite keys, a self-referencing hierarchy and a six-level foreign-key
+chain, Misata generated from the DDL alone has zero violations; the Faker
+script people write instead has 15,000 to 50,000 per schema, and SDV's
+multi-table model, trained on valid data, has 3,000 to 5,600 on the three
+schemas it accepts (it refuses the other two). Counted by a checker that
+shares no code with Misata
+([validity benchmark](https://github.com/rasinmuhammed/misata/blob/main/docs/validity-benchmark.md)).
+
+**How realistic is it?** We test blind generation against held-out real data
+([benchmark](https://github.com/rasinmuhammed/misata/blob/main/docs/realism-benchmark.md)).
+On Olist's real marketplace orders, a names-and-types schema with no access to
+the data is harder to tell from real rows than a Faker script (classifier AUC
+0.63 vs 0.78, mean of five seeds) and than SDV fitted on 15,000 real orders
+(0.71). On NYC taxi trips it beats the script (0.75 vs 0.79) and gets the
+night-heavy hour curve closer than SDV does, but its fares are still too
+wide, and SDV fitted on the real trips stays ahead (0.68). The benchmark publishes both, and says which results
+followed a fix it prompted.
 
 ---
 
@@ -145,7 +233,7 @@ Misata is built for engineers, testers, data teams, and founders across dozens o
 - **Payment Remittance**: Simulate SWIFT, ACH, and card transactions with valid routing numbers, CVVs, and statement descriptors.
 
 ### 🏥 Healthcare & Clinical Informatics
-- **HIPAA Safe-Harbor Synthetic Cohorts**: Generate realistic patient populations, vital signs, and encounter histories with zero PHI liability.
+- **Synthetic patient cohorts**: Generate realistic patient populations, vital signs, and encounter histories from a schema, with no real patient record involved.
 - **Clinical NLP Model Evaluation**: Evaluate healthcare LLMs against authentic SOAP notes, chief complaints, and discharge summaries.
 - **Ward & Scheduling Simulation**: Simulate hospital appointment grids with realistic 15-minute intervals, business hours, and weekend dips.
 
@@ -157,7 +245,7 @@ Misata is built for engineers, testers, data teams, and founders across dozens o
 ### 🛡️ Cybersecurity & IT Infrastructure
 - **Network Intrusion Datasets**: Generate netflow logs, port scans, and DDoS traffic patterns for security tool benchmarking.
 - **System Exception & Error Analysis**: Populate observability dashboards with realistic deadlocks, HTTP 504 timeouts, and connection pool exhaustion logs.
-- **Compliance Audit Logging**: Simulate SOC2/HIPAA access logs with documented managerial access override justifications.
+- **Compliance Audit Logging**: Simulate SOC2- and HIPAA-style access logs with documented managerial access override justifications.
 
 ### 🔬 Machine Learning & Statistical Research
 - **Synthetic Twins from CSV (`misata.mimic`)**: Clone distributions and correlations from sensitive CSVs without copying a single original row.
@@ -170,7 +258,7 @@ Misata is built for engineers, testers, data teams, and founders across dozens o
 
 Faker was built over a decade ago for single-attribute mock values. For modern applications, it introduces critical failure modes:
 
-| Problem in 2026 | Faker Reality | Misata 0.9.6.60 Advantage |
+| Problem in 2026 | Faker Reality | Misata |
 |:---|:---|:---|
 | **Relational Topology** | ✗ 0 concept of databases or FKs; manual glue code required | **✓ Strict topological DAG; 0 orphan FKs guaranteed** |
 | **Cross-Column Coherence** | ✗ Incoherent (e.g. "Male" name, mismatched email, invalid city) | **✓ Coherent identities, addresses, and causality** |
@@ -180,7 +268,7 @@ Faker was built over a decade ago for single-attribute mock values. For modern a
 | **Aggregate Targets** | ✗ Impossible (uniform random noise) | **✓ Exact closed-form outcome conformance ($0.00 error)** |
 | **Database Seeding** | ✗ Manual SQL scripts or ORM boilerplate | **✓ One-command introspection and seeding (`misata seed`)** |
 
-*Read the complete [Faker vs SDV vs Misata Guide](docs/faker-vs-sdv-vs-misata.md) for full benchmarks and code comparisons.*
+*Read the complete [Faker vs SDV vs Misata Guide](https://misata.studio/docs/faker-vs-sdv-vs-misata) for full benchmarks and code comparisons.*
 
 ---
 
@@ -190,14 +278,14 @@ Misata fits whatever workflow you already use:
 
 | Input Mode | Best For | Learn More |
 |---|---|---|
-| **1. Plain English Story** | Rapid prototyping, zero configuration | [Story Guide](docs/generation/story.md) |
-| **2. YAML Schema-as-Code** | Committing versioned data definitions to git | [YAML Guide](docs/generation/yaml.md) |
-| **3. Live Database Seeding** | Introspecting and populating Postgres, MySQL, SQLite | [Database Seeding Guide](docs/database-seeding-python.md) |
-| **4. Python Dict Schema** | Programmatic in-memory generation in Python scripts | [Dict Schema Guide](docs/generation/dict.md) |
-| **5. dbt Project Schemas** | Generating fixtures directly from `schema.yml` | [dbt Seeding Guide](docs/guides/dbt-seed.md) |
-| **6. Prisma Schema** | Next.js and Node.js developers seeding full-stack apps | [Prisma Guide](docs/generation/database.md#prisma) |
-| **7. Multi-Provider LLMs** | Groq, OpenAI, Claude, Gemini, or Ollama-driven schemas | [LLM Guide](docs/generation/llm.md) |
-| **8. Incremental Growth** | Appending rows with offset IDs and preserved FKs | [Incremental Guide](docs/generation/incremental.md) |
+| **1. Plain English Story** | Rapid prototyping, zero configuration | [Story Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/generation/story.md) |
+| **2. YAML Schema-as-Code** | Committing versioned data definitions to git | [YAML Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/generation/yaml.md) |
+| **3. Live Database Seeding** | Introspecting and populating Postgres, MySQL, SQLite | [Database Seeding Guide](https://misata.studio/docs/database-seeding-python) |
+| **4. Python Dict Schema** | Programmatic in-memory generation in Python scripts | [Dict Schema Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/generation/dict.md) |
+| **5. dbt Project Schemas** | Generating fixtures directly from `schema.yml` | [dbt Seeding Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/dbt-seed.md) |
+| **6. Prisma Schema** | Next.js and Node.js developers seeding full-stack apps | [Prisma Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/generation/database.md#prisma) |
+| **7. Multi-Provider LLMs** | Groq, OpenAI, Claude, Gemini, or Ollama-driven schemas | [LLM Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/generation/llm.md) |
+| **8. Incremental Growth** | Appending rows with offset IDs and preserved FKs | [Incremental Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/generation/incremental.md) |
 
 ---
 
@@ -205,9 +293,9 @@ Misata fits whatever workflow you already use:
 
 Generate domain-complete schemas with tuned statistical distributions out of the box:
 
-[SaaS](docs/domains/saas.md) · [E-Commerce](docs/domains/ecommerce.md) · [FinTech](docs/domains/fintech.md) · [Healthcare](docs/domains/healthcare.md) · [Logistics](docs/domains/logistics.md) · [Credit Risk](docs/domains/credit-risk.md) · [HR & People](docs/domains/hr.md) · [Streaming Media](docs/domains/streaming.md) · [Insurance](docs/domains/insurance.md) · [CRM & Sales](docs/domains/crm.md) · [Food Delivery](docs/domains/fooddelivery.md) · [Travel & Hospitality](docs/domains/travel.md) · [Gaming](docs/domains/gaming.md) · [Crypto & DeFi](docs/domains/crypto.md) · [Predictive Maintenance](docs/domains/predictive-maintenance.md) · [Network Intrusion](docs/domains/network-intrusion.md) · [Islamic Finance](docs/domains/islamic-finance.md) · [EdTech](docs/domains/edtech.md) · [Real Estate](docs/domains/realestate.md) · [Contact Centers](docs/domains/contact-center.md) · [Manufacturing SPC](docs/domains/manufacturing-spc.md)
+[SaaS](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/saas.md) · [E-Commerce](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/ecommerce.md) · [FinTech](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/fintech.md) · [Healthcare](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/healthcare.md) · [Logistics](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/logistics.md) · [Credit Risk](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/credit-risk.md) · [HR & People](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/hr.md) · [Streaming Media](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/streaming.md) · [Insurance](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/insurance.md) · [CRM & Sales](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/crm.md) · [Food Delivery](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/fooddelivery.md) · [Travel & Hospitality](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/travel.md) · [Gaming](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/gaming.md) · [Crypto & DeFi](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/crypto.md) · [Predictive Maintenance](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/predictive-maintenance.md) · [Network Intrusion](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/network-intrusion.md) · [Islamic Finance](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/islamic-finance.md) · [EdTech](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/edtech.md) · [Real Estate](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/realestate.md) · [Contact Centers](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/contact-center.md) · [Manufacturing SPC](https://github.com/rasinmuhammed/misata/blob/main/docs/domains/manufacturing-spc.md)
 
-*See the [Complete Domain Catalog](docs/domains.md).*
+*See the [Complete Domain Catalog](https://misata.studio/docs/domains).*
 
 ---
 
@@ -227,15 +315,15 @@ Measured on standard Apple M-series hardware (single CPU core, no GPU):
 
 For in-depth guides, API references, and architecture deep dives:
 
-- **[Getting Started & Quickstart](docs/quickstart.md)**: 5-minute tutorial from installation to your first dataset.
-- **[Text Realism & `enrich_text`](docs/guides/long-form-text.md)**: Deep dive into all 15 microtext pools and DataFrame text enrichment.
-- **[AI Agent MCP Server Guide](docs/guides/mcp.md)**: Setup and tool reference for Cursor, Claude Code, and Windsurf.
-- **[Outcome Curves & Seasonality](docs/guides/outcome_curves.md)**: Mathematical specification of revenue and growth curves.
-- **[Database Seeding in Python](docs/database-seeding-python.md)**: Introspecting and seeding production databases.
-- **[Mimic Mode Guide](docs/guides/mimic.md)**: Generating privacy-safe synthetic twins from CSVs.
-- **[Export Formats](docs/export.md)**: Exporting to DuckDB, Apache Parquet, Arrow IPC, and ANSI/Postgres SQL.
-- **[Apache Spark & Databricks](docs/spark.md)**: Scaling synthetic generation across distributed Spark clusters.
-- **[Full Schema Declarations Reference](docs/reference/declarations.md)**: Complete parameter reference for every column type and constraint.
+- **[Getting Started & Quickstart](https://misata.studio/docs/quickstart)**: 5-minute tutorial from installation to your first dataset.
+- **[Text Realism & `enrich_text`](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/long-form-text.md)**: Deep dive into all 15 microtext pools and DataFrame text enrichment.
+- **[AI Agent MCP Server Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/mcp.md)**: Setup and tool reference for Cursor, Claude Code, and Windsurf.
+- **[Outcome Curves & Seasonality](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/outcome_curves.md)**: Mathematical specification of revenue and growth curves.
+- **[Database Seeding in Python](https://misata.studio/docs/database-seeding-python)**: Introspecting and seeding production databases.
+- **[Mimic Mode Guide](https://github.com/rasinmuhammed/misata/blob/main/docs/guides/mimic.md)**: Synthetic twins of a CSV, and why a twin is not anonymous.
+- **[Export Formats](https://misata.studio/docs/export)**: Exporting to DuckDB, Apache Parquet, Arrow IPC, and ANSI/Postgres SQL.
+- **[Apache Spark & Databricks](https://github.com/rasinmuhammed/misata/blob/main/docs/spark.md)**: Scaling synthetic generation across distributed Spark clusters.
+- **[Full Schema Declarations Reference](https://github.com/rasinmuhammed/misata/blob/main/docs/reference/declarations.md)**: Complete parameter reference for every column type and constraint.
 
 ---
 
@@ -273,4 +361,4 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-Misata is open-source under the [MIT License](LICENSE).
+Misata is open-source under the [MIT License](https://github.com/rasinmuhammed/misata/blob/main/LICENSE).

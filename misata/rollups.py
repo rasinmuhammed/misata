@@ -437,3 +437,83 @@ def _pick_numeric_child_column(config: Any, child_table: str, noun: Optional[str
     if len(numeric) == 1:
         return numeric[0].name
     return None
+
+
+# --------------------------------------------------------------------------- #
+# Streaming: roll-ups accumulated while the child table streams past
+# --------------------------------------------------------------------------- #
+
+STREAMABLE_AGGS = ("count", "sum", "min", "max", "mean")
+
+
+def is_streamable(spec: RollupSpec) -> bool:
+    """A roll-up that can be built from per-batch partials: one foreign-key
+    hop and an aggregate that merges (count, sum, min, max, and mean as
+    sum / count)."""
+    return not spec.via and spec.agg in STREAMABLE_AGGS
+
+
+class RollupAccumulator:
+    """Per-parent partial aggregates for streamable roll-ups.
+
+    Memory is proportional to the number of parents, never to the number of
+    child rows, so a parent summary column can reconcile with a child table
+    too large to hold."""
+
+    def __init__(self, specs: List[RollupSpec]):
+        self.specs = list(specs)
+        self.parts: List[Dict[str, pd.Series]] = [{} for _ in self.specs]
+
+    def tables(self) -> set:
+        return {s.from_table for s in self.specs}
+
+    def update(self, table_name: str, batch: pd.DataFrame) -> None:
+        for i, spec in enumerate(self.specs):
+            if spec.from_table != table_name or spec.fk not in batch.columns:
+                continue
+            child = batch
+            if spec.where:
+                mask = pd.Series(True, index=child.index)
+                for fcol, fval in spec.where.items():
+                    if fcol not in child.columns:
+                        continue
+                    mask &= (child[fcol].isin(list(fval)) if isinstance(fval, (list, tuple, set))
+                             else child[fcol] == fval)
+                child = child[mask]
+            if spec.agg != "count" and (spec.column is None or spec.column not in child.columns):
+                continue
+            g = child.groupby(spec.fk)
+            part = self.parts[i]
+            new = {"count": g.size()}
+            if spec.agg != "count":
+                col = g[spec.column]
+                new.update(sum=col.sum(), min=col.min(), max=col.max())
+            for k, v in new.items():
+                if k not in part:
+                    part[k] = v
+                elif k in ("count", "sum"):
+                    part[k] = part[k].add(v, fill_value=0)
+                elif k == "min":
+                    part[k] = pd.concat([part[k], v], axis=1).min(axis=1)
+                else:
+                    part[k] = pd.concat([part[k], v], axis=1).max(axis=1)
+
+    def apply(self, tables: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+        """Write each accumulated aggregate into its (buffered) parent."""
+        for spec, part in zip(self.specs, self.parts):
+            parent = tables.get(spec.parent_table)
+            if parent is None or spec.parent_key not in parent.columns:
+                continue
+            if spec.agg == "count":
+                grouped = part.get("count", pd.Series(dtype=float))
+            elif spec.agg == "mean":
+                grouped = part["sum"] / part["count"] if "sum" in part else pd.Series(dtype=float)
+            else:
+                grouped = part.get(spec.agg, pd.Series(dtype=float))
+            mapped = parent[spec.parent_key].map(grouped)
+            mapped = mapped.fillna(0 if spec.agg == "count" else spec.fillna)
+            if spec.agg == "count" or (spec.target_column in parent.columns
+                                       and pd.api.types.is_integer_dtype(parent[spec.target_column])):
+                mapped = mapped.round().astype("int64")
+            tables[spec.parent_table][spec.target_column] = mapped.values
+        return tables

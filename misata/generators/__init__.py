@@ -16,7 +16,7 @@ from misata.generators.base import (
     TextGenerator,
 )
 
-# Optional SDV-based generators (require: pip install sdv)
+# Gaussian copula fitted to a sample (NumPy only)
 try:
     from misata.generators.copula import (
         CopulaGenerator,

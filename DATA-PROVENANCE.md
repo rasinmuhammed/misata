@@ -34,10 +34,15 @@ seed), which is three lines in an audit trail.
 
 ## Where do the realistic vocabularies come from?
 
-Two sources, both license-clean:
+Three sources, all license-clean:
 
 - Curated built-in pools (city geodata, curriculum topics, product
-  vocabulary) maintained in the repository under MIT.
+  vocabulary, support issues) maintained in the repository under MIT.
+- Reference data packs in `misata/data_packs/`, each listed in
+  `SOURCES.toml` with its source, licence, retrieval date and transform.
+  Today that is one file: the population of each city Misata's own lists
+  name, from GeoNames (CC BY 4.0), used only to weight which city a row lands
+  in. It holds 336 numbers, not records about anyone.
 - Wikidata-derived capsules, fetched at build time (never at generation
   time), carrying per-value provenance: the source QID and the CC0 license
   are recorded inside the capsule file itself. A capsule is a plain JSON
@@ -68,4 +73,23 @@ the failure modes are documented, not hidden.
 
 The library is MIT. Generated data is yours, with no restrictions from us:
 it contains no third-party records to encumber it. Wikidata-derived
-vocabulary values are CC0.
+vocabulary values are CC0. City population weights contain data from
+GeoNames (https://www.geonames.org), licensed under CC BY 4.0; the weights
+shape the distribution of generated rows and are not copied into them.
+
+Domain priors (`misata/domain_priors.py`) are hand-set distribution families
+and parameters, not data: the order-value shape was checked against the Olist
+dataset (CC BY-NC-SA 4.0), which is used only as an evaluation set and is
+never bundled, and the realism benchmark labels Olist as tuned-on rather than
+blind. No runtime dependency is under a non-open-source licence: the Gaussian
+copula behind `CopulaGenerator` is Misata's own NumPy code (it used to wrap
+SDV, which is under the Business Source License). SDV appears only as an
+optional baseline in `benchmarks/`.
+
+## Fitting to real data is not anonymisation
+
+`misata.mimic()` and `CopulaGenerator.fit()` learn from real rows. Their
+output reuses category values and the sample's quantiles, so it is not
+anonymous and carries no privacy guarantee; see `docs/guides/mimic.md`.
+Everything generated from a schema or story, with no real rows given,
+contains no third-party records.

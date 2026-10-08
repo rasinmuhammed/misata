@@ -331,6 +331,24 @@ _SUPPLEMENT: Dict[str, Tuple[float, float]] = {
     "Nizwa": (22.9333, 57.5333),
     "Sur": (22.5667, 59.5289),
     "Ibri": (23.2255, 56.5164),
+    # United States: the rest of the 50-city US geography map
+    "San Francisco": (37.7749, -122.4194),
+    "Detroit": (42.3314, -83.0458),
+    "Oklahoma City": (35.4676, -97.5164),
+    "Fresno": (36.7378, -119.7871),
+    "Sacramento": (38.5816, -121.4944),
+    "Kansas City": (39.0997, -94.5786),
+    "Omaha": (41.2565, -95.9345),
+    "Raleigh": (35.7796, -78.6382),
+    "Tampa": (27.9506, -82.4572),
+    "New Orleans": (29.9511, -90.0715),
+    "Cleveland": (41.4993, -81.6944),
+    "Pittsburgh": (40.4406, -79.9959),
+    "St. Louis": (38.6270, -90.1994),
+    "Cincinnati": (39.1031, -84.5120),
+    "Orlando": (28.5383, -81.3792),
+    "Salt Lake City": (40.7608, -111.8910),
+    "Richmond": (37.5407, -77.4360),
 }
 
 CITY_COORDS: Dict[str, Tuple[float, float]] = {

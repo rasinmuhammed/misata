@@ -24,7 +24,7 @@ Quickstart::
     tables = misata.generate_from_schema(gen.generate_from_story("A fintech fraud dataset"))
 """
 
-__version__ = "0.9.6.60"
+__version__ = "0.9.7"
 __author__ = "Muhammed Rasin"
 
 from typing import Any, Dict, Optional
@@ -90,19 +90,29 @@ def preview(story: str, rows: int = 10_000) -> "DetectionReport":
 # ---------------------------------------------------------------------------
 
 def generate_stream(
-    story: str,
+    story: "Any",
     rows: int = 10_000,
     seed: "Optional[int]" = None,
     smart_correlations: bool = False,
 ) -> "Any":
-    """Yield ``(table_name, batch_df)`` tuples — never buffers the full dataset.
+    """Yield ``(table_name, batch_df)`` tuples without holding the dataset.
 
     Suitable for 10M+ row datasets that don't fit in memory at once.
     Each ``batch_df`` is a :class:`pandas.DataFrame` containing one generation
     batch for that table.
 
+    ``story`` is a plain-English description, or a schema: a dict schema, a
+    :class:`SchemaConfig`, a path to a YAML/JSON schema, or SQL DDL.
+
+    Memory stays proportional to the parent tables, not the fact tables: a
+    roll-up over one foreign-key hop (``customers.order_count``,
+    ``orders.total`` from line items) is accumulated per parent while the
+    child streams. Tables a whole-table pass needs (multi-hop roll-ups,
+    cascades, group shares, lifecycles, composite keys) are still held, and
+    those parents arrive after the batches of their children.
+
     Args:
-        story:             Plain-English description of the dataset.
+        story:             Plain-English description of the dataset, or a schema.
         rows:              Default row count for the primary table.
         seed:              Optional random seed for reproducibility.
         smart_correlations: Auto-infer Pearson correlations between related
@@ -116,17 +126,35 @@ def generate_stream(
         for table_name, batch in misata.generate_stream("A SaaS company", rows=1_000_000):
             batch.to_parquet(f"./output/{table_name}_{i}.parquet")
     """
-    from misata.story_parser import StoryParser
     from misata.simulator import DataSimulator
 
-    schema = StoryParser().parse(story, default_rows=rows)
+    schema = _stream_schema(story, rows)
     if seed is not None:
         schema.seed = seed
     if smart_correlations:
         _infer_correlations(schema)
 
     sim = DataSimulator(schema)
-    yield from sim.generate_all()
+    yield from sim.generate_all(bounded_memory=True)
+
+
+def _stream_schema(story: "Any", rows: int) -> "Any":
+    """A SchemaConfig from whatever generate_stream was given."""
+    from misata.schema import SchemaConfig
+    if isinstance(story, SchemaConfig):
+        return story
+    if isinstance(story, dict):
+        return from_dict_schema(story)
+    text = str(story)
+    if "\n" not in text and text.lower().endswith((".yaml", ".yml", ".json")):
+        import os
+        if os.path.exists(text):
+            return load_yaml_schema(text) if text.lower().endswith((".yaml", ".yml")) else from_dict_schema(
+                __import__("json").load(open(text)))
+    if "create table" in text.lower():
+        return from_ddl(text, default_rows=rows)
+    from misata.story_parser import StoryParser
+    return StoryParser().parse(text, default_rows=rows)
 
 
 # ---------------------------------------------------------------------------
@@ -137,18 +165,27 @@ def _run_simulation(
     schema: "SchemaConfig",
     custom_generators: "Optional[Dict[str, Dict[str, Any]]]" = None,
 ) -> "Dict[str, Any]":
-    import pandas as pd
     from misata.simulator import DataSimulator
 
     sim = DataSimulator(schema, custom_generators=custom_generators)
-    tables: Dict[str, Any] = {}
-    for name, batch in sim.generate_all():
-        if name in tables:
-            tables[name] = pd.concat([tables[name], batch], ignore_index=True)
-        else:
-            tables[name] = batch
+    return _collect_batches(sim.generate_all())
 
-    return tables
+
+def _collect_batches(batches) -> "Dict[str, Any]":
+    """Assemble ``(table, batch)`` pairs into whole tables.
+
+    Batches are collected and concatenated once per table: concatenating on
+    every batch copied the growing table each time, which made a 10M-row
+    in-memory build quadratic (154 s, against 15 s streamed).
+    """
+    import pandas as pd
+
+    parts: Dict[str, list] = {}
+    for name, batch in batches:
+        parts.setdefault(name, []).append(batch)
+    return {name: (chunks[0] if len(chunks) == 1
+                   else pd.concat(chunks, ignore_index=True))
+            for name, chunks in parts.items()}
 
 
 # (col_a_keywords, col_b_keywords, pearson_r)
@@ -278,8 +315,13 @@ def generate_from_schema(
     capsule: "Optional[str]" = None,
     verify: bool = False,
     strict: bool = True,
+    preset: "Optional[str]" = None,
 ) -> "Dict[str, Any]":
     """Generate data from an already-built SchemaConfig.
+
+    ``preset`` names the use case (``demo``, ``test``, ``load``, ``ml``,
+    ``eval``) and fills in the realism defaults it needs; see
+    :mod:`misata.presets`.
 
     Args:
         schema:            A SchemaConfig (from ``misata.parse()``, an LLM generator,
@@ -320,6 +362,10 @@ def generate_from_schema(
     if isinstance(schema, dict):
         from misata.compat import from_dict_schema
         schema = from_dict_schema(schema)
+
+    if preset is not None or getattr(schema, "preset", None):
+        from misata.presets import apply_preset
+        schema = apply_preset(schema, preset or schema.preset)
 
     # Refuse contradictory declarations before generating anything. A
     # declarative engine owes the user a compiler error here, not a warning
@@ -679,7 +725,7 @@ from misata.exceptions import (
     ConfigurationError,
     ExportError,
 )
-from misata.export import to_parquet, to_duckdb, to_jsonl, to_sql, to_arrow, to_seed_sql
+from misata.export import to_parquet, to_duckdb, to_jsonl, to_sql, to_arrow, to_seed_sql, to_polars, decode_json_columns
 from misata.compat import from_dict_schema, verify_integrity, IntegrityReport
 from misata.validator import validate as validate_domain, ValidationReport
 from misata.smart_values import SmartValueGenerator
@@ -709,10 +755,8 @@ from misata.reporting import (
     build_oracle_report,
     DataCard,
     FidelityChecker,
-    FidelityReport,
     GenerationReportBundle,
     PrivacyAnalyzer,
-    PrivacyReport,
     analyze_generation,
 )
 from misata.assets import (
@@ -760,7 +804,14 @@ from misata.generators.base import (
 )
 from misata.profiler import mimic, DataProfiler
 from misata.fidelity import fidelity_report, FidelityReport, privacy_report, PrivacyReport
+from misata.tells import realism_report, RealismReport
+from misata.plugins import generator, register_generator, GenContext
+from misata.process import simulate_process, process_audit, to_xes
+from misata.django_import import from_django
+from misata.presets import apply_preset, PRESETS
+from misata.schema import Process
 from misata.ddl import from_ddl
+from misata.fingerprint import fingerprint
 from misata import spark as spark  # noqa: PLC0414 — re-export the submodule
 
 __all__ = [
@@ -772,12 +823,25 @@ __all__ = [
     "generate_from_schema",
     "generate_more",
     "from_ddl",
+    "fingerprint",
     "mimic",
     "DataProfiler",
     "fidelity_report",
     "FidelityReport",
     "privacy_report",
     "PrivacyReport",
+    "realism_report",
+    "RealismReport",
+    "generator",
+    "register_generator",
+    "GenContext",
+    "Process",
+    "simulate_process",
+    "process_audit",
+    "to_xes",
+    "from_django",
+    "apply_preset",
+    "PRESETS",
     "from_dict_schema",
     "verify_integrity",
     "IntegrityReport",
@@ -849,7 +913,6 @@ __all__ = [
     "GenerationContext",
     # Exceptions
     "MisataError",
-    "SchemaValidationError",
     "ColumnGenerationError",
     "LLMError",
     "ConfigurationError",
@@ -866,9 +929,7 @@ __all__ = [
     "RunManifest",
     "load_recipe",
     "PrivacyAnalyzer",
-    "PrivacyReport",
     "FidelityChecker",
-    "FidelityReport",
     "DataCard",
     "GenerationReportBundle",
     "analyze_generation",
@@ -930,6 +991,8 @@ __all__ = [
     "to_parquet",
     "to_duckdb",
     "to_jsonl",
+    "to_polars",
+    "decode_json_columns",
     # Spark / Delta Lake
     "spark",
     # DB seeding

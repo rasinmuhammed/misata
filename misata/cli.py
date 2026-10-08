@@ -187,20 +187,31 @@ def _resolve_recipe_schema(recipe: RecipeSpec, rows: int) -> SchemaConfig:
 def print_banner():
     """Print the Misata banner."""
     console.print(Panel.fit(
-        "[bold purple]🧠 Misata[/bold purple] [dim]- AI-Powered Synthetic Data Engine[/dim]",
+        "[bold purple]Misata[/bold purple] [dim]- declare the outcome, get data that matches it[/dim]",
         border_style="purple"
     ))
 
 
 @click.group()
 @click.version_option(version=__version__)
-def main() -> None:
+@click.option("--plugin", "plugins", multiple=True, envvar="MISATA_PLUGINS",
+              help="Python module that registers custom generators "
+                   "(@misata.generator). Repeatable; also read from "
+                   "MISATA_PLUGINS (space-separated). Example: "
+                   "misata --plugin my_generators generate --config misata.yaml")
+def main(plugins: tuple = ()) -> None:
     """
-    Misata - AI-Powered Synthetic Data Engine
+    Misata - declare the outcome, get data that matches it
 
     Generate industry-realistic data from natural language stories.
     """
-    pass
+    if plugins:
+        from misata.plugins import load_plugins
+        names = [n for p in plugins for n in str(p).split()]
+        try:
+            load_plugins(names)
+        except ImportError as e:
+            raise click.UsageError(f"--plugin: could not import {e.name or e}") from e
 
 
 @main.command("init")
@@ -384,6 +395,13 @@ def init(db: Optional[str], story: Optional[str], output: str,
     default=None,
     help="Capsule JSON whose vocabularies override built-in pools (see `misata capsule`).",
 )
+@click.option(
+    "--preset",
+    type=click.Choice(["demo", "test", "load", "ml", "eval"]),
+    default=None,
+    help="Use-case defaults: demo (current dates, clean), test (small, fixed seed), "
+         "load (x10 rows), ml (declared dirt), eval (current dates, modest dirt).",
+)
 def generate(
     story: Optional[str],
     config: Optional[str],
@@ -405,6 +423,7 @@ def generate(
     locale: Optional[str],
     oracle: bool,
     capsule: Optional[str],
+    preset: Optional[str] = None,
 ) -> None:
     """
     Generate synthetic data from a story or configuration file.
@@ -546,6 +565,10 @@ def generate(
     # Set seed if provided
     if seed is not None:
         schema_config.seed = seed
+
+    if preset:
+        object.__setattr__(schema_config, "preset", preset)
+        console.print(f"Preset: [cyan]{preset}[/cyan]")
 
     # Attach capsule file: its vocabularies beat built-in pools
     if capsule:
@@ -1138,7 +1161,7 @@ def serve(port: int, host: str) -> None:
 @click.option("--seed", type=int, default=None, help="Random seed")
 def mimic(source: str, rows: Optional[int], output: str, seed: Optional[int]) -> None:
     """
-    Generate a privacy-safe synthetic twin of a CSV file.
+    Generate a synthetic twin of a CSV file (not a privacy guarantee).
 
     Misata profiles every column's distribution, cardinality, and semantic
     type, then produces a fresh dataset that matches the structure without
@@ -1361,7 +1384,7 @@ def template(template_name: str, output_dir: str, scale: float, validate: bool) 
         raise
 
 
-@main.command()
+@main.command("validate-data")
 @click.option(
     "--data-dir",
     "-d",
@@ -1388,14 +1411,18 @@ def template(template_name: str, output_dir: str, scale: float, validate: bool) 
     default=None,
     help="Optional per-table row limit when validating a database",
 )
-def validate_cmd(data_dir: Optional[str], db_url: Optional[str], config: Optional[str], limit: Optional[int]) -> None:
+def validate_data_cmd(data_dir: Optional[str], db_url: Optional[str], config: Optional[str],
+                      limit: Optional[int]) -> None:
     """
-    Validate existing CSV data files.
+    Validate a folder of CSVs or a live database against a schema.
+
+    (This was unreachable: it shared the name `validate` with the CSV
+    profiler below, and the later registration replaced it.)
 
     Example:
 
-        misata validate --data-dir ./generated_data
-        misata validate --db-url sqlite:///./misata.db --config schema.yaml
+        misata validate-data --data-dir ./generated_data
+        misata validate-data --db-url sqlite:///./misata.db --config schema.yaml
     """
     print_banner()
 
@@ -1808,12 +1835,8 @@ def dbt_seed_cmd(
     console.print(f"\n⚙️  Generating {len(schema_config.tables)} table(s)...")
 
     sim = DataSimulator(schema_config)
-    tables: dict = {}
-    for name, batch in sim.generate_all():
-        if name in tables:
-            tables[name] = pd.concat([tables[name], batch], ignore_index=True)
-        else:
-            tables[name] = batch
+    from misata import _collect_batches
+    tables: dict = _collect_batches(sim.generate_all())
 
     # ── Write seeds with size intelligence ───────────────────────────────
     if from_project:
@@ -2022,12 +2045,8 @@ def prisma_seed_cmd(
 
     console.print(f"\n⚙️  Generating {len(schema_config.tables)} table(s)...")
     sim = DataSimulator(schema_config)
-    tables: dict = {}
-    for name, batch in sim.generate_all():
-        if name in tables:
-            tables[name] = pd.concat([tables[name], batch], ignore_index=True)
-        else:
-            tables[name] = batch
+    from misata import _collect_batches
+    tables: dict = _collect_batches(sim.generate_all())
 
     out = Path(out_dir)
     written, skipped, _ = write_seeds_with_report(tables, out, force=force)
@@ -2924,6 +2943,80 @@ def audit_cmd(data_dir: str, schema: Optional[str], strict: bool) -> None:
 
     has_high = any(f.severity == "high" and not f.repaired for f in report.findings)
     if strict or has_high:
+        sys.exit(1)
+
+
+@main.command("realism")
+@click.argument("data_dir", type=click.Path(exists=True))
+@click.option("--schema", "-s", type=click.Path(exists=True), default=None,
+              help="Optional schema; its relationships drive the fan-out check.")
+@click.option("--skip", multiple=True,
+              help="Check to leave out (repeatable), e.g. --skip too_clean.")
+@click.option("--json", "as_json", is_flag=True, default=False,
+              help="Print the full report as JSON.")
+@click.option("--strict", is_flag=True, default=False,
+              help="Exit nonzero on any warning too (default: only on failures).")
+def realism_cmd(data_dir: str, schema: Optional[str], skip: tuple, as_json: bool,
+                strict: bool) -> None:
+    """Scan a folder of CSVs for the statistical tells of generated data.
+
+    Where `misata audit` catches contradictions, this catches shapes real data
+    almost never has: amounts spread evenly from min to max, every customer
+    with the same number of orders, flat weekday and hour profiles,
+    timestamps piled up at midnight, emails unrelated to names, placeholder
+    domains, perfectly balanced categories, no nulls anywhere. No real data
+    is needed. Works on data from any generator.
+
+    Examples:
+
+        misata realism ./seed_data/
+
+        misata realism ./seed_data/ --skip too_clean --strict
+    """
+    from pathlib import Path as _Path
+
+    from misata.tells import realism_report
+
+    csvs = sorted(_Path(data_dir).glob("*.csv"))
+    if not csvs:
+        console.print(f"[red]No CSV files found in {data_dir}[/red]")
+        sys.exit(2)
+    tables = {p.stem: pd.read_csv(p) for p in csvs}
+
+    schema_config = None
+    if schema:
+        config_dict = _load_yaml_or_json(schema)
+        schema_config = (load_yaml_schema(schema) if isinstance(config_dict.get("tables"), dict)
+                         else SchemaConfig(**config_dict))
+
+    try:
+        report = realism_report(tables, schema_config, skip=skip)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(2)
+
+    if as_json:
+        click.echo(json.dumps(report.to_dict(), indent=2, default=str))
+    else:
+        print_banner()
+        n = report.counts()
+        console.print(f"Realism score [bold]{report.score:.2f}[/bold] across "
+                      f"{len(report.checks)} checks: [green]{n['pass']} pass[/green], "
+                      f"[yellow]{n['warn']} warn[/yellow], [red]{n['fail']} fail[/red]")
+        if report.tells:
+            tbl = RichTable(show_header=True, header_style="bold cyan", box=None, padding=(0, 1))
+            for h in ("Status", "Check", "Where", "Finding"):
+                tbl.add_column(h)
+            style = {"fail": "red", "warn": "yellow"}
+            for c in report.tells:
+                where = f"{c.table}.{c.column}" if c.column else c.table
+                tbl.add_row(f"[{style[c.status]}]{c.status}[/]", c.check, where, c.message)
+            console.print()
+            console.print(tbl)
+        else:
+            console.print("[green]No known synthetic tells found.[/green]")
+
+    if not report.passed or (strict and report.tells):
         sys.exit(1)
 
 

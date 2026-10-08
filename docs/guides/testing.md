@@ -13,7 +13,39 @@ description: Use misata.testing to create pytest fixtures that generate realisti
 pip install misata pytest
 ```
 
-## Quick start
+## Zero setup: the plugin
+
+Installing misata registers a pytest plugin, so these fixtures exist in every
+test without touching `conftest.py`. Point a marker at your schema:
+
+```python
+import pytest
+
+pytestmark = pytest.mark.misata(schema="misata.yaml", seed=7)
+
+def test_orders_reference_customers(misata_tables):
+    orders, customers = misata_tables["orders"], misata_tables["customers"]
+    assert orders["customer_id"].isin(customers["customer_id"]).all()
+
+def test_repository_layer(misata_sqlite):
+    # misata_sqlite is a sqlite:/// URL to a fresh, seeded database file
+    repo = OrderRepository(misata_sqlite)
+    assert repo.count() == 2000
+
+@pytest.mark.misata(story="A SaaS company with 500 users", rows=500)
+def test_churn_report(misata_tables):
+    ...
+```
+
+- `schema=` takes a path (relative to the pytest root), a dict schema or a
+  `SchemaConfig`; `story=` takes a sentence. `seed=` and `rows=` are optional.
+- Tests with the same marker arguments share one generation per session, and
+  each test gets its own copies, so mutating a frame never leaks.
+- `misata_generate`, `misata_parse` and `misata_preview` are also available.
+- The plugin imports misata only when a fixture is used; disable it with
+  `-p no:misata`.
+
+## Quick start (fixture factories)
 
 Define fixtures in `conftest.py` using `misata_fixture`:
 

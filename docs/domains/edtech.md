@@ -77,7 +77,7 @@ print(merged.groupby("difficulty")["passed"].mean())
 - **Recommendation engine training**: use enrollment and quiz score histories to prototype course recommendation models
 - **Revenue and subscription analytics**: test cohort revenue, course monetization, and refund rate calculations before real sales data exists
 - **Adaptive learning system testing**: validate quiz difficulty adaptation logic against thousands of attempts with varied score distributions
-- **GDPR-safe student data exports**: replace real student records with synthetic equivalents for vendor integrations and compliance audits
+- **Integrations without student records**: test vendor integrations against a generated student body instead of real records
 
 ## Advanced: enrollment narrative curves
 

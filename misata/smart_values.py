@@ -334,7 +334,7 @@ class SmartValueGenerator:
             "410 Terry Avenue North", "1 Infinite Loop",
         ],
         "company_name": [
-            "Acme Corporation", "TechVision Inc.", "Global Dynamics",
+            "Northwind Group", "TechVision Inc.", "Global Dynamics",
             "Innovate Solutions", "Summit Technologies", "Blue Horizon Labs",
             "Apex Industries", "Quantum Systems", "Pioneer Analytics",
             "Stellar Ventures", "Nexus Consulting", "Atlas Enterprises",

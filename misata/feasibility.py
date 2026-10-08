@@ -1090,7 +1090,34 @@ def _check_joint_margins(config: Any) -> List[Conflict]:
 
 #: Registered after definition: these three sit below the tuple above because
 #: they lean on _rows_of, which needs the config helpers defined first.
+def _check_process_wiring(config: Any) -> List[Conflict]:
+    """A process needs its cases: the table, its key and its start column must
+    be declared, and its event table must not overwrite a declared table."""
+    out: List[Conflict] = []
+    tables = {t.name for t in (getattr(config, "tables", None) or [])}
+    for spec in (getattr(config, "processes", None) or []):
+        decl = [f"processes[{spec.name}]"]
+        if spec.cases_table not in tables:
+            out.append(Conflict("process_wiring", spec.cases_table, decl,
+                                f"cases table {spec.cases_table!r} is not declared",
+                                "declare the table, or point cases_table at one that is"))
+            continue
+        cols = _columns_of(config, spec.cases_table)
+        for role, col in (("case_key", spec.case_key), ("start_column", spec.start_column)):
+            if col and col not in cols:
+                out.append(Conflict("process_wiring", f"{spec.cases_table}.{col}", decl,
+                                    f"{role} {col!r} is not a column of {spec.cases_table}",
+                                    f"declare {col} on {spec.cases_table}"))
+        if spec.event_table in tables:
+            out.append(Conflict("process_wiring", spec.event_table, decl,
+                                f"event_table {spec.event_table!r} is already a declared "
+                                f"table and would be overwritten",
+                                "give the process a different event_table"))
+    return out
+
+
 _CHECKS = _CHECKS + (
+    _check_process_wiring,
     _check_injected_counts,
     _check_declared_fractions,
     _check_joint_margins,

@@ -11,7 +11,7 @@ authors:
 repository-code: "https://github.com/rasinmuhammed/misata"
 url: "https://pypi.org/project/misata/"
 license: MIT
-version: 0.8.0
+version: 0.9.7
 
 preferred-citation:
   type: article

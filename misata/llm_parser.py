@@ -26,8 +26,8 @@ try:
 except ImportError:
     _anthropic_sdk = None
 
-from misata.curve_fitting import CurveFitter
 from misata.feedback import FeedbackDatabase
+from misata.param_check import repair_distribution_params
 from misata.schema import Column, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 from misata.research import DeepResearchAgent
 
@@ -1649,6 +1649,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             try:
                 points = normalized.pop("control_points")
                 dist_type = normalized.get("distribution", "normal")
+                from misata.curve_fitting import CurveFitter
                 fitter = CurveFitter()
                 fitted_params = fitter.fit_distribution(points, dist_type)
                 normalized.update(fitted_params)
@@ -1865,6 +1866,9 @@ Include reference tables with inline_data for lookup values and transactional ta
                 normalized_params = _sanitize_numeric_spread(
                     c.get("name", ""), col_type, normalized_params
                 )
+                # A model-invented distribution name is repaired, not fatal.
+                normalized_params = repair_distribution_params(
+                    col_type, normalized_params, c.get("name"))
 
                 columns[table_name].append(Column(
                     name=c["name"],
@@ -2686,7 +2690,8 @@ Return valid JSON with enriched columns, reference_tables, and constraints. Be d
                     normalized = self._normalize_distribution_params(
                         existing_col.type, new_params
                     )
-                    existing_col.distribution_params = normalized
+                    existing_col.distribution_params = repair_distribution_params(
+                        existing_col.type, normalized, existing_col.name)
 
                 # Update type if LLM suggests a better one (e.g., text → categorical)
                 new_type = enriched_col_data.get("type", existing_col.type)

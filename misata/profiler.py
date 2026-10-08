@@ -1,6 +1,8 @@
 """
 CSV/DataFrame profiler — infers column distributions and generates a
-matching SchemaConfig so Misata can produce privacy-safe synthetic twins.
+matching SchemaConfig so Misata can produce synthetic twins. A twin learns
+its marginals and correlations from the real rows, so it is not anonymous:
+rare values and small groups can come back as they were.
 
 Usage::
 
@@ -544,8 +546,24 @@ class DataProfiler:
         # --- date ---
         if _is_date_col(series):
             params = _fit_date(series)
-            col = Column(name=col_name, type="date", distribution_params=params)
-            return col
+            ts = pd.to_datetime(series, errors="coerce").dropna()
+            if getattr(ts.dt, "tz", None) is not None:
+                ts = ts.dt.tz_localize(None)
+            # A column whose values carry a time of day is a timestamp, and
+            # its daily and weekly rhythm is part of what makes it real.
+            # Profiling it as a calendar date dropped the time entirely:
+            # every mimicked purchase landed at midnight.
+            has_time = len(ts) and float(
+                ((ts.dt.hour != 0) | (ts.dt.minute != 0) | (ts.dt.second != 0)).mean()) > 0.05
+            if len(ts) >= 50:
+                wd = np.bincount(ts.dt.dayofweek, minlength=7) / len(ts)
+                params["weekday_weights"] = [round(float(x), 5) for x in wd]
+            if has_time:
+                if len(ts) >= 50:
+                    hw = np.bincount(ts.dt.hour, minlength=24) / len(ts)
+                    params["hour_weights"] = [round(float(x), 5) for x in hw]
+                return Column(name=col_name, type="datetime", distribution_params=params)
+            return Column(name=col_name, type="date", distribution_params=params)
 
         # --- numeric ---
         if pd.api.types.is_numeric_dtype(series):
@@ -610,12 +628,15 @@ def mimic(
     table_name: str = "table",
 ) -> Dict[str, pd.DataFrame]:
     """
-    Generate a privacy-safe synthetic twin of a CSV file or DataFrame.
+    Generate a synthetic twin of a CSV file or DataFrame.
+
+    The twin is fitted to the real rows and is not a privacy guarantee.
 
     Misata analyzes every column's statistical fingerprint — distribution
     shape, cardinality, value range, semantic type — and produces a fresh
-    dataset that matches the original's structure without reusing any real
-    values.
+    dataset with the original's structure, distributions and correlations.
+    Category values and the sample's quantiles are reused, so the twin is not
+    anonymous; see docs/guides/mimic.md.
 
     Parameters
     ----------

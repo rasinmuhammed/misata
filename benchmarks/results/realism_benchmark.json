@@ -1,0 +1,150 @@
+{
+  "seed": 7,
+  "misata_version": "0.9.7",
+  "datasets": {
+    "olist": {
+      "description": "Olist Brazilian e-commerce, real orders 2016-2018",
+      "rows": 30000,
+      "story": "A Brazilian e-commerce marketplace with 29651 customers, 14749 products and 30000 orders",
+      "results": {
+        "real_train": {
+          "amount_ks": 0.00759999999999994,
+          "hour_tvd": 0.017933333333333343,
+          "weekday_tvd": 0.009799999999999982,
+          "customer_gini": 0.0006595149307963748,
+          "product_gini": 0.0027831383149944933,
+          "category_gap": 0.0025601576198613363,
+          "detect_auc": 0.5003568222222222,
+          "tells": 1.0
+        },
+        "misata_story": {
+          "amount_ks": 0.16917009555930296,
+          "hour_tvd": 0.1491869589657111,
+          "weekday_tvd": 0.04590370994940976,
+          "customer_gini": null,
+          "product_gini": 0.4400537889574435,
+          "category_gap": null,
+          "detect_auc": 0.73187878125,
+          "tells": 0.9423076923076923,
+          "seconds": 6.2
+        },
+        "misata_schema": {
+          "amount_ks": 0.050866666666666664,
+          "hour_tvd": 0.1453666666666667,
+          "weekday_tvd": 0.04783333333333333,
+          "customer_gini": 0.25618375970010726,
+          "product_gini": 0.027613898627335598,
+          "category_gap": 0.4808765311655241,
+          "detect_auc": 0.62949160625,
+          "tells": 1.0,
+          "seconds": 1.5
+        },
+        "faker_script": {
+          "amount_ks": 0.19069999999999998,
+          "hour_tvd": 0.2891666666666667,
+          "weekday_tvd": 0.05443333333333331,
+          "customer_gini": 0.23712597402087235,
+          "product_gini": 0.1492354659517176,
+          "category_gap": 0.4997318365641834,
+          "detect_auc": 0.78500674375,
+          "tells": 0.3333333333333333,
+          "seconds": 4.2
+        },
+        "misata_mimic": {
+          "amount_ks": 0.024133333333333333,
+          "hour_tvd": 0.016733333333333347,
+          "weekday_tvd": 0.008866666666666655,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": 0.0013054887252070824,
+          "detect_auc": 0.5327244999999999,
+          "tells": 1.0,
+          "seconds": 1.2
+        },
+        "sdv_copula": {
+          "amount_ks": 0.0724,
+          "hour_tvd": 0.2862,
+          "weekday_tvd": 0.056599999999999984,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": 0.0027767816331989437,
+          "detect_auc": 0.7078151333333335,
+          "tells": 0.75,
+          "seconds": 6.4
+        }
+      }
+    },
+    "taxis": {
+      "description": "NYC yellow/green taxi trips, March 2019 (seaborn sample)",
+      "rows": 6389,
+      "story": "A New York taxi company with 6389 taxi rides, fares and payment types",
+      "results": {
+        "real_train": {
+          "amount_ks": 0.01454252545118341,
+          "hour_tvd": 0.039289630498499234,
+          "weekday_tvd": 0.026481675833894366,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": 0.0034664945214215592,
+          "detect_auc": 0.49664531253182476,
+          "tells": 1.0
+        },
+        "misata_story": {
+          "amount_ks": 0.22507434653310376,
+          "hour_tvd": 0.23712631084676788,
+          "weekday_tvd": 0.07387697605259039,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": null,
+          "detect_auc": 0.804850398719249,
+          "tells": 1.0,
+          "seconds": 1.2
+        },
+        "misata_schema": {
+          "amount_ks": 0.2507434653310377,
+          "hour_tvd": 0.08170292690561903,
+          "weekday_tvd": 0.03020817029269058,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": 0.1296301827349523,
+          "detect_auc": 0.7504663048806606,
+          "tells": 0.6666666666666666,
+          "seconds": 0.9
+        },
+        "faker_script": {
+          "amount_ks": 0.21709187666301455,
+          "hour_tvd": 0.1933009860698075,
+          "weekday_tvd": 0.033025512599780864,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": 0.13953977177665233,
+          "detect_auc": 0.7921097405386545,
+          "tells": 0.4,
+          "seconds": 2.0
+        },
+        "misata_mimic": {
+          "amount_ks": 0.025039123630672927,
+          "hour_tvd": 0.06009389671361503,
+          "weekday_tvd": 0.05446009389671361,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": 0.009100503778195268,
+          "detect_auc": 0.5295265244746167,
+          "tells": 1.0,
+          "seconds": 1.9
+        },
+        "sdv_copula": {
+          "amount_ks": 0.1352112676056338,
+          "hour_tvd": 0.1890453834115806,
+          "weekday_tvd": 0.04945226917057903,
+          "customer_gini": null,
+          "product_gini": null,
+          "category_gap": 0.00339271999574442,
+          "detect_auc": 0.6758285760467867,
+          "tells": 0.6666666666666666,
+          "seconds": 3.3
+        }
+      }
+    }
+  }
+}

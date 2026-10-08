@@ -21,10 +21,22 @@ bug worth reporting.
 - **Priors are US-flavoured where currency or culture matters.** Salary shapes
   center on US dollar magnitudes, price endings follow US retail conventions.
   Locale packs adjust names, phones, and formats, not economic distributions.
-- **Free text is grammar-generated, not written.** Review text agrees with its
-  rating and notes read like business notes, but long-form prose has template
-  rhythm a careful reader can spot. This is a deliberate trade (deterministic,
-  seedable, no LLM in the data path), not an oversight.
+- **Free text is grammar-generated, not written.** It agrees with its row:
+  reviews follow their rating and name their product, ticket subjects,
+  descriptions and resolutions describe one issue, a clinical note keeps one
+  case (complaint, findings, diagnosis, medicine and advice agree), a blog
+  post stays on one topic, feedback talks about one product's features. It
+  does not repeat itself: every kind passes the exact-duplicate, skeleton and
+  near-copy checks. On vocabulary, measured by `realism_report` at 2,000 rows
+  (real text compresses under 3x under gzip; the check warns above 4x):
+  every kind passes except chief complaints, which compress about 4.2x. They
+  are seven-word triage fragments, and real triage text is at least as
+  repetitive, so there is no real reference to calibrate that kind against.
+  Several kinds pass with little margin (3.9-4.0x): product descriptions,
+  delivery instructions, discharge instructions, churn reasons and bios. A reader skimming rows will not notice; a
+  classifier trained on word n-grams still could. Closing the rest needs
+  larger phrase banks or a language model in the data path; Misata keeps
+  generation deterministic, seedable and offline instead.
 - **Fictional entities are the point, not a bug.** Company names, people, and
   products do not exist. Anything needing real-world facts in the values
   (actual ticker prices, real addresses) is out of scope by design.
@@ -100,15 +112,29 @@ bug worth reporting.
   domain. Data can pass the audit and still be wrong in ways no rule covers.
   A clean audit means "no known defect class present", nothing stronger.
 
+## Realism report
+
+- **The realism report detects tells, it does not prove realism.** Each
+  check is a threshold heuristic over a known regularity of real data
+  (long-tailed money, concentrated popularity, weekly and daily rhythm,
+  name-derived emails). A clean report means none of those tells is present,
+  not that the data would fool a classifier trained on production. Measuring
+  that needs real data (`fidelity_report`).
+- **Column roles are guessed from names.** A money column named `bewertung`
+  or a timestamp named `when` gets no shape checks. Benford is applied only to
+  transaction-style totals, not to prices or salaries, where it does not hold.
+
 ## Scale and memory
 
-- **Tables involved in roll-ups or cascade events are fully buffered in
-  memory.** An order/order-items pair with a rolled-up total must fit in RAM
-  together. Non-participating tables stream batch by batch. Measured envelope
-  on one laptop: a 10M-row fact table builds in about 41 s and 550 MB on disk;
-  beyond that, plan memory around the buffered pairs, not the total row count.
-- **`generate_stream` currently takes a story, not a schema.** Streaming a
-  hand-built schema means driving `DataSimulator.generate_all()` directly.
+- **Whole-table passes still buffer their tables.** `generate_stream` takes
+  a story, a dict schema, a `SchemaConfig`, a schema file or DDL. A one-hop
+  roll-up (`customers.order_count`, `orders.total` from line items) is
+  accumulated per parent while the child streams, so only the parent is held:
+  3M orders stream with a 66 MB peak, which grows with the stored key pool
+  (about 16 bytes per row), not with row width. Multi-hop roll-ups, cascades,
+  group shares, lifecycles, composite keys and cross-table clamps still hold
+  their tables in memory, and buffered parents arrive after their children's
+  batches. `generate_from_schema` builds everything in memory as before.
 
 ## Reproducibility and interfaces (anchored mode)
 
@@ -133,7 +159,26 @@ bug worth reporting.
 
 ## Reproducibility and interfaces
 
-- **Determinism is per-version.** The same schema, seed, and misata version
+- **Default fan-out assumes repeat customers.** Popularity weighting
+  (children-per-parent Gini about 0.55) fits stores and SaaS. Declare the
+  domain as `marketplace`, `travel` or `realestate` and person-like parents
+  (customers, buyers, guests) get a mild weighting while products stay
+  concentrated; declare `min_children: 1` when every customer has ordered at
+  least once. The [realism benchmark](docs/realism-benchmark.md) measures this.
+- **Default time-of-day rhythms follow the declared domain.** Daytime for most
+  businesses; night-heavy for `transport`, `taxi`, `mobility` and `nightlife`;
+  evening for `gaming` and `social`. A domain that does not match the activity
+  gets the wrong curve: declare the domain, or `hour_weights` on the column.
+- **No fare prior for rides.** Taxi and ride totals take the generic money
+  shape, which is wider than real fares; declare the distribution.
+- **Name-derived emails need a Latin-script name.** A name in another script
+  keeps its generated email, which then does not match the name.
+- **Determinism is per-version, and cross-platform within a version.** CI
+  regenerates a set of schemas on Linux, macOS and Windows and requires
+  identical `misata.fingerprint` hashes; floats are hashed to 10 significant
+  digits, so a last-bit libm difference does not count, but a value on a
+  rounding boundary could. See [STABILITY.md](STABILITY.md) for the
+  cross-version contract. The same schema, seed, and misata version
   reproduce byte-identical output. Upgrading may change the RNG stream (it did
   in 0.8.1.29 and 0.8.2): declared outcomes, identities, and integrity
   survive any upgrade, individual rows do not. Pin the version for

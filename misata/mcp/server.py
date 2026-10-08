@@ -220,10 +220,20 @@ def _domain_block(tables, domain: str) -> Dict[str, Any]:
 
 def _tool_error(exc: Exception, suggestion: str) -> Dict[str, Any]:
     """Return a structured error payload instead of raising — keeps agents recoverable."""
+    message = str(exc)
+    errors = getattr(exc, "errors", None)
+    if callable(errors):
+        # pydantic: keep the sentences an agent can act on ("did you mean
+        # 'lambda'?"), drop the type tags and documentation links around them.
+        try:
+            message = "; ".join(str(e.get("msg", "")).removeprefix("Value error, ")
+                                for e in errors()) or message
+        except Exception:
+            pass
     return {
         "ok": False,
         "error": type(exc).__name__,
-        "message": str(exc),
+        "message": message,
         "suggestion": suggestion,
     }
 
@@ -513,6 +523,11 @@ def generate_from_schema(
       email, phone, url, uuid   Semantic strings; always valid format.
       date, datetime            Temporal; realistic granularity applied automatically.
       boolean                   True/False with declared probability.
+      object (json)             Nested object: {"type": "object", "fields": {"email": "email",
+                                "age": {"type": "integer", "min": 18}, "tags": {"type": "list",
+                                "items": "string"}}}. Optional: "optional": [...], "optional_rate".
+      list (array)              {"type": "list", "items": <spec>, "min_items": 0, "max_items": 5,
+                                "unique_items": true, "sorted": true}. Values are JSON text.
 
     COLUMN SPEC KEYS (inside a column dict)
       primary_key: true         Auto-incremented PK; column excluded from CSV output.
@@ -526,8 +541,9 @@ def generate_from_schema(
       probabilities: [...]      Weights for enum choices; must sum to 1.0.
 
     DISTRIBUTIONS  (float / integer columns)
-      distribution: normal      Also: lognormal, uniform, exponential, beta,
-                                poisson, power_law, gamma.
+      distribution: normal      Also: lognormal, uniform, exponential, gamma
+                                (shape, scale), beta (a, b), poisson (lambda),
+                                binomial (n, p), power_law (alpha).
       mean / std                Normal params. Can be a scalar OR a per-row
                                 parent-entity lookup:
                                   mean: {formula: "@patients.hba1c_baseline"}
@@ -726,6 +742,25 @@ def generate_from_schema(
       The null rate is exact per branch. Use when missingness itself carries
       signal a cleaning step should be tested against.
 
+    __processes__  How each case moves through steps over time, written out
+      as an event-log table (one row per event: case key, step, activity,
+      timestamp). Use for support tickets, claims, onboarding funnels, order
+      fulfilment, anything where the user wants an event log, a process-mining
+      dataset, rework loops or realistic step durations.
+      [{"name": "ticket_flow", "cases_table": "tickets", "case_key": "ticket_id",
+        "start_column": "opened_at", "initial": "opened",
+        "transitions": {"opened": {"triaged": 1.0},
+                        "triaged": {"resolved": 0.85, "escalated": 0.15},
+                        "escalated": {"resolved": 1.0},
+                        "resolved": {"closed": 0.9, "reopened": 0.1},
+                        "reopened": {"triaged": 1.0}},
+        "dwell": {"opened": {"distribution": "lognormal", "mu": 0, "sigma": 0.8,
+                             "unit": "hours"}},
+        "final_state_column": "status"}]
+      A state with no transitions row is terminal. Each row sums to 1. The
+      event table is named "<name>_events". Structure is exact and audited;
+      path shares and durations are drawn from the declaration.
+
     DIRTY DATA ON PURPOSE  (exact counts, so a test has a known number to find)
       __duplicates__  [{"table": "contacts", "count": 60}]
       __typos__       [{"table": "contacts", "column": "city", "count": 120}]
@@ -733,6 +768,10 @@ def generate_from_schema(
       Each injects exactly that many defects, leaving primary/unique/foreign
       keys intact. Use when the user is building or testing a data-quality or
       cleaning pipeline.
+
+    __preset__  Use-case defaults: "demo" (dates end today, clean), "test" (<=200 rows,
+      fixed seed), "load" (x10 rows), "ml" (declared nulls/outliers/typos/duplicates,
+      keys protected), "eval" (current dates, modest dirt). Declarations always win.
 
     __domain__  Domain hint for post-generation validation.
       "__domain__": "clinical_trial"   # or "clinical", "financial", "fintech"
@@ -787,6 +826,16 @@ def generate_from_schema(
 
     10. Add __state_machine__ to any entity that moves through a process. An
         order table with no status progression is not realistic order data.
+        When the user wants the steps themselves (an event log, durations,
+        loops), declare __processes__ instead.
+
+    11. Typos are errors. An unknown distribution name or a misspelled
+        parameter (lamda, mena) is rejected with a "did you mean" suggestion.
+        Read the error and fix the key rather than dropping the parameter.
+
+    12. After generating, call check_realism on the output_dir and fix what it
+        flags: uniform money, every customer with the same number of orders,
+        flat hour or weekday profiles, emails unrelated to names, no nulls.
 
     Args:
         schema:      Dict of table defs plus optional schema-level directives.
@@ -1505,6 +1554,64 @@ def audit_dataset(dataset_dir: str, top_findings: int = 20) -> Dict[str, Any]:
         "tables_audited": list(tables.keys()),
         "findings": findings[:top_findings],
         "findings_truncated": max(0, len(findings) - top_findings),
+    }
+
+
+# Reads CSVs and scores their realism. Writes nothing.
+@mcp.tool(
+    title="Check a dataset for the tells of synthetic data",
+    annotations=ToolAnnotations(
+        title="Check a dataset for the tells of synthetic data",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+def check_realism(dataset_dir: str, skip: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Find the statistical shapes that make a dataset look generated.
+
+    Where ``audit_dataset`` finds contradictions, this finds shapes real data
+    almost never has, with no real data to compare against: money spread
+    evenly from min to max, every customer with about the same number of
+    orders, perfectly balanced categories, flat weekday or hour-of-day
+    profiles, timestamps piled up at midnight, placeholder values
+    (@example.com, John Doe), emails unrelated to names, small name pools,
+    templated or repetitive free text, prose with a tiny vocabulary, review
+    text whose tone ignores its rating, descriptions unrelated to their
+    titles, tables with no nulls at all. Works on data from any generator,
+    including a script you wrote.
+
+    Fix a finding in the schema, not the rows: lognormal for money, a curve or
+    weights for time, ``sampling`` on foreign keys, ``null_rate`` or
+    ``__missingness__`` for optional fields. Pass ``skip`` for tells that are
+    intended (a randomised A/B split is balanced on purpose).
+
+    Args:
+        dataset_dir: Directory with one CSV per table (the ``output_dir`` from
+            ``generate_from_schema``).
+        skip: Check names to leave out, e.g. ``["too_clean"]``.
+
+    Returns:
+        ``{"score": 0-1, "passed": bool, "counts": {...}, "tells": [...]}``,
+        each tell with its check, table, column, status and evidence.
+    """
+    try:
+        tables = _load_csv_dir(dataset_dir)
+    except Exception as exc:
+        return _tool_error(exc, "Point dataset_dir at a folder with one CSV per table.")
+    try:
+        report = misata.realism_report(tables, skip=skip or ())
+    except ValueError as exc:
+        return _tool_error(exc, "Use check names from the error message in skip.")
+    d = report.to_dict()
+    return {
+        "ok": True,
+        "score": d["score"],
+        "passed": d["passed"],
+        "counts": d["counts"],
+        "summary": report.summary(),
+        "tells": [c.to_dict() for c in report.tells],
     }
 
 

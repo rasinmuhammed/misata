@@ -78,7 +78,7 @@ class DataPreviewResponse(BaseModel):
 
 app = FastAPI(
     title="Misata API",
-    description="AI-Powered Synthetic Data Engine",
+    description="Declare the outcome, get data that matches it",
     version=__version__,
     docs_url="/docs",
     redoc_url="/redoc"

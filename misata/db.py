@@ -58,14 +58,22 @@ def seed_database(
     start_time = time.time()
     dialect, conn = _connect(db_url)
 
+    # One transaction for the whole seed: create, truncate and every insert
+    # commit together or not at all. Committing per batch meant a constraint
+    # failure in table five left tables one to four filled, and the next run
+    # with --truncate had to clean up a half-seeded database. SQLite and
+    # Postgres both roll back DDL, so a failed run leaves nothing behind.
+    if dialect == "sqlite":
+        conn.isolation_level = None   # manage the transaction explicitly
+        conn.execute("BEGIN")
     try:
         if create:
-            created = create_tables(config, conn, dialect)
+            created = create_tables(config, conn, dialect, commit=False)
         else:
             created = []
 
         if truncate:
-            truncated = truncate_tables(config, conn, dialect)
+            truncated = truncate_tables(config, conn, dialect, commit=False)
         else:
             truncated = []
 
@@ -100,7 +108,7 @@ def seed_database(
                 _validate_table_schema(conn, dialect, table_name, list(batch_df.columns), create)
                 validated_tables.add(table_name)
 
-            rows_inserted = _insert_batch(conn, dialect, table_name, batch_df)
+            rows_inserted = _insert_batch(conn, dialect, table_name, batch_df, commit=False)
             table_rows[table_name] = table_rows.get(table_name, 0) + rows_inserted
             total_rows += rows_inserted
 
@@ -111,6 +119,10 @@ def seed_database(
         if dialect == "postgres" and table_rows:
             _reset_postgres_sequences(conn, list(table_rows.keys()))
 
+        if dialect == "sqlite":
+            conn.execute("COMMIT")
+        else:
+            conn.commit()
         duration = time.time() - start_time
         return SeedReport(
             db_url=db_url,
@@ -121,8 +133,48 @@ def seed_database(
             truncated_tables=truncated,
             duration_seconds=duration,
         )
+    except BaseException:
+        try:
+            if dialect == "sqlite":
+                if conn.in_transaction:
+                    conn.execute("ROLLBACK")
+            else:
+                conn.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         conn.close()
+
+
+class _Savepoint:
+    """A statement that may fail without aborting the seed's transaction.
+
+    Postgres marks the whole transaction aborted after any failed statement,
+    so a probe that is allowed to fail (a COUNT on a table that may not
+    exist, a COPY with an executemany fallback) runs inside a savepoint.
+    SQLite needs nothing: a failed statement leaves its transaction usable.
+    """
+
+    def __init__(self, conn, dialect: str, name: str = "misata_sp"):
+        self.conn, self.dialect, self.name = conn, dialect, name
+
+    def __enter__(self):
+        if self.dialect == "postgres":
+            with self.conn.cursor() as cur:
+                cur.execute(f"SAVEPOINT {self.name}")
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.dialect != "postgres":
+            return False
+        with self.conn.cursor() as cur:
+            if exc_type is None:
+                cur.execute(f"RELEASE SAVEPOINT {self.name}")
+            else:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {self.name}")
+                cur.execute(f"RELEASE SAVEPOINT {self.name}")
+        return False
 
 
 def _load_external_context(conn, dialect: str, config: SchemaConfig):
@@ -182,12 +234,13 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
     for table in config.tables:
         name = table.name
         try:
-            if dialect == "postgres":
-                with conn.cursor() as cur:
-                    cur.execute(f'SELECT COUNT(*) FROM "{name}"')
-                    count = int(cur.fetchone()[0])
-            else:
-                count = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
+            with _Savepoint(conn, dialect):
+                if dialect == "postgres":
+                    with conn.cursor() as cur:
+                        cur.execute(f'SELECT COUNT(*) FROM "{name}"')
+                        count = int(cur.fetchone()[0])
+                else:
+                    count = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
         except Exception:
             count = 0
         if count == 0:
@@ -197,11 +250,13 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
         cols.add("id")  # FK sampling fast-path uses "id"
         col_list = ", ".join(f'"{c}"' for c in sorted(cols))
         try:
-            preloaded[name] = pd.read_sql_query(f'SELECT {col_list} FROM "{name}"', conn)
+            with _Savepoint(conn, dialect):
+                preloaded[name] = pd.read_sql_query(f'SELECT {col_list} FROM "{name}"', conn)
         except Exception:
             # A key column that doesn't exist (composite/renamed PK) — load all.
             try:
-                preloaded[name] = pd.read_sql_query(f'SELECT * FROM "{name}"', conn)
+                with _Savepoint(conn, dialect):
+                    preloaded[name] = pd.read_sql_query(f'SELECT * FROM "{name}"', conn)
             except Exception:
                 skip.discard(name)  # can't load it; let normal path handle
     return preloaded, skip
@@ -212,7 +267,7 @@ def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
     application's next INSERT does not collide with a seeded key."""
     for name in tables:
         try:
-            with conn.cursor() as cur:
+            with _Savepoint(conn, "postgres", "misata_seq"), conn.cursor() as cur:
                 cur.execute(
                     """
                     SELECT a.attname
@@ -232,10 +287,9 @@ def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
                         f'COALESCE((SELECT MAX("{col}") FROM "{name}"), 1))',
                         (name, col),
                     )
-            conn.commit()
         except Exception:
             # Sequence realignment is best-effort; never fail the seed over it.
-            conn.rollback()
+            pass
 
 
 def seed_database_sqlalchemy(
@@ -291,25 +345,39 @@ def seed_from_sqlalchemy_models(
     )
 
 
-def create_tables(config: SchemaConfig, conn, dialect: str) -> List[str]:
+def create_tables(config: SchemaConfig, conn, dialect: str, commit: bool = True) -> List[str]:
     created: List[str] = []
     for table_name in _topological_sort(config):
         ddl = _build_create_table_sql(config, table_name, dialect)
-        _execute(conn, dialect, ddl)
+        _execute(conn, dialect, ddl, commit=commit)
         created.append(table_name)
     return created
 
 
-def truncate_tables(config: SchemaConfig, conn, dialect: str) -> List[str]:
-    truncated: List[str] = []
-    for table_name in reversed(_topological_sort(config)):
-        if dialect == "postgres":
-            sql = f'TRUNCATE TABLE "{table_name}"'
-        else:
-            sql = f'DELETE FROM "{table_name}"'
-        _execute(conn, dialect, sql)
-        truncated.append(table_name)
-    return truncated
+def truncate_tables(config: SchemaConfig, conn, dialect: str, commit: bool = True) -> List[str]:
+    """Empty every schema table, children first.
+
+    On Postgres this is one ``TRUNCATE`` naming all the tables: truncating them
+    one at a time fails as soon as a parent is referenced by a foreign key,
+    even from a child that was already emptied, while a single statement may
+    truncate a set of tables that reference each other. ``CASCADE`` is
+    deliberately not used: it would also empty tables outside the schema that
+    happen to reference these, which is someone else's data.
+    """
+    order = [t for t in reversed(_topological_sort(config))
+             if not _is_external(config, t)]
+    if dialect == "postgres":
+        if order:
+            names = ", ".join(f'"{t}"' for t in order)
+            _execute(conn, dialect, f"TRUNCATE TABLE {names}", commit=commit)
+        return order
+    for table_name in order:
+        _execute(conn, dialect, f'DELETE FROM "{table_name}"', commit=commit)
+    return order
+
+
+def _is_external(config: SchemaConfig, table_name: str) -> bool:
+    return any(t.name == table_name and t.external_schema for t in config.tables)
 
 
 def _connect(db_url: str) -> Tuple[str, object]:
@@ -319,7 +387,15 @@ def _connect(db_url: str) -> Tuple[str, object]:
     if scheme == "sqlite":
         if parsed.path in ("", "/"):
             raise ValueError("SQLite URL must include a file path, e.g. sqlite:///path/to.db")
-        path = parsed.path
+        # SQLAlchemy's convention: three slashes then a relative path
+        # (sqlite:///dev.db is ./dev.db), four for an absolute one
+        # (sqlite:////var/data/dev.db). Using the URL path as-is opened
+        # sqlite:///dev.db at the filesystem root.
+        path = parsed.path[1:] if not parsed.netloc else parsed.path
+        if path == ":memory:" or path.startswith("file:"):
+            pass
+        elif not path:
+            raise ValueError("SQLite URL must include a file path, e.g. sqlite:///path/to.db")
         conn = sqlite3.connect(path)
         conn.execute("PRAGMA foreign_keys=ON")
         return "sqlite", conn
@@ -335,18 +411,20 @@ def _connect(db_url: str) -> Tuple[str, object]:
     raise ValueError(f"Unsupported database scheme: {scheme}")
 
 
-def _execute(conn, dialect: str, sql: str, params: Optional[Sequence] = None) -> None:
+def _execute(conn, dialect: str, sql: str, params: Optional[Sequence] = None,
+             commit: bool = True) -> None:
     if dialect == "postgres":
         with conn.cursor() as cur:
             cur.execute(sql, params or ())
-        conn.commit()
     else:
         cur = conn.cursor()
         cur.execute(sql, params or ())
+    if commit and (dialect == "postgres" or conn.in_transaction):
         conn.commit()
 
 
-def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame) -> int:
+def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
+                  commit: bool = True) -> int:
     if df.empty:
         return 0
 
@@ -376,24 +454,25 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame) -> int:
         # so the fallback never fired and the caller was told every row landed.
         # `misata seed` reported success against Postgres while leaving the
         # tables empty. Enter the context manager and write into it.
+        # A savepoint, not a rollback: rolling back the failed COPY must not
+        # also discard every batch already inserted in this transaction.
         try:
             csv_buf = StringIO()
             clean_df.to_csv(csv_buf, index=False, header=False)
-            with conn.cursor() as cur:
+            with _Savepoint(conn, dialect, "misata_copy"), conn.cursor() as cur:
                 copy_sql = f'COPY "{table_name}" ({col_list}) FROM STDIN WITH (FORMAT CSV)'
                 with cur.copy(copy_sql) as copy:
                     copy.write(csv_buf.getvalue())
-            conn.commit()
-            return len(rows)
         except Exception:
-            conn.rollback()
             with conn.cursor() as cur:
                 cur.executemany(sql, rows)
+        if commit:
             conn.commit()
     else:
         cur = conn.cursor()
         cur.executemany(sql, rows)
-        conn.commit()
+        if commit and conn.in_transaction:
+            conn.commit()
 
     return len(rows)
 
@@ -518,6 +597,9 @@ def _map_type(col_type: str, dialect: str) -> str:
         return "DOUBLE PRECISION" if dialect == "postgres" else "REAL"
     if col_type in ("text", "categorical"):
         return "TEXT"
+    if col_type in ("json", "array"):
+        # Values are canonical JSON text, which both accept.
+        return "JSONB" if dialect == "postgres" else "TEXT"
     if col_type == "boolean":
         return "BOOLEAN" if dialect == "postgres" else "INTEGER"
     if col_type == "date":

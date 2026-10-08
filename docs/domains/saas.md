@@ -60,7 +60,7 @@ print(tables["subscriptions"].groupby("plan")["mrr"].describe())
 - **Train a churn prediction model**: generate balanced training data with controllable churn rates (e.g. `"40% churn"`) without touching production data
 - **BI dashboard development**: build Looker or Metabase dashboards on realistic MRR time series before your product has enough real data
 - **Load testing a subscription API**: generate 100k users and subscriptions with valid FK relationships to test pagination and filter endpoints
-- **Privacy-safe demos**: replace real customer data in sales demos with statistically identical synthetic data
+- **Demos without customer data**: generate a believable SaaS account base from a schema, so no real customer appears in a sales demo
 - **Pytest fixtures**: use `misata.testing.misata_fixture` to get fresh SaaS tables in each test run without database setup
 
 ## Advanced: narrative growth curves

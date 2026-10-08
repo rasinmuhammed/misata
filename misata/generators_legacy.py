@@ -38,11 +38,11 @@ EMAIL_DOMAINS = [
 ]
 
 COMPANY_NAMES = [
-    "Acme Corp", "Globex", "Initech", "Umbrella Corp", "Stark Industries",
-    "Wayne Enterprises", "Cyberdyne Systems", "Soylent Corp", "Massive Dynamic",
-    "Aperture Science", "InGen", "Tyrell Corporation", "Weyland-Yutani", "OsCorp",
-    "LexCorp", "Oscorp Industries", "Dharma Initiative", "Dunder Mifflin",
-    "Sterling Cooper", "Wonka Industries", "Prestige Worldwide", "Vandelay Industries",
+    "Northwind Group", "Meridian Holdings", "Cobalt Systems", "Harbor Health",
+    "Lakeshore Logistics", "Redwood Analytics", "Kestrel Foods", "Granite Works",
+    "Signal Peak Labs", "Oakline Partners", "Vantage Materials", "Everly Digital",
+    "Pioneer Instruments", "Quarry Lane Capital", "Beacon Robotics", "Marlow & Finch",
+    "Trailhead Ventures", "Sterling Ridge Insurance", "Compass Energy", "Lumen Networks",
 ]
 
 STREET_NAMES = [

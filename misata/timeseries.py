@@ -174,10 +174,13 @@ class TimeSeriesGenerator:
                 phase = (dates.day - s.peak_offset) * (2 * np.pi / period)
             elif s.type == "yearly":
                 period = 365
-                phase = (dates.dayofyear - s.peak_offset) * (2 * np.pi / period)
+                phase = (dates.dayofyear - 1 - s.peak_offset) * (2 * np.pi / period)
             else:
                 continue
-            seasonal += amp * np.sin(phase)
+            # cos, not sin: the documented contract is that the wave peaks AT
+            # peak_offset. sin(x - offset) peaks a quarter period later, which
+            # put a declared Friday peak on Monday and December in March.
+            seasonal += amp * np.cos(phase)
 
         base = trend * (1 + seasonal)
 
@@ -295,10 +298,19 @@ def _parse_timeseries_story(story: str) -> TimeSeriesConfig:
 
     # Seasonality
     seasonality: List[Seasonality] = []
+    # The phase follows the words: a "weekend" peak lands on Saturday, a
+    # "winter"/"holiday" peak in late December, a "summer" one in July.
     if re.search(r"weekly seasonality|day.of.week|weekday|weekend", s):
-        seasonality.append(Seasonality(type="weekly", amplitude=0.30, peak_offset=1))
-    if re.search(r"yearly|annual|seasonal|summer|winter|holiday", s):
-        seasonality.append(Seasonality(type="yearly", amplitude=0.40, peak_offset=180))
+        weekly_peak = 5 if re.search(r"weekend", s) else 1
+        seasonality.append(Seasonality(type="weekly", amplitude=0.30, peak_offset=weekly_peak))
+    if re.search(r"yearly|annual|seasonal|summer|winter|holiday|christmas|december", s):
+        if re.search(r"winter|holiday|christmas|december|black friday", s):
+            yearly_peak = 350
+        elif re.search(r"summer", s):
+            yearly_peak = 190
+        else:
+            yearly_peak = 180
+        seasonality.append(Seasonality(type="yearly", amplitude=0.40, peak_offset=yearly_peak))
     if re.search(r"monthly|end.of.month|month.end", s):
         seasonality.append(Seasonality(type="monthly", amplitude=0.20, peak_offset=28))
     if re.search(r"hourly|intraday|rush.hour|morning.peak", s):

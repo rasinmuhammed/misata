@@ -11,8 +11,8 @@ guessing abstract parameters like alpha/beta/gamma.
 from typing import Dict, List
 
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import norm, lognorm, expon, beta, gamma, uniform
+# scipy.optimize and scipy.stats are imported when a curve is fitted, not
+# when misata is imported: this module was most of import misata's cost.
 
 class CurveFitter:
     """
@@ -21,6 +21,7 @@ class CurveFitter:
 
     def __init__(self):
         """Initialize the curve fitter."""
+        from scipy.stats import beta, expon, gamma, lognorm, norm, uniform
         self.distributions = {
             "normal": norm,
             "lognormal": lognorm,
@@ -90,6 +91,7 @@ class CurveFitter:
             initial_guess = [1.0, np.mean(x_vals)]
 
         # Optimize
+        from scipy.optimize import minimize
         result = minimize(objective, initial_guess, method='Nelder-Mead')
         best_params = result.x
 

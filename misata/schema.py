@@ -24,7 +24,8 @@ class Column(BaseModel):
     """
 
     name: str
-    type: Literal["int", "float", "date", "time", "datetime", "categorical", "foreign_key", "text", "boolean"]
+    type: Literal["int", "float", "date", "time", "datetime", "categorical", "foreign_key", "text",
+                  "boolean", "json", "array"]
     distribution_params: Dict[str, Any] = Field(default_factory=dict, validate_default=True)
     nullable: bool = False
     unique: bool = False
@@ -41,6 +42,7 @@ class Column(BaseModel):
     def _normalize_distribution_params(
         col_type: Optional[str],
         params: Optional[Dict[str, Any]],
+        column_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Normalize common missing params so schema parsing stays forgiving."""
         normalized = dict(params or {})
@@ -65,6 +67,12 @@ class Column(BaseModel):
             normalized["distribution"] = "normal"
             normalized["_distribution_is_default"] = True  # sentinel: not user-set
 
+        if col_type in ["int", "float"]:
+            # Unknown names and misspelled parameters used to fall through to
+            # uniform(0, 1000); they are errors now (see misata.param_check).
+            from misata.param_check import check_distribution_params
+            normalized = check_distribution_params(col_type, normalized, column_name)
+
         return normalized
 
     @field_validator("distribution_params", mode="before")
@@ -72,7 +80,7 @@ class Column(BaseModel):
     def validate_params(cls, v: Any, info: Any) -> Dict[str, Any]:
         """Validate distribution parameters based on column type."""
         col_type = info.data.get("type")
-        return cls._normalize_distribution_params(col_type, v or {})
+        return cls._normalize_distribution_params(col_type, v or {}, info.data.get("name"))
 
     def validate_generation_ready(self) -> None:
         """Raise if the column still lacks required information for generation."""
@@ -1493,6 +1501,97 @@ class RealismConfig(BaseModel):
         return v
 
 
+class Process(BaseModel):
+    """A process each case moves through, written out as an event log.
+
+    Where a :class:`Lifecycle` says which states a row's history contains,
+    a process says how the history unfolds: which step follows which, how
+    often a case loops back (rework, retries, reopened tickets), and how long
+    each step takes. It produces one row per event, the shape process-mining
+    tools read (export with :func:`misata.to_xes`).
+
+    It is a semi-Markov chain, simulated for every case at once with numpy,
+    not a discrete-event engine: no queues or shared resources, so wait
+    times do not depend on how busy the system is. What holds exactly:
+    every case starts in ``initial``, only declared transitions occur, steps
+    are numbered 1..n, timestamps never go backwards, the first event is at
+    or after the case's ``start_column``, and every case ends in a terminal
+    state or at ``max_steps``. Path frequencies and durations are drawn from
+    the declared probabilities and dwell distributions (emergent, not exact).
+
+    Example, support tickets with a reopen loop::
+
+        Process(
+            name="ticket_flow", cases_table="tickets", case_key="ticket_id",
+            start_column="opened_at", initial="opened",
+            transitions={
+                "opened":   {"triaged": 1.0},
+                "triaged":  {"resolved": 0.85, "escalated": 0.15},
+                "escalated": {"resolved": 1.0},
+                "resolved": {"closed": 0.9, "reopened": 0.1},
+                "reopened": {"triaged": 1.0},
+            },
+            dwell={"opened": {"distribution": "lognormal", "mu": 0, "sigma": 0.8,
+                              "unit": "hours"},
+                   "escalated->resolved": {"distribution": "exponential",
+                                           "scale": 2, "unit": "days"}},
+            final_state_column="status",
+        )
+
+    Attributes:
+        transitions: ``{state: {next_state: probability}}``. A state with no
+            entry (``closed`` above) is terminal. Each row must sum to 1.
+        dwell: time spent in a state before leaving it, keyed by ``state`` or,
+            for one transition only, ``"state->next"`` (which wins). Each is
+            ``{distribution: lognormal|exponential|gamma|uniform|fixed, ...,
+            unit: seconds|minutes|hours|days}``; unspecified steps take
+            lognormal(0, 1) hours.
+        final_state_column: optional column on the cases table to overwrite
+            with each case's last state, so the entity agrees with its log.
+    """
+
+    name: str
+    cases_table: str
+    case_key: str
+    initial: str
+    transitions: Dict[str, Dict[str, float]]
+    dwell: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    start_column: Optional[str] = None
+    start: str = "2024-01-01"
+    end: str = "2024-12-31"
+    max_steps: int = Field(default=25, ge=1)
+    event_table: Optional[str] = None
+    activity_column: str = "activity"
+    time_column: str = "timestamp"
+    step_column: str = "step"
+    final_state_column: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _check_machine(self) -> "Process":
+        states = set(self.transitions) | {n for nxt in self.transitions.values() for n in nxt}
+        if self.initial not in states:
+            raise ValueError(f"process {self.name!r}: initial state {self.initial!r} "
+                             f"is not in its transitions")
+        for state, nxt in self.transitions.items():
+            if not nxt:
+                raise ValueError(f"process {self.name!r}: {state!r} has an empty "
+                                 f"transition row; omit it to make it terminal")
+            total = sum(float(p) for p in nxt.values())
+            if any(float(p) < 0 for p in nxt.values()) or abs(total - 1.0) > 1e-6:
+                raise ValueError(f"process {self.name!r}: probabilities out of "
+                                 f"{state!r} sum to {total:g}, not 1")
+        for key in self.dwell:
+            src = key.split("->")[0].strip()
+            if src not in states:
+                raise ValueError(f"process {self.name!r}: dwell for unknown state {src!r}")
+        if not any(s not in self.transitions for s in states):
+            raise ValueError(f"process {self.name!r} has no terminal state; every case "
+                             f"would run to max_steps")
+        if self.event_table is None:
+            self.event_table = f"{self.name}_events"
+        return self
+
+
 class SchemaConfig(BaseModel):
     """
     Complete configuration for synthetic data generation.
@@ -1533,6 +1632,7 @@ class SchemaConfig(BaseModel):
     time_grids: List[TimeGrid] = Field(default_factory=list)
     duplicates: List[Duplicates] = Field(default_factory=list)
     event_logs: List[EventLog] = Field(default_factory=list)
+    processes: List[Process] = Field(default_factory=list)
     outliers: List[Outliers] = Field(default_factory=list)
     typos: List[Typos] = Field(default_factory=list)
     bitemporal: List[Bitemporal] = Field(default_factory=list)
@@ -1551,6 +1651,9 @@ class SchemaConfig(BaseModel):
         ),
     )
     noise_config: Optional[NoiseConfig] = None
+    # A use-case preset (demo, test, load, ml, eval) applied when generation
+    # starts; see misata.presets.
+    preset: Optional[str] = None
     realism: Optional[RealismConfig] = None
     seed: Optional[int] = None
     vocabularies: Optional[Dict[str, List[str]]] = Field(

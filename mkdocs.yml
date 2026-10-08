@@ -7,6 +7,7 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  custom_dir: overrides
   logo: assets/logo.svg
   favicon: assets/logo.svg
   palette:
@@ -110,6 +111,9 @@ nav:
   - Export: export.md
   - Databricks & Spark: spark.md
   - Validate: validate.md
+  - Realism Report: realism.md
+  - Realism Benchmark: realism-benchmark.md
+  - Validity Benchmark: validity-benchmark.md
   - When Misata Refuses: failure-modes.md
   - CLI Reference: cli.md
   - Guides:
@@ -135,6 +139,11 @@ nav:
     - Lexicons, Motifs and Joint Margins: guides/declared-vocabulary-and-structure.md
     - MCP Server (AI agents): guides/mcp.md
     - pytest Fixtures: guides/testing.md
+    - Custom Generators: guides/custom-generators.md
+    - Processes and Event Logs: guides/processes.md
+    - Nested JSON and Arrays: guides/nested-columns.md
+    - Use-case Presets: guides/presets.md
+    - Django: guides/django.md
     - SQL DDL to Schema: guides/from-ddl.md
     - dbt Seed Integration: guides/dbt-seed.md
     - Streaming Large Datasets: guides/streaming.md

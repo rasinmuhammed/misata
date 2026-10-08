@@ -11,7 +11,7 @@ import re
 import warnings
 from typing import Dict, List, Optional, Tuple
 
-from misata.schema import Column, Relationship, SchemaConfig, Table
+from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
 
 
 def _parent_key_for(parent: str, columns_map: Dict[str, List[Column]], fallback: str) -> str:
@@ -53,6 +53,170 @@ _COMPILED: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"^" + p + r"$", re.IGNORECASE), t)
     for p, t in _TYPE_MAP
 ]
+
+
+# Fixed-width code columns: CHAR(2) named country is an ISO 3166 code, not a
+# country name that overflows it.
+_ISO_COUNTRIES = ["US", "GB", "DE", "FR", "IN", "CA", "AU", "BR", "ES", "IT", "NL", "JP",
+                  "MX", "SE", "PL", "IE", "SG", "AE", "ZA", "NG", "KR", "CH", "BE", "PT"]
+_ISO_CURRENCIES = ["USD", "EUR", "GBP", "INR", "CAD", "AUD", "BRL", "JPY", "MXN", "SEK",
+                   "PLN", "CHF", "SGD", "AED", "ZAR", "NGN", "KRW"]
+_ISO_LANGUAGES = ["en", "es", "de", "fr", "pt", "it", "nl", "ja", "hi", "ar", "ko", "sv", "pl"]
+_US_STATES = ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA", "NC", "MI", "NJ", "VA",
+              "WA", "AZ", "MA", "TN", "IN", "MO", "MD", "WI", "CO", "MN", "OR", "NV"]
+
+_LEN_RE = re.compile(
+    r"(?:var)?char(?:acter)?(?:\s+varying)?\s*\(\s*(\d+)\s*\)|varchar2\s*\(\s*(\d+)", re.I)
+_FIXED_CHAR_RE = re.compile(r"^(?:char|character|nchar)\s*\(", re.I)
+
+
+def _length_of(sql_type: str) -> Optional[int]:
+    m = _LEN_RE.search(sql_type)
+    if not m:
+        return None
+    return int(m.group(1) or m.group(2))
+
+
+def _code_choices(col_name: str, length: int) -> Optional[List[str]]:
+    n = col_name.lower()
+    if length == 2 and "country" in n:
+        return _ISO_COUNTRIES
+    if length == 3 and "currenc" in n:
+        return _ISO_CURRENCIES
+    if length == 2 and ("lang" in n or "locale" in n):
+        return _ISO_LANGUAGES
+    if length == 2 and "state" in n:
+        return _US_STATES
+    return None
+
+
+def _balanced(text: str, start: int) -> Optional[str]:
+    """The contents of the parenthesis opening at ``text[start]``."""
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1:i]
+    return None
+
+
+def _check_bodies(line: str) -> List[str]:
+    out = []
+    for m in re.finditer(r"\bCHECK\s*\(", line, re.I):
+        body = _balanced(line, m.end() - 1)
+        if body:
+            out.append(body)
+    return out
+
+
+_NUM = r"(-?\d+(?:\.\d+)?)"
+
+
+def _parse_check(body: str) -> Dict[str, Dict]:
+    """Constraints a CHECK expresses that generation can honour, per column.
+
+    Handles the shapes that cover most real schemas: ``col IN ('a', 'b')``,
+    ``col BETWEEN x AND y``, comparisons joined by AND (``col >= 0 AND col <=
+    100``) and ``length(col) <= n``. Anything else (OR, expressions over two
+    columns, function calls) is left for the database to enforce: the import
+    warns rather than guessing.
+    """
+    found: Dict[str, Dict] = {}
+
+    def put(col: str, key: str, value) -> None:
+        found.setdefault(col.strip('"').strip("`"), {})[key] = value
+
+    if re.search(r"\bOR\b", body, re.I):
+        return found
+    for m in re.finditer(r"\"?(\w+)\"?\s+IN\s*\(([^)]*)\)", body, re.I):
+        items = [v.strip().strip("'\"") for v in m.group(2).split(",") if v.strip()]
+        if items:
+            put(m.group(1), "choices", items)
+    for m in re.finditer(r"\"?(\w+)\"?\s+BETWEEN\s+" + _NUM + r"\s+AND\s+" + _NUM, body, re.I):
+        put(m.group(1), "min", float(m.group(2)))
+        put(m.group(1), "max", float(m.group(3)))
+    stripped = re.sub(r"\bBETWEEN\s+\S+\s+AND\s+\S+", " ", body, flags=re.I)
+    for part in re.split(r"\bAND\b", stripped, flags=re.I):
+        m = re.match(r"\s*(?:char_)?length\s*\(\s*\"?(\w+)\"?\s*\)\s*(<=|<)\s*(\d+)\s*$",
+                     part, re.I)
+        if m:
+            n = int(m.group(3)) - (1 if m.group(2) == "<" else 0)
+            put(m.group(1), "max_length", n)
+            continue
+        m = re.match(r"\s*\"?(\w+)\"?\s*(>=|>|<=|<)\s*" + _NUM + r"\s*$", part)
+        if m:
+            col, op, v = m.group(1), m.group(2), float(m.group(3))
+            put(col, "min" if op in (">=", ">") else "max", v)
+            put(col, "_strict_" + ("min" if op in (">=", ">") else "max"), op in (">", "<"))
+    return found
+
+
+_PAIR = re.compile(r"^\s*\"?([A-Za-z_]\w*)\"?\s*(>=|>|<=|<)\s*\"?([A-Za-z_]\w*)\"?\s*$")
+
+
+def _column_pairs(body: str) -> List[Tuple[str, str, str]]:
+    """``a > b`` comparisons between two columns, joined by AND."""
+    if re.search(r"\bOR\b", body, re.I):
+        return []
+    out = []
+    for part in re.split(r"\bAND\b", body, flags=re.I):
+        m = _PAIR.match(part)
+        if m and m.group(1).upper() not in ("NULL", "TRUE", "FALSE") and m.group(3).upper() not in ("NULL", "TRUE", "FALSE"):
+            out.append((m.group(1), m.group(2), m.group(3)))
+    return out
+
+
+def _pair_duration(late: str, early: str) -> Tuple[int, int]:
+    """Days between two dates a CHECK orders, from what the pair is called."""
+    n = (late + " " + early).lower()
+    if any(k in n for k in ("check_out", "checkout", "departure", "depart", "nights")):
+        return 1, 14
+    if any(k in n for k in ("ship", "deliver", "dispatch", "arriv")):
+        return 1, 10
+    if any(k in n for k in ("resolv", "closed", "complet", "respond", "answered")):
+        return 0, 30
+    if any(k in n for k in ("expir", "valid_to", "until", "renew", "end", "terminat", "cancel")):
+        return 30, 730
+    if any(k in n for k in ("due", "paid", "settle")):
+        return 7, 60
+    return 1, 365
+
+
+def _apply_check(col: Column, rule: Dict) -> Column:
+    """Fold parsed CHECK rules into a column's declaration."""
+    params = dict(col.distribution_params or {})
+    col_type = col.type
+    if "choices" in rule:
+        choices = rule["choices"]
+        if col_type in ("int", "float"):
+            try:
+                choices = [int(c) if col_type == "int" else float(c) for c in choices]
+            except ValueError:
+                pass
+        col_type = "categorical"
+        params = {k: v for k, v in params.items() if k not in ("distribution", "min", "max")}
+        params["choices"] = choices
+    if "max_length" in rule:
+        params["max_length"] = min(rule["max_length"], params.get("max_length", 10**9))
+    if col_type in ("int", "float"):
+        step = 1 if col_type == "int" else 0.01
+        for side in ("min", "max"):
+            if side in rule:
+                v = rule[side]
+                if rule.get("_strict_" + side):
+                    v = v + step if side == "min" else v - step
+                params[side] = int(v) if col_type == "int" else v
+        if ("min" in rule or "max" in rule) and params.get("_distribution_is_default"):
+            params = {k: v for k, v in params.items()
+                      if k not in ("distribution", "_distribution_is_default")}
+            params["distribution"] = "uniform" if "min" in params and "max" in params else "normal"
+            if params["distribution"] == "normal":
+                params.pop("_distribution_is_default", None)
+    return Column(name=col.name, type=col_type, nullable=col.nullable, unique=col.unique,
+                  distribution_params=params)
 
 
 def _map_sql_type(raw: str) -> str:
@@ -215,8 +379,33 @@ def from_ddl(
         fk_specs: List[Tuple[str, str, str]] = []  # (child_col, parent_table, parent_col)
         explicit_fk_cols: set = set()
         pk_cols: set = set()
+        unique_cols: set = set()
+        checks: Dict[str, Dict] = {}
+        unparsed_checks = 0
+        pair_checks: List[Tuple[str, str, str]] = []
+        unique_sets: List[List[str]] = []
 
         for line in _split_column_defs(body):
+            # CHECK constraints, inline or table-level: fold what generation
+            # can honour into the column, count the rest.
+            for chk in _check_bodies(line):
+                parsed = _parse_check(chk)
+                pairs = _column_pairs(chk)
+                pair_checks.extend(pairs)
+                if parsed:
+                    for cname, rule in parsed.items():
+                        checks.setdefault(cname, {}).update(rule)
+                elif not pairs:
+                    unparsed_checks += 1
+            table_unique = re.match(
+                r"^\s*(?:CONSTRAINT\s+\"?\w+\"?\s+)?UNIQUE\s*\(([^)]*)\)", line, re.I)
+            if table_unique:
+                ucols = [c.strip().strip('"') for c in table_unique.group(1).split(",")]
+                if len(ucols) == 1:
+                    unique_cols.add(ucols[0])
+                elif ucols:
+                    unique_sets.append(ucols)
+
             # Standalone FOREIGN KEY constraint
             fk_match = fk_constraint.search(line)
             if fk_match:
@@ -246,9 +435,17 @@ def from_ddl(
             col_name = col_match.group(1)
             sql_type = col_match.group(2)
             misata_type = _map_sql_type(sql_type)
-            nullable = "NOT NULL" not in line.upper() and "PRIMARY KEY" not in line.upper()
-            if "PRIMARY KEY" in line.upper():
+            # Ignore keywords inside CHECK bodies and string literals.
+            bare = re.sub(r"'[^']*'", "''", line)
+            for chk in _check_bodies(bare):
+                bare = bare.replace(chk, "")
+            upper = bare.upper()
+            nullable = "NOT NULL" not in upper and "PRIMARY KEY" not in upper
+            if "PRIMARY KEY" in upper:
                 pk_cols.add(col_name)
+            if re.search(r"\bUNIQUE\b", upper):
+                unique_cols.add(col_name)
+            length = _length_of(sql_type) if misata_type == "text" else None
 
             # Inline REFERENCES
             inline = fk_inline.search(line)
@@ -260,9 +457,54 @@ def from_ddl(
                 distribution_params: Dict = {"references": f"{parent_table}.{parent_col}"}
             else:
                 distribution_params = {}
+                scale = re.search(r"(?:decimal|numeric)\s*\(\s*\d+\s*,\s*(\d+)\s*\)",
+                                  sql_type, re.I)
+                if scale and misata_type == "float":
+                    distribution_params["decimals"] = int(scale.group(1))
+                if length:
+                    distribution_params["max_length"] = length
+                    codes = (_code_choices(col_name, length)
+                             if _FIXED_CHAR_RE.match(sql_type) or length <= 3 else None)
+                    if codes:
+                        misata_type = "categorical"
+                        distribution_params = {"choices": codes}
 
             cols.append(Column(name=col_name, type=misata_type, nullable=nullable,
                                distribution_params=distribution_params))
+
+        # Keys and declared uniqueness: a single-column primary key is unique,
+        # as is any column under an inline or single-column UNIQUE.
+        if len(pk_cols) == 1:
+            unique_cols |= pk_cols
+        final_cols = []
+        for col in cols:
+            if col.name in checks and col.type != "foreign_key":
+                col = _apply_check(col, checks[col.name])
+            if col.name in unique_cols and not col.unique:
+                params = dict(col.distribution_params or {})
+                if col.type == "text" and col.name in pk_cols and "pattern" not in params:
+                    # A text primary key is a code, not a sentence: prose
+                    # keys collide, overflow their width, and read as fake.
+                    width = params.get("max_length")
+                    if width is None or width >= 36:
+                        params["text_type"] = "uuid"
+                    else:
+                        digits = max(1, min(width - 4, 12)) if width > 4 else width
+                        prefix = (re.sub(r"[^A-Z]", "", _singular(table_name).upper())[:3]
+                                  if width > 4 else "")
+                        params["pattern"] = (f"{prefix}-" if prefix else "") + "#" * digits
+                col = Column(name=col.name, type=col.type, nullable=col.nullable,
+                             unique=True, distribution_params=params)
+            final_cols.append(col)
+        cols = final_cols
+        if unparsed_checks:
+            warnings.warn(
+                f"{table_name}: {unparsed_checks} CHECK constraint(s) are beyond what "
+                f"the importer can translate (OR, multi-column or function "
+                f"expressions); the database will still enforce them, so seeding may "
+                f"fail on rows that violate them.",
+                UserWarning, stacklevel=2,
+            )
 
         # FK inference from _id suffix
         if infer_fks:
@@ -291,7 +533,41 @@ def from_ddl(
                 new_cols.append(col)
         cols = new_cols
 
-        tables.append(Table(name=table_name, row_count=default_rows))
+        # A later date checked against an earlier one (check_out > check_in)
+        # is drawn as the earlier date plus a duration that fits the pair,
+        # not as an unrelated date repaired afterwards.
+        by_name = {c.name: c for c in cols}
+        for a_col, op, b_col in pair_checks:
+            late, early = (a_col, b_col) if ">" in op else (b_col, a_col)
+            lc, ec = by_name.get(late), by_name.get(early)
+            if lc is not None and ec is not None and lc.type == "date" and ec.type in ("date", "datetime"):
+                lo_days, hi_days = _pair_duration(late, early)
+                params = dict(lc.distribution_params or {})
+                params.update(after_column=early, max_delta_days=hi_days,
+                              min_delta_days=max(lo_days, 1 if op in (">", "<") else 0))
+                if hi_days <= 30:
+                    params["delta_shape"] = "skewed"
+                by_name[late] = Column(name=lc.name, type=lc.type, nullable=lc.nullable,
+                                       unique=lc.unique, distribution_params=params)
+        cols = [by_name[c.name] for c in cols]
+
+        # Rules across columns: CHECK (a > b) and composite keys.
+        col_names = {c.name for c in cols}
+        table_constraints: List[Constraint] = []
+        for a, op, b in pair_checks:
+            if a in col_names and b in col_names:
+                table_constraints.append(Constraint(
+                    name=f"{table_name}_{a}_{'gt' if '>' in op else 'lt'}_{b}", type="inequality",
+                    column_a=a, operator=op, column_b=b, action="cap"))
+        if len(pk_cols) > 1:
+            unique_sets.append(sorted(pk_cols, key=[c.name for c in cols].index)
+                               if all(c in col_names for c in pk_cols) else sorted(pk_cols))
+        for us in unique_sets:
+            if all(c in col_names for c in us):
+                table_constraints.append(Constraint(
+                    name=f"{table_name}_unique_{'_'.join(us)}", type="unique_combination",
+                    group_by=list(us), action="drop"))
+        tables.append(Table(name=table_name, row_count=default_rows, constraints=table_constraints))
         columns_map[table_name] = cols
 
         for child_col, parent_table, parent_col in fk_specs:
@@ -341,7 +617,7 @@ def from_ddl(
         resolved.append(rel)
     relationships = resolved
 
-    valid_rels = [r for r in relationships if r.parent_table in known and r.parent_table != r.child_table]
+    valid_rels = [r for r in relationships if r.parent_table in known]
     dropped = len(relationships) - len(valid_rels)
     if dropped:
         warnings.warn(

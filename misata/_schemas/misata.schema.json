@@ -47,6 +47,16 @@
       "type": "integer",
       "description": "Random seed for reproducibility. The same seed produces the same data."
     },
+    "preset": {
+      "enum": [
+        "demo",
+        "test",
+        "load",
+        "ml",
+        "eval"
+      ],
+      "description": "Use-case defaults: demo (current dates, clean), test (small, fixed seed), load (x10 rows), ml (declared dirt, inferred correlations), eval (current dates, modest dirt). Declarations always win."
+    },
     "rows": {
       "type": "integer",
       "minimum": 1,
@@ -795,6 +805,102 @@
         "additionalProperties": false
       }
     },
+    "processes": {
+      "type": "array",
+      "description": "Processes: a semi-Markov chain per case (declared transition probabilities with bounded loops, per-state or per-transition dwell times), written out as an event table.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "cases_table": {
+            "type": "string"
+          },
+          "case_key": {
+            "type": "string"
+          },
+          "initial": {
+            "type": "string"
+          },
+          "transitions": {
+            "type": "object",
+            "description": "{state: {next_state: probability}}; a state with no entry is terminal; each row sums to 1.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "dwell": {
+            "type": "object",
+            "description": "Keyed by state or 'state->next'.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "distribution": {
+                  "enum": [
+                    "lognormal",
+                    "exponential",
+                    "gamma",
+                    "uniform",
+                    "fixed"
+                  ]
+                },
+                "unit": {
+                  "enum": [
+                    "seconds",
+                    "minutes",
+                    "hours",
+                    "days"
+                  ]
+                }
+              }
+            }
+          },
+          "start_column": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "max_steps": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "event_table": {
+            "type": "string"
+          },
+          "activity_column": {
+            "type": "string"
+          },
+          "time_column": {
+            "type": "string"
+          },
+          "step_column": {
+            "type": "string"
+          },
+          "final_state_column": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "cases_table",
+          "case_key",
+          "initial",
+          "transitions"
+        ]
+      }
+    },
     "outliers": {
       "type": "array",
       "description": "Exact outliers: exactly this many rows sit beyond a declared distance from the median, measured by MAD so the threshold does not drift as outliers are added. An answer key for anomaly detection.",
@@ -1518,7 +1624,9 @@
             "foreign_key",
             "email",
             "uuid",
-            "json"
+            "json",
+            "array",
+            "object"
           ]
         },
         "description": {
@@ -1743,6 +1851,47 @@
         "formula": {
           "type": "string",
           "description": "Expression to compute this column from others (e.g. `quantity * price`)."
+        },
+        "fields": {
+          "type": "object",
+          "description": "json columns: {field_name: spec}. A spec is a type name or a column spec; nest json/array freely."
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "json columns: fields omitted on a share of rows (optional_rate, default 0.3)."
+        },
+        "optional_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "items": {
+          "description": "array columns: the spec of each item (a type name or a column spec)."
+        },
+        "min_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unique_items": {
+          "type": "boolean"
+        },
+        "sorted": {
+          "type": "boolean"
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "generator": {
+          "type": "string",
+          "description": "Name of a function registered with @misata.generator."
         }
       }
     },

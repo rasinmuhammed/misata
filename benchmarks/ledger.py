@@ -112,10 +112,15 @@ def build_schema() -> SchemaConfig:
             "dependencies": [
                 Column(name="edge_id", type="int", unique=True,
                        distribution_params={"min": 1, "max": 420}),
+                # Uniform endpoints: the undeclared control graph must stay a
+                # plain random graph. Popularity-weighted endpoints make hubs,
+                # and the four-hop cycle join below is quadratic in hub degree.
                 Column(name="from_task_id", type="foreign_key",
-                       distribution_params={"references": "tasks.task_id"}),
+                       distribution_params={"references": "tasks.task_id",
+                                            "sampling": "uniform"}),
                 Column(name="to_task_id", type="foreign_key",
-                       distribution_params={"references": "tasks.task_id"}),
+                       distribution_params={"references": "tasks.task_id",
+                                            "sampling": "uniform"}),
             ],
             "closure": [
                 Column(name="closure_id", type="int", unique=True,

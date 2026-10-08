@@ -987,8 +987,8 @@ def test_realism_bare_title_is_not_a_job_outside_hr_tables():
     assert g._infer_semantic("title", "products") == "product_name"
     assert g._infer_semantic("title", "listings") == "product_name"
     # tickets / issues -> one-line issue text
-    assert g._infer_semantic("title", "support_tickets") == "support_ticket"
-    assert g._infer_semantic("subject", "issues") == "support_ticket"
+    assert g._infer_semantic("title", "support_tickets") == "ticket_subject"
+    assert g._infer_semantic("subject", "issues") == "ticket_subject"
     # events -> creative-work style names, never jobs
     assert g._infer_semantic("title", "events") == "work_title"
     # media carve-out still wins, and real job contexts still resolve to jobs

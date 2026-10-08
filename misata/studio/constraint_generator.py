@@ -553,7 +553,7 @@ class ConstrainedWarehouseGenerator:
                 import uuid
                 return [str(uuid.uuid4()) for _ in range(size)]
             elif col.text_type == "company":
-                companies = ["Acme Inc", "TechCorp", "GlobalSoft", "DataDrive", "CloudBase", "ByteForge", "NexGen Systems"]
+                companies = ["Northwind Inc", "TechCorp", "GlobalSoft", "DataDrive", "CloudBase", "ByteForge", "NexGen Systems"]
                 return self.rng.choice(companies, size=size)
             else:  # name
                 first = ["John", "Jane", "Bob", "Alice", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry"]

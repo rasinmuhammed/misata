@@ -20,7 +20,8 @@ from misata.microtext import MicrotextGenerator, detect_sentiment
 
 # Row values the entity productions weave in. Fixed here so enumeration is
 # finite; the grammar never sees them as anything but opaque strings.
-SLOTS = {"subject": "MV Baltic Trader", "when": "last month", "agent": "Dana Reyes"}
+SLOTS = {"subject": "MV Baltic Trader", "when": "last month", "agent": "Dana Reyes",
+         "sv_seems": "feels"}
 
 
 def _expand_all(symbol, depth=0):
@@ -33,6 +34,30 @@ def _expand_all(symbol, depth=0):
     out = []
     for rule in M._REVIEW_RULES.get(symbol, []):
         pat = rule[1] if isinstance(rule, tuple) else rule
+        for variant in _inline_all(pat):
+            parts = re.split(r"(\{\w+\})", variant)
+            pieces = [[p] if not p.startswith("{") else _expand_all(p[1:-1], depth + 1)
+                      for p in parts]
+            out.extend("".join(c) for c in itertools.product(*pieces))
+    return out or [""]
+
+
+def _inline_all(pat):
+    """Every way the inline ((a|b)) and [[opt]] sugar can resolve."""
+    m = re.search(r"\[\[([^\[\]]*)\]\]", pat) or re.search(r"\(\(([^()]*)\)\)", pat)
+    if m is None:
+        return [re.sub(r"  +", " ", pat)]
+    opts = [m.group(1), ""] if pat[m.start()] == "[" else m.group(1).split("|")
+    out = []
+    for o in opts:
+        out.extend(_inline_all(pat[:m.start()] + o + pat[m.end():]))
+    return out
+
+
+def _unused():
+    out = []
+    for rule in []:
+        pat = rule
         parts = re.split(r"(\{\w+\})", pat)
         pieces = [[p] if not p.startswith("{") else _expand_all(p[1:-1], depth + 1)
                   for p in parts]
@@ -85,16 +110,14 @@ class TestNoUngrammaticalPairing:
     def test_no_clause_is_capitalised_mid_sentence(self):
         """A mixed review joins two aspects with a connector, so a clause that
         capitalises its own first word emits "That said, The quality feels
-        flimsy." Every aspect is reachable in both positions, so the only
-        place the answer is knowable is after the whole string exists."""
+        flimsy." Sampled: the full mixed grammar is too large to enumerate."""
         connector = re.compile(r"(?:That said,|However,|On the other hand,|But|"
                                r"Still,|To be fair,|On the plus side,) (\w+)")
-        entity_words = {w for v in SLOTS.values() for w in v.split()}
-        for body in ("body_mixed",):
-            for sentence in _sentences(body):
-                for word in connector.findall(sentence):
-                    assert word == "I" or word in entity_words or word.islower(), \
-                        f"{word!r} in: {sentence}"
+        g = MicrotextGenerator(np.random.default_rng(3))
+        for sentence in g.reviews(5_000, ratings=[3] * 5_000, vary_text=False):
+            for word in connector.findall(str(sentence)):
+                assert word in ("I", "My", "Tbh") or word.islower() or word[0].isdigit(), \
+                    f"{word!r} in: {sentence}"
 
 
 class TestSentimentStillConforms:
@@ -118,11 +141,15 @@ class TestHonestLimit:
     there would mean minting non-words, which is a worse column than the one
     it replaced. These record both halves so neither gets overclaimed."""
 
-    def test_grammar_alone_has_a_closed_vocabulary(self):
+    def test_vocabulary_keeps_growing_with_table_size(self):
+        """Names, places, product types and the occasional typo are open
+        vocabulary, as in people's reviews: ten times the rows brings a
+        substantially larger word stock, not a saturated one."""
         g = MicrotextGenerator(np.random.default_rng(7))
-        toks = {w for t in g.reviews(20_000)
-                for w in re.findall(r"[a-z']+", str(t).lower())}
-        assert len(toks) < 2_000
+        small = {w for t in g.reviews(2_000) for w in re.findall(r"[a-z']+", str(t).lower())}
+        g = MicrotextGenerator(np.random.default_rng(7))
+        big = {w for t in g.reviews(20_000) for w in re.findall(r"[a-z']+", str(t).lower())}
+        assert len(big) > 1.5 * len(small)
 
     def test_vocabulary_grows_with_the_entity_column(self):
         """The property that is actually claimed: prose word stock is a

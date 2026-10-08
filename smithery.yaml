@@ -20,7 +20,7 @@ description: >
 
   The division of labour is the point. The agent designs the schema, which is
   what agents are genuinely good at, and the engine guarantees the arithmetic,
-  which is what they are not. Eleven tools:
+  which is what they are not. Twelve tools:
 
     create_sandbox        Create and seed an isolated SQLite sandbox database
                           for testing, pre-populated with realistic, referentially
@@ -40,6 +40,9 @@ description: >
     audit_dataset         Run the coherence audit on any folder of CSVs:
                           backwards timestamps, totals that do not reconcile,
                           near-constant columns, scored 0-100.
+    check_realism         Find the statistical tells of generated data in any
+                          folder of CSVs: uniform money, even fan-out, flat
+                          hour/weekday profiles, placeholder values.
     validate_domain       Flag physiologically or financially impossible values
                           in a folder of CSVs.
     seed_database         Fill a real database from its own schema, parents
@@ -69,7 +72,7 @@ startCommand:
     description: >
       Every field is optional. The three tools that read plain English
       (generate_dataset, preview_story, inspect_schema) need one provider key.
-      generate_from_schema, audit_dataset, validate_domain, seed_database,
+      generate_from_schema, audit_dataset, check_realism, validate_domain, seed_database,
       list_domains and validate_yaml never call a model and work with nothing
       configured at all.
     properties:

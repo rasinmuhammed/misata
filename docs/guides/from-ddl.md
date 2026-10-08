@@ -165,10 +165,31 @@ tables = misata.generate_from_schema(schema)
 misata.seed_database(tables, "postgresql://user:pass@localhost/mydb")
 ```
 
+## Constraints the importer carries into generation
+
+Generated rows are meant to insert into the schema they were imported from,
+so the constraints a database would reject them for are part of the import:
+
+| DDL | Becomes |
+|---|---|
+| `PRIMARY KEY` (single column), inline `UNIQUE`, `UNIQUE (col)` | `unique: true`. A text primary key becomes a code (`CUS-########`, or a UUID when it is 36+ characters wide), never a sentence |
+| `VARCHAR(n)`, `CHAR(n)` | `max_length: n`: longer values are cut at a word boundary, and a uniqueness suffix never pushes a value past its width |
+| `CHAR(2)` named like `country`, `state`, `lang`; `CHAR(3)` named like `currency` | ISO 3166 / US state / ISO 639 / ISO 4217 codes instead of full names |
+| `NUMERIC(p, s)` / `DECIMAL(p, s)` | `decimals: s` |
+| `CHECK (col IN ('a', 'b'))` | categorical `choices` |
+| `CHECK (col BETWEEN x AND y)`, `CHECK (col >= x AND col < y)` | `min` / `max` (strict bounds step inward) |
+| `CHECK (length(col) <= n)` | `max_length` |
+
+A `CHECK` the importer cannot translate (an `OR`, two columns, a function
+call) is counted in a warning: the database still enforces it, so seeding can
+fail on it, and because `seed_database` runs in one transaction a failure
+leaves the database exactly as it was.
+
 ## Limitations
 
 - **Computed / generated columns**: `GENERATED ALWAYS AS` expressions are not evaluated; the column is treated as its base type
-- **`CHECK` constraints**: parsed but not enforced during generation; use `misata.yaml` for custom constraint rules
+- **Untranslatable `CHECK` constraints**: see above; declare the rule in `misata.yaml` instead
+- **Composite `UNIQUE (a, b)`**: not enforced during generation
 - **Enum types**: `CREATE TYPE ... AS ENUM` is not parsed; use `misata.yaml` to define categorical choices
 - **Complex DEFAULT expressions**: `DEFAULT NOW()`, `DEFAULT uuid_generate_v4()` are ignored; Misata generates values from type-appropriate distributions
 

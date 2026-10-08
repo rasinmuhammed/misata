@@ -76,6 +76,29 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
 
+  reproducible:
+    # Same schema and seed, same data, on every platform: the golden
+    # fingerprints were recorded on Linux and must match here byte for byte.
+    # The validity benchmark runs alongside, so a schema rule that stops
+    # holding fails the build on all three systems.
+    name: Same data on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e . faker
+      - name: Golden fingerprints
+        run: python -m benchmarks.golden
+      - name: Validity benchmark (zero violations required)
+        run: python -m benchmarks.validity_bench
+
   stranger:
     name: The docs, run as a stranger would
     runs-on: ubuntu-latest

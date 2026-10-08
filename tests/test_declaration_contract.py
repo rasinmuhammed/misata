@@ -65,7 +65,7 @@ class TestTheRegistryIsTrue:
         joint_distributions was, in 0.9.6.48. This is what catches the next one."""
         # Structural keys are not declarations: they say what the schema IS.
         structural = {"tables", "name", "seed", "domain", "generation_mode",
-                      "relationships", "locale", "rows", "realism"}
+                      "relationships", "locale", "rows", "realism", "preset"}
         accepted = set(HANDLED_TOP_LEVEL_KEYS) - structural
         listed = set(registry.ACCEPTED_KEYS)
         assert not (accepted - listed), (
@@ -103,7 +103,7 @@ class TestParseTimeRefusalReallyRefuses:
 class TestCoverageOnlyGoesUp:
     """The floor. Raise it when you close a gap; never lower it."""
 
-    FLOOR = 24
+    FLOOR = 25
 
     def test_certified_coverage_holds(self):
         certified, total = registry.coverage()

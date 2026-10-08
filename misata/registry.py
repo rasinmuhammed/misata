@@ -136,6 +136,8 @@ DECLARATIONS: Tuple[Declaration, ...] = (
                 "_check_lifecycles", "lifecycle_illegal_state", linear=False),
     Declaration("event_logs", "A log agreeing with the status column.",
                 "_check_event_log_capacity", "event_log", linear=False),
+    Declaration("processes", "An event log from declared transitions and dwell times.",
+                "_check_process_wiring", "process_violation", linear=False),
     Declaration("bitemporal", "Two independent time axes.",
                 "_check_history_depth", "bitemporal", linear=False),
     Declaration("events", "Occurrences over a time axis.",

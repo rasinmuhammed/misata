@@ -511,6 +511,21 @@ def load_yaml_schema(
     relationships = [
         _parse_relationship(r) for r in (raw.get("relationships") or [])
     ]
+    # A foreign key that says what it references is a relationship. The key
+    # was carried onto the column and then ignored, so a YAML file written the
+    # way DDL reads (`references: customers.customer_id`) failed validation for
+    # a missing relationship it had just declared.
+    declared = {(r.child_table, r.child_key) for r in relationships}
+    for t_name, cols in columns_map.items():
+        for col in cols:
+            ref = (col.distribution_params or {}).get("references") \
+                if col.type == "foreign_key" else None
+            if (isinstance(ref, str) and "." in ref
+                    and (t_name, col.name) not in declared):
+                parent, key = ref.split(".", 1)
+                relationships.append(Relationship(
+                    parent_table=parent, child_table=t_name,
+                    parent_key=key, child_key=col.name))
 
     # Top-level constraints — must have an explicit `table:` field, or we attach
     # to the first table as a last-resort fallback.
@@ -560,7 +575,7 @@ def load_yaml_schema(
     # declaration is one line rather than another forgotten branch.
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
                                Duplicates, EventLog, LateArrival, Lifecycle,
-                               Missingness, Outliers, TimeGrid,
+                               Missingness, Outliers, Process, TimeGrid,
                                TransitiveClosure, Typos)
     _declared: Dict[str, List[Any]] = {}
     for key, model in (("lifecycles", Lifecycle),
@@ -574,7 +589,8 @@ def load_yaml_schema(
                        ("typos", Typos),
                        ("bitemporal", Bitemporal),
                        ("dag_edges", DagEdges),
-                       ("closures", TransitiveClosure)):
+                       ("closures", TransitiveClosure),
+                       ("processes", Process)):
         parsed: List[Any] = []
         for i, item in enumerate(raw.get(key) or []):
             try:
@@ -627,6 +643,8 @@ def load_yaml_schema(
         bitemporal=_declared["bitemporal"],
         dag_edges=_declared["dag_edges"],
         closures=_declared["closures"],
+        processes=_declared["processes"],
+        preset=raw.get("preset"),
         noise_config=noise_config,
         vocabularies=vocabularies,
         realism=realism,

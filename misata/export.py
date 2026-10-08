@@ -5,7 +5,8 @@ Supported targets:
   - CSV        (via pandas, always available)
   - Parquet    (via pandas + pyarrow or fastparquet)
   - DuckDB     (via duckdb library)
-  - JSON Lines (via pandas)
+  - JSON Lines (via pandas; json/array columns written as nested values)
+  - Polars     (via polars; json/array columns as structs and lists)
 """
 
 from __future__ import annotations
@@ -111,15 +112,69 @@ def to_duckdb(
     return conn
 
 
+def json_columns(df: Any, schema: Any = None, table: Optional[str] = None) -> list:
+    """Columns of ``df`` that hold JSON text (``json``/``array`` columns).
+
+    Read from the schema when one is given; otherwise detected from the
+    values: a text column whose every non-null value is a JSON object or
+    array.
+    """
+    import json
+
+    import pandas as pd
+
+    if schema is not None and table is not None:
+        cols = [c.name for c in (getattr(schema, "columns", {}) or {}).get(table, [])
+                if c.type in ("json", "array")]
+        return [c for c in cols if c in df.columns]
+    found = []
+    for col in df.columns:
+        s = df[col]
+        if not (s.dtype == object or pd.api.types.is_string_dtype(s)):
+            continue
+        v = s.dropna()
+        if v.empty:
+            continue
+        sample = v.head(50).astype(str)
+        if not sample.str.match(r"^\s*[\[{]").all():
+            continue
+        try:
+            for x in sample:
+                json.loads(x)
+        except (TypeError, ValueError):
+            continue
+        found.append(col)
+    return found
+
+
+def decode_json_columns(df: Any, schema: Any = None, table: Optional[str] = None) -> Any:
+    """A copy of ``df`` with JSON text columns parsed into dicts and lists."""
+    import json
+
+    cols = json_columns(df, schema, table)
+    if not cols:
+        return df
+    out = df.copy()
+    for col in cols:
+        out[col] = out[col].map(lambda x: json.loads(x) if isinstance(x, str) else x)
+    return out
+
+
 def to_jsonl(
     tables: Dict[str, Any],
     output_dir: Union[str, Path],
+    schema: Any = None,
 ) -> Dict[str, Path]:
     """Write each table to a newline-delimited JSON (JSON Lines) file.
+
+    ``json`` and ``array`` columns are written as nested objects and lists,
+    not as escaped strings.
 
     Args:
         tables:     Dict mapping table name -> pd.DataFrame.
         output_dir: Directory to write ``<table_name>.jsonl`` files into.
+        schema:     Optional SchemaConfig, to name the nested columns exactly;
+                    without it they are detected from the values.
 
     Returns:
         Dict mapping table name -> Path of the written file.
@@ -134,10 +189,40 @@ def to_jsonl(
     written: Dict[str, Path] = {}
     for name, df in tables.items():
         path = output_dir / f"{name}.jsonl"
-        df.to_json(path, orient="records", lines=True, date_format="iso")
+        decode_json_columns(df, schema, name).to_json(
+            path, orient="records", lines=True, date_format="iso", force_ascii=False)
         written[name] = path
 
     return written
+
+
+def to_polars(tables: Dict[str, Any], schema: Any = None) -> Dict[str, Any]:
+    """Convert generated tables to Polars DataFrames.
+
+    ``json`` and ``array`` columns become Polars structs and lists. Requires
+    ``polars`` (``pip install "misata[polars]"``).
+
+    Example::
+
+        frames = misata.to_polars(misata.generate_from_schema(schema))
+        frames["orders"].group_by("customer_id").len()
+    """
+    try:
+        import polars as pl
+    except ImportError:
+        raise ImportError('to_polars() needs polars: pip install "misata[polars]"') from None
+    import json
+
+    out: Dict[str, Any] = {}
+    for name, df in tables.items():
+        nested = json_columns(df, schema, name)
+        plain = df.drop(columns=nested)
+        frame = pl.from_pandas(plain)
+        for col in nested:
+            values = [json.loads(x) if isinstance(x, str) else x for x in df[col]]
+            frame = frame.with_columns(pl.Series(col, values, strict=False))
+        out[name] = frame.select(list(df.columns))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +254,9 @@ def to_sql(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    dialect = {"postgres": "postgresql", "pg": "postgresql"}.get(
+        str(dialect).lower(), str(dialect).lower())
+
     def _quote(name: str, dialect: str) -> str:
         # Escape the quote character itself inside the identifier to prevent
         # broken DDL from generated column/table names containing quotes.
@@ -188,7 +276,8 @@ def to_sql(
         if "int" in name_lower:
             return "INTEGER"
         if "float" in name_lower or "double" in name_lower:
-            return "DOUBLE PRECISION" if dialect == "postgresql" else "DOUBLE"
+            # DOUBLE alone is MySQL; ANSI and Postgres spell it DOUBLE PRECISION.
+            return "DOUBLE" if dialect == "mysql" else "DOUBLE PRECISION"
         if "bool" in name_lower:
             return "BOOLEAN"
         if "datetime" in name_lower or "timestamp" in name_lower:

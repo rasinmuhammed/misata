@@ -1,0 +1,554 @@
+{
+  "misata_version": "0.9.7",
+  "validity": {
+    "what": "violations of PK, FK, NOT NULL, UNIQUE (single and composite), CHECK enums, ranges and column-to-column rules, and self-reference cycles, counted by a pandas checker that shares no code with Misata",
+    "reproduce": "python -m benchmarks.validity_bench",
+    "doc": "docs/validity-benchmark.md",
+    "totals": {
+      "saas_billing": {
+        "misata_from_ddl": 0,
+        "faker_script": 36150,
+        "sdv_hma": {
+          "could_not_run": "SynthesizerInputError: HMASynthesizer is not designed to handle a schema with more than 5 tables or relationship depth greater than 2."
+        }
+      },
+      "org_chart": {
+        "misata_from_ddl": 0,
+        "faker_script": 15014,
+        "sdv_hma": 4807
+      },
+      "marketplace_m2m": {
+        "misata_from_ddl": 0,
+        "faker_script": 42387,
+        "sdv_hma": 5557
+      },
+      "hotel_bookings": {
+        "misata_from_ddl": 0,
+        "faker_script": 50416,
+        "sdv_hma": 3055
+      },
+      "retail_chain_6_levels": {
+        "misata_from_ddl": 0,
+        "faker_script": 24025,
+        "sdv_hma": {
+          "could_not_run": "SynthesizerInputError: HMASynthesizer is not designed to handle a schema with more than 5 tables or relationship depth greater than 2."
+        }
+      }
+    }
+  },
+  "realism": {
+    "what": "blind and fitted generators scored against held-out real data; detect_auc 0.5 means a classifier cannot tell synthetic from real",
+    "reproduce": "python -m benchmarks.realism_bench --seed N",
+    "doc": "docs/realism-benchmark.md",
+    "seeds": [
+      7,
+      11,
+      23,
+      42,
+      99
+    ],
+    "datasets": {
+      "olist": {
+        "real_train": {
+          "amount_ks": {
+            "mean": 0.008,
+            "min": 0.007,
+            "max": 0.011,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.019,
+            "min": 0.014,
+            "max": 0.025,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.012,
+            "min": 0.007,
+            "max": 0.016,
+            "n": 5
+          },
+          "customer_gini": {
+            "mean": 0.001,
+            "min": 0.0,
+            "max": 0.001,
+            "n": 5
+          },
+          "product_gini": {
+            "mean": 0.003,
+            "min": 0.002,
+            "max": 0.004,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.004,
+            "min": 0.003,
+            "max": 0.007,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.5,
+            "min": 0.491,
+            "max": 0.505,
+            "n": 5
+          },
+          "tells": {
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0,
+            "n": 5
+          }
+        },
+        "misata_story": {
+          "amount_ks": {
+            "mean": 0.171,
+            "min": 0.169,
+            "max": 0.174,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.15,
+            "min": 0.144,
+            "max": 0.152,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.04,
+            "min": 0.033,
+            "max": 0.046,
+            "n": 5
+          },
+          "product_gini": {
+            "mean": 0.44,
+            "min": 0.436,
+            "max": 0.441,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.73,
+            "min": 0.728,
+            "max": 0.732,
+            "n": 5
+          },
+          "tells": {
+            "mean": 0.942,
+            "min": 0.942,
+            "max": 0.942,
+            "n": 5
+          }
+        },
+        "misata_schema": {
+          "amount_ks": {
+            "mean": 0.05,
+            "min": 0.048,
+            "max": 0.053,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.149,
+            "min": 0.145,
+            "max": 0.152,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.045,
+            "min": 0.041,
+            "max": 0.049,
+            "n": 5
+          },
+          "customer_gini": {
+            "mean": 0.257,
+            "min": 0.256,
+            "max": 0.258,
+            "n": 5
+          },
+          "product_gini": {
+            "mean": 0.03,
+            "min": 0.028,
+            "max": 0.035,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.483,
+            "min": 0.481,
+            "max": 0.485,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.629,
+            "min": 0.625,
+            "max": 0.632,
+            "n": 5
+          },
+          "tells": {
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0,
+            "n": 5
+          }
+        },
+        "faker_script": {
+          "amount_ks": {
+            "mean": 0.19,
+            "min": 0.188,
+            "max": 0.192,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.283,
+            "min": 0.278,
+            "max": 0.289,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.056,
+            "min": 0.053,
+            "max": 0.058,
+            "n": 5
+          },
+          "customer_gini": {
+            "mean": 0.237,
+            "min": 0.235,
+            "max": 0.239,
+            "n": 5
+          },
+          "product_gini": {
+            "mean": 0.149,
+            "min": 0.146,
+            "max": 0.152,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.501,
+            "min": 0.499,
+            "max": 0.503,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.783,
+            "min": 0.779,
+            "max": 0.785,
+            "n": 5
+          },
+          "tells": {
+            "mean": 0.333,
+            "min": 0.333,
+            "max": 0.333,
+            "n": 5
+          }
+        },
+        "misata_mimic": {
+          "amount_ks": {
+            "mean": 0.024,
+            "min": 0.023,
+            "max": 0.027,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.025,
+            "min": 0.017,
+            "max": 0.033,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.013,
+            "min": 0.009,
+            "max": 0.019,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.004,
+            "min": 0.001,
+            "max": 0.006,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.537,
+            "min": 0.532,
+            "max": 0.543,
+            "n": 5
+          },
+          "tells": {
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0,
+            "n": 5
+          }
+        },
+        "sdv_copula": {
+          "amount_ks": {
+            "mean": 0.078,
+            "min": 0.072,
+            "max": 0.086,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.284,
+            "min": 0.281,
+            "max": 0.287,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.06,
+            "min": 0.056,
+            "max": 0.064,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.005,
+            "min": 0.003,
+            "max": 0.011,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.711,
+            "min": 0.708,
+            "max": 0.717,
+            "n": 5
+          },
+          "tells": {
+            "mean": 0.75,
+            "min": 0.75,
+            "max": 0.75,
+            "n": 5
+          }
+        }
+      },
+      "taxis": {
+        "real_train": {
+          "amount_ks": {
+            "mean": 0.019,
+            "min": 0.009,
+            "max": 0.027,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.044,
+            "min": 0.034,
+            "max": 0.053,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.024,
+            "min": 0.018,
+            "max": 0.031,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.013,
+            "min": 0.003,
+            "max": 0.024,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.503,
+            "min": 0.497,
+            "max": 0.513,
+            "n": 5
+          },
+          "tells": {
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0,
+            "n": 5
+          }
+        },
+        "misata_story": {
+          "amount_ks": {
+            "mean": 0.221,
+            "min": 0.216,
+            "max": 0.227,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.234,
+            "min": 0.23,
+            "max": 0.242,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.081,
+            "min": 0.074,
+            "max": 0.088,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.801,
+            "min": 0.798,
+            "max": 0.805,
+            "n": 5
+          },
+          "tells": {
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0,
+            "n": 5
+          }
+        },
+        "misata_schema": {
+          "amount_ks": {
+            "mean": 0.25,
+            "min": 0.247,
+            "max": 0.254,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.078,
+            "min": 0.072,
+            "max": 0.082,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.031,
+            "min": 0.025,
+            "max": 0.038,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.13,
+            "min": 0.129,
+            "max": 0.133,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.75,
+            "min": 0.747,
+            "max": 0.754,
+            "n": 5
+          },
+          "tells": {
+            "mean": 0.667,
+            "min": 0.667,
+            "max": 0.667,
+            "n": 5
+          }
+        },
+        "faker_script": {
+          "amount_ks": {
+            "mean": 0.217,
+            "min": 0.212,
+            "max": 0.222,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.186,
+            "min": 0.175,
+            "max": 0.193,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.033,
+            "min": 0.027,
+            "max": 0.041,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.14,
+            "min": 0.14,
+            "max": 0.14,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.788,
+            "min": 0.78,
+            "max": 0.794,
+            "n": 5
+          },
+          "tells": {
+            "mean": 0.4,
+            "min": 0.4,
+            "max": 0.4,
+            "n": 5
+          }
+        },
+        "misata_mimic": {
+          "amount_ks": {
+            "mean": 0.03,
+            "min": 0.023,
+            "max": 0.038,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.059,
+            "min": 0.053,
+            "max": 0.072,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.058,
+            "min": 0.051,
+            "max": 0.073,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.016,
+            "min": 0.009,
+            "max": 0.028,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.543,
+            "min": 0.53,
+            "max": 0.553,
+            "n": 5
+          },
+          "tells": {
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0,
+            "n": 5
+          }
+        },
+        "sdv_copula": {
+          "amount_ks": {
+            "mean": 0.135,
+            "min": 0.116,
+            "max": 0.146,
+            "n": 5
+          },
+          "hour_tvd": {
+            "mean": 0.191,
+            "min": 0.179,
+            "max": 0.2,
+            "n": 5
+          },
+          "weekday_tvd": {
+            "mean": 0.05,
+            "min": 0.033,
+            "max": 0.064,
+            "n": 5
+          },
+          "category_gap": {
+            "mean": 0.012,
+            "min": 0.002,
+            "max": 0.033,
+            "n": 5
+          },
+          "detect_auc": {
+            "mean": 0.675,
+            "min": 0.67,
+            "max": 0.682,
+            "n": 5
+          },
+          "tells": {
+            "mean": 0.667,
+            "min": 0.667,
+            "max": 0.667,
+            "n": 5
+          }
+        }
+      }
+    }
+  },
+  "reproducibility": {
+    "what": "misata.fingerprint hashes of story, dict and DDL schemas; CI requires the same hashes on Linux, macOS and Windows",
+    "reproduce": "python -m benchmarks.golden",
+    "cases": {
+      "dict_ecommerce_seed1": "e39d5cb3f9915148",
+      "dict_ecommerce_seed2": "fbfc2f9160c3beb1",
+      "ddl_saas_seed7": "580ebd4c75f3631d",
+      "story_saas_seed3": "e1f53010e5145920",
+      "story_shop_seed4": "74861c2ccdddc420"
+    }
+  }
+}

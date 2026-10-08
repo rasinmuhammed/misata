@@ -1,13 +1,24 @@
 ---
-title: "Mimic Mode, Privacy-Safe Synthetic Twins from Real CSV Files"
-description: "Analyze any CSV and generate a statistically matching synthetic dataset without retaining real values. Perfect for GDPR compliance, ML training data, and staging environments."
+title: "Mimic Mode, Synthetic Twins of Real CSV Files"
+description: "Analyze any CSV and generate a synthetic dataset with the same columns, distributions and correlations. Useful for staging environments and test data; not an anonymisation method."
 ---
 
 # Mimic Mode
 
-Mimic mode takes a real CSV file (or DataFrame), analyzes every column's statistical fingerprint, and produces a fresh synthetic dataset that matches the original's structure, without reusing a single real value.
+Mimic mode takes a real CSV file (or DataFrame), analyzes every column's statistical fingerprint, and produces a fresh synthetic dataset with the original's structure, distributions and pairwise correlations.
 
-It's the fastest path from *"I have sensitive production data"* to *"I have safe, shareable synthetic data"*.
+## What a twin is not
+
+A twin is fitted to the real rows, so it is **not anonymous** and is not a
+privacy guarantee. Category values come back as they were, numeric columns
+follow the sample's own quantiles, and a rare combination (one customer in a
+small town, one very large order) can reappear. Distance-to-closest-record
+checks do not prove otherwise: they miss leaks that membership-inference
+attacks find. Do not treat a twin as safe to share where the real data is
+not, and do not rely on it for GDPR or HIPAA compliance. When you need a
+formal guarantee, use a differentially private synthesizer with a stated
+epsilon; when you need realistic data with no real data involved at all,
+generate from a schema or story instead.
 
 ## Quickstart
 
