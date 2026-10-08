@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Analyze any CSV and generate a statistically matching synthetic dataset without retaining real values. Perfect for GDPR compliance, ML training data, and staging environments.">
+        <meta name="description" content="Analyze any CSV and generate a synthetic dataset with the same columns, distributions and correlations. Useful for staging environments and test data; not an anonymisation method.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Mimic Mode, Privacy-Safe Synthetic Twins from Real CSV Files - Misata</title>
+        <title>Mimic Mode, Synthetic Twins of Real CSV Files - Misata</title>
       
     
     
@@ -61,6 +61,28 @@
 
     
     
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "Misata",
+    "description": "Open-source Python library and MCP server that generates realistic, valid multi-table synthetic data from a schema, SQL DDL or a sentence, with no real data required.",
+    "codeRepository": "https://github.com/rasinmuhammed/misata",
+    "programmingLanguage": "Python",
+    "license": "https://opensource.org/licenses/MIT",
+    "softwareVersion": "0.9.7",
+    "applicationCategory": "DeveloperApplication",
+    "keywords": "synthetic data, test data, database seeding, relational data, foreign keys, SQL DDL, fixtures, MCP",
+    "url": "https://github.com/rasinmuhammed/misata",
+    "subjectOf": [
+      {"@type": "CreativeWork", "name": "Validity benchmark", "url": "https://github.com/rasinmuhammed/misata/blob/main/docs/validity-benchmark.md"},
+      {"@type": "CreativeWork", "name": "Realism benchmark", "url": "https://github.com/rasinmuhammed/misata/blob/main/docs/realism-benchmark.md"},
+      {"@type": "CreativeWork", "name": "Limitations", "url": "https://github.com/rasinmuhammed/misata/blob/main/LIMITATIONS.md"}
+    ]
+  }
+  </script>
+
   </head>
   
   
@@ -113,7 +135,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Mimic Mode, Privacy-Safe Synthetic Twins from Real CSV Files
+              Mimic Mode, Synthetic Twins of Real CSV Files
             
           </span>
         </div>
@@ -448,6 +470,63 @@
     
   
   Validate
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../realism/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Realism Report
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../realism-benchmark/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Realism Benchmark
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../validity-benchmark/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Validity Benchmark
 
       </a>
     </li>
@@ -1902,6 +1981,87 @@
   
   
     <li class="md-nav__item">
+      <a href="../../realism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Realism Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../realism-benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Realism Benchmark
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validity-benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validity Benchmark
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../failure-modes/" class="md-nav__link">
         
   
@@ -2012,6 +2172,16 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2028,7 +2198,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_18" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -2050,14 +2220,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_15" id="__nav_15_label" tabindex="">
+              <label class="md-nav__link " for="__nav_18" id="__nav_18_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_15">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_18_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_18">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2274,6 +2444,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-twin-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a twin is not
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#quickstart" class="md-nav__link">
@@ -2810,6 +2991,146 @@
   
   
     <li class="md-nav__item">
+      <a href="../custom-generators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Generators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes and Event Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nested-columns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested JSON and Arrays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../presets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use-case Presets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../django/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Django
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../from-ddl/" class="md-nav__link">
         
   
@@ -2919,6 +3240,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-twin-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a twin is not
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#quickstart" class="md-nav__link">
@@ -3040,8 +3372,18 @@
 
 
 <h1 id="mimic-mode">Mimic Mode</h1>
-<p>Mimic mode takes a real CSV file (or DataFrame), analyzes every column's statistical fingerprint, and produces a fresh synthetic dataset that matches the original's structure, without reusing a single real value.</p>
-<p>It's the fastest path from <em>"I have sensitive production data"</em> to <em>"I have safe, shareable synthetic data"</em>.</p>
+<p>Mimic mode takes a real CSV file (or DataFrame), analyzes every column's statistical fingerprint, and produces a fresh synthetic dataset with the original's structure, distributions and pairwise correlations.</p>
+<h2 id="what-a-twin-is-not">What a twin is not</h2>
+<p>A twin is fitted to the real rows, so it is <strong>not anonymous</strong> and is not a
+privacy guarantee. Category values come back as they were, numeric columns
+follow the sample's own quantiles, and a rare combination (one customer in a
+small town, one very large order) can reappear. Distance-to-closest-record
+checks do not prove otherwise: they miss leaks that membership-inference
+attacks find. Do not treat a twin as safe to share where the real data is
+not, and do not rely on it for GDPR or HIPAA compliance. When you need a
+formal guarantee, use a differentially private synthesizer with a stated
+epsilon; when you need realistic data with no real data involved at all,
+generate from a schema or story instead.</p>
 <h2 id="quickstart">Quickstart</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>

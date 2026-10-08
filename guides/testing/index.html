@@ -16,7 +16,7 @@
         <link rel="prev" href="../mcp/">
       
       
-        <link rel="next" href="../from-ddl/">
+        <link rel="next" href="../custom-generators/">
       
       
         
@@ -61,6 +61,28 @@
 
     
     
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "Misata",
+    "description": "Open-source Python library and MCP server that generates realistic, valid multi-table synthetic data from a schema, SQL DDL or a sentence, with no real data required.",
+    "codeRepository": "https://github.com/rasinmuhammed/misata",
+    "programmingLanguage": "Python",
+    "license": "https://opensource.org/licenses/MIT",
+    "softwareVersion": "0.9.7",
+    "applicationCategory": "DeveloperApplication",
+    "keywords": "synthetic data, test data, database seeding, relational data, foreign keys, SQL DDL, fixtures, MCP",
+    "url": "https://github.com/rasinmuhammed/misata",
+    "subjectOf": [
+      {"@type": "CreativeWork", "name": "Validity benchmark", "url": "https://github.com/rasinmuhammed/misata/blob/main/docs/validity-benchmark.md"},
+      {"@type": "CreativeWork", "name": "Realism benchmark", "url": "https://github.com/rasinmuhammed/misata/blob/main/docs/realism-benchmark.md"},
+      {"@type": "CreativeWork", "name": "Limitations", "url": "https://github.com/rasinmuhammed/misata/blob/main/LIMITATIONS.md"}
+    ]
+  }
+  </script>
+
   </head>
   
   
@@ -448,6 +470,63 @@
     
   
   Validate
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../realism/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Realism Report
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../realism-benchmark/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Realism Benchmark
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../validity-benchmark/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Validity Benchmark
 
       </a>
     </li>
@@ -1902,6 +1981,87 @@
   
   
     <li class="md-nav__item">
+      <a href="../../realism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Realism Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../realism-benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Realism Benchmark
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validity-benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validity Benchmark
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../failure-modes/" class="md-nav__link">
         
   
@@ -2012,6 +2172,16 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2028,7 +2198,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_18" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -2050,14 +2220,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_15" id="__nav_15_label" tabindex="">
+              <label class="md-nav__link " for="__nav_18" id="__nav_18_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_15">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_18_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_18">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2707,10 +2877,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#zero-setup-the-plugin" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick start
+        Zero setup: the plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start-fixture-factories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start (fixture factories)
       
     </span>
   </a>
@@ -2815,6 +2996,146 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-generators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Generators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes and Event Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nested-columns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested JSON and Arrays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../presets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use-case Presets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../django/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Django
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2949,10 +3270,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#zero-setup-the-plugin" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick start
+        Zero setup: the plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start-fixture-factories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start (fixture factories)
       
     </span>
   </a>
@@ -3078,31 +3410,60 @@
 <h2 id="install">Install</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>misata<span class="w"> </span>pytest
 </code></pre></div>
-<h2 id="quick-start">Quick start</h2>
+<h2 id="zero-setup-the-plugin">Zero setup: the plugin</h2>
+<p>Installing misata registers a pytest plugin, so these fixtures exist in every
+test without touching <code>conftest.py</code>. Point a marker at your schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">pytestmark</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">misata</span><span class="p">(</span><span class="n">schema</span><span class="o">=</span><span class="s2">"misata.yaml"</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_orders_reference_customers</span><span class="p">(</span><span class="n">misata_tables</span><span class="p">):</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">orders</span><span class="p">,</span> <span class="n">customers</span> <span class="o">=</span> <span class="n">misata_tables</span><span class="p">[</span><span class="s2">"orders"</span><span class="p">],</span> <span class="n">misata_tables</span><span class="p">[</span><span class="s2">"customers"</span><span class="p">]</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">assert</span> <span class="n">orders</span><span class="p">[</span><span class="s2">"customer_id"</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">customers</span><span class="p">[</span><span class="s2">"customer_id"</span><span class="p">])</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_repository_layer</span><span class="p">(</span><span class="n">misata_sqlite</span><span class="p">):</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="c1"># misata_sqlite is a sqlite:/// URL to a fresh, seeded database file</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">repo</span> <span class="o">=</span> <span class="n">OrderRepository</span><span class="p">(</span><span class="n">misata_sqlite</span><span class="p">)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="k">assert</span> <span class="n">repo</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2000</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">misata</span><span class="p">(</span><span class="n">story</span><span class="o">=</span><span class="s2">"A SaaS company with 500 users"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_churn_report</span><span class="p">(</span><span class="n">misata_tables</span><span class="p">):</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="o">...</span>
+</code></pre></div>
+<ul>
+<li><code>schema=</code> takes a path (relative to the pytest root), a dict schema or a
+  <code>SchemaConfig</code>; <code>story=</code> takes a sentence. <code>seed=</code> and <code>rows=</code> are optional.</li>
+<li>Tests with the same marker arguments share one generation per session, and
+  each test gets its own copies, so mutating a frame never leaks.</li>
+<li><code>misata_generate</code>, <code>misata_parse</code> and <code>misata_preview</code> are also available.</li>
+<li>The plugin imports misata only when a fixture is used; disable it with
+  <code>-p no:misata</code>.</li>
+</ul>
+<h2 id="quick-start-fixture-factories">Quick start (fixture factories)</h2>
 <p>Define fixtures in <code>conftest.py</code> using <code>misata_fixture</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># conftest.py</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_fixture</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">saas_tables</span>   <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A SaaS company with 500 users"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">fintech_tables</span> <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A fintech with 200 customers and 2</span><span class="si">% f</span><span class="s2">raud rate"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">hr_tables</span>     <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"An HR company with 300 employees"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># conftest.py</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_fixture</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">saas_tables</span>   <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A SaaS company with 500 users"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">fintech_tables</span> <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A fintech with 200 customers and 2</span><span class="si">% f</span><span class="s2">raud rate"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">hr_tables</span>     <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"An HR company with 300 employees"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
 </code></pre></div>
 <p>Use them in any test file, no imports needed:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># test_billing.py</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_invoice_fk_integrity</span><span class="p">(</span><span class="n">saas_tables</span><span class="p">):</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">invoices</span> <span class="o">=</span> <span class="n">saas_tables</span><span class="p">[</span><span class="s2">"invoices"</span><span class="p">]</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">subs</span>     <span class="o">=</span> <span class="n">saas_tables</span><span class="p">[</span><span class="s2">"subscriptions"</span><span class="p">]</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="k">assert</span> <span class="n">invoices</span><span class="p">[</span><span class="s2">"subscription_id"</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">subs</span><span class="p">[</span><span class="s2">"subscription_id"</span><span class="p">])</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_churn_rate</span><span class="p">(</span><span class="n">saas_tables</span><span class="p">):</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">users</span> <span class="o">=</span> <span class="n">saas_tables</span><span class="p">[</span><span class="s2">"users"</span><span class="p">]</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="k">assert</span> <span class="mf">0.10</span> <span class="o">&lt;=</span> <span class="n">users</span><span class="p">[</span><span class="s2">"is_active"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mf">0.90</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># test_fraud.py</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_fraud_flag_rate</span><span class="p">(</span><span class="n">fintech_tables</span><span class="p">):</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">txns</span> <span class="o">=</span> <span class="n">fintech_tables</span><span class="p">[</span><span class="s2">"transactions"</span><span class="p">]</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="c1"># ~2% fraud rate from the story description</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="k">assert</span> <span class="mf">0.01</span> <span class="o">&lt;=</span> <span class="n">txns</span><span class="p">[</span><span class="s2">"is_fraud"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mf">0.05</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># test_billing.py</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_invoice_fk_integrity</span><span class="p">(</span><span class="n">saas_tables</span><span class="p">):</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">invoices</span> <span class="o">=</span> <span class="n">saas_tables</span><span class="p">[</span><span class="s2">"invoices"</span><span class="p">]</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">subs</span>     <span class="o">=</span> <span class="n">saas_tables</span><span class="p">[</span><span class="s2">"subscriptions"</span><span class="p">]</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="k">assert</span> <span class="n">invoices</span><span class="p">[</span><span class="s2">"subscription_id"</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">subs</span><span class="p">[</span><span class="s2">"subscription_id"</span><span class="p">])</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_churn_rate</span><span class="p">(</span><span class="n">saas_tables</span><span class="p">):</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">users</span> <span class="o">=</span> <span class="n">saas_tables</span><span class="p">[</span><span class="s2">"users"</span><span class="p">]</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="k">assert</span> <span class="mf">0.10</span> <span class="o">&lt;=</span> <span class="n">users</span><span class="p">[</span><span class="s2">"is_active"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mf">0.90</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># test_fraud.py</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_fraud_flag_rate</span><span class="p">(</span><span class="n">fintech_tables</span><span class="p">):</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">txns</span> <span class="o">=</span> <span class="n">fintech_tables</span><span class="p">[</span><span class="s2">"transactions"</span><span class="p">]</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="c1"># ~2% fraud rate from the story description</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="k">assert</span> <span class="mf">0.01</span> <span class="o">&lt;=</span> <span class="n">txns</span><span class="p">[</span><span class="s2">"is_fraud"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mf">0.05</span>
 </code></pre></div>
 <h2 id="misata_fixturestory-rows-seed"><code>misata_fixture(story, rows, seed, ...)</code></h2>
 <table>
@@ -3143,63 +3504,63 @@
 </table>
 <h2 id="misata_schema_fixturestory-rows"><code>misata_schema_fixture(story, rows)</code></h2>
 <p>Returns a <code>SchemaConfig</code> (no data generated), useful for testing schema parsing and domain detection:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># conftest.py</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_schema_fixture</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">saas_schema</span> <span class="o">=</span> <span class="n">misata_schema_fixture</span><span class="p">(</span><span class="s2">"A SaaS company with users and subscriptions"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># conftest.py</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_schema_fixture</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">saas_schema</span> <span class="o">=</span> <span class="n">misata_schema_fixture</span><span class="p">(</span><span class="s2">"A SaaS company with users and subscriptions"</span><span class="p">)</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># test_schema.py</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_domain_detection</span><span class="p">(</span><span class="n">saas_schema</span><span class="p">):</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="k">assert</span> <span class="n">saas_schema</span><span class="o">.</span><span class="n">domain</span> <span class="o">==</span> <span class="s2">"saas"</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_table_names</span><span class="p">(</span><span class="n">saas_schema</span><span class="p">):</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">saas_schema</span><span class="o">.</span><span class="n">tables</span><span class="p">]</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="k">assert</span> <span class="s2">"users"</span> <span class="ow">in</span> <span class="n">names</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="k">assert</span> <span class="s2">"subscriptions"</span> <span class="ow">in</span> <span class="n">names</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># test_schema.py</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_domain_detection</span><span class="p">(</span><span class="n">saas_schema</span><span class="p">):</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="k">assert</span> <span class="n">saas_schema</span><span class="o">.</span><span class="n">domain</span> <span class="o">==</span> <span class="s2">"saas"</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_table_names</span><span class="p">(</span><span class="n">saas_schema</span><span class="p">):</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">saas_schema</span><span class="o">.</span><span class="n">tables</span><span class="p">]</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="k">assert</span> <span class="s2">"users"</span> <span class="ow">in</span> <span class="n">names</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="k">assert</span> <span class="s2">"subscriptions"</span> <span class="ow">in</span> <span class="n">names</span>
 </code></pre></div>
 <h2 id="built-in-fixtures">Built-in fixtures</h2>
 <p>Three fixtures are available to import directly without <code>conftest.py</code> setup:</p>
 <h3 id="misata_generate"><code>misata_generate</code></h3>
 <p>Injects <code>misata.generate</code>, use when you want to generate different datasets within a single test:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_generate</span>   <span class="c1"># imported for type hints only</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_multi_domain</span><span class="p">(</span><span class="n">misata_generate</span><span class="p">):</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">saas</span>    <span class="o">=</span> <span class="n">misata_generate</span><span class="p">(</span><span class="s2">"A SaaS company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">fintech</span> <span class="o">=</span> <span class="n">misata_generate</span><span class="p">(</span><span class="s2">"A fintech company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="k">assert</span> <span class="s2">"users"</span> <span class="ow">in</span> <span class="n">saas</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="k">assert</span> <span class="s2">"customers"</span> <span class="ow">in</span> <span class="n">fintech</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">misata_generate</span>   <span class="c1"># imported for type hints only</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_multi_domain</span><span class="p">(</span><span class="n">misata_generate</span><span class="p">):</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">saas</span>    <span class="o">=</span> <span class="n">misata_generate</span><span class="p">(</span><span class="s2">"A SaaS company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">fintech</span> <span class="o">=</span> <span class="n">misata_generate</span><span class="p">(</span><span class="s2">"A fintech company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="k">assert</span> <span class="s2">"users"</span> <span class="ow">in</span> <span class="n">saas</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="k">assert</span> <span class="s2">"customers"</span> <span class="ow">in</span> <span class="n">fintech</span>
 </code></pre></div>
 <h3 id="misata_parse"><code>misata_parse</code></h3>
 <p>Injects <code>misata.parse</code> for schema inspection tests:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_saas_domain</span><span class="p">(</span><span class="n">misata_parse</span><span class="p">):</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="n">misata_parse</span><span class="p">(</span><span class="s2">"A SaaS company with 5k users"</span><span class="p">)</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="k">assert</span> <span class="n">schema</span><span class="o">.</span><span class="n">domain</span> <span class="o">==</span> <span class="s2">"saas"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_saas_domain</span><span class="p">(</span><span class="n">misata_parse</span><span class="p">):</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="n">misata_parse</span><span class="p">(</span><span class="s2">"A SaaS company with 5k users"</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="k">assert</span> <span class="n">schema</span><span class="o">.</span><span class="n">domain</span> <span class="o">==</span> <span class="s2">"saas"</span>
 </code></pre></div>
 <h3 id="misata_preview"><code>misata_preview</code></h3>
 <p>Injects <code>misata.preview</code> for DetectionReport tests:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_detection_confidence</span><span class="p">(</span><span class="n">misata_preview</span><span class="p">):</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">report</span> <span class="o">=</span> <span class="n">misata_preview</span><span class="p">(</span><span class="s2">"A fintech with fraud detection and 2</span><span class="si">% f</span><span class="s2">raud rate"</span><span class="p">)</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="k">assert</span> <span class="n">report</span><span class="o">.</span><span class="n">domain</span> <span class="o">==</span> <span class="s2">"fintech"</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="k">assert</span> <span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_detection_confidence</span><span class="p">(</span><span class="n">misata_preview</span><span class="p">):</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">report</span> <span class="o">=</span> <span class="n">misata_preview</span><span class="p">(</span><span class="s2">"A fintech with fraud detection and 2</span><span class="si">% f</span><span class="s2">raud rate"</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="k">assert</span> <span class="n">report</span><span class="o">.</span><span class="n">domain</span> <span class="o">==</span> <span class="s2">"fintech"</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">assert</span> <span class="n">report</span><span class="o">.</span><span class="n">domain_confidence</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="reproducibility">Reproducibility</h2>
 <p>Every <code>misata_fixture</code> call with the same <code>seed</code> produces identical data. Tests are fully deterministic:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">saas_a</span> <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A SaaS company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">saas_b</span> <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A SaaS company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_determinism</span><span class="p">(</span><span class="n">saas_a</span><span class="p">,</span> <span class="n">saas_b</span><span class="p">):</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">pd</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_frame_equal</span><span class="p">(</span><span class="n">saas_a</span><span class="p">[</span><span class="s2">"users"</span><span class="p">],</span> <span class="n">saas_b</span><span class="p">[</span><span class="s2">"users"</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">saas_a</span> <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A SaaS company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">saas_b</span> <span class="o">=</span> <span class="n">misata_fixture</span><span class="p">(</span><span class="s2">"A SaaS company"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_determinism</span><span class="p">(</span><span class="n">saas_a</span><span class="p">,</span> <span class="n">saas_b</span><span class="p">):</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">pd</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_frame_equal</span><span class="p">(</span><span class="n">saas_a</span><span class="p">[</span><span class="s2">"users"</span><span class="p">],</span> <span class="n">saas_b</span><span class="p">[</span><span class="s2">"users"</span><span class="p">])</span>
 </code></pre></div>
 <h2 id="scope">Scope</h2>
 <p>By default fixtures have <code>scope="function"</code>, fresh data for each test. If you want shared data across a test module (faster), define the fixture manually:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># conftest.py</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"module"</span><span class="p">)</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">shared_ecommerce</span><span class="p">():</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="k">return</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"An ecommerce store"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># conftest.py</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">misata</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">"module"</span><span class="p">)</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">shared_ecommerce</span><span class="p">():</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="k">return</span> <span class="n">misata</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s2">"An ecommerce store"</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
 </code></pre></div>
 
 

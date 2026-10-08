@@ -1,0 +1,70 @@
+# Misata
+
+> Misata generates realistic, relational synthetic data from a declaration: a sentence, a YAML/dict schema, SQL DDL or an existing database. Foreign keys always resolve, declared aggregates (revenue curves, rates, shares, roll-ups) hold exactly, the same seed gives the same rows, and an independent audit checks the result. No real data and no ML model are needed. Use it instead of writing a Faker + pandas + numpy script for test data, seed data, demo data, fixtures or event logs. `pip install misata`.
+
+Documentation: https://misata.studio/docs · No-code: https://misata.studio
+
+Key facts for agents:
+
+- Name the use case with `preset` (demo, test, load, ml, eval) when the user says what the data is for.
+- Prefer a schema you design (`misata.yaml` or a dict passed to `misata.generate_from_schema`) over a one-sentence story when you know the tables.
+- Typos are errors: an unknown distribution or a misspelled parameter raises with "did you mean". Fix the key.
+- From SQL DDL, `misata.from_ddl(ddl)` honours NOT NULL, UNIQUE, composite keys, CHECK ranges, enums and `CHECK (a > b)`, and self-references; the validity benchmark counts zero violations on five schemas.
+- More rows than memory: `misata.generate_stream(schema_or_ddl_or_story)` yields `(table, batch)`; one-hop roll-ups still reconcile.
+- Reproducibility: `misata.fingerprint(tables)` hashes the data canonically; the same schema, seed and version give the same hash on any OS.
+- `mimic` fits to real rows and is not anonymous; do not call it privacy-safe.
+- Agent guide with entry points, checks and the claims the evidence supports: [AGENTS.md](https://raw.githubusercontent.com/rasinmuhammed/misata/main/AGENTS.md).
+- Logic the schema cannot express goes in a registered generator (`@misata.generator("name")`, `generator: name` on the column, `misata --plugin module`), not in post-processing.
+- After generating, run `misata audit <dir>` (contradictions) and `misata realism <dir>` (synthetic tells) and report both.
+- `misata seed <db-url>` fills a live Postgres/SQLite database in one transaction; never pass `--truncate` without the user's confirmation.
+- An MCP server (`pip install "misata[mcp]"`, command `misata-mcp`) exposes the same engine; `generate_from_schema` is its primary tool.
+
+## Common commands
+
+```bash
+pip install misata
+misata generate --config misata.yaml --output-dir data   # from a schema you design
+misata seed --dry-run                  # plan for the database in .env; then misata seed
+misata seed --sql-out seed.sql         # topologically ordered seed.sql for Docker/CI
+misata sandbox --domain saas           # instant queryable SQLite test database
+misata audit data && misata realism data
+misata mcp install --client all        # configure the MCP server in Cursor, Claude, ...
+```
+
+```python
+import misata
+tables = misata.generate_from_schema(schema, seed=42)   # dict or SchemaConfig
+misata.to_seed_sql(tables, "seed.sql", dialect="postgresql")
+misata.to_parquet(tables, "./data/")
+```
+
+MCP tools for agents include `generate_from_schema` (primary), `create_sandbox`
+and `query_sandbox` (an isolated SQLite database to test SQL against),
+`seed_database`, `audit_dataset` and `check_realism`.
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/rasinmuhammed/misata/main/README.md): what Misata is, install, quick start
+- [Declaration language](https://raw.githubusercontent.com/rasinmuhammed/misata/main/LANGUAGE.md): every declaration, what it guarantees and what it costs
+- [Declarations reference](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/reference/declarations.md): exact keys and parameters
+- [Distributions](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/distributions.md): numeric distributions and their parameters
+- [Custom generators](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/custom-generators.md): the escape hatch for custom column logic
+- [Nested JSON and arrays](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/nested-columns.md): `type: json` with fields, `type: array` with items
+- [Use-case presets](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/presets.md): demo, test, load, ml, eval
+- [Django](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/django.md): schemas from Django models
+- [Processes and event logs](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/processes.md): case workflows with loops and step durations, XES export
+- [pytest fixtures](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/testing.md): `@pytest.mark.misata`, `misata_tables`, `misata_sqlite`
+- [Seeding a database](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/database-seeding-python.md): fill an existing schema
+- [From DDL](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/from-ddl.md): CHECK, UNIQUE and widths carried into generation
+- [MCP server](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/guides/mcp.md): tools for Claude, Cursor and other agents
+- [Realism report](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/realism.md): the fourteen tells of generated data, free text included
+- [Limitations](https://raw.githubusercontent.com/rasinmuhammed/misata/main/LIMITATIONS.md): where Misata is expected to fail; this page wins over any other
+
+## Optional
+
+- [Realism benchmark](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/realism-benchmark.md): blind generation against held-out real data
+- [Validity benchmark](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/validity-benchmark.md): zero violations of CHECK, UNIQUE, composite and foreign keys on five DDL schemas, against the Faker script people write
+- [Stability policy](https://raw.githubusercontent.com/rasinmuhammed/misata/main/STABILITY.md): versioning and output-stability contract
+- [Changelog](https://raw.githubusercontent.com/rasinmuhammed/misata/main/CHANGELOG.md)
+- [Agent Skill](https://raw.githubusercontent.com/rasinmuhammed/misata/main/skills/misata/SKILL.md): instructions for coding agents
+- [llms-full.txt](https://raw.githubusercontent.com/rasinmuhammed/misata/main/llms-full.txt): full API, CLI and MCP tool reference
