@@ -1,0 +1,15 @@
+{
+  "name": "misata",
+  "displayName": "Misata",
+  "version": "1.1.0",
+  "description": "Realistic multi-table test data whose foreign keys resolve and whose totals reconcile, checked before it is handed over.",
+  "author": {
+    "name": "Muhammed Rasin",
+    "email": "rasin@misata.studio",
+    "url": "https://www.misata.studio"
+  },
+  "homepage": "https://www.misata.studio/mcp",
+  "repository": "https://github.com/rasinmuhammed/misata",
+  "license": "MIT",
+  "keywords": ["synthetic-data", "test-data", "seed-data", "fixtures", "demo-data", "database"]
+}

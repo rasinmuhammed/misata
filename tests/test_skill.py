@@ -1,6 +1,6 @@
 """The agent skill has to describe the tool that exists.
 
-`skills/misata/SKILL.md` names CLI commands and declaration keys. An agent reads
+`plugin/skills/misata/SKILL.md` names CLI commands and declaration keys. An agent reads
 it and acts on it directly, so a wrong name there is worse than no skill at all:
 the agent runs a command that does not exist and reports the failure as Misata
 being broken.
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-SKILL = Path(__file__).resolve().parents[1] / "skills" / "misata" / "SKILL.md"
+SKILL = Path(__file__).resolve().parents[1] / "plugin" / "skills" / "misata" / "SKILL.md"
 
 
 def skill_text() -> str:
@@ -152,8 +152,9 @@ class TestMarketplaceManifest:
         manifest, root = self._manifest()
         missing = []
         for plugin in manifest["plugins"]:
+            source = root / plugin.get("source", "./")
             for rel in plugin.get("skills", []):
-                skill_dir = (root / rel.lstrip("./")).resolve()
+                skill_dir = (source / rel).resolve()
                 if not (skill_dir / "SKILL.md").exists():
                     missing.append(f"{plugin['name']} -> {rel}")
         assert not missing, (
@@ -165,3 +166,34 @@ class TestMarketplaceManifest:
         manifest, _ = self._manifest()
         blob = " ".join(p["description"] for p in manifest["plugins"])
         assert "pip install misata" in blob
+
+
+class TestDirectoryPlugin:
+    """The plugin folder is what the Claude directory validates and installs:
+    a manifest, a README it shows as the listing, a license, and only https
+    servers. Each of these blocks a submission when missing."""
+
+    PLUGIN = Path(__file__).resolve().parents[1] / "plugin"
+
+    def test_the_manifest_names_the_plugin(self):
+        import json
+        manifest = json.loads((self.PLUGIN / ".claude-plugin" / "plugin.json").read_text())
+        assert re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}[a-z0-9]", manifest["name"])
+        assert manifest["description"] and manifest["version"] and manifest["author"]["name"]
+        assert manifest.get("license") or (self.PLUGIN / "LICENSE").exists()
+
+    def test_the_readme_is_long_enough_to_list(self):
+        text = (self.PLUGIN / "README.md").read_text()
+        prose = re.sub(r"```.*?```", "", text, flags=re.S)
+        assert len(prose.split()) >= 40
+
+    def test_every_server_is_https(self):
+        import json
+        servers = json.loads((self.PLUGIN / ".mcp.json").read_text())["mcpServers"]
+        for name, server in servers.items():
+            assert server["type"] in ("http", "sse", "ws"), name
+            assert server["url"].startswith("https://"), name
+
+    def test_no_system_files_ship(self):
+        junk = [p for p in self.PLUGIN.rglob("*") if p.name in (".DS_Store", "Thumbs.db", "desktop.ini")]
+        assert not junk, junk

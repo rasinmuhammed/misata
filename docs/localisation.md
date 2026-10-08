@@ -92,7 +92,7 @@ locale = misata.detect_locale("A generic SaaS company")
 
 ## What locale affects
 
-- **Names**: Faker locale pool (`de_DE` Faker generates German names, `ja_JP` generates Japanese names)
+- **Names**: Faker locale pool (`de_DE` Faker generates German names, `ja_JP` generates Japanese names). The Gulf locales (`ar_QA`, `ar_AE`, `ar_KW`, `ar_BH`, `ar_OM`) use curated Arabic-script name pools with family names specific to each country, because Faker only ships Arabic person names for `ar_SA`. Names are Arabic script while cities stay in Latin script, so a Gulf table is mixed-script by default
 - **Salary & age distributions**: lognormal/normal priors from national statistics replace the en_US defaults
 - **Postcodes**: pattern-generated to match the country format (e.g. 5 digits for DE, `SW1A 1AA` format for GB)
 - **National IDs**: pattern-generated to match country format (CPF, SSN, Aadhaar, etc.)

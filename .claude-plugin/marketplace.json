@@ -6,14 +6,13 @@
   },
   "metadata": {
     "description": "Realistic multi-table test data whose joins and totals hold up",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "misata",
-      "description": "Generate realistic multi-table test data, seed a development database, or build fixtures whose foreign keys resolve and whose totals reconcile. Requires `pip install misata`.",
-      "source": "./",
-      "strict": false,
+      "description": "Generate realistic multi-table test data, seed a development database, or build fixtures whose foreign keys resolve and whose totals reconcile. Local commands need `pip install misata`; the hosted Misata server works without it.",
+      "source": "./plugin",
       "skills": [
         "./skills/misata"
       ]

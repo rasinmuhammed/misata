@@ -7,7 +7,7 @@ measured on 3 Aug 2026, not recalled.
 
 ## 1. Your own repo. Already live, no gatekeeper.
 
-`.claude-plugin/marketplace.json` is in the repository, so anyone can run:
+`.claude-plugin/marketplace.json` is in the repository and points at `plugin/`, so anyone can run:
 
 ```
 /plugin marketplace add rasinmuhammed/misata
@@ -27,21 +27,40 @@ back at your repo.
 
 ---
 
-## 2. anthropics/skills. Do not bother yet.
+## 2. The Claude directory. Do this one.
 
-The official repo, 166,000 stars, and the obvious place to want to be. The data
-says otherwise:
+Anthropic opened a submission portal on 25 Sep 2026 at
+https://claude.ai/directory/manage. Any Pro or Max account can submit; no partner
+programme. A listing shows in Claude Code, Claude Desktop and claude.ai, and the
+portal shows installs and usage afterwards. Two submissions, from the same account:
 
-- **750 open pull requests.**
-- Of the **last 100 closed PRs, 18 were merged and 82 were closed unmerged.**
-- Of those 18 merges, **14 came from one author**, and the rest are
-  Anthropic-affiliated accounts.
+**a. MCP connector.** Submit new > MCP connector.
 
-So the realistic outcome for a third-party tool skill is a long wait followed by
-a close. The repo reads as Anthropic's own examples rather than a community
-index, and there is no `CONTRIBUTING.md` inviting otherwise.
+- URL: `https://api.misata.studio/mcp` (Streamable HTTP, OAuth through the Studio
+  sign-in; schema builds work without signing in).
+- Test credentials: a Studio account that already holds a few datasets
+  (reviewers want a "fully populated account").
+- Public docs: https://www.misata.studio/mcp
+- Allowed link URIs: `https://www.misata.studio`, `https://api.misata.studio`
+  (export download links).
+- Before submitting, add it as a custom connector in Claude and call every tool
+  once; the portal asks you to confirm that.
 
-Worth revisiting if that changes. Not worth an afternoon today.
+Connectors are scanned automatically and listed as Community; Anthropic may
+escalate to Verified on its own.
+
+**b. Plugin bundle.** Submit new > Plugin bundle.
+
+- Repository: `rasinmuhammed/misata`, plugin path `plugin`, branch `main`.
+- Press Validate; `claude plugin validate ./plugin` passes locally and
+  `tests/test_skill.py` checks the directory's blocking rules.
+- Then pair it with the connector listing above (same account).
+
+A person reviews a new plugin before it goes live. Desktop extensions (`mcpb/`)
+are no longer accepted by the directory; the plugin replaces them there.
+
+anthropics/skills (the GitHub repo) is still not worth a pull request: most
+third-party PRs close unmerged.
 
 ---
 
@@ -88,7 +107,7 @@ gets an agent confidently running a command that is not on their machine.
 ## Keeping it honest
 
 `tests/test_skill.py` checks every command, flag and declaration key in
-`SKILL.md` against the running package, and checks that every skill path in
+`plugin/skills/misata/SKILL.md` against the running package, and checks that every skill path in
 `marketplace.json` resolves to a real directory. Run it before you submit
 anywhere, because these listings are cached and a wrong command in a cached
 description outlives the fix.

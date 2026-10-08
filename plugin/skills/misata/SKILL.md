@@ -120,6 +120,16 @@ cannot hold. Do not "fix" this by quietly renormalising the numbers. Show the
 user the conflict and ask which declaration they meant, because the alternative
 is silently generating a specification they did not write.
 
+## Without a local install
+
+If `pip install misata` is not possible here and the hosted Misata server is
+connected, use its tools instead. Check `find_ready_dataset` first when the
+user wants common sample data. Otherwise call `plan_dataset` and show the user
+the tables, then build with `generate_dataset` (a schema) or `start_generation`
+plus `get_status` (a plain-English request, which takes minutes). Report what
+`get_certificate` says was met and not met, and give the user the
+`export_dataset` link rather than pasting rows into the chat.
+
 ## Seeding a real database
 
 `misata seed <url>` reads the schema from the database itself and inserts

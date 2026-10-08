@@ -173,3 +173,5 @@ examples/bank_evalpack_out/
 !tests/test_lexicon.py
 !tests/test_joint.py
 !tests/test_microtext_capacity.py
+!tests/test_shares_respect_bounds.py
+!tests/test_gulf_names.py
