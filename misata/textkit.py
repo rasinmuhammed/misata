@@ -1710,3 +1710,14 @@ def render(kind: str, rng: np.random.Generator, size: int, *,
         # "twice a day." swapped to "b.i.d." must not end in two stops
         out = [_DOUBLE_STOP.sub("", o) for o in out]
     return np.array(out, dtype=object)
+
+
+def _extend_profiles() -> None:
+    from misata import text_profiles as tp
+    _CASES.extend(tp.CASES)
+    _HOMES.extend(tp.HOMES)
+    _BOOKINGS.extend(tp.BOOKINGS)
+    _PRODUCTS.extend(tp.PRODUCTS)
+
+
+_extend_profiles()
