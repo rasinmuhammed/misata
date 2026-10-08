@@ -319,7 +319,20 @@ _RULES: Dict[str, list] = {
              "((Payment|Payout|Transfer)) {ref} of ${amount_k} ((held|released|reversed)) ((pending|after|following)) ((KYC review|fraud check|customer confirmation|bank callback))",
              "((Retention|Deletion|Archive)) policy ((applied|run|scheduled)) to {n}0 ((records|accounts|documents)) ((older than|created before)) ((7 years|{month} {since_year}|the cut-off))",
              "((Config|Setting|Feature flag)) {ref} ((changed|toggled|rolled back)) ((in|on)) ((production|staging|the {plan} tier)) ((by|per)) {fname}((| - change ticket #{ticket}))"],
-    "delivery": ["{hm_place_cap}((:|,)) {hm_access}((. {hm_quirk_cap}|))",
+    "delivery": ["((Morning|Afternoon|Any)) ((slot|time)) ((fine|is fine|works)) - {hm_access}",
+             "((Don't|Please don't|Never)) ((leave it|put it)) {hm_spot2}((, it gets wet| - it's not safe there| - it walks))",
+             "{hm_spot_cap} ((is best|works well|is safest))((, thanks| - {hm_quirk}))",
+             "((Usually|Mostly|Normally)) ((in|home)) ((after {appt_time}|on {weekday}s|in the mornings)) - ((otherwise|else)) {hm_spot}",
+             "((Recipient|Name on the parcel|Addressee)): {fname} {lname}, {hm_place}((| - {hm_access}))",
+             "((Finding us|How to find us|Directions)): {hm_access}((.| - {hm_quirk}.))",
+             "{hm_quirk_cap}((, so|. So|;)) ((leave it|please leave it|best to leave it)) {hm_spot}",
+             "((Safe place|Safe spot|Leave-safe)): {hm_spot}((. Not {hm_spot2}.|))",
+             "((We're|I'm|It's)) ((the|a)) {hm_place} - ((look for|you'll see|head for)) ((the|our)) ((sign|blue bin|bike rack|wooden gate|lamp post))((| by {hm_spot}))",
+             "((Second|Last|Third)) attempt - ((please|pls)) {hm_access} ((this time|and call {phone}|and knock loudly))",
+             "((Parcel|Box|Order)) for {fname}: {hm_access}((| - {hm_quirk}| - note: {hm_quirk}))",
+             "((Ask for|Hand to|Give to)) {fname} or {fname2}((| - {hm_place}| - {hm_quirk}))",
+             "((Weekday|Weekend|Evening)) deliveries: {hm_spot}((. {hm_quirk_cap}.|.))",
+             "{hm_place_cap}((:|,)) {hm_access}((. {hm_quirk_cap}|))",
              "((Ring|Knock|Call {phone})) ((when here|on arrival|from the gate)) - {hm_access}((| - {hm_quirk}))",
              "((If|When)) ((nobody answers|I'm at work|no one's in)), {hm_spot}((| please)) - {hm_quirk}",
              "((Deliver|Drop off|Bring it)) ((before|after)) ((10|11|2|3|4|5))((am|pm)) - {hm_access}",
@@ -333,7 +346,7 @@ _RULES: Dict[str, list] = {
              "((Leave|Drop)) ((with|at)) ((the neighbour at no. {n}|the concierge|reception|the porch|the side gate))((| if out| please))",
                  "((Ring|Knock|Call)) ((the bell|loudly|on arrival|{phone}))((| - doorbell broken| - baby sleeping| please))",
                  "((Gate|Door|Building)) code ((is|)) {code4}((| then flat {n}| - buzz {n}))", "((Do not|Don't)) leave ((on the doorstep|unattended|in the rain|with neighbours))",
-                 "((Deliver|Bring it)) ((after 5pm|before 9am|between 12 and 2|after {time}|before noon))((| on weekdays| please))",
+                 "((Deliver|Bring it)) ((after 5pm|before 9am|between 12 and 2|after {appt_time}|before noon))((| on weekdays| please))",
                  "((Back door|Side entrance|Rear garden)) ((- dog is friendly|via the alley|past the garage))", "((Place|Put)) ((in the safe place|behind the bins|in the shed|in the parcel box))",
              "((Neighbour|Next door|No. {n})) ((will take it|has a key|is happy to sign))((| if I'm out| - ask for {fname}))",
              "((Use|Try)) the ((buzzer for flat {n}|intercom|code {code4} on the keypad))((| then 2nd floor| then lift to floor {n}))",
@@ -386,14 +399,14 @@ _RULES: Dict[str, list] = {
              " - ((bought|ordered)) {n} ((weeks|days)) ago"],
     "c_colour": ["navy", "black", "grey", "olive", "cream", "red", "blue", "white", "sage", "brown"],
     "delivery_detail": [" - ((thanks|cheers|ta))!", ", ((ask for|call)) {fname} ((on {phone}|at reception))", " ({street})",
-                        " - ((parcel is fragile|contains glass|keep upright))", " - ((weekdays only|not on {weekday}s|any time after {time}))",
-             " - ((dog|cat|puppy)) ((in the garden|at the door|may bark))",
-             " - ((CCTV|camera|Ring doorbell)) ((at the door|on the porch))",
-             " - ((working from home|in all day|out until {time}))",
-             " - ((parking|loading bay|drop-off)) ((round the back|on {street}|outside the shop))",
-             " - ((gate|side gate|garage)) ((unlocked|code {code4}|left open))",
+                        " - ((parcel is fragile|contains glass|keep upright))", " - ((weekdays only|not on {weekday}s|any time after {appt_time}))",
+             " - ((dog|cat|puppy|two dogs|a nervous rescue dog)) ((in the garden|behind the door|may bark|will greet you|is friendly))",
+             " - ((CCTV|camera|video doorbell)) ((covers the porch|watches the step|records the drive|is by the gate))",
+             " - ((working from home on {weekday}s|home after {appt_time}|out until {time}|in most mornings|on nights - sleeping till noon))",
+             " - ((parking|loading bay|drop-off|stopping)) ((behind the flats|on {street}|by the bus stop|in the pub car park|on the verge))",
+             " - ((gate|side gate|garage|porch door)) ((unlocked till 6|code {code4}|on the latch|opens with a push))",
              " - ((reorder|repeat order|regular delivery)) ((every {weekday}|monthly|weekly))",
-             " - ((no photos please|no signature needed|please no knocking after 8pm))"],
+             " - ((no photos please|no signature needed|please don't knock after 8pm|no knocking - baby asleep|quiet please, night worker))"],
     "discharge_detail": [" ((Next appointment|Follow-up|Clinic review)): {date} at {appt_time} ((with|in)) ((Dr {lname}'s|the {clinic})) clinic((.|, {hospital}.))",
              " ((Bloods|Wound check|Dressing change|Stitch removal|BP check)) ((booked|arranged|due)) ((with the practice nurse|at your surgery|with the district nurses|at the walk-in centre)) ((on|for)) {date}((.| at {appt_time}.))",
              " Discharged ((home|to the care of {fname}|with family)) at {time}((.| by {fname} {lname}, staff nurse.))",
@@ -433,7 +446,7 @@ _RULES: Dict[str, list] = {
              " - ((expires|valid until|review on)) {date}",
              " - ((four-eyes|dual|second-line)) ((check|approval|review)) by {fname2}",
              " ((from|via)) ((admin console|API|batch job|support tool)) ({initials})"],
-    "delivery_frame": ["Note: {text}", "{text} - thank you!", "Driver: {text}", "{text} :)", "For the driver: {text}"],
+    "delivery_frame": ["Note: {text}", "{text} - thank you!", "Driver: {text}", "{text} :)", "{text} ((ta|cheers|thanks so much))", "Courier: {text}"],
     # ── bank statement descriptors ──────────────────────────────────────
     "memo": ["{merch_u} #{code4} {city_u}", "POS {merch_u} {dd}/{mm}", "CARD {last4} {merch_u} {city_u}",
              "AMZN Mktp ((US|UK|DE))*{code_u}", "SQ *{small_n}", "TST* {small_n}", "PAYPAL *{small_uu}", "ACH {company_u} ((PAYROLL|DIRECT DEP|VENDOR PMT))",
@@ -1601,6 +1614,7 @@ def _home_slots(g: Grammar, rng: np.random.Generator, slots: List[Dict[str, str]
         s.update(hm_place=place, hm_access=fill(access[int(rng.integers(len(access)))]),
                  hm_spot=fill(sp[0]), hm_spot2=fill(sp[1]), hm_quirk=fill(quirks[int(rng.integers(len(quirks)))]))
         s["hm_place_cap"] = place[0].upper() + place[1:]
+        s["hm_spot_cap"] = s["hm_spot"][0].upper() + s["hm_spot"][1:]
         s["hm_quirk_cap"] = s["hm_quirk"][0].upper() + s["hm_quirk"][1:]
 
 
@@ -1751,7 +1765,7 @@ def render(kind: str, rng: np.random.Generator, size: int, *,
     detail = {"churn": "churn_detail", "cancel": "cancel_detail", "return": "return_detail",
               "delivery": "delivery_detail", "discharge": "discharge_detail", "audit": "audit_detail"}.get(kind)
     if detail:
-        p = {"discharge": 0.6, "churn": 0.65, "return": 0.6}.get(kind, 0.85)
+        p = {"discharge": 0.6, "churn": 0.65, "return": 0.6, "delivery": 0.65}.get(kind, 0.85)
         p2 = 0.4 if p > 0.7 else 0.25
         def _two(o, s):
             a = g.expand(detail, **s) if rng.random() < p else ""

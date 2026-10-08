@@ -437,3 +437,26 @@ PRODUCTS += [
      ["we hit our goal in a day", "backers get updates without us chasing", "surveys collect addresses cleanly"],
      ["pledges charged twice", "reward tiers vanishing", "survey links expiring early"]),
 ]
+
+HOMES += [
+    ("flat above the chippy", ["door to the right of the chip shop", "ring the top bell, the shop can't take it", "blue door, stairs straight up"],
+     ["inside the stairwell door", "with the chippy if I'm out", "behind the bin store gate"], ["the shop opens at 4pm", "the bell rings twice, wait a moment"]),
+    ("farm shop", ["the barn shop past the duck pond", "goods-in by the cold store", "the big green barn on the left"],
+     ["with the shop till", "in the cold store if chilled", "on the pallet by the door"], ["closed on {weekday}s", "watch for the hens in the yard"]),
+    ("canal-side flat", ["block by the lock gates, door 3", "towpath entrance, gate code {code4}", "the flats with the red balconies"],
+     ["with the concierge", "in the bike store", "outside flat {n}"], ["no vans on the towpath", "the lift is key-fob only"]),
+    ("new-build flat", ["block {k}, the one still with scaffolding", "the entrance facing the car park", "core B, floor {k}"],
+     ["in the parcel lockers", "with the building manager", "outside the flat door"], ["postcode not on all satnavs yet", "the intercom isn't connected yet - call {phone}"]),
+    ("gamekeeper's cottage", ["past the estate gates, first cottage", "the cottage by the pheasant pens", "follow the beech avenue to the end"],
+     ["in the log store", "in the green box on the wall", "inside the porch"], ["dogs loose in the yard", "shoot days on Saturdays - come before 9"]),
+    ("dental lab", ["unit 4, behind the opticians", "the door marked laboratory", "ring and wait - we may be casting"],
+     ["with the lab manager", "on the goods-in shelf", "with reception upstairs"], ["closed at lunch", "temperature-sensitive - don't leave outside"]),
+    ("charity shop", ["the shop on the corner of {street}", "donations door round the side", "ask at the till"],
+     ["behind the till", "in the back room", "with the volunteer on duty"], ["volunteers change daily - name the parcel", "open 10 to 4"]),
+    ("vicarage", ["the big house beside the church", "the drive opposite the war memorial", "side door by the study window"],
+     ["in the porch", "with the church office", "behind the garden gate"], ["the vicar may be at a service", "the dog is old and harmless"]),
+    ("student flat", ["flat {n}, the block behind the union", "ask at the halls desk for {fname}", "the third floor, door with the fairy lights"],
+     ["at the halls reception", "outside the flat door", "in the common room"], ["reception is closed on Sundays", "names on the buzzer are out of date"]),
+    ("lock-keeper's cottage", ["the cottage at the lock, down the slipway", "park at the top and walk down", "the gate by the weir"],
+     ["in the boat shed", "on the bench by the door", "with the lock-keeper"], ["the slipway is steep", "no turning space for vans"]),
+]
