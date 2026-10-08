@@ -160,10 +160,10 @@ shares no code with Misata
 ([benchmark](https://github.com/rasinmuhammed/misata/blob/main/docs/realism-benchmark.md)).
 On Olist's real marketplace orders, a names-and-types schema with no access to
 the data is harder to tell from real rows than a Faker script (classifier AUC
-0.74 vs 0.79) and close to SDV fitted on 15,000 real orders (0.71). On NYC
-taxi trips it gets the night-heavy hour curve closer than SDV does, but its
-fares are still too wide, so a classifier separates it from real trips more
-easily than the script. The benchmark publishes both, and says which results
+0.63 vs 0.78, mean of five seeds) and than SDV fitted on 15,000 real orders
+(0.71). On NYC taxi trips it beats the script (0.75 vs 0.79) and gets the
+night-heavy hour curve closer than SDV does, but its fares are still too
+wide, and SDV fitted on the real trips stays ahead (0.68). The benchmark publishes both, and says which results
 followed a fix it prompted.
 
 ---

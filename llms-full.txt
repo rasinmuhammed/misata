@@ -205,7 +205,7 @@ frames = misata.to_polars(tables)                             # json/array -> st
 - **Outcome conformance**: declared curves, rates, shares, roll-ups, lifecycles and ledger identities hold exactly and are re-checked from the rows by `misata audit`.
 - **No LLM in the row path**: offline, no token cost.
 - **Deterministic within a version**: the same schema, seed and Misata version give the same data; CI compares `misata.fingerprint` hashes on Linux, macOS and Windows. Upgrading may change rows (STABILITY.md).
-- **Realism, measured**: on held-out real data (Olist orders, NYC taxi trips), blind schema-only generation scores detection AUC 0.74 against 0.71 for SDV fitted on the real rows (0.5 = indistinguishable); fitted `mimic` scores 0.54 and 0.66. Taxi fares are a known miss. Details: docs/realism-benchmark.md.
+- **Realism, measured**: on held-out real data (Olist orders, NYC taxi trips), blind schema-only generation scores detection AUC 0.63 on Olist against 0.71 for SDV fitted on the real rows and 0.78 for a Faker script (0.5 = indistinguishable; mean of five seeds); on taxis 0.75 against SDV's 0.68 and the script's 0.79. Fitted `mimic` scores 0.54 on both. Taxi fares are a known miss. Details: docs/realism-benchmark.md.
 
 ## 7. Known limits (from LIMITATIONS.md)
 

@@ -453,10 +453,17 @@ Olist's real marketplace orders and the NYC taxi sample. Metrics are
 scale-free (amount shape, hour and weekday profiles, fan-out concentration,
 category balance, a real-vs-synthetic classifier, the tells score), and the
 real train half sets the noise floor. Results and an honest reading are in
-`docs/realism-benchmark.md`: blind Misata beats the script on e-commerce and
-approaches SDV fitted to the data (detection AUC 0.74 vs 0.71); on taxis its
-daytime rhythm and amount prior lose to the script; customer fan-out on a
-buy-once marketplace is a real miss. Nothing was tuned to the test set.
+`docs/realism-benchmark.md`: blind Misata beats the script and SDV fitted
+to the data on e-commerce (detection AUC 0.63 vs 0.78 and 0.71, mean of five
+seeds); on taxis it beats the script but not SDV (0.75 vs 0.79 and 0.68),
+because its fares are too wide; customer fan-out on a buy-once marketplace
+is a real miss. Nothing was tuned to the test set.
+
+The detection feature normalised discrete amounts by each sample's own
+median, which let the classifier tell the two real halves apart on some
+seeds (AUC up to 0.89 for real vs real). It is now rounded, real vs real
+scores 0.50 on every seed, and the published AUCs are from the fixed metric
+(earlier drafts said 0.74 for Olist and 0.91 for taxis).
 
 The benchmark found four bugs, fixed here:
 

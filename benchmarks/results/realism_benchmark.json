@@ -14,7 +14,7 @@
           "customer_gini": 0.0006595149307963748,
           "product_gini": 0.0027831383149944933,
           "category_gap": 0.0025601576198613363,
-          "detect_auc": 0.4978456888888888,
+          "detect_auc": 0.5003568222222222,
           "tells": 1.0
         },
         "misata_story": {
@@ -24,9 +24,9 @@
           "customer_gini": null,
           "product_gini": 0.4400537889574435,
           "category_gap": null,
-          "detect_auc": 0.7668999124999999,
+          "detect_auc": 0.73187878125,
           "tells": 0.9423076923076923,
-          "seconds": 5.8
+          "seconds": 6.2
         },
         "misata_schema": {
           "amount_ks": 0.050866666666666664,
@@ -35,9 +35,9 @@
           "customer_gini": 0.25618375970010726,
           "product_gini": 0.027613898627335598,
           "category_gap": 0.4808765311655241,
-          "detect_auc": 0.737632,
+          "detect_auc": 0.62949160625,
           "tells": 1.0,
-          "seconds": 2.5
+          "seconds": 1.5
         },
         "faker_script": {
           "amount_ks": 0.19069999999999998,
@@ -46,7 +46,7 @@
           "customer_gini": 0.23712597402087235,
           "product_gini": 0.1492354659517176,
           "category_gap": 0.4997318365641834,
-          "detect_auc": 0.79398836875,
+          "detect_auc": 0.78500674375,
           "tells": 0.3333333333333333,
           "seconds": 4.2
         },
@@ -57,9 +57,9 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": 0.0013054887252070824,
-          "detect_auc": 0.5413135666666667,
+          "detect_auc": 0.5327244999999999,
           "tells": 1.0,
-          "seconds": 0.9
+          "seconds": 1.2
         },
         "sdv_copula": {
           "amount_ks": 0.0724,
@@ -68,9 +68,9 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": 0.0027767816331989437,
-          "detect_auc": 0.7090467111111111,
+          "detect_auc": 0.7078151333333335,
           "tells": 0.75,
-          "seconds": 8.1
+          "seconds": 6.4
         }
       }
     },
@@ -86,7 +86,7 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": 0.0034664945214215592,
-          "detect_auc": 0.5040082078149237,
+          "detect_auc": 0.49664531253182476,
           "tells": 1.0
         },
         "misata_story": {
@@ -96,9 +96,9 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": null,
-          "detect_auc": 0.8866347210163701,
+          "detect_auc": 0.804850398719249,
           "tells": 1.0,
-          "seconds": 1.9
+          "seconds": 1.2
         },
         "misata_schema": {
           "amount_ks": 0.2507434653310377,
@@ -107,9 +107,9 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": 0.1296301827349523,
-          "detect_auc": 0.9111258738985926,
+          "detect_auc": 0.7504663048806606,
           "tells": 0.6666666666666666,
-          "seconds": 1.6
+          "seconds": 0.9
         },
         "faker_script": {
           "amount_ks": 0.21709187666301455,
@@ -118,9 +118,9 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": 0.13953977177665233,
-          "detect_auc": 0.8858676994952669,
+          "detect_auc": 0.7921097405386545,
           "tells": 0.4,
-          "seconds": 2.4
+          "seconds": 2.0
         },
         "misata_mimic": {
           "amount_ks": 0.025039123630672927,
@@ -129,9 +129,9 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": 0.009100503778195268,
-          "detect_auc": 0.6633369334420713,
+          "detect_auc": 0.5295265244746167,
           "tells": 1.0,
-          "seconds": 1.7
+          "seconds": 1.9
         },
         "sdv_copula": {
           "amount_ks": 0.1352112676056338,
@@ -140,9 +140,9 @@
           "customer_gini": null,
           "product_gini": null,
           "category_gap": 0.00339271999574442,
-          "detect_auc": 0.8282192196825535,
+          "detect_auc": 0.6758285760467867,
           "tells": 0.6666666666666666,
-          "seconds": 3.0
+          "seconds": 3.3
         }
       }
     }

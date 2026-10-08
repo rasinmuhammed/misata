@@ -12,7 +12,7 @@ Story given to `misata_story`: *"A Brazilian e-commerce marketplace with 29651 c
 | Customer fan-out (ΔGini) | 0.001 | n/a | 0.256 | 0.237 | n/a | n/a |
 | Product fan-out (ΔGini) | 0.003 | 0.440 | 0.028 | 0.149 | n/a | n/a |
 | Category balance (Δ) | 0.003 | n/a | 0.481 | 0.500 | 0.001 | 0.003 |
-| Detection AUC | 0.498 | 0.767 | 0.738 | 0.794 | 0.541 | 0.709 |
+| Detection AUC | 0.500 | 0.732 | 0.629 | 0.785 | 0.533 | 0.708 |
 | Tells score ↑ | 1.000 | 0.942 | 1.000 | 0.333 | 1.000 | 0.750 |
 
 ### taxis: NYC yellow/green taxi trips, March 2019 (seaborn sample) (6,389 rows)
@@ -27,5 +27,5 @@ Story given to `misata_story`: *"A New York taxi company with 6389 taxi rides, f
 | Customer fan-out (ΔGini) | n/a | n/a | n/a | n/a | n/a | n/a |
 | Product fan-out (ΔGini) | n/a | n/a | n/a | n/a | n/a | n/a |
 | Category balance (Δ) | 0.003 | n/a | 0.130 | 0.140 | 0.009 | 0.003 |
-| Detection AUC | 0.504 | 0.887 | 0.911 | 0.886 | 0.663 | 0.828 |
+| Detection AUC | 0.497 | 0.805 | 0.750 | 0.792 | 0.530 | 0.676 |
 | Tells score ↑ | 1.000 | 1.000 | 0.667 | 0.400 | 1.000 | 0.667 |

@@ -66,10 +66,12 @@ reproduces it.
   50,000 per schema for the per-column Faker script and 3,000 to 5,600 for
   SDV's multi-table model trained on valid data (which refuses two of the
   five schemas).
-- **Realistic without data, within limits.** Blind e-commerce data comes
-  close to a model trained on the real data (detection AUC about 0.74
-  against SDV's 0.71 on Olist; 0.5 is indistinguishable). On taxi trips,
-  blind fares are a miss.
+- **Realistic without data, within limits.** Blind e-commerce data is
+  harder to tell from real orders than a Faker script or SDV trained on the
+  real data (detection AUC 0.63 against 0.78 and 0.71 on Olist, mean of
+  five seeds; 0.5 is indistinguishable). On taxi trips it beats the script
+  (0.75 vs 0.79) but not SDV trained on the trips (0.68): blind fares are a
+  miss. `mimic`, which does see the data, scores 0.54 on both.
 - **Coherent text.** Reviews follow their rating, tickets keep one issue,
   clinical notes keep one case, and every text kind but chief complaints
   passes the repetition and vocabulary checks in `realism_report`.

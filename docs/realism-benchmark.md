@@ -40,6 +40,17 @@ a blind generator is not punished for not knowing the currency:
 Misata 0.9.7, seed 7. Reproduce with
 `python -m benchmarks.realism_bench --cache .bench_cache`.
 
+### Detection AUC over five seeds
+
+Seeds 7, 11, 23, 42 and 99: mean, with the lowest and highest run. The
+other metrics move by 0.01 or less between seeds; every one is in
+`benchmarks/results/summary.json`.
+
+| Dataset | `real_train` | `misata_story` | `misata_schema` | `faker_script` | `misata_mimic` | `sdv_copula` |
+|---|---|---|---|---|---|---|
+| Olist | 0.500 (0.49–0.51) | 0.730 (0.73–0.73) | **0.629** (0.63–0.63) | 0.783 (0.78–0.79) | **0.537** (0.53–0.54) | 0.711 (0.71–0.72) |
+| NYC taxis | 0.503 (0.50–0.51) | 0.801 (0.80–0.81) | 0.750 (0.75–0.75) | 0.788 (0.78–0.79) | **0.543** (0.53–0.55) | 0.675 (0.67–0.68) |
+
 ### Olist (30,000 orders)
 
 | Metric | `real_train` | `misata_story` | `misata_schema` | `faker_script` | `misata_mimic` | `sdv_copula` |
@@ -50,7 +61,7 @@ Misata 0.9.7, seed 7. Reproduce with
 | Customer fan-out (ΔGini) | 0.001 | n/a | 0.256 | 0.237 | n/a | n/a |
 | Product fan-out (ΔGini) | 0.003 | 0.440 | 0.028 | 0.149 | n/a | n/a |
 | Category balance (Δ) | 0.003 | n/a | 0.481 | 0.500 | 0.001 | 0.003 |
-| Detection AUC | 0.498 | 0.767 | 0.738 | 0.794 | 0.541 | 0.709 |
+| Detection AUC | 0.500 | 0.732 | 0.629 | 0.785 | 0.533 | 0.708 |
 | Tells score ↑ | 1.000 | 0.942 | 1.000 | 0.333 | 1.000 | 0.750 |
 
 ### NYC taxis (6,389 trips)
@@ -61,15 +72,15 @@ Misata 0.9.7, seed 7. Reproduce with
 | Hour profile (TVD) | 0.039 | 0.237 | 0.082 | 0.193 | 0.060 | 0.189 |
 | Weekday profile (TVD) | 0.026 | 0.074 | 0.030 | 0.033 | 0.054 | 0.049 |
 | Category balance (Δ) | 0.003 | n/a | 0.130 | 0.140 | 0.009 | 0.003 |
-| Detection AUC | 0.504 | 0.887 | 0.911 | 0.886 | 0.663 | 0.828 |
+| Detection AUC | 0.497 | 0.805 | 0.750 | 0.792 | 0.530 | 0.676 |
 | Tells score ↑ | 1.000 | 1.000 | 0.667 | 0.400 | 1.000 | 0.667 |
 
 ## What it says
 
 **On e-commerce, blind Misata beats the script and approaches a model fitted
 to the data.** With table and column names and the domain, `misata_schema`
-reaches a detection AUC of 0.74 against SDV's 0.71 (SDV saw 15,000 real
-orders), gets the shape of order amounts closer than SDV (0.05 vs 0.07), and
+is harder to tell from real orders than SDV fitted on 15,000 of them
+(detection AUC 0.63 against 0.71, over five seeds), gets the shape of order amounts closer than SDV (0.05 vs 0.07), and
 matches real product popularity almost exactly (ΔGini 0.03), which the
 uniform script misses by five times as much. One qualification: the
 e-commerce amount prior was set from Olist's public data when Misata's priors
@@ -78,12 +89,12 @@ fan-out are.
 
 **On taxis, the hour rhythm is now right; fares are not.** Declaring the
 domain as `transport` gives the night-heavy demand curve ride data has (hour
-TVD 0.08, better than SDV fitted on the data at 0.19). Fares are still drawn
-from a generic money shape that is wider than taxi totals, so the classifier
-still separates Misata from real trips more easily than it separates the
-script (AUC 0.91 vs 0.89). That is the remaining miss here, and it is left
-in rather than fixed with a taxi-specific fare prior fitted to the same
-public data.
+TVD 0.08, better than SDV fitted on the data at 0.19), which puts blind
+Misata ahead of the script (AUC 0.75 vs 0.79) but behind SDV fitted on the
+real trips (0.68). Fares are still drawn from a generic money shape that is
+wider than taxi totals (amount KS 0.25, worse than the script's 0.22). That
+is the remaining miss here, and it is left in rather than fixed with a
+taxi-specific fare prior fitted to the same public data.
 
 **Customer fan-out is better, not solved.** In this Olist sample nearly every
 buyer buys once (30,000 orders from 29,651 customers). Declaring the domain
@@ -96,7 +107,7 @@ declaration did not work before 0.9.7 for child tables larger than one
 
 **`mimic` is the strongest fitted generator here.** It beats SDV on every
 metric except weekday profile and category balance on taxis, and is close to
-indistinguishable on Olist (AUC 0.54).
+indistinguishable on both datasets (AUC 0.54).
 
 **The tells check calibrates on real data.** Both real datasets score 1.0 on
 `realism_report`.
@@ -121,6 +132,18 @@ fixes are in 0.9.7. To keep the benchmark honest about what it tests:
   `ecommerce` before), because that is what Olist is. With the same
   declaration as before, every number but customer fan-out is unchanged.
 
+## A correction to the detection metric
+
+The first 0.9.7 runs reported higher detection AUCs (Olist schema 0.74, taxi
+schema 0.91, taxi mimic 0.66). Running five seeds showed why: the real train
+half scored as high as 0.89 against the real test half on some seeds, which
+is impossible for a fair test. Amounts are discrete (prices repeat), and
+dividing each sample by its own median put the two real halves on slightly
+different grids that the classifier learned to tell apart. The feature is
+now rounded to one decimal of log-ratio, real-vs-real scores 0.50 on every
+seed, and every contestant's AUC above is from the corrected metric. The
+other metrics did not change.
+
 ## Caveats
 
 - Two datasets, both transactional. This is evidence about orders and trips,
@@ -130,4 +153,5 @@ fixes are in 0.9.7. To keep the benchmark honest about what it tests:
   more easily.
 - Blind contestants get the row counts and, for the schema variant, the
   category labels. They never see shares, ranges or any row.
-- Single seed. Run with `--seed` to check stability.
+- Five seeds. A seed changes which 30,000 Olist orders are sampled, the
+  train/test split and every generator's seed; it cannot add datasets.
