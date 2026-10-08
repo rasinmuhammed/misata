@@ -388,3 +388,52 @@ PRODUCTS += [
      ["overbookings stopped", "check-in takes two minutes", "rates update everywhere at once"],
      ["rooms double-sold on Booking.com", "folios splitting wrongly", "housekeeping lists not updating"]),
 ]
+
+BOOKINGS += [
+    ("tattoo appointment", ["the design isn't finished", "started antibiotics", "artist moved studios", "got cold feet about the placement"],
+     ["move to the artist's next free day", "keep the deposit on file", "switch to a smaller piece"]),
+    ("removal van", ["completion date slipped", "the buyer pulled out", "lift at the new block is broken", "decided to move ourselves"],
+     ["move to {date}", "refund the deposit", "swap to a smaller van"]),
+    ("golf tee time", ["course waterlogged", "partner pulled a back muscle", "work golf day clashes", "the club changed the format"],
+     ["rebook for {weekday} at {time}", "credit to my membership", "move to the nine-hole course"]),
+    ("language course", ["visa refused", "work schedule changed", "level test put me in the wrong class", "moving back home early"],
+     ["transfer to the online class", "refund the remaining weeks", "defer to the {month} intake"]),
+    ("nail appointment", ["broke a nail at work", "running late from the school run", "allergic reaction last time", "the technician is off"],
+     ["rebook with {fname}", "any slot after {time}", "cancel without the fee please"]),
+    ("dog kennels", ["the holiday fell through", "dog's vaccinations not up to date", "a neighbour can look after him", "the dog is unwell"],
+     ["refund the deposit", "move to {month}", "keep the booking for the second week only"]),
+]
+
+HOMES += [
+    ("castle gatehouse", ["the gatehouse at the bottom of the drive", "follow signs for the estate office", "through the arch, door on the right"],
+     ["with the estate office", "in the porter's lodge", "in the box inside the arch"], ["the main gate shuts at 5pm", "visitors use the side entrance"]),
+    ("chapel conversion", ["the old chapel with the round window", "door under the bell tower", "side gate beside the graveyard"],
+     ["in the vestry porch", "behind the lych gate", "on the step under the arch"], ["the bell doesn't ring, knock loudly", "parking is on the lane"]),
+    ("ski chalet", ["chalet {n}, top of the village road", "the wooden chalet past the lift station", "follow the piste-side path"],
+     ["in the boot room", "with the chalet host", "in the ski locker"], ["snow chains needed after November", "deliveries only in the morning"]),
+    ("motorhome pitch", ["pitch {n} at the {city} campsite", "the white motorhome by the shower block", "gate code {code4}, then left at the lake"],
+     ["with the site reception", "in the box by the pitch post", "under the awning"], ["reception closes at 6pm", "we may be out walking - call {phone}"]),
+    ("terraced cottage", ["the cottage with the green gate", "number {n}, end of the row", "the one with the bench outside"],
+     ["in the porch", "behind the water butt", "with the neighbour at number {k}"], ["the lane is too narrow for big vans", "the doorbell is round the side"]),
+    ("industrial estate unit", ["unit {n}, behind the tyre fitter", "the grey building with the blue shutter", "goods-in, gate 2"],
+     ["with goods-in", "in the cage by the shutter", "at the trade counter"], ["closed between 12:30 and 1:30", "forklift in the yard - hi-vis please"]),
+    ("houseshare", ["the blue door, flat {n} is upstairs", "ring the bell for room {k}", "the house with the bikes outside"],
+     ["in the hallway", "on the shelf by the door", "with whoever answers"], ["write the name clearly - five of us live here", "the front door sticks"]),
+    ("vineyard", ["follow the track between the vines", "the tasting room by the car park", "the winery building, not the house"],
+     ["in the tasting room", "with the cellar staff", "in the barrel store"], ["harvest traffic in September", "closed on Mondays"]),
+]
+
+PRODUCTS += [
+    ("subscription box platform", ["the box builder", "skip-a-month", "the referral scheme", "churn surveys", "the shipping calendar", "billing retries"],
+     ["Shopify", "Stripe", "Klaviyo"], ["founder", "retention manager", "fulfilment lead"],
+     ["fewer cancellations after we added skip", "referrals bring in new boxes", "billing retries rescue failed cards"],
+     ["subscriptions renewing twice", "skip requests ignored", "cards retried on the wrong day"]),
+    ("IT asset management tool", ["the asset register", "laptop provisioning", "licence tracking", "the offboarding checklist", "warranty alerts", "MDM sync"],
+     ["Jamf", "Intune", "Okta"], ["IT manager", "service desk analyst", "CTO"],
+     ["laptops ship ready on day one", "licences stopped going to waste", "offboarding is one click"],
+     ["devices disappearing from the register", "the MDM sync failing nightly", "warranty alerts never sent"]),
+    ("crowdfunding platform", ["the campaign page", "reward tiers", "backer updates", "pledge management", "the stretch goal tracker", "fulfilment surveys"],
+     ["Stripe", "Mailchimp", "Shopify"], ["creator", "campaign manager", "community lead"],
+     ["we hit our goal in a day", "backers get updates without us chasing", "surveys collect addresses cleanly"],
+     ["pledges charged twice", "reward tiers vanishing", "survey links expiring early"]),
+]
