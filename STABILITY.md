@@ -55,7 +55,12 @@ across every MINOR and PATCH release of the same MAJOR:
   within one MINOR series (all 1.5.x). A MINOR release may change rows: new
   realism defaults, better priors, fixed bugs. Pin the MINOR version
   (`misata~=1.5.0`) when exact bytes matter; record the version with any
-  fixture you check in.
+  fixture you check in. `misata.fingerprint(tables)` gives one canonical
+  hash per table and for the whole dataset (independent of file format and
+  dtype); check it into your fixtures to detect any change. Misata's own CI
+  regenerates a set of story, dict and DDL schemas on Linux, macOS and
+  Windows and requires the same fingerprints on all three
+  (`python -m benchmarks.golden`).
 - **Undeclared defaults.** Anything you did not declare (a distribution
   Misata chose, a time-of-day rhythm, popularity weighting) is a default, and
   defaults improve. Declare it to make it a guarantee.

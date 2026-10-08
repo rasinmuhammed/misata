@@ -173,7 +173,11 @@ bug worth reporting.
   shape, which is wider than real fares; declare the distribution.
 - **Name-derived emails need a Latin-script name.** A name in another script
   keeps its generated email, which then does not match the name.
-- **Determinism is per-version.** See [STABILITY.md](STABILITY.md) for the
+- **Determinism is per-version, and cross-platform within a version.** CI
+  regenerates a set of schemas on Linux, macOS and Windows and requires
+  identical `misata.fingerprint` hashes; floats are hashed to 10 significant
+  digits, so a last-bit libm difference does not count, but a value on a
+  rounding boundary could. See [STABILITY.md](STABILITY.md) for the
   cross-version contract. The same schema, seed, and misata version
   reproduce byte-identical output. Upgrading may change the RNG stream (it did
   in 0.8.1.29 and 0.8.2): declared outcomes, identities, and integrity

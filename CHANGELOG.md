@@ -102,6 +102,14 @@ schema. See `docs/validity-benchmark.md`. Writing it found and fixed:
   and lookup tables (tags, teams, warehouses, offices, cities, skills,
   languages) get names of their own kind.
 
+### Same data on every platform, and a fingerprint to prove it
+
+`misata.fingerprint(tables)` hashes generated tables in one canonical text
+form (independent of file format, dtype and pandas version) per table and
+for the whole dataset. `benchmarks/golden.py` records fingerprints for story,
+dict and DDL schemas, and a new CI job requires the same fingerprints on
+Linux, macOS and Windows, alongside the validity benchmark.
+
 ### Streaming from a schema, with roll-ups in bounded memory
 
 `misata.generate_stream` now takes a dict schema, a `SchemaConfig`, a schema
