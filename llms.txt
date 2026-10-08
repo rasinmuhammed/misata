@@ -9,6 +9,11 @@ Key facts for agents:
 - Name the use case with `preset` (demo, test, load, ml, eval) when the user says what the data is for.
 - Prefer a schema you design (`misata.yaml` or a dict passed to `misata.generate_from_schema`) over a one-sentence story when you know the tables.
 - Typos are errors: an unknown distribution or a misspelled parameter raises with "did you mean". Fix the key.
+- From SQL DDL, `misata.from_ddl(ddl)` honours NOT NULL, UNIQUE, composite keys, CHECK ranges, enums and `CHECK (a > b)`, and self-references; the validity benchmark counts zero violations on five schemas.
+- More rows than memory: `misata.generate_stream(schema_or_ddl_or_story)` yields `(table, batch)`; one-hop roll-ups still reconcile.
+- Reproducibility: `misata.fingerprint(tables)` hashes the data canonically; the same schema, seed and version give the same hash on any OS.
+- `mimic` fits to real rows and is not anonymous; do not call it privacy-safe.
+- Agent guide with entry points, checks and the claims the evidence supports: [AGENTS.md](https://raw.githubusercontent.com/rasinmuhammed/misata/main/AGENTS.md).
 - Logic the schema cannot express goes in a registered generator (`@misata.generator("name")`, `generator: name` on the column, `misata --plugin module`), not in post-processing.
 - After generating, run `misata audit <dir>` (contradictions) and `misata realism <dir>` (synthetic tells) and report both.
 - `misata seed <db-url>` fills a live Postgres/SQLite database in one transaction; never pass `--truncate` without the user's confirmation.

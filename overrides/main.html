@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "Misata",
+    "description": "Open-source Python library and MCP server that generates realistic, valid multi-table synthetic data from a schema, SQL DDL or a sentence, with no real data required.",
+    "codeRepository": "https://github.com/rasinmuhammed/misata",
+    "programmingLanguage": "Python",
+    "license": "https://opensource.org/licenses/MIT",
+    "softwareVersion": "0.9.7",
+    "applicationCategory": "DeveloperApplication",
+    "keywords": "synthetic data, test data, database seeding, relational data, foreign keys, SQL DDL, fixtures, MCP",
+    "url": "https://github.com/rasinmuhammed/misata",
+    "subjectOf": [
+      {"@type": "CreativeWork", "name": "Validity benchmark", "url": "https://github.com/rasinmuhammed/misata/blob/main/docs/validity-benchmark.md"},
+      {"@type": "CreativeWork", "name": "Realism benchmark", "url": "https://github.com/rasinmuhammed/misata/blob/main/docs/realism-benchmark.md"},
+      {"@type": "CreativeWork", "name": "Limitations", "url": "https://github.com/rasinmuhammed/misata/blob/main/LIMITATIONS.md"}
+    ]
+  }
+  </script>
+{% endblock %}

@@ -333,10 +333,47 @@ def faker_script(case: Case, seed: int) -> Dict[str, pd.DataFrame]:
     return out
 
 
+def sdv_hma(case: Case, seed: int) -> Dict[str, pd.DataFrame]:
+    """SDV's multi-table model (HMA), fitted the way it is used: on a valid
+    sample of the schema (here Misata's output under another seed, checked to
+    have zero violations), told the primary keys and foreign keys, and not
+    given the CHECK clauses, which SDV only enforces when each is re-declared
+    as an SDV constraint."""
+    from sdv.metadata import Metadata
+    from sdv.multi_table import HMASynthesizer
+
+    train = misata_from_ddl(case, seed + 1000)
+    assert sum(check(case, train).values()) == 0, "training sample must be valid"
+    md = Metadata()
+    by = {t.name: t for t in case.tables}
+    for name, df in train.items():
+        md.detect_table_from_dataframe(name, df)
+        t = by.get(name)
+        if t is not None and len(t.pk) == 1:
+            md.update_column(table_name=name, column_name=t.pk[0], sdtype="id")
+            md.set_primary_key(table_name=name, column_name=t.pk[0])
+    for t in case.tables:
+        for col, ptab, pcol in t.fks:
+            if ptab == t.name:
+                continue  # HMA does not model self-references; the column stays a plain column
+            md.update_column(table_name=t.name, column_name=col, sdtype="id")
+            md.add_relationship(parent_table_name=ptab, child_table_name=t.name,
+                                parent_primary_key=pcol, child_foreign_key=col)
+    syn = HMASynthesizer(md, verbose=False)
+    syn.fit(train)
+    np.random.seed(seed)
+    return syn.sample(scale=1.0)
+
+
 CONTESTANTS: Dict[str, Callable[[Case, int], Dict[str, pd.DataFrame]]] = {
     "misata_from_ddl": misata_from_ddl,
     "faker_script": faker_script,
 }
+try:  # SDV is an optional baseline (Business Source License), never a dependency
+    import sdv  # noqa: F401
+    CONTESTANTS["sdv_hma"] = sdv_hma
+except ImportError:
+    pass
 
 
 def run(seed: int = 7) -> Dict:
@@ -346,7 +383,11 @@ def run(seed: int = 7) -> Dict:
             t0 = time.time()
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                tables = fn(case, seed)
+                try:
+                    tables = fn(case, seed)
+                except Exception as exc:  # a baseline that cannot run is reported, not hidden
+                    results.setdefault(case.name, {})[name] = {"error": f"{type(exc).__name__}: {exc}"[:200]}
+                    continue
             secs = time.time() - t0
             v = check(case, tables)
             rows = sum(len(df) for df in tables.values())
@@ -362,6 +403,9 @@ def to_markdown(results: Dict) -> str:
     lines = [head, "|" + "---|" * (len(keys) + 5)]
     for case, by in results.items():
         for name, r in by.items():
+            if "error" in r:
+                lines.append(f"| {case} | {name} | could not run: {r['error']} |" + " |" * (len(keys) + 2))
+                continue
             lines.append(f"| {case} | {name} | {r['rows']:,} | "
                          + " | ".join(f"{r['violations'][k]:,}" for k in keys)
                          + f" | **{r['total']:,}** | {r['seconds']} |")
