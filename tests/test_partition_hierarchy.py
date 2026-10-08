@@ -94,6 +94,21 @@ class TestPartitionIsolation:
         per_tenant = tables["tasks"].groupby("tenant_id")["project_id"].nunique()
         assert (per_tenant > 1).all()
 
+    def test_every_partition_gets_a_parent(self):
+        """Popularity-weighted keys can leave a tenant with no project, which
+        strands its tasks; a key that partitions a relationship below it covers
+        every partition. 12 tenants over 14 projects is where it bites."""
+        cfg = _tenanted(tables=[Table(name="tenants", row_count=12),
+                                Table(name="projects", row_count=14),
+                                Table(name="tasks", row_count=900)])
+        cfg.columns["tenants"][0].distribution_params["max"] = 12
+        cfg.columns["projects"][0].distribution_params["max"] = 14
+        for seed in range(5):
+            cfg.seed = seed
+            tables = misata.generate_from_schema(cfg)
+            assert tables["projects"]["tenant_id"].nunique() == 12
+            assert _leaks(tables) == 0
+
     def test_min_children_does_not_leak(self):
         cfg = _tenanted()
         cfg.relationships[2].min_children = 1

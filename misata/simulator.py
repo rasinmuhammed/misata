@@ -1253,6 +1253,16 @@ class DataSimulator:
         from inside its own partition.
         """
         min_children = int(getattr(relationship, "min_children", 0) or 0)
+        if min_children <= 0 and self._partitions_downstream(relationship):
+            # This key partitions a relationship below it (orgs.tenant_id
+            # partitions users -> orgs), so a tenant with no org strands its
+            # users outside any org of their own. Popularity weighting makes
+            # that likely; cover every partition when there are rows enough.
+            table = self.config.get_table(relationship.child_table)
+            planned = (self._planned_row_count(relationship.child_table, table.row_count)
+                       if table is not None else len(values))
+            if planned >= len(parent_ids):
+                min_children = 1
         if min_children <= 0 or len(values) == 0 or len(parent_ids) == 0:
             return values
 
@@ -1327,6 +1337,15 @@ class DataSimulator:
                     "starving other parents."
                 )
         return values
+
+    def _partitions_downstream(self, relationship: Any) -> bool:
+        """True when this relationship's child key is a ``partition_by``
+        column of a relationship whose parent is this child table."""
+        for rel in self.config.relationships:
+            if (rel.parent_table == relationship.child_table
+                    and relationship.child_key in (getattr(rel, "partition_by", None) or [])):
+                return True
+        return False
 
     def _generate_self_referential_fk(
         self,
