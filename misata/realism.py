@@ -191,6 +191,50 @@ _TABLE_TOPIC_SEMANTIC = {
     "industry": "industry", "industries": "industry",
     "payment_method": "payment_method", "payment_methods": "payment_method",
     "event_type": "event_type", "event_types": "event_type",
+    "tag": "tag_label", "tags": "tag_label", "label": "tag_label", "labels": "tag_label",
+    "team": "team_name", "teams": "team_name", "squad": "team_name", "squads": "team_name",
+    "project": "project_name", "projects": "project_name",
+    "warehouse": "warehouse_name", "warehouses": "warehouse_name", "depot": "warehouse_name",
+    "depots": "warehouse_name", "fulfillment_center": "warehouse_name", "fulfillment_centers": "warehouse_name",
+    "category": "product_category", "categories": "product_category",
+    "product_category": "product_category", "product_categories": "product_category",
+    "city": "city", "cities": "city", "country": "country", "countries": "country",
+    "office": "office_name", "offices": "office_name", "branch": "office_name", "branches": "office_name",
+    "location": "office_name", "locations": "office_name", "site": "office_name", "sites": "office_name",
+    "skill": "skill", "skills": "skill", "language": "language_name", "languages": "language_name",
+    "genre": "genre", "genres": "genre",
+}
+
+_UNIT_NUMBER_COLUMNS = ("room_number", "room_no", "flat_number", "unit_number", "apartment_number",
+                        "suite_number", "seat_number", "table_number", "gate_number", "desk_number",
+                        "locker_number", "bed_number", "pitch_number", "berth_number", "bay_number")
+
+_LOOKUP_VOCAB = {
+    "tag_label": ["bestseller", "new-arrival", "sale", "eco", "limited-edition", "gift-idea", "vegan", "organic",
+                  "handmade", "back-in-stock", "clearance", "premium", "bundle", "staff-pick", "trending", "seasonal",
+                  "travel", "kids", "outdoor", "home-office", "kitchen", "fitness", "beauty", "pets", "garden",
+                  "summer", "winter", "christmas", "black-friday", "recycled", "local", "fair-trade", "gluten-free",
+                  "wireless", "waterproof", "lightweight", "compact", "refurbished", "exclusive", "pre-order",
+                  "low-stock", "best-value", "plastic-free", "made-in-uk", "made-in-eu", "accessible", "beginner",
+                  "pro", "smart-home", "vintage", "minimalist", "family", "student", "wedding", "baby", "unisex",
+                  "plus-size", "petite", "luxury", "budget", "essentials", "starter-kit", "subscription"],
+    "project_name": ["Website relaunch", "Q3 pricing review", "Mobile app v2", "Warehouse move", "SOC 2 audit",
+                     "CRM migration", "Data warehouse", "Spring campaign", "Office refit", "Checkout redesign",
+                     "Partner portal", "Onboarding revamp", "Cost reduction", "EU expansion", "Brand refresh",
+                     "Self-serve billing", "Support chatbot", "Inventory sync", "Annual report", "Hiring plan 2026",
+                     "Loyalty programme", "Accessibility review", "API v3", "Payroll switch", "Retention study"],
+    "warehouse_name": ["{city} DC", "{city} Fulfilment Centre", "{city} North Depot", "{city} Cross-Dock",
+                       "{city} Returns Hub", "{city} Cold Store", "{city} Park Warehouse", "{city} Logistics Hub"],
+    "office_name": ["{city} HQ", "{city} Office", "{city} Studio", "{city} Hub", "{city} Branch", "{city} City Centre",
+                    "{city} Tech Park", "{city} Riverside"],
+    "skill": ["Python", "SQL", "Negotiation", "Public speaking", "Project management", "Excel", "Figma", "Copywriting",
+              "Forklift licence", "First aid", "Spanish", "Machine learning", "Customer service", "Bookkeeping",
+              "Welding", "Photography", "Java", "Kubernetes", "Data analysis", "Leadership", "Sales", "Coaching",
+              "Accounting", "UX research", "Video editing", "React", "Contract law", "Payroll", "Scheduling"],
+    "language_name": ["English", "Spanish", "French", "German", "Portuguese", "Italian", "Dutch", "Polish", "Turkish",
+                      "Arabic", "Hindi", "Bengali", "Mandarin", "Cantonese", "Japanese", "Korean", "Vietnamese",
+                      "Thai", "Indonesian", "Swahili", "Yoruba", "Russian", "Ukrainian", "Greek", "Swedish",
+                      "Norwegian", "Danish", "Finnish", "Hebrew", "Tamil", "Urdu", "Persian", "Malay", "Tagalog"],
 }
 
 
@@ -600,6 +644,24 @@ class RealisticTextGenerator:
                     return self.rng.choice(pool, size=size, replace=False)
                 return self.rng.choice(pool, size=size)
             return self._labels("department", _DEPARTMENT_LABELS, size)
+        if semantic in _LOOKUP_VOCAB:
+            pool = _LOOKUP_VOCAB[semantic]
+            if any("{city}" in v for v in pool):
+                from misata.vocab_seeds import CITIES_BY_COUNTRY
+                cities = [c for cs in CITIES_BY_COUNTRY.values() for c in cs]
+                pool = sorted({v.replace("{city}", c) for v in pool for c in cities[:400]})
+            return self._labels(semantic, pool, size)
+        if semantic == "unit_number":
+            # room 214, flat 3B, seat 14C: a floor or row, then a position
+            n = str(column_name).lower()
+            floors = self.rng.integers(1, 9, size)
+            pos = self.rng.integers(1, 40, size)
+            if "seat" in n or "bed" in n or "berth" in n:
+                letters = np.array(list("ABCDEF"))
+                return np.array([f"{p}{letters[f % 6]}" for f, p in zip(floors, pos)])
+            if "flat" in n or "apartment" in n or "suite" in n or "unit" in n:
+                return np.array([f"{f}{'ABCD'[p % 4]}" if p % 3 == 0 else f"{f}{p:02d}" for f, p in zip(floors, pos)])
+            return np.array([f"{f}{p:02d}" for f, p in zip(floors, pos)])
         if semantic == "region":
             return self._labels("region", _REGION_LABELS, size)
         if semantic == "currency":
@@ -1080,6 +1142,14 @@ class RealisticTextGenerator:
             return "first_name"
         if name == "last_name":
             return "last_name"
+        # A lookup table's own label column: tags.label, teams.name,
+        # warehouses.name. The table says what the label is.
+        if name in ("name", "label", "tag", "title") and name != "title" or (
+                name == "title" and table in ("tags", "labels", "categories")):
+            _own = _table_topic_semantic(table)
+            if _own in _LOOKUP_VOCAB or _own in ("region", "department", "city", "country", "genre",
+                                                 "team_name", "product_category"):
+                return _own
         if "email" in name:
             return "email"
         if "company" in name or "organization" in name:
@@ -1194,6 +1264,8 @@ class RealisticTextGenerator:
         # Only the explicit set and unambiguous suffixes. A broad "_code" match
         # would hijack columns with real vocabularies (mcc_code, currency_code,
         # country_code) that are handled elsewhere.
+        if name in _UNIT_NUMBER_COLUMNS:
+            return "unit_number"
         if name in _code_exact or name.endswith(("_tracking_number",
                                                  "_reference_number")):
             return "reference_code"

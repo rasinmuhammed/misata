@@ -11,7 +11,7 @@ import re
 import warnings
 from typing import Dict, List, Optional, Tuple
 
-from misata.schema import Column, Relationship, SchemaConfig, Table
+from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
 
 
 def _parent_key_for(parent: str, columns_map: Dict[str, List[Column]], fallback: str) -> str:
@@ -152,6 +152,37 @@ def _parse_check(body: str) -> Dict[str, Dict]:
             put(col, "min" if op in (">=", ">") else "max", v)
             put(col, "_strict_" + ("min" if op in (">=", ">") else "max"), op in (">", "<"))
     return found
+
+
+_PAIR = re.compile(r"^\s*\"?([A-Za-z_]\w*)\"?\s*(>=|>|<=|<)\s*\"?([A-Za-z_]\w*)\"?\s*$")
+
+
+def _column_pairs(body: str) -> List[Tuple[str, str, str]]:
+    """``a > b`` comparisons between two columns, joined by AND."""
+    if re.search(r"\bOR\b", body, re.I):
+        return []
+    out = []
+    for part in re.split(r"\bAND\b", body, flags=re.I):
+        m = _PAIR.match(part)
+        if m and m.group(1).upper() not in ("NULL", "TRUE", "FALSE") and m.group(3).upper() not in ("NULL", "TRUE", "FALSE"):
+            out.append((m.group(1), m.group(2), m.group(3)))
+    return out
+
+
+def _pair_duration(late: str, early: str) -> Tuple[int, int]:
+    """Days between two dates a CHECK orders, from what the pair is called."""
+    n = (late + " " + early).lower()
+    if any(k in n for k in ("check_out", "checkout", "departure", "depart", "nights")):
+        return 1, 14
+    if any(k in n for k in ("ship", "deliver", "dispatch", "arriv")):
+        return 1, 10
+    if any(k in n for k in ("resolv", "closed", "complet", "respond", "answered")):
+        return 0, 30
+    if any(k in n for k in ("expir", "valid_to", "until", "renew", "end", "terminat", "cancel")):
+        return 30, 730
+    if any(k in n for k in ("due", "paid", "settle")):
+        return 7, 60
+    return 1, 365
 
 
 def _apply_check(col: Column, rule: Dict) -> Column:
@@ -351,16 +382,20 @@ def from_ddl(
         unique_cols: set = set()
         checks: Dict[str, Dict] = {}
         unparsed_checks = 0
+        pair_checks: List[Tuple[str, str, str]] = []
+        unique_sets: List[List[str]] = []
 
         for line in _split_column_defs(body):
             # CHECK constraints, inline or table-level: fold what generation
             # can honour into the column, count the rest.
             for chk in _check_bodies(line):
                 parsed = _parse_check(chk)
+                pairs = _column_pairs(chk)
+                pair_checks.extend(pairs)
                 if parsed:
                     for cname, rule in parsed.items():
                         checks.setdefault(cname, {}).update(rule)
-                else:
+                elif not pairs:
                     unparsed_checks += 1
             table_unique = re.match(
                 r"^\s*(?:CONSTRAINT\s+\"?\w+\"?\s+)?UNIQUE\s*\(([^)]*)\)", line, re.I)
@@ -368,6 +403,8 @@ def from_ddl(
                 ucols = [c.strip().strip('"') for c in table_unique.group(1).split(",")]
                 if len(ucols) == 1:
                     unique_cols.add(ucols[0])
+                elif ucols:
+                    unique_sets.append(ucols)
 
             # Standalone FOREIGN KEY constraint
             fk_match = fk_constraint.search(line)
@@ -496,7 +533,41 @@ def from_ddl(
                 new_cols.append(col)
         cols = new_cols
 
-        tables.append(Table(name=table_name, row_count=default_rows))
+        # A later date checked against an earlier one (check_out > check_in)
+        # is drawn as the earlier date plus a duration that fits the pair,
+        # not as an unrelated date repaired afterwards.
+        by_name = {c.name: c for c in cols}
+        for a_col, op, b_col in pair_checks:
+            late, early = (a_col, b_col) if ">" in op else (b_col, a_col)
+            lc, ec = by_name.get(late), by_name.get(early)
+            if lc is not None and ec is not None and lc.type == "date" and ec.type in ("date", "datetime"):
+                lo_days, hi_days = _pair_duration(late, early)
+                params = dict(lc.distribution_params or {})
+                params.update(after_column=early, max_delta_days=hi_days,
+                              min_delta_days=max(lo_days, 1 if op in (">", "<") else 0))
+                if hi_days <= 30:
+                    params["delta_shape"] = "skewed"
+                by_name[late] = Column(name=lc.name, type=lc.type, nullable=lc.nullable,
+                                       unique=lc.unique, distribution_params=params)
+        cols = [by_name[c.name] for c in cols]
+
+        # Rules across columns: CHECK (a > b) and composite keys.
+        col_names = {c.name for c in cols}
+        table_constraints: List[Constraint] = []
+        for a, op, b in pair_checks:
+            if a in col_names and b in col_names:
+                table_constraints.append(Constraint(
+                    name=f"{table_name}_{a}_{'gt' if '>' in op else 'lt'}_{b}", type="inequality",
+                    column_a=a, operator=op, column_b=b, action="cap"))
+        if len(pk_cols) > 1:
+            unique_sets.append(sorted(pk_cols, key=[c.name for c in cols].index)
+                               if all(c in col_names for c in pk_cols) else sorted(pk_cols))
+        for us in unique_sets:
+            if all(c in col_names for c in us):
+                table_constraints.append(Constraint(
+                    name=f"{table_name}_unique_{'_'.join(us)}", type="unique_combination",
+                    group_by=list(us), action="drop"))
+        tables.append(Table(name=table_name, row_count=default_rows, constraints=table_constraints))
         columns_map[table_name] = cols
 
         for child_col, parent_table, parent_col in fk_specs:
@@ -546,7 +617,7 @@ def from_ddl(
         resolved.append(rel)
     relationships = resolved
 
-    valid_rels = [r for r in relationships if r.parent_table in known and r.parent_table != r.child_table]
+    valid_rels = [r for r in relationships if r.parent_table in known]
     dropped = len(relationships) - len(valid_rels)
     if dropped:
         warnings.warn(

@@ -73,6 +73,35 @@ and integrity hold as before. Pin `misata==0.9.6.60` to keep old bytes.
 - `poisson` and `binomial` on a float column raise (they were uniform).
 
 
+### Validity benchmark: generated data obeys its own DDL
+
+`benchmarks/validity_bench.py` generates five SQL schemas straight from DDL
+(CHECK enums, ranges and column-to-column rules, composite keys, a
+self-referencing hierarchy, a six-level FK chain) and counts violations with
+a pandas checker that shares no code with Misata. Misata 0.9.7 has zero on
+all five; the Faker script people write instead has 15,000 to 50,000 per
+schema. See `docs/validity-benchmark.md`. Writing it found and fixed:
+
+- `from_ddl` dropped self-referencing foreign keys (`manager_id REFERENCES
+  employees(id)`), so the column was random integers full of cycles. It now
+  keeps them and the hierarchy is generated as a forest.
+- Table-level `CHECK (a > b)` between two columns becomes an inequality
+  constraint; composite `PRIMARY KEY (a, b)` and `UNIQUE (a, b)` become
+  unique-combination constraints. Both now hold over the whole table, not per
+  batch, and survive foreign-key fan-out.
+- A sequence column inside a composite key (`line_no`) is numbered within its
+  group instead of dropping rows; a junction table of two foreign keys drops
+  repeated pairs.
+- Inequality repair moves a violating value by a gap drawn from the rows that
+  already satisfy the rule, inside the column's own range, instead of setting
+  it equal to the other column (which broke strict `>` and stacked rows at a
+  zero gap).
+- UNIQUE text columns skipped semantic generation: a UNIQUE `sku` was filled
+  with sentences, `regions.name` with people's names and `rooms.room_number`
+  with truncated prose. They now get codes, region names and room numbers,
+  and lookup tables (tags, teams, warehouses, offices, cities, skills,
+  languages) get names of their own kind.
+
 ### Claims Misata no longer makes
 
 - `mimic` twins are no longer called "privacy-safe". A twin is fitted to real

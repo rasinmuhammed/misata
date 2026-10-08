@@ -147,6 +147,13 @@ column of noise.
   schema, honours CHECK, UNIQUE and column widths, and inserts everything in
   one transaction.
 
+**Does it obey the schema?** On five SQL schemas with CHECK rules,
+composite keys, a self-referencing hierarchy and a six-level foreign-key
+chain, Misata generated from the DDL alone has zero violations; the Faker
+script people write instead has 15,000 to 50,000 per schema, counted by a
+checker that shares no code with Misata
+([validity benchmark](https://github.com/rasinmuhammed/misata/blob/main/docs/validity-benchmark.md)).
+
 **How realistic is it?** We test blind generation against held-out real data
 ([benchmark](https://github.com/rasinmuhammed/misata/blob/main/docs/realism-benchmark.md)).
 On Olist's real marketplace orders, a names-and-types schema with no access to

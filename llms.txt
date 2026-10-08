@@ -58,6 +58,7 @@ and `query_sandbox` (an isolated SQLite database to test SQL against),
 ## Optional
 
 - [Realism benchmark](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/realism-benchmark.md): blind generation against held-out real data
+- [Validity benchmark](https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/validity-benchmark.md): zero violations of CHECK, UNIQUE, composite and foreign keys on five DDL schemas, against the Faker script people write
 - [Stability policy](https://raw.githubusercontent.com/rasinmuhammed/misata/main/STABILITY.md): versioning and output-stability contract
 - [Changelog](https://raw.githubusercontent.com/rasinmuhammed/misata/main/CHANGELOG.md)
 - [Agent Skill](https://raw.githubusercontent.com/rasinmuhammed/misata/main/skills/misata/SKILL.md): instructions for coding agents

@@ -112,6 +112,7 @@ nav:
   - Validate: validate.md
   - Realism Report: realism.md
   - Realism Benchmark: realism-benchmark.md
+  - Validity Benchmark: validity-benchmark.md
   - When Misata Refuses: failure-modes.md
   - CLI Reference: cli.md
   - Guides:
