@@ -338,7 +338,12 @@ def _detect_auc(real: pd.DataFrame, syn: pd.DataFrame, seed: int) -> Optional[fl
         t = pd.to_datetime(ev["ts"], errors="coerce")
         amt = pd.to_numeric(ev["amount"], errors="coerce")
         out = pd.DataFrame({
-            "log_rel_amount": np.log(amt.clip(lower=1e-9) / amt[amt > 0].median()),
+            # Scale-free, and on a 10% log grid: amounts are often discrete
+            # (fares like 14.16), and dividing by each sample's own median
+            # shifts every value by a tiny constant when two medians differ by
+            # a cent. Unrounded, that shift alone let the classifier tell two
+            # halves of the same real data apart (AUC 0.89 on some seeds).
+            "log_rel_amount": np.round(np.log(amt.clip(lower=1e-9) / amt[amt > 0].median()), 1),
             "hour": t.dt.hour + t.dt.minute / 60.0,
             "weekday": t.dt.dayofweek,
         })
