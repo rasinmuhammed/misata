@@ -21,6 +21,7 @@ def loyalty_tier(ctx):
 
 Name it on the column, the same way from Python, YAML or a dict schema:
 
+<!-- stranger: skip (needs the loyalty_tier generator registered above) -->
 ```yaml
 tables:
   customers:
@@ -38,6 +39,7 @@ tables:
 
 From the CLI, load the module that registers it:
 
+<!-- stranger: skip (needs your own my_generators module) -->
 ```bash
 misata --plugin my_generators generate --config misata.yaml
 # or: MISATA_PLUGINS="my_generators other_module" misata generate ...

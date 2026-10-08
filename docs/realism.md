@@ -17,6 +17,7 @@ report.passed   # False if any check failed outright
 report.score    # 0.0 - 1.0: pass = 1, warn = 0.5, fail = 0
 ```
 
+<!-- stranger: skip (needs a directory of generated files) -->
 ```bash
 misata realism ./seed_data/                 # exit 1 on any failure
 misata realism ./seed_data/ --strict        # exit 1 on warnings too
