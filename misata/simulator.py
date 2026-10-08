@@ -6381,7 +6381,7 @@ class DataSimulator:
 
         return df
 
-    def generate_all(self):
+    def generate_all(self, bounded_memory: bool = False):
         """
         Generate all tables in dependency order, then cascade story events
         through the relational graph.
@@ -6448,7 +6448,13 @@ class DataSimulator:
                     continue
                 _kept.append(_s)
             rollup_specs = _kept
-        rollup_tables: set = set()
+        # Bounded memory: a one-hop roll-up is built from per-batch partials
+        # while its child table streams, so only the parent is held.
+        from misata.rollups import RollupAccumulator, is_streamable
+        _stream_specs = [s for s in rollup_specs if bounded_memory and is_streamable(s)]
+        rollup_acc = RollupAccumulator(_stream_specs) if _stream_specs else None
+        rollup_specs = [s for s in rollup_specs if s not in _stream_specs]
+        rollup_tables: set = {s.parent_table for s in _stream_specs}
         for s in rollup_specs:
             rollup_tables.add(s.parent_table)
             rollup_tables.add(s.from_table)
@@ -6612,6 +6618,8 @@ class DataSimulator:
             else:
                 # Stream immediately — no post-pass involvement
                 for batch in self.generate_batches(table_name):
+                    if rollup_acc is not None:
+                        rollup_acc.update(table_name, batch)
                     yield table_name, batch
                 streamed.append(table_name)
 
@@ -6689,6 +6697,16 @@ class DataSimulator:
         # 2. then the clamps (payments rescaled to never exceed that total),
         # 3. then the remaining roll-ups, so an aggregate of clamped values
         #    (customers.lifetime_value from payments) sums the final numbers.
+        if rollup_acc is not None:
+            try:
+                # a child buffered for another reason never streamed past the
+                # accumulator; it is complete now, so feed it in whole
+                for _child in rollup_acc.tables():
+                    if _child in buffered:
+                        rollup_acc.update(_child, buffered[_child])
+                rollup_acc.apply(buffered)
+            except Exception:
+                pass  # a roll-up failure must never corrupt an otherwise-valid run
         if rollup_specs or xt_constraints:
             try:
                 if xt_constraints:

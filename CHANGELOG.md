@@ -102,6 +102,15 @@ schema. See `docs/validity-benchmark.md`. Writing it found and fixed:
   and lookup tables (tags, teams, warehouses, offices, cities, skills,
   languages) get names of their own kind.
 
+### Streaming from a schema, with roll-ups in bounded memory
+
+`misata.generate_stream` now takes a dict schema, a `SchemaConfig`, a schema
+file or SQL DDL as well as a story. Roll-ups over one foreign-key hop are
+built from per-batch partials (count, sum, min, max, mean) while the child
+table streams, so the child is never held: 3M orders stream with a 66 MB
+peak and `customers.order_count` and `total_spent` still equal the sums over
+the streamed rows exactly.
+
 ### Claims Misata no longer makes
 
 - `mimic` twins are no longer called "privacy-safe". A twin is fitted to real

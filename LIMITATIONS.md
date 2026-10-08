@@ -126,13 +126,15 @@ bug worth reporting.
 
 ## Scale and memory
 
-- **Tables involved in roll-ups or cascade events are fully buffered in
-  memory.** An order/order-items pair with a rolled-up total must fit in RAM
-  together. Non-participating tables stream batch by batch. Measured envelope
-  on one laptop: a 10M-row fact table builds in about 41 s and 550 MB on disk;
-  beyond that, plan memory around the buffered pairs, not the total row count.
-- **`generate_stream` currently takes a story, not a schema.** Streaming a
-  hand-built schema means driving `DataSimulator.generate_all()` directly.
+- **Whole-table passes still buffer their tables.** `generate_stream` takes
+  a story, a dict schema, a `SchemaConfig`, a schema file or DDL. A one-hop
+  roll-up (`customers.order_count`, `orders.total` from line items) is
+  accumulated per parent while the child streams, so only the parent is held:
+  3M orders stream with a 66 MB peak, which grows with the stored key pool
+  (about 16 bytes per row), not with row width. Multi-hop roll-ups, cascades,
+  group shares, lifecycles, composite keys and cross-table clamps still hold
+  their tables in memory, and buffered parents arrive after their children's
+  batches. `generate_from_schema` builds everything in memory as before.
 
 ## Reproducibility and interfaces (anchored mode)
 
