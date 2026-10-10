@@ -1830,6 +1830,10 @@ class StoryParser:
         num_customers = self.scale_params.get("users", default_rows)
         num_products = max(50, num_customers // 5)
         num_orders = self.scale_params.get("orders", int(num_customers * 3))
+        # A story that names line items gets an order_items table: each order holds
+        # several products, priced from the product, and the order total is their sum.
+        with_items = bool(re.search(r"order[ _-]?items?|line[ _-]?items?|order lines?|basket items?|cart items?", story.lower()))
+        num_items = self.scale_params.get("order_items", int(num_orders * 2.5))
 
         tables = [
             Table(name="customers", row_count=num_customers),
@@ -1845,7 +1849,7 @@ class StoryParser:
                 Column(name="signup_date", type="date", distribution_params={"start": "2022-01-01", "end": "2024-12-31"}),
                 Column(name="country", type="categorical", distribution_params={
                     "choices": ["United States", "United Kingdom", "Canada", "Germany",
-                                "France", "Australia", "India", "Brazil", "Netherlands",
+                                "France", "Australia", "Ireland", "Brazil", "Netherlands",
                                 "Sweden", "Spain", "Japan", "Singapore", "Mexico", "Italy"],
                     "probabilities": [0.32, 0.10, 0.07, 0.07, 0.06, 0.05, 0.07,
                                       0.04, 0.03, 0.03, 0.03, 0.04, 0.03, 0.03, 0.03],
@@ -1900,6 +1904,33 @@ class StoryParser:
             time_column="order_date",
             avg_transaction_value=75.0,
         )
+
+        if with_items:
+            tables.append(Table(name="order_items", row_count=num_items))
+            columns["orders"] = [c for c in columns["orders"] if c.name not in ("product_id", "quantity")]
+            if outcome_curve is None:  # a requested revenue curve keeps the amount; otherwise the order sums its lines
+                columns["orders"] = [
+                    Column(name="amount", type="float", distribution_params={
+                        "rollup": {"from_table": "order_items", "fk": "order_id", "agg": "sum", "column": "line_total"}})
+                    if c.name == "amount" else c for c in columns["orders"]
+                ]
+            columns["order_items"] = [
+                Column(name="order_item_id", type="int", unique=True, distribution_params={"min": 1, "max": num_items + 1}),
+                # Baskets vary but stay basket-sized: the default product-like
+                # skew (sigma 1.1) put 80 lines on one order of 6,000.
+                Column(name="order_id",   type="foreign_key", distribution_params={"popularity_sigma": 0.4}),
+                Column(name="product_id", type="foreign_key"),
+                Column(name="quantity", type="int", distribution_params={
+                    "distribution": "lognormal", "mu": 0.2, "sigma": 0.5, "min": 1, "max": 10, "decimals": 0,
+                }),
+                Column(name="unit_price", type="float", distribution_params={"formula": "@products.price"}),
+                Column(name="line_total", type="float", distribution_params={"formula": "quantity * unit_price"}),
+            ]
+            relationships = [
+                Relationship(parent_table="customers", child_table="orders",      parent_key="customer_id", child_key="customer_id"),
+                Relationship(parent_table="orders",    child_table="order_items", parent_key="order_id",    child_key="order_id", min_children=1),
+                Relationship(parent_table="products",  child_table="order_items", parent_key="product_id",  child_key="product_id"),
+            ]
 
         return SchemaConfig(
             name="E-commerce Dataset",

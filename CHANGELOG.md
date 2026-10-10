@@ -5,6 +5,26 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and versions follow [STABILITY.md](STABILITY.md): batched releases with Output changes and Breaking notes now, [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.
 
+## [0.9.7.1] - 2026-10-10
+
+- E-commerce stories that name line items ("order items", "line items",
+  "basket items") get an `order_items` table: each order holds one or more
+  products, `unit_price` comes from the product, and the order amount is the
+  sum of its lines (unless a revenue curve was asked for). Lines per order
+  use a mild skew (`popularity_sigma` 0.4), so orders stay basket-sized.
+- `min_children` across batches: each batch covers its share of the parents
+  plus any an earlier batch missed, instead of all uncovered parents at once.
+- A child of a parent whose key is not named `id` (`orders.order_id`) now
+  draws from every parent row, not only the first 50,000 kept in context.
+- `benchmarks/bench_r3_volume.py`: one million rows across fourteen tables,
+  timed, with foreign keys checked.
+
+### Output changes
+
+- The e-commerce story's default countries list Ireland in place of India.
+- Large tables whose parent key is not `id` spread their foreign keys over
+  all parent rows, so their values differ from 0.9.7 for the same seed.
+
 ## [0.9.7] - 2026-10-03
 
 The realism and trust release. Misata now measures its own realism (a

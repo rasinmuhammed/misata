@@ -279,6 +279,7 @@ class DataSimulator:
         self.config = config
         self.context: Dict[str, pd.DataFrame] = {}  # Lightweight context (IDs only)
         self._pk_store: Dict[str, np.ndarray] = {}  # Full PK arrays for FK sampling
+        self._key_store: Dict[Tuple[str, str], np.ndarray] = {}  # the same for parent keys not named "id"
         # (table, column) -> values already emitted for a unique text column,
         # so uniqueness holds across batches rather than within one.
         self._unique_text_seen: Dict[tuple, set] = {}
@@ -867,6 +868,10 @@ class DataSimulator:
             and relationship.parent_table in self._pk_store
         ):
             return self._pk_store[relationship.parent_table]
+        # The same for a key named anything else (orders.order_id): without it a
+        # child of a parent past MAX_CONTEXT_ROWS only ever drew the first rows.
+        if not relationship.filters and (relationship.parent_table, relationship.parent_key) in self._key_store:
+            return self._key_store[(relationship.parent_table, relationship.parent_key)]
 
         parent_df = self.context[relationship.parent_table]
         if relationship.parent_key not in parent_df.columns:
@@ -1275,7 +1280,7 @@ class DataSimulator:
         rel_key = (relationship.parent_table, relationship.parent_key,
                    relationship.child_table, relationship.child_key)
         state = self.__dict__.setdefault("_min_children_state", {})
-        seen, rows_so_far, warned = state.get(rel_key, (Counter(), 0, False))
+        seen, rows_so_far, warned, carried = state.get(rel_key, (Counter(), 0, False, []))
         counts = Counter(values.tolist())
         counts.update(seen)
         table = self.config.get_table(relationship.child_table)
@@ -1290,15 +1295,26 @@ class DataSimulator:
                 f"{planned} exist; covering as many parents as possible."
             )
             warned = True
+        # Each batch owes the parents in proportion to its share of the rows,
+        # plus any an earlier batch could not reach. Owing every uncovered
+        # parent at once stole whole batches until all were covered, then let
+        # the popular parents pile up unchecked (one order held 65 lines).
+        owed = parent_ids
+        if planned > len(values):
+            n = len(parent_ids)
+            lo = rows_so_far * n // planned
+            hi = n if last_batch else (rows_so_far + len(values)) * n // planned
+            owed = list(dict.fromkeys(list(carried) + list(parent_ids[lo:hi])))
         needed: list = []
-        for pid in parent_ids:
+        for pid in owed:
             short = min_children - counts.get(pid, 0)
             if short > 0:
                 needed.extend([pid] * short)
         if not needed:
             seen.update(values.tolist())
-            state[rel_key] = (seen, rows_so_far + len(values), warned)
+            state[rel_key] = (seen, rows_so_far + len(values), warned, [])
             return values
+        owed_all = needed
         needed = needed[: len(values)]
 
         # Steal positions from over-covered parents, never dropping one to
@@ -1326,7 +1342,7 @@ class DataSimulator:
             counts[needed[ni]] = counts.get(needed[ni], 0) + 1
             ni += 1
         seen.update(values.tolist())
-        state[rel_key] = (seen, rows_so_far + len(values), warned)
+        state[rel_key] = (seen, rows_so_far + len(values), warned, list(dict.fromkeys(owed_all[ni:])))
         if last_batch and not warned:
             remaining = sum(1 for pid in parent_ids if seen.get(pid, 0) < min_children)
             if remaining:
@@ -3584,6 +3600,12 @@ class DataSimulator:
                 )
             else:
                 self._pk_store[table_name] = pk_vals
+        for key in {r.parent_key for r in self.config.relationships
+                    if r.parent_table == table_name and r.parent_key != "id" and not r.filters}:
+            if key in df.columns:
+                vals = df[key].dropna().values
+                kept = self._key_store.get((table_name, key))
+                self._key_store[(table_name, key)] = vals if kept is None else np.concatenate([kept, vals])
 
         ctx_df = df[cols_to_store].copy()
         # Parents of a custom generator keep every row: ctx.parent() must find

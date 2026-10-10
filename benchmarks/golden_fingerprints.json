@@ -1,5 +1,5 @@
 {
-  "misata": "0.9.7",
+  "misata": "0.9.7.1",
   "cases": {
     "dict_ecommerce_seed1": {
       "customers": "23f9e219e64189d4",
@@ -27,10 +27,10 @@
       "__all__": "e1f53010e5145920"
     },
     "story_shop_seed4": {
-      "customers": "fbfb8c59a631f99b",
+      "customers": "055f133c0b724485",
       "orders": "ca8deef36d1a0630",
       "products": "9096e3e47d100277",
-      "__all__": "74861c2ccdddc420"
+      "__all__": "24bc934f97f24e87"
     }
   }
 }

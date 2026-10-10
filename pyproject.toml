@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.9.7"
+version = "0.9.7.1"
 description = "Outcome-conformant synthetic data & Instant Sandbox Oracle for AI coding agents (Cursor, Claude Code, Windsurf). Realistic multi-table database seeder with 0 orphan FKs, $0 LLM cost, 2s runtime. MCP server included."
 authors = [
     {name = "Muhammed Rasin", email = "rasin@misata.studio"}
