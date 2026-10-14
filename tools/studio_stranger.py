@@ -198,10 +198,11 @@ def build_probes() -> List[Probe]:
 # Runners
 # --------------------------------------------------------------------------- #
 
-# The Studio serves two generate endpoints, with two different handlers behind
-# them. The browser calls the first; this harness used to probe only the second,
-# which meant it was checking a path the product does not use. Both now.
-REMOTE_PATHS = ("/engine/generate", "/api/v1/engine/generate")
+# The Studio served two generate endpoints, with two different handlers behind
+# them, and this harness probed both. The legacy v1 route was unmounted on
+# 14 Oct 2026 (it was anonymous and unbounded), so the one the browser calls is
+# the default; --path names others, for a deployment that still serves them.
+REMOTE_PATHS = ("/engine/generate",)
 
 
 def _from_sse(raw: str) -> Dict[str, Any]:
@@ -285,6 +286,8 @@ def run_local(probe: Probe) -> Dict[str, Any]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--api", default=DEFAULT_API)
+    ap.add_argument("--path", action="append", dest="paths",
+                    help="a generate endpoint to probe (repeatable); default: " + ", ".join(REMOTE_PATHS))
     ap.add_argument("--local", action="store_true",
                     help="run in-process instead of against a server")
     args = ap.parse_args()
@@ -292,8 +295,8 @@ def main() -> int:
     probes = build_probes()
     # Remotely, every probe runs against both generate endpoints, because the
     # browser uses one and this harness used to check only the other.
-    paths = [None] if args.local else list(REMOTE_PATHS)
-    where = "in-process" if args.local else f"{args.api} ({', '.join(REMOTE_PATHS)})"
+    paths = [None] if args.local else list(args.paths or REMOTE_PATHS)
+    where = "in-process" if args.local else f"{args.api} ({', '.join(paths)})"
     total = len(probes) * len(paths)
     print(f"{len(probes)} probes against {where}\n")
 
