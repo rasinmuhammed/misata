@@ -175,3 +175,4 @@ examples/bank_evalpack_out/
 !tests/test_microtext_capacity.py
 !tests/test_shares_respect_bounds.py
 !tests/test_gulf_names.py
+!tests/test_timeseries.py

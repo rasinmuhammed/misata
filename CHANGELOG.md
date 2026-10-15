@@ -5,6 +5,15 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and versions follow [STABILITY.md](STABILITY.md): batched releases with Output changes and Breaking notes now, [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.
 
+## [0.9.7.2] - 2026-10-15
+
+- `TimeSeriesConfig(noise_ar=...)`: Gaussian noise can be a stationary AR(1)
+  process, so a deviation lingers for several periods instead of resetting
+  each one. `noise_std` stays the marginal std at any coefficient, and the
+  first period is already stationary. Valid range is [0, 1); poisson noise
+  refuses it. Stories that say "persistent", "sticky" or "autocorrelated"
+  noise get `noise_ar=0.9`. `generate_timeseries` takes it as a keyword.
+
 ## [0.9.7.1] - 2026-10-10
 
 - E-commerce stories that name line items ("order items", "line items",

@@ -29,6 +29,7 @@ Quick start::
             Seasonality(type="yearly",  amplitude=0.40, peak_offset=180),
         ],
         noise_std=0.05,
+        noise_ar=0.8,   # persistent noise: runs of highs and lows, not jitter
         anomalies=[Anomaly(at_period=170, magnitude=4.0, duration=3)],
     )
     ts = misata.generate_timeseries(config=cfg)
@@ -108,6 +109,10 @@ class TimeSeriesConfig:
         trend:       Trend configuration (or None for flat).
         seasonality: List of seasonal components to stack.
         noise_std:   Gaussian noise std as a fraction of the local value.
+        noise_ar:    AR(1) coefficient of the Gaussian noise, in [0, 1).
+                     0 draws independent noise; 0.9 makes each deviation
+                     carry 90% into the next period. The noise stays
+                     stationary, so ``noise_std`` is still its marginal std.
         noise_type:  "gaussian" or "poisson" (integer-count series).
         anomalies:   List of anomaly injections.
         min_value:   Floor the series at this value (useful for counts ≥ 0).
@@ -121,10 +126,41 @@ class TimeSeriesConfig:
     trend: Optional[Trend] = None
     seasonality: List[Seasonality] = field(default_factory=list)
     noise_std: float = 0.05
+    noise_ar: float = 0.0
     noise_type: Literal["gaussian", "poisson"] = "gaussian"
     anomalies: List[Anomaly] = field(default_factory=list)
     min_value: Optional[float] = 0.0
     seed: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
+        """Refuse noise settings that cannot be honoured."""
+        if not 0.0 <= self.noise_ar < 1.0:
+            raise ValueError(
+                f"noise_ar must be in [0, 1), got {self.noise_ar!r}; "
+                "1 or more is a random walk with no stationary std"
+            )
+        if self.noise_ar and self.noise_type == "poisson":
+            raise ValueError(
+                "noise_ar applies to gaussian noise only; poisson counts are "
+                "drawn independently per period"
+            )
+
+
+def _ar1_noise(rng: np.random.Generator, n: int, phi: float) -> np.ndarray:
+    """Stationary unit-variance AR(1): e_t = phi*e_{t-1} + sqrt(1-phi^2)*z_t.
+
+    The filter state starts at phi*e_{-1} with e_{-1} ~ N(0, 1), so e_0 is
+    already N(0, 1) and every period has the same marginal distribution.
+    One IIR pass: O(n) and exact at any phi < 1.
+    """
+    from scipy.signal import lfilter
+
+    w = rng.standard_normal(n + 1)
+    e, _ = lfilter([np.sqrt(1.0 - phi * phi)], [1.0, -phi], w[1:], zi=[phi * w[0]])
+    return e
 
 
 # ── Generator ─────────────────────────────────────────────────────────────────
@@ -133,6 +169,7 @@ class TimeSeriesGenerator:
     """Generates a time-series DataFrame from a TimeSeriesConfig."""
 
     def generate(self, config: TimeSeriesConfig) -> pd.DataFrame:
+        config.validate()  # fields may have been reassigned since __init__
         rng = np.random.default_rng(config.seed)
         n = config.periods
         t = np.arange(n, dtype=float)
@@ -187,6 +224,9 @@ class TimeSeriesGenerator:
         # ── Noise ─────────────────────────────────────────────────────────────
         if config.noise_type == "poisson":
             noisy = rng.poisson(np.maximum(base, 1e-9)).astype(float)
+        elif config.noise_ar:
+            noise = _ar1_noise(rng, n, config.noise_ar) * config.noise_std * base
+            noisy = base + noise
         else:
             noise = rng.normal(0, config.noise_std, n) * base
             noisy = base + noise
@@ -325,6 +365,9 @@ def _parse_timeseries_story(story: str) -> TimeSeriesConfig:
         at = int(periods * 0.7)
         anomalies.append(Anomaly(at_period=at, magnitude=0.1, duration=2, shape="flat"))
 
+    # Persistent noise: deviations that linger instead of resetting each period
+    noise_ar = 0.9 if re.search(r"persistent|sticky|autocorrelated", s) else 0.0
+
     return TimeSeriesConfig(
         metric=metric,
         periods=periods,
@@ -333,6 +376,7 @@ def _parse_timeseries_story(story: str) -> TimeSeriesConfig:
         trend=trend,
         seasonality=seasonality,
         noise_std=0.05,
+        noise_ar=noise_ar,
         anomalies=anomalies,
     )
 
@@ -351,6 +395,7 @@ def generate_timeseries(
     trend: Optional[Trend] = None,
     seasonality: Optional[List[Seasonality]] = None,
     noise_std: float = 0.05,
+    noise_ar: float = 0.0,
     anomalies: Optional[List[Anomaly]] = None,
     seed: Optional[int] = None,
 ) -> pd.DataFrame:
@@ -371,6 +416,7 @@ def generate_timeseries(
         trend:       ``Trend`` object (linear, exponential, stepwise).
         seasonality: List of ``Seasonality`` components to stack.
         noise_std:   Gaussian noise as a fraction of the local value.
+        noise_ar:    AR(1) coefficient of the noise, in [0, 1); 0 is independent.
         anomalies:   List of ``Anomaly`` events to inject.
         seed:        Random seed.
 
@@ -414,6 +460,8 @@ def generate_timeseries(
         cfg.seasonality = seasonality
     if noise_std != 0.05:
         cfg.noise_std = noise_std
+    if noise_ar != 0.0:
+        cfg.noise_ar = noise_ar
     if anomalies is not None:
         cfg.anomalies = anomalies
     if seed is not None:

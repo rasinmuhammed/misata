@@ -46,6 +46,7 @@ config = TimeSeriesConfig(
         Seasonality(type="yearly",  amplitude=0.40, peak_offset=355), # Dec peak
     ],
     noise_std=0.05,
+    noise_ar=0.0,                    # 0.9 for persistent noise (AR(1), same marginal std)
     noise_type="gaussian",           # "gaussian" or "poisson" (for count data)
     anomalies=[
         Anomaly(at_period=170, magnitude=4.0, duration=3, shape="spike"),  # viral moment
@@ -77,6 +78,7 @@ The story parser extracts:
 - **Trend**: "growing 15% monthly" → exponential rate=0.005; "declining" → negative rate
 - **Seasonality**: "weekly seasonality" → weekly component; "summer peak" → yearly component
 - **Anomalies**: "viral spike" → 4× magnitude spike; "outage" or "crash" → 0.1× drop
+- **Noise**: "persistent", "sticky" or "autocorrelated" → `noise_ar=0.9`
 
 ## Trend types
 

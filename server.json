@@ -17,12 +17,12 @@
       ]
     }
   ],
-  "version": "0.9.7.1",
+  "version": "0.9.7.2",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "misata",
-      "version": "0.9.7.1",
+      "version": "0.9.7.2",
       "transport": {
         "type": "stdio"
       },
