@@ -3382,15 +3382,16 @@ def publish_cmd(data_dir: str, repo_id: str, schema_path: Optional[str], license
 
 
 @main.command("provenance")
-@click.argument("data_dir", type=click.Path(exists=True), required=False)
+@click.argument("data_dir", type=click.Path(exists=True, file_okay=False), required=False)
 def provenance_cmd(data_dir: Optional[str]) -> None:
-    """Print the data-provenance statement, plus file hashes for a folder.
+    """Print the data-provenance statement, plus what a folder was made from.
 
-    Answers the questions procurement asks: no real data involved, no network
-    at generation time, deterministic bytes per (version, schema, seed),
-    LLM at design time only, license-clean vocabularies. With a directory,
-    adds a per-file sha256 and row-count manifest you can attach to a
-    data-sharing review.
+    Answers the questions procurement asks: what real data went in, network
+    use at generation time, determinism per (version, schema, seed), the LLM
+    boundary and where vocabularies come from. With a folder, adds the
+    inputs its attestation records (Misata version, schema hash, seed,
+    result), whether ``misata mimic`` fitted it to real rows, and a sha256
+    and row count per data file, ready to attach to a data-sharing review.
 
     Examples:
 
@@ -3398,51 +3399,86 @@ def provenance_cmd(data_dir: Optional[str]) -> None:
 
         misata provenance ./generated_data/
     """
-    import hashlib as _hashlib
-    from pathlib import Path as _Path
+    import hashlib
+    from misata.publish import FITTED_MARKER
 
+    statement = [
+        "Real data: generation from a schema reads no rows. The values come from "
+        "declarations, format templates and vocabulary pools, not from people. "
+        "The exception is misata mimic, which fits to the rows you give it and "
+        f"is not anonymous; a folder it wrote carries {FITTED_MARKER}.",
+        "Network: none at generation time. The library carries no telemetry.",
+        "Determinism: the same Misata version, schema, seed and mode give the "
+        "same bytes, asserted in the test suite.",
+        "LLM boundary: design time only, opt-in, with your key; it never sees "
+        "generated rows.",
+        "Vocabularies: curated MIT pools, and Wikidata capsules under CC0 with "
+        "the source QID recorded per value.",
+        "Full statement: DATA-PROVENANCE.md in the repository.",
+    ]
     console.print(f"[bold]Misata {__version__} data provenance[/bold]\n")
-    statement = (
-        "No real data: generation is declaration-driven; no training on or "
-        "fitting to personal records (misata mimic stores only quantiles, "
-        "opt-in, local).\n"
-        "No network at generation time: the solver is offline and the "
-        "library carries no telemetry.\n"
-        "Deterministic: same version + schema + seed + mode = same bytes, "
-        "asserted in the test suite.\n"
-        "LLM boundary: design time only, opt-in, your key; it never sees "
-        "generated rows.\n"
-        "Vocabularies: curated MIT pools and Wikidata capsules (CC0, "
-        "per-value QID provenance recorded in the capsule file).\n"
-        "Full statement: DATA-PROVENANCE.md in the repository."
-    )
-    for line in statement.split("\n"):
-        console.print(f"  {line}")
-
+    for line in statement:
+        console.print(f"  {line}", markup=False, highlight=False)
     if not data_dir:
+        emit(provenance={"statement": statement})
         return
-    files = sorted(p for p in _Path(data_dir).glob("*")
-                   if p.is_file() and p.suffix in (".csv", ".parquet", ".json", ".jsonl", ".yaml"))
-    if not files:
+
+    root = Path(data_dir)
+    fitted = (root / FITTED_MARKER).is_file()
+    if fitted:
+        console.print(f"\n[bold red]{root} was fitted to real rows by misata mimic "
+                      f"({FITTED_MARKER}).[/bold red] The statement above does not cover "
+                      "it: treat it with the same care as its source.")
+
+    attested: Optional[Dict[str, Any]] = None
+    statement_file = root / "attestation.intoto.json"
+    if statement_file.is_file():
+        predicate = json.loads(statement_file.read_text(encoding="utf-8"))["predicate"]
+        invariants = predicate.get("invariants") or []
+        spec = predicate.get("spec") or {}
+        attested = {
+            "producer": (predicate.get("producer") or {}).get("uri"),
+            "spec": spec.get("name"),
+            "spec_sha256": (spec.get("digest") or {}).get("sha256"),
+            "seed": predicate.get("seed"),
+            "result": predicate.get("result"),
+            "invariants_held": sum(1 for i in invariants if i.get("passed")),
+            "invariants": len(invariants),
+        }
+        console.print(f"\n[bold]Made from[/bold] (attestation.intoto.json)")
+        console.print(f"  producer: {attested['producer']}", markup=False, highlight=False)
+        if attested["spec"]:
+            console.print(f"  schema:   {attested['spec']} sha256 {attested['spec_sha256']}",
+                          markup=False, highlight=False)
+        console.print(f"  seed:     {attested['seed']}", markup=False, highlight=False)
+        console.print(f"  result:   {attested['result']}, {attested['invariants_held']} of "
+                      f"{attested['invariants']} invariant(s) held", markup=False, highlight=False)
+
+    suffixes = {".csv", ".parquet", ".jsonl", ".duckdb"}
+    files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix in suffixes)
+    manifest = []
+    for path in files:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        rows: Optional[int] = None
+        if path.suffix == ".csv":
+            with open(path, "rb") as fh:
+                rows = sum(1 for _ in fh) - 1
+        manifest.append({"path": path.relative_to(root).as_posix(), "sha256": digest,
+                         "rows": rows})
+    if manifest:
+        console.print(f"\n[bold]Files in {data_dir}[/bold]")
+        tbl = RichTable(show_header=True, header_style="bold cyan", box=None, padding=(0, 1))
+        tbl.add_column("File")
+        tbl.add_column("sha256", style="dim")
+        tbl.add_column("Rows", justify="right")
+        for entry in manifest:
+            rows_text = "" if entry["rows"] is None else f"{entry['rows']:,}"
+            tbl.add_row(entry["path"], entry["sha256"][:16], rows_text)
+        console.print(tbl)
+    else:
         console.print(f"\n[yellow]No data files found in {data_dir}[/yellow]")
-        return
-    console.print(f"\n[bold]Manifest for {data_dir}[/bold]")
-    tbl = RichTable(show_header=True, header_style="bold cyan", box=None,
-                    padding=(0, 1))
-    tbl.add_column("File")
-    tbl.add_column("sha256", style="dim")
-    tbl.add_column("Rows", justify="right")
-    for p in files:
-        digest = _hashlib.sha256(p.read_bytes()).hexdigest()[:16]
-        rows = ""
-        if p.suffix == ".csv":
-            try:
-                with open(p, "rb") as fh:
-                    rows = str(sum(1 for _ in fh) - 1)
-            except Exception:
-                rows = "?"
-        tbl.add_row(p.name, digest, rows)
-    console.print(tbl)
+    emit(provenance={"statement": statement, "fitted": fitted, "attestation": attested,
+                     "files": manifest})
 
 
 @main.command("dbt-mutate")

@@ -182,3 +182,13 @@ def test_name_nationality_handles_first_last_split_columns():
     out = apply_realism_rules(df, rng=np.random.default_rng(11))
     assert NAME_CULTURE.get(out.loc[0, "first_name"]) == "hispanic"
     assert LAST_NAME_CULTURE.get(out.loc[0, "last_name"]) == "hispanic"
+
+
+@pytest.mark.parametrize("name, letters", [
+    ("Schröder", "schroeder"), ("José", "jose"), ("Łukasz", "lukasz"),
+    ("Straße", "strasse"), ("O'Brien", "obrien"), ("Nguyễn", "nguyen"),
+])
+def test_names_are_transliterated_for_addresses(name, letters):
+    from misata.realism import ascii_letters
+
+    assert ascii_letters(name) == letters

@@ -11,6 +11,7 @@ Rules are applied conservatively — only when relevant columns exist.
 from __future__ import annotations
 
 import re
+import unicodedata
 import zlib
 from typing import AbstractSet, Any, Dict, Iterable, List, Optional, Sequence, Union, cast
 
@@ -28,6 +29,21 @@ from misata.vocab_seeds import (
     PRODUCT_DESCRIPTIONS_BY_CATEGORY,
     STATES_BY_COUNTRY,
 )
+
+#: Letters an address writes as two ASCII letters, before accents are stripped.
+_LATIN_DIGRAPHS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "æ": "ae",
+                                 "œ": "oe", "ø": "o", "å": "a", "ł": "l", "đ": "d", "þ": "th"})
+
+
+def ascii_letters(text: Any) -> str:
+    """A name as it appears in an email address or username: lower-case a to z.
+
+    ``Schröder`` becomes ``schroeder`` and ``José`` becomes ``jose``, where
+    dropping every non-ASCII letter would give ``schrder``.
+    """
+    folded = unicodedata.normalize("NFKD", str(text).lower().translate(_LATIN_DIGRAPHS))
+    return re.sub(r"[^a-z]", "", folded)
+
 
 
 INACTIVE_STATUSES = {"inactive", "cancelled", "canceled", "ended", "expired", "churned"}
@@ -748,8 +764,8 @@ class RealisticTextGenerator:
             patterns   = self.rng.integers(0, 4, size=size)
             result = []
             for fn, ln, sep, dom, pat in zip(first, last, separators, domains, patterns, strict=True):
-                f = re.sub(r"[^a-z]", "", fn.lower())
-                surname = re.sub(r"[^a-z]", "", ln.lower())
+                f = ascii_letters(fn)
+                surname = ascii_letters(ln)
                 if pat == 0:
                     local = f"{f}{sep}{surname}" if surname else f
                 elif pat == 1:
@@ -894,7 +910,7 @@ class RealisticTextGenerator:
             frame = self._person_frame(table_name, size)
             first, last = frame["first"], frame["last"]
             return np.array([
-                f"{re.sub(r'[^a-z]', '', f.lower())}{re.sub(r'[^a-z]', '', surname.lower())}{int(self.rng.integers(1, 999)):03d}"
+                f"{ascii_letters(f)}{ascii_letters(surname)}{int(self.rng.integers(1, 999)):03d}"
                 for f, surname in zip(first, last, strict=True)
             ])
         if semantic == "address":
@@ -2004,13 +2020,13 @@ class EntityCoherenceEngine:
             return
 
         desired = np.array([
-            f"{re.sub(r'[^a-z]', '', str(first).lower())}.{re.sub(r'[^a-z]', '', str(last).lower())}@gmail.com".replace("..", ".").replace(".@", "@")
+            f"{ascii_letters(first)}.{ascii_letters(last)}@gmail.com".replace("..", ".").replace(".@", "@")
             for first, last in zip(firsts, lasts, strict=True)
         ])
         current = df["email"].astype(str)
         mismatch = []
         for email, first in zip(current, firsts.astype(str), strict=True):
-            normalized_first = re.sub(r"[^a-z]", "", first.lower())[:3]
+            normalized_first = ascii_letters(first)[:3]
             normalized_email = str(email).lower()
             mismatch.append("@" not in normalized_email or (normalized_first and normalized_first not in normalized_email))
         mismatch_mask = np.array(mismatch, dtype=bool)
@@ -2032,15 +2048,15 @@ class EntityCoherenceEngine:
             return
 
         desired = np.array([
-            f"{re.sub(r'[^a-z]', '', str(first).lower())}{re.sub(r'[^a-z]', '', str(last).lower())}"
+            f"{ascii_letters(first)}{ascii_letters(last)}"
             for first, last in zip(firsts, lasts, strict=True)
         ])
         current = df["username"].astype(str)
         mismatch = []
         for username, first, last in zip(current, firsts.astype(str), lasts.astype(str), strict=True):
-            normalized_username = re.sub(r"[^a-z]", "", str(username).lower())
-            normalized_first = re.sub(r"[^a-z]", "", str(first).lower())[:3]
-            normalized_last = re.sub(r"[^a-z]", "", str(last).lower())[:3]
+            normalized_username = ascii_letters(username)
+            normalized_first = ascii_letters(first)[:3]
+            normalized_last = ascii_letters(last)[:3]
             mismatch.append(
                 len(normalized_username) < 4
                 or (normalized_first and normalized_first not in normalized_username)
@@ -3451,7 +3467,7 @@ def _fix_email_from_name(df: pd.DataFrame, columns: set[str], rng: np.random.Gen
     domain_weights = np.array([0.46, 0.13, 0.11, 0.03, 0.10, 0.10, 0.05, 0.02])
 
     def _clean(part: str) -> str:
-        return re.sub(r"[^a-z]", "", str(part).lower().strip())
+        return ascii_letters(part)
 
     if {"first_name", "last_name"}.issubset(columns):
         firsts = df["first_name"].astype(str)
@@ -3517,7 +3533,7 @@ def _fix_corporate_email(df: pd.DataFrame, columns: set[str], rng: np.random.Gen
         return
 
     def _clean(part: str) -> str:
-        return re.sub(r"[^a-z]", "", str(part).lower().strip())
+        return ascii_letters(part)
 
     if {"first_name", "last_name"}.issubset(columns):
         firsts, lasts = df["first_name"].astype(str), df["last_name"].astype(str)

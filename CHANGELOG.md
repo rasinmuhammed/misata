@@ -270,6 +270,17 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- A DDL rule written `CHECK (seen_at IS NULL OR seen_at >= booked_at)` is
+  honoured and attested as the rule it guards. It was skipped with a
+  warning, so seeding a database that enforces it could fail.
+- `misata provenance` states what real data went in precisely: none when
+  generating from a schema, and `misata mimic` named as the exception whose
+  output is not anonymous. With a folder it reports `fitted.json`, the
+  inputs the attestation records (version, schema hash, seed, result) and
+  every data file's sha256, including partitioned and DuckDB output, and
+  `--json` returns all of it.
+- `misata audit` no longer reports a phone number such as
+  `+1 (613) 948-7315` as an unexpanded regex pattern.
 - A relationship written as an object accepts `parent: entries.entry_id`
   and `child: lines.entry_id`, as the arrow shorthand does.
 - A schema file that fails validation exits 2 with the reason instead of a
@@ -298,6 +309,16 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Output changes
 
+- Email addresses and usernames transliterate accented names: Schröder is
+  `schroeder`, José is `jose`, where every non-ASCII letter used to be
+  dropped (`schrder`). The four golden fingerprints with such a name change
+  for that reason alone, on 8 rows.
+- A date column named for a birth date (`date_of_birth`, `dob`,
+  `birth_date`, `birthday`, `born_on`) with no declared range spans
+  1940-01-01 to 2007-12-31 instead of the generic 2020 to 2024.
+- From DDL, a short `*_code` text column holds codes with a prefix from its
+  name (`drug_code VARCHAR(12)` gives `DRG952339`) instead of text
+  fragments.
 - Seeding a database writes a declared `date` column as `YYYY-MM-DD` and
   any other timestamp as `YYYY-MM-DD HH:MM:SS`, the forms the CSV export
   uses, instead of ISO text with a `T`. In SQLite, where dates compare as

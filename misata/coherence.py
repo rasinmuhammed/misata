@@ -475,7 +475,13 @@ def _detect_and_repair_derived_math(
 # Public entry point
 # --------------------------------------------------------------------------- #
 
-_REGEXY_VALUE_RE = re.compile(r"[+*|\\]|\{\d+(,\d+)?\}|\(.*\)")
+#: Regex syntax that never appears in ordinary values: escapes, counted
+#: repetition, ranges in brackets, a quantifier on a letter or group, and
+#: alternation between words. A phone number such as '+1 (613) 948-7315'
+#: carries a plus and parentheses and matches none of them.
+_REGEXY_VALUE_RE = re.compile(
+    r"\\[dwsDWS]|\{\d+(,\d+)?\}|\[[^\]]*-[^\]]*\]"
+    r"|[A-Za-z)\]][+*](?=[\s()]|$|[A-Za-z])|\)[+*?{]|\w\|\w")
 
 
 def _detect_pattern_leak(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:

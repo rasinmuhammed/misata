@@ -5,11 +5,15 @@ These models define the blueprint for synthetic data generation,
 including tables, columns, relationships, and scenario events.
 """
 
+import re
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from misata.exceptions import warn
+
+#: Column names that hold a date of birth.
+_BIRTH_DATE = re.compile(r"(^|_)(dob|birth_?date|birthday|date_of_birth|born_on)($|_)", re.I)
 
 
 class Column(BaseModel):
@@ -58,7 +62,11 @@ class Column(BaseModel):
                 normalized.setdefault("probabilities", [1.0])
 
         if col_type == "date" and "relative_to" not in normalized:
-            # Fixed defaults guarantee reproducible generation regardless of run date.
+            # Fixed defaults guarantee reproducible generation regardless of run
+            # date. A birth date spans living adults rather than recent years.
+            if column_name and _BIRTH_DATE.search(column_name):
+                normalized.setdefault("start", "1940-01-01")
+                normalized.setdefault("end", "2007-12-31")
             normalized.setdefault("start", "2020-01-01")
             normalized.setdefault("end", "2024-12-31")
 

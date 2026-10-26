@@ -70,6 +70,24 @@ _LEN_RE = re.compile(
 _FIXED_CHAR_RE = re.compile(r"^(?:char|character|nchar)\s*\(", re.I)
 
 
+#: An identifier column named *_code, excluding codes with their own generators.
+_CODE_COLUMN = re.compile(
+    r"^(?!.*(post|zip|country|currency|lang|locale|state|phone|area|color|colour))"
+    r"(\w+_)?code$", re.I)
+
+
+def _code_prefix(col_name: str) -> str:
+    """Letters a code column's values share, from its name: drug_code gives DRG.
+
+    A fixed prefix reads like a real identifier scheme, where random letters
+    would sometimes spell a word.
+    """
+    stem = re.sub(r"_?code$", "", col_name.lower()).replace("_", "")
+    if not stem:
+        return "C"
+    return (stem[0] + re.sub(r"[aeiou]", "", stem[1:]))[:3].upper()
+
+
 def _length_of(sql_type: str) -> Optional[int]:
     m = _LEN_RE.search(sql_type)
     if not m:
@@ -152,6 +170,30 @@ def _parse_check(body: str) -> Dict[str, Dict]:
             put(col, "min" if op in (">=", ">") else "max", v)
             put(col, "_strict_" + ("min" if op in (">=", ">") else "max"), op in (">", "<"))
     return found
+
+
+_NULL_GUARD = re.compile(
+    r"^\s*\"?(\w+)\"?\s+IS\s+NULL\s+OR\s+(.+)$|^(.+?)\s+OR\s+\"?(\w+)\"?\s+IS\s+NULL\s*$",
+    re.I | re.S)
+
+
+def _without_null_guard(body: str) -> str:
+    """The rule inside ``col IS NULL OR <rule>``, which holds wherever col has a value.
+
+    That guard is how SQL writes a rule on an optional column, and generation
+    already leaves nulls alone, so the rule is what remains. Any other OR is
+    returned unchanged.
+    """
+    m = _NULL_GUARD.match(body.strip())
+    if not m:
+        return body
+    column = m.group(1) or m.group(4)
+    rule = (m.group(2) or m.group(3)).strip()
+    while rule.startswith("(") and _balanced(rule, 0) == rule[1:-1]:
+        rule = rule[1:-1].strip()
+    if re.search(r"\bOR\b", rule, re.I) or not re.search(rf"\b{re.escape(column)}\b", rule):
+        return body
+    return rule
 
 
 _PAIR = re.compile(r"^\s*\"?([A-Za-z_]\w*)\"?\s*(>=|>|<=|<)\s*\"?([A-Za-z_]\w*)\"?\s*$")
@@ -388,7 +430,7 @@ def from_ddl(
         for line in _split_column_defs(body):
             # CHECK constraints, inline or table-level: fold what generation
             # can honour into the column, count the rest.
-            for chk in _check_bodies(line):
+            for chk in map(_without_null_guard, _check_bodies(line)):
                 parsed = _parse_check(chk)
                 pairs = _column_pairs(chk)
                 pair_checks.extend(pairs)
@@ -468,6 +510,11 @@ def from_ddl(
                     if codes:
                         misata_type = "categorical"
                         distribution_params = {"choices": codes}
+                    elif length >= 4 and _CODE_COLUMN.search(col_name):
+                        # A short *_code column holds an identifier, not prose.
+                        prefix = _code_prefix(col_name)
+                        distribution_params["pattern"] = (
+                            prefix + "\\d{" + str(min(length - len(prefix), 6)) + "}")
 
             cols.append(Column(name=col_name, type=misata_type, nullable=nullable,
                                distribution_params=distribution_params))
