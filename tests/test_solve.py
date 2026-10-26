@@ -463,6 +463,26 @@ class TestDbt:
         assert result.runner["kind"] == "dbt-duckdb"
         assert sorted(p.as_posix() for p in project.rglob("*")) == before
 
+    def test_seeds_load_before_the_models_run(self, tmp_path):
+        from misata.solve import DbtDuckDBRunner
+
+        project = self._project(tmp_path / "shop")
+        (project / "seeds").mkdir()
+        (project / "seeds/fee_rates.csv").write_text("rate\n0.97\n")
+        (project / "models/fct_net.sql").write_text(
+            "select date_trunc('month', ordered_at) as m, "
+            "sum(amount) * (select rate from {{ ref('fee_rates') }}) as net "
+            "from {{ source('raw', 'orders') }} group by 1")
+        metrics = {"net": "SELECT m, net FROM fct_net"}
+        unseeded = solve(_schema(), DbtDuckDBRunner(project, metrics),
+                         [Target("net", "orders.amount", GOALS)], max_iterations=1)
+        assert unseeded.reason == "pipeline_error"
+
+        seeded = DbtDuckDBRunner(project, metrics, seeds="fee_rates")
+        result = solve(_schema(), seeded, [Target("net", "orders.amount", GOALS)],
+                       tolerance="0.5%", max_iterations=10)
+        assert result.converged, result.message
+
     def test_a_failing_model_reports_dbts_error(self, tmp_path):
         from misata.solve import DbtDuckDBRunner
 

@@ -89,6 +89,14 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   `within_tolerance` invariant that `verify.py` reruns against the files.
 - `misata.yaml_schema.load_schema_file()` reads every schema file form
   (`misata.yaml`, a `SchemaConfig` dump, the dict form), as the CLI does.
+- `DbtDuckDBRunner(..., seeds=...)` and `seeds:` in `solve.yaml` run
+  `dbt seed` before `dbt run`, for projects and packages that ship lookup
+  tables.
+- Proven against two engines Misata did not write: PSLmodels
+  Tax-Calculator (300 households, a declared $2,450,000 of 2024 federal
+  tax, 5 iterations within 0.5%) and snowplow_web on dbt-duckdb (monthly
+  page views, 4 iterations within 1%). The first runs in the test suite
+  when `taxcalc` is installed.
 - New guide, `docs/guides/solve.md`.
 
 ### Publish

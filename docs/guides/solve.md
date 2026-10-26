@@ -92,12 +92,14 @@ pipeline:
     project_dir: analytics          # relative to solve.yaml
     select: +fct_revenue            # optional
     source_schema: main             # where your sources read the raw tables
+    seeds: true                     # optional: dbt seed first (true, a name, or a list)
     metrics:
       net_revenue: SELECT month, net_revenue FROM fct_revenue
 ```
 
-The generated tables are loaded into `source_schema`, `dbt run` builds the
-selected models with a generated profile (your project's profile name,
+The generated tables are loaded into `source_schema`, `dbt seed` loads the
+seeds you name (a package's lookup tables, a fee schedule), `dbt run` builds
+the selected models with a generated profile (your project's profile name,
 adapter `duckdb`), and the metric queries read the built models. Nothing is
 written into the project folder. Needs `pip install dbt-duckdb`, and
 `dbt deps` first if the project uses packages.
@@ -196,6 +198,21 @@ dbt and Python pipelines need more than the written files to rerun, so their
 solved periods are recorded in `solve.json`, with the pipeline's identity (a
 digest of the dbt project's files, or of the function's source), rather
 than as invariants.
+
+## Proven on pipelines Misata did not write
+
+Two external engines, run unmodified, each turning generated rows into a
+number Misata never computes itself (measured 26 October 2026, M1 laptop):
+
+| Pipeline | What is declared | Lever | Result |
+|---|---|---|---|
+| [PSLmodels Tax-Calculator](https://github.com/PSLmodels/Tax-Calculator) 6.8, the U.S. federal income tax code | 300 households owe $2,450,000 in 2024 | total wages | converged in 5 iterations within 0.5%, 4.7 s |
+| [snowplow_web](https://github.com/snowplow/dbt-snowplow-web) 1.0.1 on dbt-duckdb, from 5 generated tables (a 129-column `atomic.events`) | 150, 210 and 300 page views in Jan to Mar 2025 | events per month | converged in 4 iterations within 1%, 80 s |
+
+Tax is not linear in wages: brackets, the EITC phase-out and the Child Tax
+Credit make doubling wages more than double the tax, which is why the secant
+step does the work here. The Tax-Calculator proof runs in the test suite
+when `taxcalc` is installed (`tests/test_pipeline_proofs.py`).
 
 ## From an agent
 

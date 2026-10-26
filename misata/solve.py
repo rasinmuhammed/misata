@@ -333,8 +333,10 @@ class DbtDuckDBRunner:
     The generated tables are loaded into ``source_schema`` of a fresh
     database, ``dbt run`` builds the selected models with a generated
     ``profiles.yml`` (the project's own profile name, adapter ``duckdb``),
-    and each metric query then reads the built models. The project folder
-    is never written to: build output goes to the temporary directory.
+    and each metric query then reads the built models. With ``seeds``,
+    ``dbt seed`` loads the project's (and its packages') seed files into the
+    same warehouse first. The project folder is never written to: build
+    output goes to the temporary directory.
 
     Needs ``dbt-duckdb`` and, when the project uses packages, a prior
     ``dbt deps``.
@@ -342,6 +344,7 @@ class DbtDuckDBRunner:
 
     def __init__(self, project_dir: Union[str, Path], metrics: Mapping[str, str], *,
                  select: Optional[str] = None, source_schema: str = "main",
+                 seeds: Union[bool, str, Sequence[str]] = False,
                  dbt: str = "dbt", timeout: float = 900.0,
                  query_timeout: Optional[float] = 60.0) -> None:
         self.project_dir = Path(project_dir).expanduser().resolve()
@@ -359,6 +362,9 @@ class DbtDuckDBRunner:
         self.metrics = dict(metrics)
         self.select = select
         self.source_schema = source_schema
+        self.seeds: Union[bool, List[str]] = (
+            [seeds] if isinstance(seeds, str) else list(seeds) if not isinstance(seeds, bool)
+            else seeds)
         self.dbt = dbt
         self.timeout = timeout
         self.query_timeout = query_timeout
@@ -392,25 +398,30 @@ class DbtDuckDBRunner:
                 "type": "duckdb", "path": str(warehouse), "schema": self.source_schema,
                 "threads": 1}}}}
             (root / "profiles.yml").write_text(yaml.safe_dump(profile), encoding="utf-8")
-            command = [executable, "run", "--project-dir", str(self.project_dir),
-                       "--profiles-dir", str(root), "--target-path", str(root / "target"),
-                       "--log-path", str(root / "logs")]
-            if self.select:
-                command += ["--select", self.select]
-            env = {**os.environ, "DBT_SEND_ANONYMOUS_USAGE_STATS": "false",
-                   "DBT_USE_COLORS": "false"}
-            try:
-                done = subprocess.run(  # noqa: S603 - argument list, no shell; dbt resolved on PATH
-                    command, capture_output=True, text=True, env=env, timeout=self.timeout,
-                    check=False)
-            except subprocess.TimeoutExpired as exc:
-                raise PipelineError(f"dbt run did not finish in {self.timeout:g}s") from exc
-            if done.returncode != 0:
-                log = _ANSI.sub("", done.stdout + done.stderr).strip()
-                tail = "\n".join(log.splitlines()[-12:])
-                raise PipelineError(f"dbt run failed (exit {done.returncode}):\n{tail}")
+            if self.seeds:
+                chosen = [] if self.seeds is True else ["--select", *self.seeds]
+                self._dbt(executable, root, "seed", chosen)
+            self._dbt(executable, root, "run", ["--select", self.select] if self.select else [])
             with duckdb.connect(str(warehouse), read_only=True) as con:
                 return _run_metric_queries(con, self.metrics, self.query_timeout)
+
+    def _dbt(self, executable: str, root: Path, verb: str, extra: List[str]) -> None:
+        """Run one dbt command against the temporary warehouse in ``root``."""
+        command = [executable, verb, "--project-dir", str(self.project_dir),
+                   "--profiles-dir", str(root), "--target-path", str(root / "target"),
+                   "--log-path", str(root / "logs"), *extra]
+        env = {**os.environ, "DBT_SEND_ANONYMOUS_USAGE_STATS": "false",
+               "DBT_USE_COLORS": "false"}
+        try:
+            done = subprocess.run(  # noqa: S603 - argument list, no shell; dbt resolved on PATH
+                command, capture_output=True, text=True, env=env, timeout=self.timeout,
+                check=False)
+        except subprocess.TimeoutExpired as exc:
+            raise PipelineError(f"dbt {verb} did not finish in {self.timeout:g}s") from exc
+        if done.returncode != 0:
+            log = _ANSI.sub("", done.stdout + done.stderr).strip()
+            tail = "\n".join(log.splitlines()[-12:])
+            raise PipelineError(f"dbt {verb} failed (exit {done.returncode}):\n{tail}")
 
     def identity(self) -> Dict[str, str]:
         digest = hashlib.sha256()
@@ -421,7 +432,7 @@ class DbtDuckDBRunner:
             digest.update(relative.as_posix().encode("utf-8") + b"\0")
             digest.update(hashlib.sha256(path.read_bytes()).digest())
         digest.update(_canonical({"metrics": self.metrics, "select": self.select,
-                                  "source_schema": self.source_schema}))
+                                  "source_schema": self.source_schema, "seeds": self.seeds}))
         return {"kind": "dbt-duckdb", "name": self.project_dir.name,
                 "digest": "sha256:" + digest.hexdigest()}
 
@@ -983,11 +994,11 @@ def runner_from_dict(pipeline: Mapping[str, Any], base: Path = Path(".")) -> Run
     if kind == "dbt":
         if not isinstance(spec, Mapping) or "project_dir" not in spec or "metrics" not in spec:
             raise SolveError("pipeline.dbt needs project_dir and metrics")
-        allowed = {"project_dir", "metrics", "select", "source_schema", "timeout"}
+        allowed = {"project_dir", "metrics", "select", "source_schema", "seeds", "timeout"}
         unknown = set(spec) - allowed
         if unknown:
             raise SolveError(f"unknown pipeline.dbt field(s): {', '.join(sorted(unknown))}")
-        options = {k: spec[k] for k in ("select", "source_schema", "timeout") if k in spec}
+        options = {k: spec[k] for k in ("select", "source_schema", "seeds", "timeout") if k in spec}
         return DbtDuckDBRunner(base / str(spec["project_dir"]),
                                {str(k): str(v) for k, v in spec["metrics"].items()}, **options)
     raise SolveError(f"unknown pipeline {kind!r}; use sql or dbt")
