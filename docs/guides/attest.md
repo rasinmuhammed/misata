@@ -35,6 +35,13 @@ disk.
 | `waterfalls` | opening plus movements equals closing, per component |
 | relationships | no child row points at a missing parent |
 | `unique` columns | no value appears twice |
+| `inequality` and `col_range` constraints, including a DDL `CHECK (due_on > issued_on)` | no row breaks the rule |
+| a declared string domain: `choices`, or a DDL `CHECK (plan IN (...))` | no value falls outside it |
+| a declared NOT NULL: DDL `NOT NULL`, `nullable: false`, a primary key | no value is null |
+
+Row rules are left out on a column that `typos`, `outliers`, `missingness`
+or `late_arrivals` targets, and everywhere when `noise` injects nulls,
+outliers or typos, because those declarations break the rule on purpose.
 
 The files can be CSV, JSON Lines or Parquet (one file per table, or a
 folder of parts, Hive-partitioned or not), or a single `data.duckdb`: every

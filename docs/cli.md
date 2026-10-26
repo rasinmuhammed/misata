@@ -115,6 +115,7 @@ misata generate --seed 42
 misata generate --db-url postgresql://localhost/dev --db-create
 misata generate --format parquet --partition-by status   # pip install "misata[parquet]"
 misata generate --format duckdb                          # pip install "misata[duckdb]"
+misata generate -c schema.sql -o out --attest           # SQL DDL: keys, CHECKs, NOT NULL
 ```
 
 | Flag | Default | Description |

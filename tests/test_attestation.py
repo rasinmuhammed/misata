@@ -286,3 +286,91 @@ def test_cli_writes_requested_exports(tables, schema, tmp_path):
     assert done.exit_code == 0, done.output
     assert (data / "datacontract.odcs.yaml").is_file()
     assert json.loads((data / "openlineage.json").read_text())["eventType"] == "COMPLETE"
+
+
+DDL = """
+CREATE TABLE accounts (
+  id SERIAL PRIMARY KEY,
+  plan VARCHAR(10) NOT NULL CHECK (plan IN ('free', 'team', 'enterprise'))
+);
+CREATE TABLE invoices (
+  id SERIAL PRIMARY KEY,
+  account_id INT NOT NULL REFERENCES accounts(id),
+  issued_on DATE NOT NULL,
+  due_on DATE NOT NULL,
+  CHECK (due_on > issued_on)
+);
+"""
+
+
+class TestRowRules:
+    """CHECK constraints, declared domains and NOT NULL are attested, not assumed."""
+
+    @pytest.fixture()
+    def ddl_dir(self, tmp_path):
+        spec = tmp_path / "schema.sql"
+        spec.write_text(DDL, encoding="utf-8")
+        schema = misata.yaml_schema.load_schema_file(spec, seed=3, rows=300)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _write(misata.generate_from_schema(schema), tmp_path / "out", "csv")
+        return tmp_path / "out", schema
+
+    def test_ddl_rules_become_invariants(self, ddl_dir):
+        directory, schema = ddl_dir
+        result = attest(directory, schema, write=False)
+        kinds = {i["id"]: i["kind"] for i in result.invariants}
+        assert kinds["accounts.plan.domain"] == "domain"
+        assert kinds["invoices.due_on>issued_on.inequality"] == "inequality"
+        assert kinds["invoices.issued_on.not_null"] == "not_null"
+        assert result.passed
+
+    def test_a_value_outside_the_domain_fails(self, ddl_dir):
+        directory, schema = ddl_dir
+        accounts = pd.read_csv(directory / "accounts.csv")
+        accounts.loc[0, "plan"] = "platinum"
+        accounts.to_csv(directory / "accounts.csv", index=False)
+        failures = {f["id"] for f in attest(directory, schema, write=False).failures}
+        assert failures == {"accounts.plan.domain"}
+
+    def test_a_broken_inequality_fails(self, ddl_dir):
+        directory, schema = ddl_dir
+        invoices = pd.read_csv(directory / "invoices.csv")
+        invoices.loc[0, "due_on"] = invoices.loc[0, "issued_on"]
+        invoices.to_csv(directory / "invoices.csv", index=False)
+        failures = {f["id"] for f in attest(directory, schema, write=False).failures}
+        assert failures == {"invoices.due_on>issued_on.inequality"}
+
+    def test_the_model_default_is_not_a_declaration(self):
+        from misata.schema import Column, SchemaConfig, Table
+
+        schema = SchemaConfig(name="t", tables=[Table(name="t", row_count=5)], columns={"t": [
+            Column(name="a", type="int"), Column(name="b", type="int", nullable=False)]})
+        ids = {i.id for i in derive_invariants(schema)}
+        assert "t.b.not_null" in ids and "t.a.not_null" not in ids
+
+    def test_columns_dirt_is_declared_on_are_left_out(self):
+        schema = misata.from_dict_schema({
+            "__typos__": [{"table": "t", "column": "status", "count": 3}],
+            "t": {"__rows__": 50, "status": {"type": "categorical", "choices": ["a", "b"]},
+                  "kind": {"type": "categorical", "choices": ["x", "y"]}}})
+        ids = {i.id for i in derive_invariants(schema)}
+        assert "t.kind.domain" in ids and "t.status.domain" not in ids
+
+
+def test_the_cli_reads_ddl(tmp_path):
+    from click.testing import CliRunner
+
+    from misata.cli import main
+
+    (tmp_path / "schema.sql").write_text(DDL, encoding="utf-8")
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path) as here:
+        Path(here, "schema.sql").write_text(DDL, encoding="utf-8")
+        generated = runner.invoke(main, ["generate", "-c", "schema.sql", "-o", "out", "-n", "200",
+                                         "--seed", "5", "--attest"])
+        assert generated.exit_code == 0, generated.output
+        attested = runner.invoke(main, ["attest", "out", "-s", "schema.sql", "--json"])
+        assert attested.exit_code == 0, attested.output
+        invariants = json.loads(attested.output)["data"]["statement"]["predicate"]["invariants"]
+        assert any(i["kind"] == "inequality" for i in invariants)

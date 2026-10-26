@@ -208,13 +208,90 @@ def _unique_invariants(schema: "SchemaConfig") -> List[Invariant]:
     return out
 
 
+_ROW_RULE_OPERATORS = {">", ">=", "<", "<="}
+
+
+def _disturbed_columns(schema: "SchemaConfig") -> Optional[set]:
+    """Columns a dirt declaration is meant to break; None when noise touches every column.
+
+    Typos, outliers, missingness and late arrivals plant values outside a
+    column's rules on purpose, so row-level rules are not attested there.
+    """
+    noise = schema.noise_config
+    if noise is not None and noise.mode != "off" and (
+            noise.null_rate or noise.outlier_rate or noise.typo_rate):
+        return None
+    disturbed = set()
+    for declaration in [*schema.typos, *schema.outliers, *schema.missingness,
+                        *schema.late_arrivals]:
+        table = getattr(declaration, "table", None)
+        names = {c.name for c in schema.get_columns(table)} if table else set()
+        for value in declaration.model_dump().values():
+            for name in value if isinstance(value, list) else [value]:
+                if isinstance(name, str) and name in names:
+                    disturbed.add((table, name))
+    return disturbed
+
+
+def _row_rule_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Row-level rules the engine enforces by construction, each counted as violations.
+
+    Declared inequalities and ranges between columns, a declared string
+    domain (a DDL ``CHECK (... IN (...))`` or ``choices``) and a declared
+    NOT NULL. A column's ``nullable`` counts only when it was set: the
+    model's default of False is not a declaration.
+    """
+    disturbed = _disturbed_columns(schema)
+    if disturbed is None:
+        return []
+    out = []
+
+    def violations(table: str, name: str, where: str) -> Invariant:
+        return Invariant(id=f"{table}.{name}", kind=name.rsplit(".", 1)[-1],
+                         sql=f"SELECT COUNT(*) FROM {quote_ident(table)} WHERE {where}",
+                         expected="0", value_type="integer", table=table)
+
+    for table in schema.tables:
+        columns = {c.name: c for c in schema.get_columns(table.name)}
+        for rule in table.constraints:
+            touched = {rule.column_a, rule.column_b, rule.column, rule.low_column,
+                       rule.high_column} - {None}
+            if not touched <= set(columns) or any((table.name, c) in disturbed for c in touched):
+                continue
+            if rule.type == "inequality" and rule.operator in _ROW_RULE_OPERATORS:
+                a, b = quote_ident(str(rule.column_a)), quote_ident(str(rule.column_b))
+                out.append(violations(
+                    table.name, f"{rule.column_a}{rule.operator}{rule.column_b}.inequality",
+                    f"{a} IS NOT NULL AND {b} IS NOT NULL AND NOT ({a} {rule.operator} {b})"))
+            elif rule.type == "col_range":
+                low, col = quote_ident(str(rule.low_column)), quote_ident(str(rule.column))
+                high = quote_ident(str(rule.high_column))
+                out.append(violations(
+                    table.name, f"{rule.column}.col_range",
+                    f"{col} IS NOT NULL AND NOT ({low} <= {col} AND {col} <= {high})"))
+        for column in columns.values():
+            if (table.name, column.name) in disturbed:
+                continue
+            col = quote_ident(column.name)
+            if not column.nullable and "nullable" in column.model_fields_set:
+                out.append(violations(table.name, f"{column.name}.not_null", f"{col} IS NULL"))
+            choices = (column.distribution_params or {}).get("choices")
+            if column.type == "categorical" and choices and all(
+                    isinstance(c, str) for c in choices):
+                domain = ", ".join(quote_literal(c) for c in choices)
+                out.append(violations(
+                    table.name, f"{column.name}.domain",
+                    f"{col} IS NOT NULL AND CAST({col} AS VARCHAR) NOT IN ({domain})"))
+    return out
+
+
 def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     """Every invariant the schema's declarations imply, before any data exists.
 
     The aggregate and integrity checks are the evalpack's own derivation, so
     an attestation and an evalpack built from one schema can never disagree.
     Rate anchors are checked to the nearest row instead of at four decimals,
-    and unique columns are added.
+    and unique columns and row-level rules are added.
     """
     from misata.evalpack import derive_questions
 
@@ -234,6 +311,7 @@ def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
         ))
     invariants += _rate_invariants(schema)
     invariants += _unique_invariants(schema)
+    invariants += _row_rule_invariants(schema)
 
     seen: Dict[str, int] = {}
     unique_ids = []

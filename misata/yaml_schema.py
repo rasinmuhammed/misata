@@ -630,8 +630,9 @@ def load_schema_file(
     """A schema from any file form Misata writes or reads.
 
     Accepts ``misata.yaml`` (tables as a mapping), a ``SchemaConfig`` dump
-    such as ``schema.solved.json`` (tables as a list), and the dict schema
-    form. JSON is read as YAML, which it is a subset of.
+    such as ``schema.solved.json`` (tables as a list), the dict schema form,
+    and SQL DDL in a ``.sql`` file. JSON is read as YAML, which it is a
+    subset of.
 
     Args:
         path: The schema file.
@@ -639,9 +640,19 @@ def load_schema_file(
         rows: Row count for tables that do not state one.
 
     Raises:
-        ValueError: the file does not hold a mapping.
+        ValueError: the file does not hold a mapping or CREATE TABLE statements.
     """
     path = Path(path).expanduser()
+    if path.suffix.lower() == ".sql":
+        from misata.ddl import from_ddl
+
+        schema = from_ddl(path.read_text(encoding="utf-8"), default_rows=rows or 1000)
+        if not schema.tables:
+            raise ValueError(f"no CREATE TABLE statements in {path}")
+        schema.name = path.stem
+        if seed is not None:
+            schema.seed = seed
+        return schema
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"Expected a mapping in {path}")
@@ -790,7 +801,7 @@ def _column_to_dict(col: Column) -> Dict[str, Any]:
     d: Dict[str, Any] = {"type": col.type}
     if col.unique:
         d["unique"] = True
-    if not col.nullable:
+    if not col.nullable and "nullable" in col.model_fields_set:
         d["nullable"] = False
     if col.description:
         d["description"] = col.description

@@ -25,6 +25,14 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   rules restate every invariant, so `datacontract test` runs the same
   checks. `--export openlineage` writes a RunEvent with the standard
   `dataQualityAssertions` facet and a `misata_certificate` facet.
+- Row-level rules are attested: declared inequalities and column ranges
+  (a DDL `CHECK (due_on > issued_on)`), declared string domains (`choices`,
+  `CHECK (plan IN (...))`) and declared NOT NULL, each as a count of
+  violating rows that must be 0. Columns a dirt declaration targets are left
+  out. A DDL schema of three tables now carries 22 invariants instead of 6.
+- Every command that reads a schema file reads SQL DDL from a `.sql` file:
+  `misata generate -c schema.sql`, `misata explain schema.sql`,
+  `misata attest out -s schema.sql`, and `schema:` in `solve.yaml`.
 - Every evalpack carries an attestation, checked by `verify_attestation.py`.
 - The MCP server has an `attest_dataset` tool.
 

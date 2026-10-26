@@ -504,13 +504,7 @@ def generate(
 
     if config:
         console.print(f"Loading schema from: [cyan]{config}[/cyan]")
-        config_dict = _load_yaml_or_json(config)
-        # Route to yaml_schema loader when the file uses the misata.yaml format
-        # (has a "tables" dict, not the Pydantic-serialised SchemaConfig list format)
-        if isinstance(config_dict.get("tables"), dict):
-            schema_config = load_yaml_schema(config, rows=rows, seed=seed)
-        else:
-            schema_config = SchemaConfig(**config_dict)
+        schema_config = _load_schema(config, seed=seed, rows=rows)
     elif sqlalchemy:
         from misata.introspect import load_sqlalchemy_target, schema_from_sqlalchemy
 
@@ -3089,9 +3083,7 @@ def realism_cmd(data_dir: str, schema: Optional[str], skip: tuple, strict: bool)
 
     schema_config = None
     if schema:
-        config_dict = _load_yaml_or_json(schema)
-        schema_config = (load_yaml_schema(schema) if isinstance(config_dict.get("tables"), dict)
-                         else SchemaConfig(**config_dict))
+        schema_config = _load_schema(schema)
 
     try:
         realism = realism_report(tables, schema_config, skip=skip)
