@@ -1,0 +1,4 @@
+{"id": "q003", "sql": "SELECT ROUND(SUM(amount), 2) FROM invoices WHERE issued_at >= '2025-03-01' AND issued_at < '2025-04-01'"}
+{"id": "q013", "sql": "SELECT COUNT(*) FROM invoices i LEFT JOIN accounts a ON a.account_id = i.account_id WHERE a.account_id IS NULL"}
+{"id": "q021", "sql": "SELECT ROUND(SUM(amount), 2) FROM invoices WHERE product = 'seats' AND issued_at >= '2025-03-01' AND issued_at < '2025-04-01'"}
+{"id": "q027", "sql": "SELECT ROUND(SUM(amount), 2) FROM invoices WHERE product = 'seats' AND issued_at >= '2025-01-01' AND issued_at < '2025-04-30'"}

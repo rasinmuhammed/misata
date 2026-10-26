@@ -48,6 +48,8 @@ NEEDS_WORLD = re.compile(
 )
 
 SKIP_MARKER = "stranger: skip"
+# Flags whose value is a file the command writes, not one it reads.
+OUTPUT_FLAGS = {"-o", "--output", "--out", "--db"}
 
 # The verifiers Misata writes beside a dataset or an evalpack.
 VERIFIER = re.compile(r"(^|/)verify(_attestation)?\.py$")
@@ -193,7 +195,9 @@ class Runner:
             return "skip", "uploads to the Hugging Face Hub"
         # An example that reads a file the docs never ship is documentation, not
         # a broken command.
-        for tok in tokens[1:]:
+        for previous, tok in zip(tokens[:-1], tokens[1:]):
+            if previous in OUTPUT_FLAGS:
+                continue
             if tok.endswith(DATA_SUFFIXES) and not (cwd / tok).exists():
                 return "skip", f"needs an input file the docs do not ship ({tok})"
         try:

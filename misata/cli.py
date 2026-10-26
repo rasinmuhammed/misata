@@ -3589,16 +3589,19 @@ def dbt_mutate_cmd(
 @main.command("sandbox")
 @click.option("--domain", default=None, help="Pre-built domain template (saas, ecommerce, fintech, healthcare).")
 @click.option("--story", default=None, help="Plain-English story description.")
-@click.option("--rows", type=int, default=100, help="Base row count (default: 100).")
-@click.option("--seed", "seed_val", type=int, default=42, help="Random seed (default: 42).")
+@click.option("--config", "-c", "config_path", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Schema file (misata.yaml, JSON or SQL DDL); its row counts and seed are used as declared.")
+@click.option("--rows", type=int, default=100, help="Base row count for a domain or story (default: 100).")
+@click.option("--seed", "seed_val", type=int, default=None, help="Random seed (default: the schema's, else 42).")
 @click.option("--db", "db_path", type=click.Path(), default=".misata/sandbox.db", help="Target SQLite file path.")
 @click.option("--sql", "query_sql", default=None, help="Execute a query directly against the created sandbox.")
 @click.option("--open", "open_interactive", is_flag=True, default=False, help="Open sqlite3 shell directly.")
 def sandbox_cmd(
     domain: Optional[str],
     story: Optional[str],
+    config_path: Optional[str],
     rows: int,
-    seed_val: int,
+    seed_val: Optional[int],
     db_path: str,
     query_sql: Optional[str],
     open_interactive: bool,
@@ -3613,6 +3616,7 @@ def sandbox_cmd(
     \b
     Examples:
         misata sandbox --domain saas
+        misata sandbox -c misata.yaml --db sandbox.db
         misata sandbox --story "a car rental agency with vehicles, bookings, and customers"
         misata sandbox --domain ecommerce --rows 250
         misata sandbox --domain fintech --sql "SELECT * FROM transactions LIMIT 5"
@@ -3626,7 +3630,11 @@ def sandbox_cmd(
 
     console.print(f"[dim]⚡ Spinning up sandbox database at [cyan]{db_path}[/cyan]...[/dim]")
     try:
-        box = create_sandbox(domain=domain, story=story, rows=rows, seed=seed_val, path=db_path)
+        if config_path:
+            box = create_sandbox(schema=_load_schema(config_path), seed=seed_val, path=db_path)
+        else:
+            box = create_sandbox(domain=domain, story=story, rows=rows,
+                                 seed=42 if seed_val is None else seed_val, path=db_path)
     except SandboxError as exc:
         console.print(f"[red]Error creating sandbox:[/red] {exc}")
         raise SystemExit(1) from exc

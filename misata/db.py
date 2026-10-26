@@ -10,7 +10,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from io import StringIO
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Collection, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -102,13 +102,18 @@ def seed_database(
         total_rows = 0
         table_rows: Dict[str, int] = {}
         validated_tables = set()
+        date_columns = {
+            table.name: frozenset(c.name for c in config.get_columns(table.name) if c.type == "date")
+            for table in config.tables
+        }
 
         for table_name, batch_df in simulator.generate_all():
             if table_name not in validated_tables:
                 _validate_table_schema(conn, dialect, table_name, list(batch_df.columns), create)
                 validated_tables.add(table_name)
 
-            rows_inserted = _insert_batch(conn, dialect, table_name, batch_df, commit=False)
+            rows_inserted = _insert_batch(conn, dialect, table_name, batch_df, commit=False,
+                                          date_columns=date_columns.get(table_name, ()))
             table_rows[table_name] = table_rows.get(table_name, 0) + rows_inserted
             total_rows += rows_inserted
 
@@ -429,7 +434,7 @@ def _execute(conn, dialect: str, sql: str, params: Optional[Sequence] = None,
 
 
 def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
-                  commit: bool = True) -> int:
+                  commit: bool = True, date_columns: Collection[str] = ()) -> int:
     if df.empty:
         return 0
 
@@ -441,12 +446,21 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
 
     clean_df = df.where(pd.notnull(df), None)
 
-    # Convert datetime/Timestamp columns to ISO strings for SQLite
+    # Timestamps are written as text in the form the CSV and Parquet exports
+    # use: a declared date as YYYY-MM-DD, anything else as
+    # YYYY-MM-DD HH:MM:SS. In SQLite, where dates are compared as text, this
+    # is also the form its own date functions return, so a filter such as
+    # `day <= '2025-04-30'` includes the last day.
     for col in clean_df.columns:
         if pd.api.types.is_datetime64_any_dtype(clean_df[col]):
-            clean_df[col] = clean_df[col].apply(
-                lambda x: x.isoformat() if pd.notnull(x) else None
-            )
+            if col in date_columns:
+                clean_df[col] = clean_df[col].apply(
+                    lambda x: x.strftime("%Y-%m-%d") if pd.notnull(x) else None
+                )
+            else:
+                clean_df[col] = clean_df[col].apply(
+                    lambda x: x.isoformat(sep=" ") if pd.notnull(x) else None
+                )
 
     rows = list(clean_df.itertuples(index=False, name=None))
 

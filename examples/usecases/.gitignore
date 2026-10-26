@@ -8,3 +8,4 @@ target/
 logs/
 generated_data/
 DATASET_CARD.md
+sandbox.db

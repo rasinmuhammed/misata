@@ -265,12 +265,22 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   `value_mode: count`, and `sampling: auto` and `pareto`. A test fails when
   a model gains a field the schema lacks.
 - `misata sandbox` no longer needs the `mcp` extra.
+- `misata sandbox -c misata.yaml` (and `create_sandbox(schema=...)` with a
+  `SchemaConfig`) seeds the sandbox from a declared schema with its row
+  counts and seed. The sandbox holds the same rows as `misata generate` and
+  an evalpack's first rotation, so an agent's SQL returns the same number
+  in the sandbox and in the grader.
 - `tools/quality.py` measures lint, complexity, security findings, mypy
   errors, import cost and dependency count against a baseline that may only
   go down, and CI runs it.
 
 ### Output changes
 
+- Seeding a database writes a declared `date` column as `YYYY-MM-DD` and
+  any other timestamp as `YYYY-MM-DD HH:MM:SS`, the forms the CSV export
+  uses, instead of ISO text with a `T`. In SQLite, where dates compare as
+  text, `day <= '2025-04-30'` now includes the last day. Postgres columns
+  keep their `DATE` and `TIMESTAMP` types and values.
 - Tables with a lifecycle whose timestamp columns had placeholder values
   during generation produce different rows: the start column stays in its
   window, and state timestamps are whole seconds or whole days.

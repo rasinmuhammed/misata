@@ -105,9 +105,9 @@ def create_sandbox(
     *,
     domain: Optional[str] = None,
     story: Optional[str] = None,
-    schema: Optional[Dict[str, Any]] = None,
+    schema: Union[Dict[str, Any], "SchemaConfig", None] = None,
     rows: int = 100,
-    seed: int = 42,
+    seed: Optional[int] = 42,
     path: Union[str, Path] = DEFAULT_SANDBOX_PATH,
 ) -> Sandbox:
     """Create (or recreate) a seeded SQLite sandbox.
@@ -119,9 +119,12 @@ def create_sandbox(
         domain: Built-in template name (``saas``, ``ecommerce``, ``fintech``,
             ``healthcare``, ...).
         story: Plain-English description parsed by Misata's story parser.
-        schema: A dict schema, as accepted by :func:`misata.generate_from_schema`.
+        schema: A dict schema or a :class:`~misata.schema.SchemaConfig`, as
+            accepted by :func:`misata.generate_from_schema`. Its declared row
+            counts are used as written.
         rows: Base row count. Template tables scale relative to it.
-        seed: Seed for reproducible contents.
+        seed: Seed for reproducible contents. ``None`` keeps the seed a
+            ``SchemaConfig`` already carries.
         path: Where to write the database. An existing file there must be a
             Misata sandbox or an empty database.
 
@@ -142,7 +145,8 @@ def create_sandbox(
         )
 
     config = _resolve_schema(domain=domain, story=story, schema=schema, rows=rows)
-    config.seed = seed
+    if seed is not None:
+        config.seed = seed
 
     target.parent.mkdir(parents=True, exist_ok=True)
     _remove_database(target)
@@ -220,9 +224,13 @@ def query_sandbox(
 
 
 def _resolve_schema(*, domain: Optional[str], story: Optional[str],
-                    schema: Optional[Dict[str, Any]], rows: int) -> "SchemaConfig":
+                    schema: Union[Dict[str, Any], "SchemaConfig", None],
+                    rows: int) -> "SchemaConfig":
+    from misata.schema import SchemaConfig
     from misata.templates.library import list_templates, load_template
 
+    if isinstance(schema, SchemaConfig):
+        return schema.model_copy(deep=True)
     if schema:
         from misata.compat import from_dict_schema
 
