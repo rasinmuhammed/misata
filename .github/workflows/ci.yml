@@ -64,8 +64,11 @@ jobs:
 
       - name: Audit dependencies for known vulnerabilities
         if: matrix.python-version == '3.11'
+        # The runner's preinstalled setuptools is audited with everything else;
+        # it is a build tool of the image, not a Misata dependency, so it is
+        # brought up to a fixed release rather than ignored.
         run: |
-          pip install pip-audit
+          pip install pip-audit "setuptools>=84.1"
           pip-audit --skip-editable
 
       - name: Upload coverage to Codecov
