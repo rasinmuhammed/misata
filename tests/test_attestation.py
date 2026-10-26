@@ -523,3 +523,68 @@ def test_a_partitioned_relationship_is_attested_and_a_leak_fails(tmp_path):
     tasks.loc[0, "assignee_id"] = stranger
     tasks.to_csv(tmp_path / "tasks.csv", index=False)
     assert {f["id"] for f in attest(tmp_path, schema, write=False).failures} == {invariant}
+
+
+class TestLifecycles:
+    """A declared lifecycle is attested: each row's history is its state's path,
+    and the state mix is the declared weights to within one row."""
+
+    ORDERS = {
+        "orders": {
+            "__rows__": 1_000,
+            "order_id": {"type": "integer", "unique": True, "min": 1, "max": 1_000},
+            "status": {"type": "string"},
+            "ordered_on": {"type": "date", "start": "2025-01-01", "end": "2025-12-31"},
+            "paid_at": {"type": "datetime", "nullable": True},
+            "shipped_on": {"type": "date", "nullable": True},
+            "cancelled_at": {"type": "datetime", "nullable": True},
+            "__lifecycles__": [{
+                "name": "fulfilment", "state_column": "status", "start_column": "ordered_on",
+                "initial": "placed",
+                "states": [{"name": "placed"}, {"name": "paid", "timestamp": "paid_at"},
+                           {"name": "shipped", "timestamp": "shipped_on"},
+                           {"name": "cancelled", "timestamp": "cancelled_at", "terminal": True}],
+                "transitions": [["placed", "paid"], ["paid", "shipped"], ["placed", "cancelled"]],
+                "weights": {"placed": 0.1, "paid": 0.25, "shipped": 0.5, "cancelled": 0.15},
+            }],
+        },
+    }
+
+    @pytest.fixture()
+    def orders_dir(self, tmp_path):
+        schema = misata.from_dict_schema(self.ORDERS, seed=21)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _write(misata.generate_from_schema(schema), tmp_path, "csv")
+        return tmp_path, schema
+
+    def test_history_and_mix_are_attested(self, orders_dir):
+        directory, schema = orders_dir
+        result = attest(directory, schema, write=False)
+        ids = {i["id"] for i in result.invariants}
+        assert {"orders.fulfilment.lifecycle_history", "orders.fulfilment.lifecycle_mix"} <= ids
+        assert result.passed, result.summary()
+
+    @pytest.mark.parametrize("column, value", [
+        ("cancelled_at", "2026-01-01 00:00:00"),   # a shipped order that was also cancelled
+        ("paid_at", ""),                            # shipped without being paid
+        ("shipped_on", "2024-01-01"),               # shipped before it was ordered
+    ])
+    def test_an_impossible_history_fails(self, orders_dir, column, value):
+        directory, schema = orders_dir
+        orders = pd.read_csv(directory / "orders.csv", keep_default_na=False)
+        row = orders.index[orders["status"] == "shipped"][0]
+        orders.loc[row, column] = value
+        orders.to_csv(directory / "orders.csv", index=False)
+        failures = {f["id"] for f in attest(directory, schema, write=False).failures}
+        assert failures == {"orders.fulfilment.lifecycle_history"}
+
+    def test_a_shifted_mix_fails(self, orders_dir):
+        directory, schema = orders_dir
+        orders = pd.read_csv(directory / "orders.csv", keep_default_na=False)
+        placed = orders.index[orders["status"] == "placed"][:2]
+        orders = orders.drop(placed)
+        orders.to_csv(directory / "orders.csv", index=False)
+        failures = {f["id"] for f in attest(directory, schema, write=False).failures}
+        assert "orders.fulfilment.lifecycle_mix" in failures
+        assert "orders.fulfilment.lifecycle_history" not in failures

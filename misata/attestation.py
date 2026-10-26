@@ -20,9 +20,9 @@ declared answer and the answer observed in the written files.
 The invariants come from the declarations, never from the data: outcome-curve
 totals and their row plan, rate anchors, foreign keys, unique columns, ledger
 identities, group shares, waterfalls, row rules, minimum children per parent,
-partitioned relationships and declared graph structure. Expected and observed values are
-written as decimal strings at a fixed precision, so float formatting can never
-decide equality. ``result`` is ``PASSED`` only when every invariant holds.
+partitioned relationships, declared graph structure and lifecycles. Expected
+and observed values are written as decimal strings at a fixed precision, so
+float formatting can never decide equality. ``result`` is ``PASSED`` only when every invariant holds.
 
 Signing is left to the tools built for it; see ``docs/guides/attest.md``.
 """
@@ -248,6 +248,8 @@ def _row_rule_invariants(schema: "SchemaConfig") -> List[Invariant]:
     disturbed = _disturbed_columns(schema)
     if disturbed is None:
         return []
+    # A lifecycle's states are its state column's domain, attested with its history.
+    lifecycle_owned = {(lc.table, lc.state_column) for lc in schema.lifecycles}
     out = []
 
     def violations(table: str, name: str, where: str) -> Invariant:
@@ -281,7 +283,8 @@ def _row_rule_invariants(schema: "SchemaConfig") -> List[Invariant]:
                 out.append(violations(table.name, f"{column.name}.not_null", f"{col} IS NULL"))
             choices = (column.distribution_params or {}).get("choices")
             if column.type == "categorical" and choices and all(
-                    isinstance(c, str) for c in choices):
+                    isinstance(c, str) for c in choices) and (
+                    (table.name, column.name) not in lifecycle_owned):
                 domain = ", ".join(quote_literal(c) for c in choices)
                 out.append(violations(
                     table.name, f"{column.name}.domain",
@@ -404,6 +407,67 @@ def _graph_invariants(schema: "SchemaConfig") -> List[Invariant]:
     return out
 
 
+def _lifecycle_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Declared lifecycles: every row's history is its state's path, and the mix is the weights.
+
+    For a row in state S, every timestamped state on the path from ``initial``
+    to S is set, in path order and not before ``start_column``, and every
+    other timestamp is NULL. Each state's row count is within one row of its
+    share of the table, which is what largest-remainder allocation
+    guarantees whatever the table's final size.
+    """
+    disturbed = _disturbed_columns(schema)
+    if disturbed is None:
+        return []
+    out = []
+    for spec in schema.lifecycles:
+        columns = {c.name for c in schema.get_columns(spec.table)}
+        stamps = [c for c in spec.timestamp_columns() if c in columns]
+        start = spec.start_column if spec.start_column in columns else None
+        if spec.state_column not in columns or any(
+                (spec.table, c) in disturbed for c in [spec.state_column, start, *stamps] if c):
+            continue
+        paths = {s: p for s in spec.state_names() if (p := spec.path_to(s))}
+        if not paths:
+            continue
+        table, state = quote_ident(spec.table), quote_ident(spec.state_column)
+
+        def at(column: str) -> str:
+            return f"CAST({quote_ident(column)} AS TIMESTAMP)"
+
+        legal = []
+        for name, path in paths.items():
+            on = [c for c in (spec.timestamp_of(s) for s in path) if c in stamps]
+            terms = [f"{quote_ident(c)} IS NOT NULL" for c in on]
+            terms += [f"{quote_ident(c)} IS NULL" for c in stamps if c not in on]
+            terms += [f"{at(a)} <= {at(b)}" for a, b in zip(on, on[1:])]
+            if start and on:
+                terms.append(f"({quote_ident(start)} IS NULL OR {at(start)} <= {at(on[0])})")
+            legal.append(f"({state} = {quote_literal(name)} AND {' AND '.join(terms or ['TRUE'])})")
+        out.append(Invariant(
+            id=f"{spec.table}.{spec.name}.lifecycle_history", kind="lifecycle_history",
+            sql=f"SELECT COUNT(*) FROM {table} WHERE NOT COALESCE({' OR '.join(legal)}, FALSE)",
+            expected="0", value_type="integer", table=spec.table,
+        ))
+
+        weights = {s: float((spec.weights or {}).get(s, 0.0)) for s in paths}
+        if not spec.weights:
+            weights = dict.fromkeys(paths, 1.0)
+        total = sum(weights.values())
+        if total <= 0:
+            continue
+        shares = ", ".join(f"({quote_literal(s)}, {w / total!r})" for s, w in weights.items())
+        out.append(Invariant(
+            id=f"{spec.table}.{spec.name}.lifecycle_mix", kind="lifecycle_mix",
+            sql=(f"SELECT COUNT(*) FROM (SELECT d.share, COUNT(t.{state}) AS n "
+                 f"FROM (VALUES {shares}) d(state, share) LEFT JOIN {table} t "
+                 f"ON t.{state} = d.state GROUP BY d.state, d.share) "
+                 f"WHERE ABS(n - share * (SELECT COUNT(*) FROM {table})) >= 1"),
+            expected="0", value_type="integer", table=spec.table,
+        ))
+    return out
+
+
 def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     """Every invariant the schema's declarations imply, before any data exists.
 
@@ -434,6 +498,7 @@ def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     invariants += _min_children_invariants(schema)
     invariants += _partition_invariants(schema)
     invariants += _graph_invariants(schema)
+    invariants += _lifecycle_invariants(schema)
 
     seen: Dict[str, int] = {}
     unique_ids = []

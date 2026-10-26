@@ -40,6 +40,12 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   children than declared.
 - A relationship's `partition_by` is attested: no child row shares a key
   with a parent from another partition.
+- Lifecycles are attested. Every row's timestamps must be its state's path
+  from `initial`, in order and not before `start_column`, with every other
+  timestamp null, and each state's count must be within one row of its
+  weighted share. The state column's domain is the lifecycle's states,
+  so a status column whose choices were inferred before the lifecycle
+  rewrote it no longer fails `domain`.
 - Observed decimals never read `-0.00`. A trial balance whose float sum
   cancels to -1e-10 is zero and matches `0.00`.
 - Every command that reads a schema file reads SQL DDL from a `.sql` file:
