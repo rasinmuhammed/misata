@@ -311,6 +311,18 @@ def _detect_template(columns: List[str]) -> str:
 # DocumentTemplate
 # ---------------------------------------------------------------------------
 
+def _jinja2() -> Any:
+    """The ``jinja2`` module, which the ``documents`` extra installs."""
+    try:
+        import jinja2
+    except ImportError as exc:
+        raise ImportError(
+            "Document templates require Jinja2. "
+            "Install with: pip install 'misata[documents]'"
+        ) from exc
+    return jinja2
+
+
 def _environment(jinja2: Any, fmt: str) -> Any:
     """A Jinja environment for ``fmt``.
 
@@ -351,15 +363,7 @@ class DocumentTemplate:
 
     # ------------------------------------------------------------------
     def _load(self, source: str, fmt: str):
-        try:
-            import jinja2
-        except ImportError as exc:
-            raise ImportError(
-                "Jinja2 is required for document generation. "
-                "Install it with: pip install jinja2"
-            ) from exc
-
-        env = _environment(jinja2, fmt)
+        env = _environment(_jinja2(), fmt)
 
         # Built-in name
         if source in _BUILTIN_TEMPLATES or source == "auto":
@@ -383,8 +387,7 @@ class DocumentTemplate:
 
     def _resolve_auto(self, columns: List[str], fmt: str):
         """Resolve the 'auto' template once column names are known."""
-        import jinja2
-        env = _environment(jinja2, fmt)
+        env = _environment(_jinja2(), fmt)
         name = _detect_template(columns)
         if fmt == "markdown":
             return env.from_string(_BUILTIN_MARKDOWN.get(name, _BUILTIN_MARKDOWN["generic"]))

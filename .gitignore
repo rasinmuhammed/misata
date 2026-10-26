@@ -192,3 +192,4 @@ examples/bank_evalpack_out/
 !tests/test_conformance_warnings.py
 !tests/test_agent_schema_slips.py
 !tests/test_order_items_at_scale.py
+!tests/test_import_cost.py

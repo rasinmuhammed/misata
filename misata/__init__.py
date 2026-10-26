@@ -27,13 +27,12 @@ Quickstart::
 __version__ = "0.9.7.2"
 __author__ = "Muhammed Rasin"
 
+import importlib
+import importlib.util
+import sys
+import types
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
-
-from misata.attestation import Attestation, AttestationError, attest
-from misata.explain import Explanation, explain
-from misata.solve import DbtDuckDBRunner, PythonRunner, SolveResult, SQLRunner, Target, solve
-from misata.publish import HubRelease, prepare_hub_release, publish_to_hub
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +145,10 @@ def generate_stream(
 
 def _stream_schema(story: "Any", rows: int) -> "Any":
     """A SchemaConfig from whatever generate_stream was given."""
+    from misata.compat import from_dict_schema
+    from misata.ddl import from_ddl
     from misata.schema import SchemaConfig
+    from misata.yaml_schema import load_yaml_schema
     if isinstance(story, SchemaConfig):
         return story
     if isinstance(story, dict):
@@ -384,7 +386,7 @@ def generate_from_schema(
     def _verified(tables: "Dict[str, Any]") -> "Dict[str, Any]":
         if verify:
             from misata.coherence import story_audit
-            from misata.exceptions import warn
+            from misata.exceptions import ConformanceWarning, warn
             report = story_audit(tables, schema)
             for f in report.findings:
                 if not f.repaired:
@@ -661,158 +663,238 @@ def generate_diff(
     return new_tables
 
 
-from misata.schema import (
-    Column,
-    Constraint,
-    NoiseConfig,
-    GroupShares,
-    WaterfallIdentity,
-    OutcomeCurve,
-    RateCurve,
-    RealismConfig,
-    Relationship,
-    ScenarioEvent,
-    SchemaConfig,
-    Table,
-)
-from misata.simulator import DataSimulator, GenerationResult
-from misata.story_parser import StoryParser, DetectionReport
-from misata.llm_parser import LLMSchemaGenerator
-from misata.validation import SchemaValidationError, validate_schema, validate_data, validate_csv, CsvValidationReport
-from misata.outcome_builder import OutcomeCurveBuilder, RateCurveBuilder
-from misata.conformance import (
-    conformance_preview,
-    ConformancePreview,
-    CurvePreview,
-    PeriodPreview,
-)
-from misata.timeseries import (
-    generate_timeseries,
-    TimeSeriesConfig,
-    TimeSeriesGenerator,
-    Trend,
-    Seasonality,
-    Anomaly,
-)
-from misata.engines import FactEngine
-from misata.generators import TextGenerator
-from misata.generators.base import (
-    BaseGenerator,
-    IntegerGenerator,
-    FloatGenerator,
-    BooleanGenerator,
-    CategoricalGenerator,
-    DateGenerator,
-    ForeignKeyGenerator,
-    GeneratorFactory,
-)
-from misata.constraints import (
-    BaseConstraint,
-    SumConstraint,
-    RangeConstraint,
-    UniqueConstraint,
-    NotNullConstraint,
-    RatioConstraint,
-    ConstraintEngine,
-)
-from misata.context import GenerationContext
-from misata.exceptions import (
-    ColumnGenerationError,
-    ConfigurationError,
-    ConformanceWarning,
-    ExportError,
-    LLMError,
-    MisataError,
-    MisataWarning,
-)
-from misata.export import to_parquet, to_duckdb, to_jsonl, to_sql, to_arrow, to_seed_sql, to_polars, decode_json_columns
-from misata.compat import from_dict_schema, verify_integrity, IntegrityReport
-from misata.validator import validate as validate_domain, ValidationReport
-from misata.smart_values import SmartValueGenerator
-from misata.noise import NoiseInjector, add_noise
-from misata.customization import Customizer, ColumnOverride
-from misata.quality import DataQualityChecker, check_quality
-from misata.coherence import coherence_audit, story_audit, CoherenceReport, CoherenceFinding
-from misata.vocab_validator import validate_vocabulary, ValidationResult
-from misata.capsule_registry import (
-    install_capsule,
-    load_registry_capsule,
-    registry_names,
-)
-from misata.evalpack import build_evalpack, EvalPackResult, EvalQuestion
-from misata.templates.library import load_template, list_templates
-from misata.db import seed_database, seed_database_sqlalchemy, seed_from_sqlalchemy_models, SeedReport
-from misata.db import load_tables_from_db
-from misata.introspect import schema_from_db, schema_from_sqlalchemy
-from misata.profiles import (
-    DistributionProfile,
-    get_profile,
-    list_profiles,
-    generate_with_profile,
-)
-from misata.recipes import RecipeSpec, RunManifest, load_recipe
-from misata.reporting import (
-    build_oracle_report,
-    DataCard,
-    FidelityChecker,
-    GenerationReportBundle,
-    PrivacyAnalyzer,
-    analyze_generation,
-)
-from misata.assets import (
-    AssetStore,
-    KaggleAssetIngestor,
-    KaggleDatasetDescriptor,
-    LicensePolicy,
-)
-from misata.domain_capsule import AssetProvenance, DomainCapsule, VocabularyAsset
-from misata.vocabulary import SemanticVocabularyGenerator
-from misata.kaggle_integration import (
-    enrich_from_kaggle,
-    ingest_csv as ingest_csv_vocab,
-    kaggle_find,
-    kaggle_status,
-    detect_column_assets,
-    EnrichmentResult,
-)
-from misata.documents import (
-    DocumentTemplate,
-    generate_documents,
-    list_document_templates,
-)
-from misata.yaml_schema import (
-    load_yaml_schema,
-    save_yaml_schema,
-    MISATA_YAML_TEMPLATE,
-    json_schema,
-    JSON_SCHEMA_URL,
-)
-from misata.constraints import InequalityConstraint, ColumnRangeConstraint
-from misata.workflows import WORKFLOW_PRESETS, WorkflowEngine
-from misata.locales import (
-    detect_locale,
-    detect_locale_from_story,
-    get_locale_pack,
-    LocaleRegistry,
-    LOCALE_PACKS,
-)
-from misata.locales.packs import LocalePack
-from misata.generators.base import (
-    ConditionalCategoricalGenerator,
-    CONDITIONAL_LOOKUPS,
-    create_conditional_generator,
-)
-from misata.profiler import mimic, DataProfiler
-from misata.fidelity import fidelity_report, FidelityReport, privacy_report, PrivacyReport
-from misata.tells import realism_report, RealismReport
-from misata.plugins import generator, register_generator, GenContext
-from misata.process import simulate_process, process_audit, to_xes
-from misata.django_import import from_django
-from misata.presets import apply_preset, PRESETS
-from misata.schema import Process
-from misata.ddl import from_ddl
-from misata.fingerprint import fingerprint
-from misata import spark as spark  # noqa: PLC0414 — re-export the submodule
+# ---------------------------------------------------------------------------
+# Public API, loaded on first use
+# ---------------------------------------------------------------------------
+#
+# ``import misata`` binds the convenience functions above and nothing else.
+# Every other public name maps to the module that defines it and is imported
+# the first time it is read (PEP 562), so a caller pays for pandas, scipy, the
+# LLM clients or the solver only when it touches something that needs them.
+# The ``TYPE_CHECKING`` block repeats the table for type checkers and editors;
+# tests/test_import_cost.py keeps the two in step.
+
+
+def _exports(module: str, *names: str) -> Dict[str, Tuple[str, str]]:
+    return {name: (module, name) for name in names}
+
+
+#: Public name -> (defining module, attribute of that module).
+_LAZY: Dict[str, Tuple[str, str]] = {
+    **_exports("misata.schema", "Column", "Constraint", "NoiseConfig", "GroupShares",
+        "WaterfallIdentity", "OutcomeCurve", "RateCurve", "RealismConfig", "Relationship",
+        "ScenarioEvent", "SchemaConfig", "Table", "Process"),
+    **_exports("misata.simulator", "DataSimulator", "GenerationResult"),
+    **_exports("misata.story_parser", "StoryParser", "DetectionReport"),
+    **_exports("misata.llm_parser", "LLMSchemaGenerator"),
+    **_exports("misata.validation", "SchemaValidationError", "validate_schema", "validate_data",
+        "validate_csv", "CsvValidationReport"),
+    **_exports("misata.outcome_builder", "OutcomeCurveBuilder", "RateCurveBuilder"),
+    **_exports("misata.conformance", "conformance_preview", "ConformancePreview",
+        "CurvePreview", "PeriodPreview"),
+    **_exports("misata.timeseries", "generate_timeseries", "TimeSeriesConfig",
+        "TimeSeriesGenerator", "Trend", "Seasonality", "Anomaly"),
+    **_exports("misata.engines", "FactEngine"),
+    **_exports("misata.generators", "TextGenerator"),
+    **_exports("misata.generators.base", "BaseGenerator", "IntegerGenerator", "FloatGenerator",
+        "BooleanGenerator", "CategoricalGenerator", "DateGenerator", "ForeignKeyGenerator",
+        "GeneratorFactory", "ConditionalCategoricalGenerator", "CONDITIONAL_LOOKUPS",
+        "create_conditional_generator"),
+    **_exports("misata.constraints", "BaseConstraint", "SumConstraint", "RangeConstraint",
+        "UniqueConstraint", "NotNullConstraint", "RatioConstraint", "ConstraintEngine",
+        "InequalityConstraint", "ColumnRangeConstraint"),
+    **_exports("misata.context", "GenerationContext"),
+    **_exports("misata.exceptions", "ColumnGenerationError", "ConfigurationError",
+        "ConformanceWarning", "ExportError", "LLMError", "MisataError", "MisataWarning"),
+    **_exports("misata.export", "to_parquet", "to_duckdb", "to_jsonl", "to_sql", "to_arrow",
+        "to_seed_sql", "to_polars", "decode_json_columns"),
+    **_exports("misata.compat", "from_dict_schema", "verify_integrity", "IntegrityReport"),
+    **_exports("misata.validator", "ValidationReport"),
+    "validate_domain": ("misata.validator", "validate"),
+    **_exports("misata.smart_values", "SmartValueGenerator"),
+    **_exports("misata.noise", "NoiseInjector", "add_noise"),
+    **_exports("misata.customization", "Customizer", "ColumnOverride"),
+    **_exports("misata.quality", "DataQualityChecker", "check_quality"),
+    **_exports("misata.coherence", "coherence_audit", "story_audit", "CoherenceReport",
+        "CoherenceFinding"),
+    **_exports("misata.vocab_validator", "validate_vocabulary", "ValidationResult"),
+    **_exports("misata.capsule_registry", "install_capsule", "load_registry_capsule",
+        "registry_names"),
+    **_exports("misata.evalpack", "build_evalpack", "EvalPackResult", "EvalQuestion"),
+    **_exports("misata.templates.library", "load_template", "list_templates"),
+    **_exports("misata.db", "seed_database", "seed_database_sqlalchemy",
+        "seed_from_sqlalchemy_models", "SeedReport", "load_tables_from_db"),
+    **_exports("misata.introspect", "schema_from_db", "schema_from_sqlalchemy"),
+    **_exports("misata.profiles", "DistributionProfile", "get_profile", "list_profiles",
+        "generate_with_profile"),
+    **_exports("misata.recipes", "RecipeSpec", "RunManifest", "load_recipe"),
+    **_exports("misata.reporting", "build_oracle_report", "DataCard", "FidelityChecker",
+        "GenerationReportBundle", "PrivacyAnalyzer", "analyze_generation"),
+    **_exports("misata.assets", "AssetStore", "KaggleAssetIngestor", "KaggleDatasetDescriptor",
+        "LicensePolicy"),
+    **_exports("misata.domain_capsule", "AssetProvenance", "DomainCapsule", "VocabularyAsset"),
+    **_exports("misata.vocabulary", "SemanticVocabularyGenerator"),
+    **_exports("misata.kaggle_integration", "enrich_from_kaggle", "kaggle_find",
+        "kaggle_status", "detect_column_assets", "EnrichmentResult"),
+    "ingest_csv_vocab": ("misata.kaggle_integration", "ingest_csv"),
+    **_exports("misata.documents", "DocumentTemplate", "generate_documents",
+        "list_document_templates"),
+    **_exports("misata.yaml_schema", "load_yaml_schema", "save_yaml_schema",
+        "MISATA_YAML_TEMPLATE", "json_schema", "JSON_SCHEMA_URL"),
+    **_exports("misata.workflows", "WORKFLOW_PRESETS", "WorkflowEngine"),
+    **_exports("misata.locales", "detect_locale", "detect_locale_from_story", "get_locale_pack",
+        "LocaleRegistry", "LOCALE_PACKS"),
+    **_exports("misata.locales.packs", "LocalePack"),
+    **_exports("misata.profiler", "mimic", "DataProfiler"),
+    **_exports("misata.fidelity", "fidelity_report", "FidelityReport", "privacy_report",
+        "PrivacyReport"),
+    **_exports("misata.tells", "realism_report", "RealismReport"),
+    **_exports("misata.plugins", "generator", "register_generator", "GenContext"),
+    **_exports("misata.process", "simulate_process", "process_audit", "to_xes"),
+    **_exports("misata.django_import", "from_django"),
+    **_exports("misata.presets", "apply_preset", "PRESETS"),
+    **_exports("misata.ddl", "from_ddl"),
+    **_exports("misata.fingerprint", "fingerprint"),
+    **_exports("misata.attestation", "Attestation", "AttestationError", "attest"),
+    **_exports("misata.explain", "Explanation", "explain"),
+    **_exports("misata.solve", "DbtDuckDBRunner", "PythonRunner", "SolveResult", "SQLRunner",
+        "Target", "solve"),
+    **_exports("misata.publish", "HubRelease", "prepare_hub_release", "publish_to_hub"),
+}
+
+if TYPE_CHECKING:
+    from misata.schema import (
+        Column, Constraint, NoiseConfig, GroupShares, WaterfallIdentity, OutcomeCurve,
+        RateCurve, RealismConfig, Relationship, ScenarioEvent, SchemaConfig, Table, Process,
+    )
+    from misata.simulator import DataSimulator, GenerationResult
+    from misata.story_parser import StoryParser, DetectionReport
+    from misata.llm_parser import LLMSchemaGenerator
+    from misata.validation import (
+        SchemaValidationError, validate_schema, validate_data, validate_csv, CsvValidationReport,
+    )
+    from misata.outcome_builder import OutcomeCurveBuilder, RateCurveBuilder
+    from misata.conformance import (
+        conformance_preview, ConformancePreview, CurvePreview, PeriodPreview,
+    )
+    from misata.timeseries import (
+        generate_timeseries, TimeSeriesConfig, TimeSeriesGenerator, Trend, Seasonality, Anomaly,
+    )
+    from misata.engines import FactEngine
+    from misata.generators import TextGenerator
+    from misata.generators.base import (
+        BaseGenerator, IntegerGenerator, FloatGenerator, BooleanGenerator, CategoricalGenerator,
+        DateGenerator, ForeignKeyGenerator, GeneratorFactory, ConditionalCategoricalGenerator,
+        CONDITIONAL_LOOKUPS, create_conditional_generator,
+    )
+    from misata.constraints import (
+        BaseConstraint, SumConstraint, RangeConstraint, UniqueConstraint, NotNullConstraint,
+        RatioConstraint, ConstraintEngine, InequalityConstraint, ColumnRangeConstraint,
+    )
+    from misata.context import GenerationContext
+    from misata.exceptions import (
+        ColumnGenerationError, ConfigurationError, ConformanceWarning, ExportError, LLMError,
+        MisataError, MisataWarning,
+    )
+    from misata.export import (
+        to_parquet, to_duckdb, to_jsonl, to_sql, to_arrow, to_seed_sql, to_polars,
+        decode_json_columns,
+    )
+    from misata.compat import from_dict_schema, verify_integrity, IntegrityReport
+    from misata.validator import ValidationReport, validate as validate_domain
+    from misata.smart_values import SmartValueGenerator
+    from misata.noise import NoiseInjector, add_noise
+    from misata.customization import Customizer, ColumnOverride
+    from misata.quality import DataQualityChecker, check_quality
+    from misata.coherence import coherence_audit, story_audit, CoherenceReport, CoherenceFinding
+    from misata.vocab_validator import validate_vocabulary, ValidationResult
+    from misata.capsule_registry import install_capsule, load_registry_capsule, registry_names
+    from misata.evalpack import build_evalpack, EvalPackResult, EvalQuestion
+    from misata.templates.library import load_template, list_templates
+    from misata.db import (
+        seed_database, seed_database_sqlalchemy, seed_from_sqlalchemy_models, SeedReport,
+        load_tables_from_db,
+    )
+    from misata.introspect import schema_from_db, schema_from_sqlalchemy
+    from misata.profiles import (
+        DistributionProfile, get_profile, list_profiles, generate_with_profile,
+    )
+    from misata.recipes import RecipeSpec, RunManifest, load_recipe
+    from misata.reporting import (
+        build_oracle_report, DataCard, FidelityChecker, GenerationReportBundle, PrivacyAnalyzer,
+        analyze_generation,
+    )
+    from misata.assets import (
+        AssetStore, KaggleAssetIngestor, KaggleDatasetDescriptor, LicensePolicy,
+    )
+    from misata.domain_capsule import AssetProvenance, DomainCapsule, VocabularyAsset
+    from misata.vocabulary import SemanticVocabularyGenerator
+    from misata.kaggle_integration import (
+        enrich_from_kaggle, kaggle_find, kaggle_status, detect_column_assets, EnrichmentResult,
+        ingest_csv as ingest_csv_vocab,
+    )
+    from misata.documents import DocumentTemplate, generate_documents, list_document_templates
+    from misata.yaml_schema import (
+        load_yaml_schema, save_yaml_schema, MISATA_YAML_TEMPLATE, json_schema, JSON_SCHEMA_URL,
+    )
+    from misata.workflows import WORKFLOW_PRESETS, WorkflowEngine
+    from misata.locales import (
+        detect_locale, detect_locale_from_story, get_locale_pack, LocaleRegistry, LOCALE_PACKS,
+    )
+    from misata.locales.packs import LocalePack
+    from misata.profiler import mimic, DataProfiler
+    from misata.fidelity import fidelity_report, FidelityReport, privacy_report, PrivacyReport
+    from misata.tells import realism_report, RealismReport
+    from misata.plugins import generator, register_generator, GenContext
+    from misata.process import simulate_process, process_audit, to_xes
+    from misata.django_import import from_django
+    from misata.presets import apply_preset, PRESETS
+    from misata.ddl import from_ddl
+    from misata.fingerprint import fingerprint
+    from misata.attestation import Attestation, AttestationError, attest
+    from misata.explain import Explanation, explain
+    from misata.solve import DbtDuckDBRunner, PythonRunner, SolveResult, SQLRunner, Target, solve
+    from misata.publish import HubRelease, prepare_hub_release, publish_to_hub
+    from misata import spark as spark
+
+
+def __getattr__(name: str) -> Any:
+    """Import a public name, or a submodule, the first time it is read."""
+    target = _LAZY.get(name)
+    if target is not None:
+        module, attribute = target
+        value = getattr(importlib.import_module(module), attribute)
+    elif (name.isidentifier() and not name.startswith("__")
+          and importlib.util.find_spec(f"{__name__}.{name}") is not None):
+        value = importlib.import_module(f"{__name__}.{name}")
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> List[str]:
+    return sorted(set(globals()) | set(_LAZY) | set(__all__))
+
+
+class _Package(types.ModuleType):
+    """The ``misata`` module, keeping exported functions bound over same-named submodules.
+
+    Importing a submodule binds it on its package under its own name, so a
+    plain ``import misata.solve`` anywhere would replace the exported ``solve``
+    function with the module. ``explain`` and ``fingerprint`` share the same
+    shape. A name in the export table keeps the object it exports.
+    """
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        target = _LAZY.get(name)
+        if target is not None and isinstance(value, types.ModuleType) and value.__name__ == target[0]:
+            value = getattr(value, target[1])
+        super().__setattr__(name, value)
+
+
+sys.modules[__name__].__class__ = _Package
+
 
 __all__ = [
     # One-liners
