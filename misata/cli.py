@@ -3446,7 +3446,7 @@ def provenance_cmd(data_dir: Optional[str]) -> None:
             "invariants_held": sum(1 for i in invariants if i.get("passed")),
             "invariants": len(invariants),
         }
-        console.print(f"\n[bold]Made from[/bold] (attestation.intoto.json)")
+        console.print("\n[bold]Made from[/bold] (attestation.intoto.json)")
         console.print(f"  producer: {attested['producer']}", markup=False, highlight=False)
         if attested["spec"]:
             console.print(f"  schema:   {attested['spec']} sha256 {attested['spec_sha256']}",
@@ -3457,7 +3457,7 @@ def provenance_cmd(data_dir: Optional[str]) -> None:
 
     suffixes = {".csv", ".parquet", ".jsonl", ".duckdb"}
     files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix in suffixes)
-    manifest = []
+    manifest: List[Dict[str, Any]] = []
     for path in files:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         rows: Optional[int] = None

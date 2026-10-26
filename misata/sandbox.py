@@ -230,7 +230,8 @@ def _resolve_schema(*, domain: Optional[str], story: Optional[str],
     from misata.templates.library import list_templates, load_template
 
     if isinstance(schema, SchemaConfig):
-        return schema.model_copy(deep=True)
+        copied: SchemaConfig = schema.model_copy(deep=True)
+        return copied
     if schema:
         from misata.compat import from_dict_schema
 

@@ -1,5 +1,5 @@
 {
-  "blind_except": 20,
+  "blind_except": 19,
   "complexity_over_15": 82,
   "complexity_over_40": 6,
   "core_dependencies": 8,

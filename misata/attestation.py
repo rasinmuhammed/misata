@@ -36,6 +36,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from itertools import pairwise
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -440,7 +441,7 @@ def _lifecycle_invariants(schema: "SchemaConfig") -> List[Invariant]:
             on = [c for c in (spec.timestamp_of(s) for s in path) if c in stamps]
             terms = [f"{quote_ident(c)} IS NOT NULL" for c in on]
             terms += [f"{quote_ident(c)} IS NULL" for c in stamps if c not in on]
-            terms += [f"{at(a)} <= {at(b)}" for a, b in zip(on, on[1:])]
+            terms += [f"{at(a)} <= {at(b)}" for a, b in pairwise(on)]
             if start and on:
                 terms.append(f"({quote_ident(start)} IS NULL OR {at(start)} <= {at(on[0])})")
             legal.append(f"({state} = {quote_literal(name)} AND {' AND '.join(terms or ['TRUE'])})")
