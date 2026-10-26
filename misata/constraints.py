@@ -5,7 +5,7 @@ Provides constraint classes for applying business rules to generated data.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -93,10 +93,10 @@ class SumConstraint(BaseConstraint):
             return True
         
         if not self.group_by:
-            return df[self.column].sum() <= self.max_sum
+            return cast(bool, df[self.column].sum() <= self.max_sum)
         
         group_sums = df.groupby(self.group_by)[self.column].sum()
-        return (group_sums <= self.max_sum).all()
+        return cast(bool, (group_sums <= self.max_sum).all())
 
 
 class RangeConstraint(BaseConstraint):
@@ -204,7 +204,7 @@ class RatioConstraint(BaseConstraint):
         # Fill remaining
         remaining = n - len(categories)
         if remaining > 0:
-            most_common = max(self.target_ratios, key=self.target_ratios.get)
+            most_common = max(self.target_ratios, key=self.target_ratios.__getitem__)
             categories.extend([most_common] * remaining)
         
         np.random.shuffle(categories)
@@ -272,7 +272,7 @@ class TemporalConstraint(BaseConstraint):
         after = pd.to_datetime(df[self.after_column])
         
         gap = (after - before).dt.days
-        return (gap >= self.min_gap_days).all()
+        return cast(bool, (gap >= self.min_gap_days).all())
 
 
 class InequalityConstraint(BaseConstraint):
@@ -347,7 +347,7 @@ class ColumnRangeConstraint(BaseConstraint):
         if not required.issubset(df.columns):
             return True
         col = df[self.column]
-        return (col >= df[self.low_column]).all() and (col <= df[self.high_column]).all()
+        return cast(bool, (col >= df[self.low_column]).all() and (col <= df[self.high_column]).all())
 
 
 class ConstraintEngine:

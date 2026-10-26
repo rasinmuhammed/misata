@@ -180,6 +180,7 @@ def _parse_column(raw: Dict[str, Any]) -> DbtColumnSpec:
     # dbt 1.8 renamed `tests:` to `data_tests:`; accept both.
     tests = raw.get("data_tests", raw.get("tests", [])) or []
     for t in tests:
+        spec: Any
         if isinstance(t, str):
             name, spec = t, {}
         elif isinstance(t, dict) and len(t) == 1:
@@ -239,6 +240,7 @@ def _parse_entity_tests(raw: Dict[str, Any]) -> Tuple[List[DbtEntityTest], List[
     skipped: List[str] = []
     tests = raw.get("data_tests", raw.get("tests", [])) or []
     for t in tests:
+        spec: Any
         if isinstance(t, str):
             name, spec = t, {}
         elif isinstance(t, dict) and len(t) == 1:
@@ -298,7 +300,7 @@ def parse_dbt_properties(project: DbtProjectInfo) -> Tuple[List[DbtEntitySpec], 
             seen.add(yml)
             try:
                 data = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
-            except Exception:
+            except (OSError, ValueError, yaml.YAMLError):
                 continue
             if not isinstance(data, dict):
                 continue
@@ -542,9 +544,9 @@ def build_schema_from_dbt(
             elif et.kind == "inequality":
                 col_a, op, operand = et.payload
                 if isinstance(operand, float):
-                    target = next((c for c in cols if c.name == col_a), None)
-                    if target is not None and target.type in ("int", "float"):
-                        target.distribution_params[
+                    bounded = next((c for c in cols if c.name == col_a), None)
+                    if bounded is not None and bounded.type in ("int", "float"):
+                        bounded.distribution_params[
                             "min" if op in (">", ">=") else "max"
                         ] = operand
                         report.dbt_utils_translated += 1

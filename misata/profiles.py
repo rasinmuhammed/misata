@@ -490,7 +490,7 @@ def _locale_currency(locale: Optional[str]) -> str:
                 None,
             )
         return getattr(pack, "currency_code", None) or "USD"
-    except Exception:
+    except (ImportError, TypeError):
         return "USD"
 
 

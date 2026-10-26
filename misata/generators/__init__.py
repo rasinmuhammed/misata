@@ -26,9 +26,9 @@ try:
     COPULA_AVAILABLE = True
 except ImportError:
     COPULA_AVAILABLE = False
-    CopulaGenerator = None
-    ConstraintAwareCopulaGenerator = None
-    create_copula_generator = None
+    CopulaGenerator = None  # type: ignore[misc, assignment]
+    ConstraintAwareCopulaGenerator = None  # type: ignore[misc, assignment]
+    create_copula_generator = None  # type: ignore[assignment]
 
 __all__ = [
     "BaseGenerator",

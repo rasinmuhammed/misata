@@ -17,7 +17,7 @@ Each pack carries:
 
 import math
 from dataclasses import dataclass, field
-from typing import List
+from typing import Dict, List
 
 
 @dataclass
@@ -106,7 +106,7 @@ def _lognorm(median: float) -> tuple:
     return math.log(median), 0.5
 
 
-LOCALE_PACKS: dict = {}
+LOCALE_PACKS: Dict[str, LocalePack] = {}
 
 def _reg(pack: LocalePack) -> None:
     LOCALE_PACKS[pack.locale_code] = pack

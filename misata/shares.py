@@ -63,7 +63,7 @@ def _curve_for(spec: Any, schema: Any):
     try:
         from misata.engines import FactEngine
         engine = FactEngine()
-    except Exception:
+    except ImportError:
         return None, None
     for curve in getattr(schema, "outcome_curves", []) or []:
         if (curve.table == spec.table and curve.column == spec.measure
@@ -100,7 +100,7 @@ def _declared_bounds(schema: Any, table: str, column: str) -> Tuple[Optional[flo
     """The column's declared ``min``/``max``, read the way the fact engine reads them."""
     try:
         cols = schema.get_columns(table)
-    except Exception:
+    except (AttributeError, TypeError):
         return None, None
     for col in cols or []:
         if getattr(col, "name", None) != column:
@@ -109,8 +109,7 @@ def _declared_bounds(schema: Any, table: str, column: str) -> Tuple[Optional[flo
         out = []
         for key in ("min", "max"):
             v = params.get(key)
-            ok = isinstance(v, (int, float)) and not isinstance(v, bool)
-            out.append(float(v) if ok else None)
+            out.append(float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None)
         return out[0], out[1]
     return None, None
 

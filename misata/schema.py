@@ -931,9 +931,8 @@ class Degradation(BaseModel):
 
     # ── Maintenance ──────────────────────────────────────────────────────
     #
-    # Absent entirely before this. A fleet that only ever runs to failure,
-    # never repaired, has no maintenance history to speak of -- and every
-    # real fleet is repaired. `maintenance_policy` makes an intervention
+    # A fleet that only ever runs to failure, never repaired, has no
+    # maintenance history to speak of, and every real fleet is repaired. `maintenance_policy` makes an intervention
     # possible mid-life, which both extends the trajectory and produces a
     # second table: the log of when it happened and how much it helped.
     #
@@ -1107,12 +1106,12 @@ class NoiseConfig(BaseModel):
 class TimeGrid(BaseModel):
     """A timestamp column lands on a declared grid, in declared hours.
 
-    Misata has shaped timestamps by name-guess since early on: a column called
-    ``appointment_time`` was snapped to quarter hours inside business hours
-    because that is what appointments do. The guess is usually right and it is
-    the single biggest tell that separates plausible timestamps from
-    ``2022-08-29 06:36:12.995319155``. But a guess is not a guarantee: it was
-    never declarable, never overridable, and never checked.
+    Misata shapes timestamps by name: a column called ``appointment_time`` is
+    snapped to quarter hours inside business hours because that is what
+    appointments do. The guess is usually right and it is the single biggest
+    tell that separates plausible timestamps from
+    ``2022-08-29 06:36:12.995319155``. But a guess is not a guarantee: it is
+    not declarable, not overridable, and not checked.
 
     ``TimeGrid`` is the declared form. The inference stays as a default; this
     is what you write when the grid matters and you want it proven. A value

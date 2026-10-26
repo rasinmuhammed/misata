@@ -23,7 +23,7 @@ class CausalNode:
         name: str, 
         node_type: str = "endogenous", # 'exogenous' or 'endogenous'
         mechanism: Optional[Callable] = None,
-        parents: List[str] = None
+        parents: Optional[List[str]] = None
     ):
         self.name = name
         self.node_type = node_type # exogenous (root) or endogenous (derived)

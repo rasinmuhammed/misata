@@ -196,7 +196,8 @@ def registry_path(name: str) -> Path:
     entry = REGISTRY_INDEX.get(name)
     if entry is None:
         raise KeyError(f"No registry capsule named {name!r}. Available: {registry_names()}")
-    return _REGISTRY_DIR / entry["file"]
+    file_name: str = entry["file"]
+    return _REGISTRY_DIR / file_name
 
 
 def load_registry_capsule(name: str) -> DomainCapsule:
@@ -254,7 +255,7 @@ def match_registry_capsules(config) -> List[str]:
             continue
         try:
             capsule = load_registry_capsule(name)
-        except Exception:
+        except Exception:  # noqa: BLE001 - a capsule that fails to load is skipped, never fatal
             continue
         covered = set(capsule.vocabularies) | set(capsule.conditional_vocabularies)
         for cond in capsule.conditional_vocabularies.values():

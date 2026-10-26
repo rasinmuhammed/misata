@@ -21,8 +21,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-# Kept so older code that checked for SDV keeps working; the copula no longer
-# needs it.
+# Compatibility flag for callers that check for SDV; the copula does not need it.
 SDV_AVAILABLE = True
 
 _QUANTILES = 512

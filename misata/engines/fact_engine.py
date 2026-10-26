@@ -542,17 +542,17 @@ class FactEngine:
         """Pull every row inside [lo, hi] while keeping the period total exact.
 
         The Dirichlet split hits the aggregate perfectly and knows nothing about
-        the column's declared bounds, so a target of 150,000 across 400 rows
-        produced invoices of 6.71 against a declared min of 49. The aggregate
-        was honoured and the bound was quietly broken.
+        the column's declared bounds: on its own, a target of 150,000 across
+        400 rows can produce invoices of 6.71 against a declared min of 49,
+        honouring the aggregate and quietly breaking the bound.
 
         Both hold whenever ``lo·n <= T <= hi·n``. Everything here is integer
         units of the column's own precision, so clipping and then handing the
         residual to the rows that still have room conserves the total exactly
         rather than to within a rounding error. When the arithmetic genuinely
         cannot hold, this leaves the aggregate intact and the caller's existing
-        `bound_conflicts` check reports the sacrifice, which is the behaviour
-        that was already documented for the impossible case.
+        `bound_conflicts` check reports the sacrifice, as documented for the
+        impossible case.
         """
         n = len(units)
         if n == 0 or (lo is None and hi is None):
@@ -663,11 +663,9 @@ class FactEngine:
         start_date: pd.Timestamp,
     ) -> tuple[pd.Timestamp, pd.Timestamp, str]:
         if "month" in point:
-            # `month` counts from the curve's start, not from January. It was
-            # being passed straight to `pd.Timestamp(month=...)`, so any curve
-            # longer than a year raised "month must be in 1..12, not 24" and
-            # took the whole generation down. A two-year revenue curve is an
-            # ordinary thing to declare.
+            # `month` counts from the curve's start, not from January, so it
+            # is an offset from the start month and a curve may run past
+            # month 12.
             month = int(point["month"])
             bucket_start = (pd.Timestamp(year=start_date.year,
                                          month=start_date.month, day=1)
@@ -702,10 +700,7 @@ class FactEngine:
         """Order curve points, whichever way the period was written.
 
         `period` is documented in the published JSON Schema as a string label
-        such as '2024-01', and this called int() on it. So the one spelling the
-        schema requires was the one that crashed, with a bare ValueError out of
-        a sort key: `misata generate` died on the flagship feature, and lint
-        reported it as a warning.
+        such as '2024-01'; a numeric period is accepted too.
 
         ISO period labels sort chronologically as plain text, so a label that is
         not a number sorts by its string. Keys are 4-tuples throughout, because

@@ -10,7 +10,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from io import StringIO
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -60,10 +60,9 @@ def seed_database(
     dialect, conn = _connect(db_url)
 
     # One transaction for the whole seed: create, truncate and every insert
-    # commit together or not at all. Committing per batch meant a constraint
-    # failure in table five left tables one to four filled, and the next run
-    # with --truncate had to clean up a half-seeded database. SQLite and
-    # Postgres both roll back DDL, so a failed run leaves nothing behind.
+    # commit together or not at all, so a constraint failure in any table
+    # leaves no half-seeded database behind. SQLite and Postgres both roll
+    # back DDL, so a failed run leaves nothing behind.
     if dialect == "sqlite":
         conn.isolation_level = None   # manage the transaction explicitly
         conn.execute("BEGIN")
@@ -141,7 +140,7 @@ def seed_database(
                     conn.execute("ROLLBACK")
             else:
                 conn.rollback()
-        except Exception:
+        except Exception:  # noqa: BLE001 - cleanup must not mask the original error
             pass
         raise
     finally:
@@ -237,7 +236,7 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
         try:
             with _Savepoint(conn, dialect):
                 count = _count_rows(conn, dialect, name)
-        except Exception:
+        except Exception:  # noqa: BLE001 - a table the driver cannot count is treated as empty
             count = 0
         if count == 0:
             continue
@@ -249,12 +248,12 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
             with _Savepoint(conn, dialect):
                 query = f"SELECT {col_list} FROM {quote_ident(name)}"
                 preloaded[name] = pd.read_sql_query(query, conn)
-        except Exception:
-            # A key column that doesn't exist (composite/renamed PK) — load all.
+        except Exception:  # noqa: BLE001 - any driver error falls back to loading every column
+            # A key column that doesn't exist (composite/renamed PK): load all.
             try:
                 with _Savepoint(conn, dialect):
                     preloaded[name] = pd.read_sql_query(f"SELECT * FROM {quote_ident(name)}", conn)
-            except Exception:
+            except Exception:  # noqa: BLE001 - an unreadable table is generated normally
                 skip.discard(name)  # can't load it; let normal path handle
     return preloaded, skip
 
@@ -294,7 +293,7 @@ def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
                         f"COALESCE((SELECT MAX({quote_ident(col)}) FROM {quote_ident(name)}), 1))",
                         (name, col),
                     )
-        except Exception:
+        except Exception:  # noqa: BLE001 - realignment is best-effort
             # Sequence realignment is best-effort; never fail the seed over it.
             pass
 
@@ -387,7 +386,7 @@ def _is_external(config: SchemaConfig, table_name: str) -> bool:
     return any(t.name == table_name and t.external_schema for t in config.tables)
 
 
-def _connect(db_url: str) -> Tuple[str, object]:
+def _connect(db_url: str) -> Tuple[str, Any]:
     parsed = urlparse(db_url)
     scheme = parsed.scheme.lower()
 
@@ -396,8 +395,7 @@ def _connect(db_url: str) -> Tuple[str, object]:
             raise ValueError("SQLite URL must include a file path, e.g. sqlite:///path/to.db")
         # SQLAlchemy's convention: three slashes then a relative path
         # (sqlite:///dev.db is ./dev.db), four for an absolute one
-        # (sqlite:////var/data/dev.db). Using the URL path as-is opened
-        # sqlite:///dev.db at the filesystem root.
+        # (sqlite:////var/data/dev.db).
         path = parsed.path[1:] if not parsed.netloc else parsed.path
         if path == ":memory:" or path.startswith("file:"):
             pass
@@ -410,7 +408,7 @@ def _connect(db_url: str) -> Tuple[str, object]:
     if scheme in ("postgres", "postgresql"):
         try:
             import psycopg  # type: ignore
-        except Exception as exc:
+        except ImportError as exc:
             raise ImportError("Postgres driver missing. Install misata[db] (psycopg).") from exc
         conn = psycopg.connect(db_url)
         return "postgres", conn
@@ -455,13 +453,9 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
     if dialect == "postgres":
         # COPY for speed, executemany as the fallback.
         #
-        # `cur.copy(sql, buf)` looks like it streams `buf`, and does not:
-        # psycopg3's second positional argument is query *parameters*, and the
-        # return value is a context manager that has to be entered before a
-        # single byte moves. Called this way it wrote nothing, raised nothing,
-        # so the fallback never fired and the caller was told every row landed.
-        # `misata seed` reported success against Postgres while leaving the
-        # tables empty. Enter the context manager and write into it.
+        # psycopg3's `cur.copy()` takes query parameters as its second
+        # argument and returns a context manager that moves no data until it
+        # is entered, so the CSV is written into the entered context.
         # A savepoint, not a rollback: rolling back the failed COPY must not
         # also discard every batch already inserted in this transaction.
         try:
@@ -472,7 +466,7 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
                             "FROM STDIN WITH (FORMAT CSV)")
                 with cur.copy(copy_sql) as copy:
                     copy.write(csv_buf.getvalue())
-        except Exception:
+        except Exception:  # noqa: BLE001 - any COPY failure falls back to executemany
             with conn.cursor() as cur:
                 cur.executemany(sql, rows)
         if commit:
@@ -653,8 +647,7 @@ class IntegrityReport:
 
     @property
     def verified(self) -> bool:
-        # `all([])` is True, which is how this reported "every foreign key
-        # resolves" after checking none of them. An empty result means the
+        # `all([])` is True, so an empty result is handled first: it means the
         # verifier did not run, not that the data is clean.
         if not self.relationships:
             return False
@@ -679,10 +672,9 @@ def verify_referential_integrity(config: SchemaConfig, db_url: str) -> Integrity
     """
     dialect, conn = _connect(db_url)
     report = IntegrityReport()
-    # A parent living in another schema has to be named with it, or the query
-    # looks in `public`, finds nothing, and errors. On Postgres that error
-    # aborts the transaction, so every remaining check would fail too and the
-    # report would be empty.
+    # A parent living in another schema is named with it; otherwise the query
+    # looks in `public` and errors, and on Postgres that error aborts the
+    # transaction for every remaining check.
     schema_of = {t.name: t.external_schema for t in config.tables if t.external_schema}
     try:
         for rel in config.relationships:
@@ -702,15 +694,15 @@ def verify_referential_integrity(config: SchemaConfig, db_url: str) -> Integrity
                         orphans = int(cur.fetchone()[0])
                 else:
                     orphans = int(conn.execute(sql).fetchone()[0])
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - an uncheckable relationship is reported as skipped
                 # A relationship we cannot check (a view, a table we lack rights
                 # to) is recorded as skipped, never as a pass. Roll back first:
-                # in Postgres a failed statement poisons the transaction, and
-                # without this every later check failed for the wrong reason.
+                # in Postgres a failed statement poisons the transaction for
+                # every later check.
                 if dialect == "postgres":
                     try:
                         conn.rollback()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - the skip is recorded either way
                         pass
                 report.skipped.append(
                     f"{rel.child_table}.{rel.child_key} -> {parent}.{rel.parent_key}: "
@@ -739,7 +731,7 @@ def table_row_counts(db_url: str, tables: Sequence[str]) -> Dict[str, int]:
         for name in tables:
             try:
                 counts[name] = _count_rows(conn, dialect, name)
-            except Exception:
+            except Exception:  # noqa: BLE001 - a missing table reports as 0
                 counts[name] = 0
         return counts
     finally:
@@ -756,7 +748,7 @@ def mask_db_url(db_url: str) -> str:
             if parsed.port:
                 netloc += f":{parsed.port}"
             return parsed._replace(netloc=netloc).geturl()
-    except Exception:
+    except (ValueError, TypeError):
         pass
     return db_url
 
@@ -777,7 +769,7 @@ def find_database_url() -> Optional[Tuple[str, str]]:
         env_path = dotenv.find_dotenv(usecwd=True)
         if env_path:
             dotenv.load_dotenv(env_path)
-    except Exception:
+    except Exception:  # noqa: BLE001 - .env loading is optional and never blocks detection
         pass
 
     # 2. Check standard environment variables
@@ -804,7 +796,7 @@ def find_database_url() -> Optional[Tuple[str, str]]:
                             return f"sqlite:///{sqlite_path}", f"sqlite datasource in {p}"
                         elif direct_val.startswith("postgres://") or direct_val.startswith("postgresql://"):
                             return direct_val, f"datasource in {p}"
-            except Exception:
+            except (OSError, RuntimeError, ValueError):
                 pass
 
     # 4. Check for local SQLite database files in common project locations

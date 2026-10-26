@@ -91,7 +91,7 @@ def _looks_like_namespace(path: Path) -> bool:
     for f in path.glob("*.json"):
         try:
             doc = json.loads(f.read_text())
-        except Exception:
+        except (OSError, ValueError):
             continue
         if isinstance(doc, dict) and doc.get("type") == "array" and "content" in doc:
             return True
@@ -195,10 +195,10 @@ def _field_to_column(name: str, node: Any, table: str,
         faker = node.get("faker")
         if isinstance(faker, dict):
             gen = str(faker.get("generator", ""))
-            subtype = _FAKER_SUBTYPE.get(gen)
-            if subtype:
+            faker_subtype = _FAKER_SUBTYPE.get(gen)
+            if faker_subtype:
                 return Column(name=name, type="text", nullable=nullable,
-                              distribution_params={"subtype": subtype}), None
+                              distribution_params={"subtype": faker_subtype}), None
             report.notes.append(
                 f"{table}.{name}: faker generator {gen!r} has no direct "
                 f"equivalent, imported as free text")

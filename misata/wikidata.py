@@ -25,7 +25,7 @@ import json
 import time
 import urllib.parse
 import urllib.request
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 from misata.domain_capsule import AssetProvenance, DomainCapsule, VocabularyAsset
 from misata.vocab_validator import validate_vocabulary
@@ -51,7 +51,7 @@ def _http_json(url: str, timeout: int = _DEFAULT_TIMEOUT) -> dict:
         "Accept": "application/sparql-results+json, application/json",
     })
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
-        return json.loads(resp.read().decode("utf-8"))
+        return cast(dict, json.loads(resp.read().decode("utf-8")))
 
 
 def run_sparql(query: str, timeout: int = _DEFAULT_TIMEOUT) -> List[dict]:
@@ -60,7 +60,7 @@ def run_sparql(query: str, timeout: int = _DEFAULT_TIMEOUT) -> List[dict]:
         "query": query, "format": "json",
     })
     data = _http_json(url, timeout=timeout)
-    return data.get("results", {}).get("bindings", [])
+    return cast(List[dict], data.get("results", {}).get("bindings", []))
 
 
 def search_class(term: str, language: str = "en") -> Optional[Tuple[str, str]]:

@@ -36,10 +36,13 @@ This matches the FactEngine's own date generation strategy exactly.
 from __future__ import annotations
 
 from itertools import pairwise
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from misata.engines.fact_engine import FactGenerationPlan
 
 
 class TemporalDensityMap:
@@ -85,7 +88,7 @@ class TemporalDensityMap:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_fact_plan(cls, table: str, time_column: str, plan: "FactGenerationPlan") -> "TemporalDensityMap":  # noqa: F821
+    def from_fact_plan(cls, table: str, time_column: str, plan: "FactGenerationPlan") -> "TemporalDensityMap":
         """Construct from a ``FactGenerationPlan`` already resolved by the engine."""
         buckets = [
             (bucket.start, bucket.end, int(count))

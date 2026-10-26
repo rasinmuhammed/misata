@@ -5,7 +5,7 @@ This is the 2026 production-grade agent architecture using LangGraph
 for stateful, controllable AI pipelines.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, cast
 from dataclasses import dataclass
 import pandas as pd
 import importlib.util
@@ -29,17 +29,17 @@ class GenerationState:
     
     # Schema extraction
     schema: Optional[Dict] = None
-    tables: List[Dict] = None
-    columns: Dict[str, List[Dict]] = None
-    relationships: List[Dict] = None
-    outcome_curves: List[Dict] = None
+    tables: Optional[List[Dict]] = None
+    columns: Optional[Dict[str, List[Dict]]] = None
+    relationships: Optional[List[Dict]] = None
+    outcome_curves: Optional[List[Dict]] = None
     
     # Generation
     data: Optional[Dict[str, pd.DataFrame]] = None
     
     # Validation
     validation_results: Optional[Dict] = None
-    errors: List[str] = None
+    errors: Optional[List[str]] = None
     
     # Control flow
     current_step: str = "init"
@@ -66,7 +66,7 @@ class SchemaArchitectAgent:
         if not self.client:
             from misata.story_parser import StoryParser
 
-            return StoryParser().parse(story).model_dump()
+            return cast(Dict, StoryParser().parse(story).model_dump())
         
         system_prompt = """You are a database schema architect. Given a business description,
 extract a detailed schema with:
@@ -87,7 +87,7 @@ Respond in JSON format only."""
             temperature=0.7
         )
         
-        return json.loads(response.choices[0].message.content)
+        return cast(Dict, json.loads(response.choices[0].message.content))
 
 
 class DomainExpertAgent:
@@ -152,7 +152,7 @@ class ValidationAgent:
     
     def validate(self, data: Dict[str, pd.DataFrame], schema: Dict) -> Dict[str, Any]:
         """Run all validation checks."""
-        results = {
+        results: Dict[str, Any] = {
             "passed": True,
             "checks": {},
             "errors": []
@@ -259,7 +259,8 @@ class SimplePipeline:
     
     def run(self, story: str) -> GenerationState:
         """Run the full pipeline."""
-        state = GenerationState(story=story, errors=[])
+        errors: List[str] = []
+        state = GenerationState(story=story, errors=errors)
         
         try:
             # Step 1: Extract schema
@@ -290,8 +291,8 @@ class SimplePipeline:
             
             state.current_step = "complete"
             
-        except Exception as e:
-            state.errors.append(str(e))
+        except Exception as e:  # noqa: BLE001 - every failure is recorded on the returned state
+            errors.append(str(e))
             state.current_step = "error"
         
         return state

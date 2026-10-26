@@ -187,7 +187,8 @@ def _numeric(series: pd.Series) -> pd.Series:
 def _is_text_dtype(series: pd.Series) -> bool:
     """String columns are ``str``/``string`` dtype (not ``object``) under
     pandas string inference; accept both so detectors don't skip them."""
-    return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+    text: bool = pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+    return text
 
 
 # --------------------------------------------------------------------------- #
@@ -294,7 +295,7 @@ def _detect_and_repair_temporal(
         return []
     try:
         vals = df[chain].apply(pd.to_datetime, errors="coerce")
-    except Exception:
+    except Exception:  # noqa: BLE001 - a chain that cannot be parsed is not audited
         return []
     # A name that merely contains chain tokens is not a date ("sentiment"
     # contains both "sent" and "time"); an all-NaT candidate sitting between
@@ -624,7 +625,7 @@ def _detect_rollup_mismatch(tables, schema) -> List[CoherenceFinding]:
     try:
         from misata.rollups import collect_declared_rollups, infer_rollups
         specs = collect_declared_rollups(schema) + infer_rollups(schema)
-    except Exception:
+    except Exception:  # noqa: BLE001 - roll-up inference is best-effort; the audit skips this check
         return out
     for s in specs:
         parent = tables.get(s.parent_table)
@@ -951,7 +952,7 @@ def _detect_cross_table_bound_violation(tables, schema) -> List[CoherenceFinding
     out: List[CoherenceFinding] = []
     try:
         from misata.crosstable import collect_cross_table_constraints, _find_fk
-    except Exception:
+    except ImportError:
         return out
     for child_name, c in collect_cross_table_constraints(schema):
         child = tables.get(child_name)
@@ -1505,7 +1506,7 @@ def _detect_wear_violation(tables, schema) -> List[CoherenceFinding]:
     accumulates cycles, a unit marked failed has a remaining life of zero, and
     accumulated damage stays a fraction. A dataset where a machine gets younger
     is not a subtle statistical drift, it is a defect anyone plotting it would
-    see, and nothing was checking for it.
+    see.
     """
     out: List[CoherenceFinding] = []
     for spec in (getattr(schema, "degradations", None) or []):
@@ -1623,12 +1624,12 @@ def _detect_noise_rate_mismatch(tables, schema) -> List[CoherenceFinding]:
 def _detect_outcome_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
     """Every exact outcome curve, read again from the rows: each period's sum (or, value_mode "count", its rows).
 
-    The tool promises "every declared outcome curve is hit exactly" and nothing recomputed one, so a curve whose
-    months were left empty, or whose column a formula wrote over afterwards, shipped with a clean report."""
+    The tool promises "every declared outcome curve is hit exactly", so each one is recomputed: a curve whose months
+    were left empty, or whose column a formula wrote over afterwards, is a finding rather than a clean report."""
     out: List[CoherenceFinding] = []
     try:
         from misata.engines.fact_engine import FactEngine
-    except Exception:
+    except ImportError:
         return out
     eng = FactEngine()
     for cur in getattr(schema, "outcome_curves", None) or []:
@@ -1640,7 +1641,7 @@ def _detect_outcome_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
             continue
         try:
             resolved = eng._resolve_curve(cur, (getattr(schema, "columns", None) or {}).get(cur.table, []))
-        except Exception:
+        except Exception:  # noqa: BLE001 - a curve that cannot be resolved is not audited
             continue
         times = pd.to_datetime(df[cur.time_column], errors="coerce")
         values = None if counts else pd.to_numeric(df[cur.column], errors="coerce").fillna(0)
@@ -1692,7 +1693,7 @@ def _detect_declared_window_violation(tables, schema) -> List[CoherenceFinding]:
                 continue
             try:
                 lo, hi = pd.Timestamp(p.get("start")), pd.Timestamp(p.get("end")) + pd.Timedelta(days=1)
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 continue
             t = pd.to_datetime(df[col.name], errors="coerce")
             n = int(((t < lo) | (t >= hi)).sum())
@@ -1936,7 +1937,7 @@ def _detect_group_share_mismatch(tables, schema) -> List[CoherenceFinding]:
     try:
         from misata.shares import (declared_group_targets, normalized_shares,
                                     split_total_by_shares)
-    except Exception:
+    except ImportError:
         return out
     for spec in getattr(schema, "group_shares", None) or []:
         df = tables.get(spec.table)
@@ -1988,7 +1989,7 @@ def _detect_waterfall_mismatch(tables, schema) -> List[CoherenceFinding]:
     out: List[CoherenceFinding] = []
     try:
         from misata.waterfall import declared_movements
-    except Exception:
+    except ImportError:
         return out
     for spec in getattr(schema, "waterfalls", None) or []:
         df = tables.get(spec.table)
@@ -2150,14 +2151,14 @@ def _audit_capsule(schema):
         try:
             from misata.capsule_registry import auto_attach_capsules
             auto_attach_capsules(schema, capsule)
-        except Exception:
+        except Exception:  # noqa: BLE001 - auto-attach is advisory; the user's capsule still loads
             pass
         capsule_file = getattr(getattr(schema, "realism", None), "capsule_file", None)
         if capsule_file:
             from misata.capsules import load_capsule, merge_into
             capsule = merge_into(capsule, load_capsule(capsule_file))
         return capsule if getattr(capsule, "price_bands", None) else None
-    except Exception:
+    except Exception:  # noqa: BLE001 - a capsule that cannot be rebuilt means no band check
         return None
 
 

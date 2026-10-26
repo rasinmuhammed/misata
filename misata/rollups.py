@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -371,7 +371,7 @@ def _primary_key_of(config: Any, table_name: str) -> str:
     """Best-effort primary key: a unique int column, else <table_singular>_id, else 'id'."""
     for col in config.columns.get(table_name, []):
         if col.unique and col.type in ("int",):
-            return col.name
+            return cast(str, col.name)
     singular = table_name[:-1] if table_name.endswith("s") else table_name
     names = {c.name for c in config.columns.get(table_name, [])}
     for cand in (f"{singular}_id", f"{table_name}_id", "id"):
@@ -424,7 +424,7 @@ def _pick_numeric_child_column(config: Any, child_table: str, noun: Optional[str
     """Pick the child column to aggregate: a noun-name match first, else the obvious money/qty
     column, else the single numeric non-key column."""
     cols = config.columns.get(child_table, [])
-    numeric = [c for c in cols
+    numeric: List[Any] = [c for c in cols
                if c.type in ("int", "float") and not c.unique
                and c.type != "foreign_key" and not c.name.endswith("_id")]
     if not numeric:
@@ -432,13 +432,13 @@ def _pick_numeric_child_column(config: Any, child_table: str, noun: Optional[str
     if noun:
         for c in numeric:
             if c.name.lower() == noun or noun in c.name.lower():
-                return c.name
+                return cast(str, c.name)
     for pref in ("amount", "total", "price", "value", "revenue", "cost", "quantity", "qty"):
         for c in numeric:
             if pref in c.name.lower():
-                return c.name
+                return cast(str, c.name)
     if len(numeric) == 1:
-        return numeric[0].name
+        return cast(str, numeric[0].name)
     return None
 
 

@@ -129,7 +129,7 @@ def _check_curves(schema: "SchemaConfig") -> List[LintFinding]:
     try:
         from misata.conformance import conformance_preview
         preview = conformance_preview(schema)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - the preview is advisory; its failure becomes a lint warning
         return [LintFinding("warning", "outcome_curves",
                             f"conformance preview unavailable: {exc}")]
     for w in preview.global_warnings or []:
@@ -209,9 +209,9 @@ def _check_waterfalls(schema: "SchemaConfig") -> List[LintFinding]:
     for tname, specs in by_table.items():
         if len(specs) < 2:
             continue
-        cols = {s.segment_column for s in specs}
+        segment_cols = {s.segment_column for s in specs}
         vals = [s.segment_value for s in specs]
-        if None in cols or len(cols) != 1:
+        if None in segment_cols or len(segment_cols) != 1:
             out.append(LintFinding(
                 "error", f"waterfalls ({tname})",
                 f"{len(specs)} waterfalls share this table but do not share "
@@ -242,7 +242,7 @@ def _check_waterfalls(schema: "SchemaConfig") -> List[LintFinding]:
         try:
             from misata.waterfall import declared_movements
             plan = declared_movements(spec)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any failure to plan the declaration is reported as a lint error
             out.append(LintFinding("error", where, f"invalid declaration: {exc}"))
             continue
         cells = sum(len(ins) + len(outs) for _, _, ins, outs in plan)
@@ -300,11 +300,11 @@ def _check_scd2_and_stock(schema: "SchemaConfig") -> List[LintFinding]:
                            f"{role} '{spec.table}.{cname}' does not exist"))
         if not spec.periods:
             out.append(LintFinding("error", where, "periods list is empty"))
-        table_cfg = next((t for t in schema.tables if t.name == spec.table), None)
-        if table_cfg is not None and spec.periods and table_cfg.row_count < len(spec.periods):
+        stock_table = next((t for t in schema.tables if t.name == spec.table), None)
+        if stock_table is not None and spec.periods and stock_table.row_count < len(spec.periods):
             out.append(LintFinding(
                 "warning", where,
-                f"{table_cfg.row_count} rows cannot host one full "
+                f"{stock_table.row_count} rows cannot host one full "
                 f"{len(spec.periods)}-period history; the last SKU gets a "
                 f"partial history"))
     return out

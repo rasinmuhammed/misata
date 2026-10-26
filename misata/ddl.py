@@ -140,15 +140,15 @@ def _parse_check(body: str) -> Dict[str, Dict]:
         put(m.group(1), "max", float(m.group(3)))
     stripped = re.sub(r"\bBETWEEN\s+\S+\s+AND\s+\S+", " ", body, flags=re.I)
     for part in re.split(r"\bAND\b", stripped, flags=re.I):
-        m = re.match(r"\s*(?:char_)?length\s*\(\s*\"?(\w+)\"?\s*\)\s*(<=|<)\s*(\d+)\s*$",
-                     part, re.I)
-        if m:
-            n = int(m.group(3)) - (1 if m.group(2) == "<" else 0)
-            put(m.group(1), "max_length", n)
+        length = re.match(r"\s*(?:char_)?length\s*\(\s*\"?(\w+)\"?\s*\)\s*(<=|<)\s*(\d+)\s*$",
+                          part, re.I)
+        if length:
+            n = int(length.group(3)) - (1 if length.group(2) == "<" else 0)
+            put(length.group(1), "max_length", n)
             continue
-        m = re.match(r"\s*\"?(\w+)\"?\s*(>=|>|<=|<)\s*" + _NUM + r"\s*$", part)
-        if m:
-            col, op, v = m.group(1), m.group(2), float(m.group(3))
+        bound = re.match(r"\s*\"?(\w+)\"?\s*(>=|>|<=|<)\s*" + _NUM + r"\s*$", part)
+        if bound:
+            col, op, v = bound.group(1), bound.group(2), float(bound.group(3))
             put(col, "min" if op in (">=", ">") else "max", v)
             put(col, "_strict_" + ("min" if op in (">=", ">") else "max"), op in (">", "<"))
     return found

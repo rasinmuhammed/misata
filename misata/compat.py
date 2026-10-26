@@ -36,7 +36,7 @@ Example::
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from misata.schema import (
     Degradation,
@@ -58,10 +58,9 @@ from misata.exceptions import ConformanceWarning, warn
 
 
 # Envelope keys hoisted into their dunder form by ``_normalise_envelope``.
-# Anything published as a top-level key by ``schema/misata.schema.json`` and
-# missing from here is accepted without complaint and then ignored, which is
-# the worst outcome a declarative tool can produce. `realism` and `locale` sat
-# in exactly that gap, so `tests/test_schema_contract.py` now compares this
+# Every top-level key published by ``schema/misata.schema.json`` must appear
+# here, or it would be accepted and then ignored, the worst outcome a
+# declarative tool can produce. `tests/test_schema_contract.py` compares this
 # list against the published schema and fails when they drift apart.
 _ENVELOPE_KEYS: Tuple[Tuple[str, str], ...] = (
     ("outcome_curves", "__outcome_curves__"),
@@ -289,10 +288,10 @@ _TEXT_TYPE_HINTS: Dict[str, str] = {
 }
 
 # ── Token-aware text_type inference ──────────────────────────────────────────
-# Raw substring matching ("name" in "product_name") wrongly turned entity
-# columns into person names and "ip_address"/"mac_address" into street
-# addresses. The matcher below anchors on exact names, identifier suffixes,
-# whole-word compound keys, and head tokens with explicit guards instead.
+# Raw substring matching ("name" in "product_name") would turn entity columns
+# into person names and "ip_address"/"mac_address" into street addresses, so
+# the matcher below anchors on exact names, identifier suffixes, whole-word
+# compound keys, and head tokens with explicit guards.
 
 # Suffixes that mark an identifier/token rather than free text.
 _ID_SUFFIXES = (
@@ -487,7 +486,7 @@ def _col_from_dict(
             params["text_type"] = inferred
             # This is a guess from the column name, not something the caller
             # asked for, and downstream has to be able to tell the difference.
-            # A declared text_type now beats domain inference, so without this
+            # A declared text_type beats domain inference, so without this
             # marker a column merely *called* `name` in a healthcare schema
             # would suppress the medical-department vocabulary it should get.
             params["_text_type_is_default"] = True
@@ -497,9 +496,9 @@ def _col_from_dict(
             params.pop("_text_type_is_default", None)
 
     elif misata_type in ("date", "datetime"):
-        # "min"/"max" are what the MCP tool documents for date bounds ("Numeric or date bounds"), and what agents write;
-        # only "min_date"/"start" were read, so a declared window was dropped without a word and every date fell in
-        # the 2020-2024 default (a SaaS story set in 2025-26 had every account created before it began).
+        # "min"/"max" are what the MCP tool documents for date bounds and what
+        # agents write, so they bound the window alongside "min_date"/"start";
+        # the 2020-2024 default applies only when no bound is declared.
         params["start"] = col_def.get("min_date", col_def.get("start", col_def.get("min", "2020-01-01")))
         params["end"] = col_def.get("max_date", col_def.get("end", col_def.get("max", "2024-12-31")))
 
@@ -509,16 +508,9 @@ def _col_from_dict(
         elif isinstance(col_def.get("enum"), list) and len(col_def["enum"]) == 1:
             # A single-value boolean enum (e.g. "enum": [False]) declares a
             # constant, same as it does for string/int/float columns above.
-            # Before this, "enum" was consumed here silently: it's in
-            # _CONSUMED_COLUMN_KEYS so it never fell through to the generic
-            # passthrough loop below, but nothing on the boolean path ever
-            # read it either -- the engine's BOOLEAN generator branch
-            # (simulator.py) only understands "probability". The result was
-            # an ordinary 50/50 coin flip on every column declared this way,
-            # silently: no error, no warning, just a constraint that did
-            # nothing. Found auditing backlot's Shopify schema (2026-09-02),
-            # where "_fivetran_deleted": {"enum": [False]} was leaving ~50%
-            # of rows flagged deleted and filtered out downstream.
+            # "enum" is a consumed key and the engine's boolean generator reads
+            # only "probability", so the constant is expressed as a
+            # probability of 1.0 or 0.0.
             params["probability"] = 1.0 if bool(col_def["enum"][0]) else 0.0
 
     # ── Everything else reaches the engine ───────────────────────────────────
@@ -626,7 +618,7 @@ def _parse_relationship_entry(entry: Any) -> Optional[Relationship]:
     if isinstance(entry, dict):
         try:
             return Relationship(**entry)
-        except Exception:
+        except (TypeError, ValueError):
             return None
     return None
 
@@ -763,6 +755,312 @@ def _dedupe_relationships(rels: List[Relationship]) -> List[Relationship]:
     return [merged[k] for k in order]
 
 
+def _build_entries(key: str, entries: Any, build: Callable[[Any], Any]) -> List[Any]:
+    """Build each entry of a ``__key__`` directive, skipping malformed ones.
+
+    One malformed directive does not abort the whole schema: it is skipped
+    with a warning so the rest still produces data, and recorded in
+    ``_DROPPED`` so feasibility can refuse it by name.
+    """
+    out: List[Any] = []
+    for i, raw in enumerate(entries or []):
+        try:
+            out.append(build(raw))
+        except Exception as e:  # noqa: BLE001 - any malformed entry is skipped and recorded
+            warn(f"Skipping invalid __{key}__[{i}]: {e}", ConformanceWarning)
+            _DROPPED.append((key, i, str(e)))
+    return out
+
+
+def _build_rate_curve(rate_def: Any) -> RateCurve:
+    """A rate curve, accepting ``curve_points`` or ``points`` for ``rate_points``.
+
+    ``curve_points`` is the outcome curves' key and is often carried over, so
+    it is read as the rate points rather than ignored.
+    """
+    if isinstance(rate_def, dict) and not rate_def.get("rate_points"):
+        rate_def = {**{k: v for k, v in rate_def.items() if k not in ("curve_points", "points")},
+                    "rate_points": rate_def.get("curve_points") or rate_def.get("points") or []}
+        if not rate_def["rate_points"]:
+            raise ValueError("no rate_points: give [{'period': 'YYYY-MM', 'rate': 0.03}, ...]")
+    return RateCurve(**rate_def)
+
+
+def _build_degradation(d_def: Any) -> "Degradation":
+    d_def = dict(d_def)
+    d_def["responses"] = [SensorResponse(**r) for r in (d_def.get("responses") or [])]
+    return Degradation(**d_def)
+
+
+def _declared_directives(schemas: Dict[str, Any]) -> Dict[str, List[Any]]:
+    """Every schema-level declaration list, keyed by its SchemaConfig field.
+
+    Every SchemaConfig declaration is reachable from the dict and YAML forms,
+    so ``misata lint`` accepts the files the docs show. One table, so the next
+    declaration is one line rather than a new branch.
+    """
+    from misata.schema import (Bitemporal, CohortRetention, DagEdges,
+                               Duplicates, EventLog, GraphMotifs,
+                               JointDistribution, LateArrival, Lifecycle,
+                               Missingness, Outliers, Process, ScenarioEvent,
+                               TimeGrid, TransitiveClosure, Typos)
+
+    builders: Tuple[Tuple[str, Callable[[Any], Any]], ...] = (
+        ("outcome_curves", lambda raw: OutcomeCurve(**raw)),
+        ("rate_curves", _build_rate_curve),
+        ("group_shares", lambda raw: GroupShares(**raw)),
+        ("waterfalls", lambda raw: WaterfallIdentity(**raw)),
+        # Units that wear out: registering the envelope key is not the same
+        # as building the object, so each entry is built or recorded dropped.
+        ("degradations", _build_degradation),
+        ("stock_flows", lambda raw: StockFlowIdentity(**raw)),
+        ("events", lambda raw: ScenarioEvent(**raw)),
+        ("lifecycles", lambda raw: Lifecycle(**raw)),
+        ("retention", lambda raw: CohortRetention(**raw)),
+        ("missingness", lambda raw: Missingness(**raw)),
+        ("late_arrivals", lambda raw: LateArrival(**raw)),
+        ("time_grids", lambda raw: TimeGrid(**raw)),
+        ("duplicates", lambda raw: Duplicates(**raw)),
+        ("event_logs", lambda raw: EventLog(**raw)),
+        ("outliers", lambda raw: Outliers(**raw)),
+        ("typos", lambda raw: Typos(**raw)),
+        ("bitemporal", lambda raw: Bitemporal(**raw)),
+        ("dag_edges", lambda raw: DagEdges(**raw)),
+        ("graph_motifs", lambda raw: GraphMotifs(**raw)),
+        ("joint_distributions", lambda raw: JointDistribution(**raw)),
+        ("closures", lambda raw: TransitiveClosure(**raw)),
+        ("processes", lambda raw: Process(**raw)),
+    )
+    return {key: _build_entries(key, schemas.get(f"__{key}__"), build)
+            for key, build in builders}
+
+
+def _default_row_count(schemas: Dict[str, Any], row_count: Optional[int]) -> int:
+    """The row count for tables that do not state one.
+
+    An explicit ``row_count`` argument wins, since that is the caller
+    overriding the document; then the schema's own top-level ``rows``, which
+    the published JSON Schema offers; then 1000.
+    """
+    if row_count is not None:
+        return row_count
+    declared_rows = schemas.get("__rows__")
+    if declared_rows is None:
+        declared_rows = schemas.get("rows")
+    if isinstance(declared_rows, int) and not isinstance(declared_rows, bool) and declared_rows >= 0:
+        return declared_rows
+    return 1000
+
+
+def _schema_vocabularies(schemas: Dict[str, Any]) -> Optional[Dict[str, List[str]]]:
+    """``__vocabulary__``: the schema-embedded mini-capsule of column name to
+    real values, sampled by the engine for open-ended text columns."""
+    raw_vocab = schemas.get("__vocabulary__")
+    if not isinstance(raw_vocab, dict):
+        return None
+    cleaned = {
+        str(k).strip().lower(): [str(x).strip() for x in v if str(x).strip()]
+        for k, v in raw_vocab.items()
+        if isinstance(v, (list, tuple))
+    }
+    return {k: v for k, v in cleaned.items() if len(v) >= 2} or None
+
+
+def _table_row_count(table_def: Dict[str, Any], default: int) -> int:
+    """A table's own row count, so a 6-table schema can say "4 regions, 50
+    sites, 5000 logs". An explicit 0 (empty table) is honoured; a missing,
+    negative or non-int value (``bool`` included) falls back to ``default``."""
+    for rows_key in ("__rows__", "__row_count__", "rows", "row_count"):
+        val = table_def.get(rows_key)
+        if isinstance(val, int) and not isinstance(val, bool) and val >= 0:
+            return val
+    return default
+
+
+def _table_constraints(table_name: str, table_def: Dict[str, Any]) -> List[Constraint]:
+    """Per-table constraints, e.g. inequality (end_date > start_date) or col_range.
+
+    Format: ``__constraints__: [{type: "inequality", column_a: "x", operator:
+    ">", column_b: "y"}]``. ``name`` is required by the Constraint model but is
+    purely descriptive, so it is filled in from the constraint's shape when
+    omitted. A malformed constraint is skipped with a warning.
+    """
+    table_constraints: List[Constraint] = []
+    for i, c_def in enumerate(table_def.get("__constraints__") or []):
+        if isinstance(c_def, dict) and not c_def.get("name"):
+            c_def = {**c_def, "name": _auto_constraint_name(c_def, i)}
+        try:
+            table_constraints.append(Constraint(**c_def))
+        except Exception as e:  # noqa: BLE001 - a malformed constraint is skipped with a warning
+            warn(f"Table '{table_name}' __constraints__[{i}] is invalid and was skipped: {e}", ConformanceWarning)
+    return table_constraints
+
+
+def _table_correlations(table_def: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Pearson correlations between numeric columns, applied after generation.
+
+    Two formats are accepted. A pairwise list::
+
+        __correlations__: [{col_a: "bmi", col_b: "systolic_bp", r: 0.41}]
+
+    or a full matrix, expanded here into pairs above the diagonal::
+
+        __correlations__:
+          method: cholesky
+          matrix:
+            columns: [hba1c, glucose, bmi, systolic_bp]
+            values:
+              hba1c:   [1.00, 0.68, 0.31, 0.22]
+              glucose: [0.68, 1.00, 0.35, 0.28]
+              ...
+    """
+    raw_corr = table_def.get("__correlations__") or []
+    if not (isinstance(raw_corr, dict) and "matrix" in raw_corr):
+        return list(raw_corr)
+    mat_spec = raw_corr["matrix"]
+    cols_order = mat_spec.get("columns", [])
+    values_map = mat_spec.get("values", {})
+    table_correlations: List[Dict[str, Any]] = []
+    for i, col_a in enumerate(cols_order):
+        row_vals = values_map.get(col_a, [])
+        if isinstance(row_vals, (list, tuple)):
+            for j, col_b in enumerate(cols_order):
+                if j > i and j < len(row_vals):
+                    r = float(row_vals[j])
+                    if abs(r) > 0.001:
+                        table_correlations.append({"col_a": col_a, "col_b": col_b, "r": r})
+    return table_correlations
+
+
+def _column_relationship(schemas: Dict[str, Any], table_name: str, col_name: str,
+                         col_def: Dict[str, Any]) -> Optional[Relationship]:
+    """The relationship a column declares inline, if any.
+
+    Accepted forms: a nested ``foreign_key: {"table": ..., "column": ...}``
+    dict, the ``foreign_key: "parent_table.parent_key"`` shorthand, or
+    ``references: "parent_table.parent_key"`` on a foreign-key column.
+    """
+    fk_ref = col_def.get("foreign_key")
+    if fk_ref and isinstance(fk_ref, dict):
+        # ``{"table": "parent"}`` with no explicit ``column`` points at the
+        # parent's actual primary key, resolved the way _detect_pk does, so a
+        # parent keyed by something other than "id" still gets a relationship
+        # to a column that exists. "id" is the fallback only when the parent
+        # is not declared in this dict.
+        parent_def = schemas.get(fk_ref["table"])
+        resolved_pk = (
+            _detect_pk(_column_defs_of(parent_def)) if parent_def is not None else None
+        )
+        return Relationship(
+            parent_table=fk_ref["table"],
+            child_table=table_name,
+            parent_key=fk_ref.get("column") or resolved_pk or "id",
+            child_key=col_name,
+            # Every parent gets at least this many children (an order with a
+            # line), declared inline as well as in __relationships__.
+            **({"min_children": int(fk_ref["min_children"])} if fk_ref.get("min_children") else {}),
+        )
+    if isinstance(fk_ref, str) and "." in fk_ref:
+        p_table, p_key = fk_ref.rsplit(".", 1)
+    elif (
+        isinstance(col_def.get("references"), str)
+        and "." in col_def["references"]
+        and (fk_ref or str(col_def.get("type", "")).lower() == "foreign_key")
+    ):
+        p_table, p_key = col_def["references"].rsplit(".", 1)
+    else:
+        return None
+    return Relationship(
+        parent_table=p_table.strip(),
+        child_table=table_name,
+        parent_key=p_key.strip(),
+        child_key=col_name,
+    )
+
+
+def _table_vocabulary(table_def: Dict[str, Any]) -> Dict[str, List[str]]:
+    """Table-level ``__vocabulary__`` (the canvas round-trip form), merged up
+    into the schema-level mini-capsule by the caller."""
+    vocab: Dict[str, List[str]] = {}
+    table_vocab = table_def.get("__vocabulary__")
+    if isinstance(table_vocab, dict):
+        for k, v in table_vocab.items():
+            if isinstance(v, (list, tuple)):
+                vals = [str(x).strip() for x in v if str(x).strip()]
+                if len(vals) >= 2:
+                    vocab[str(k).strip().lower()] = vals
+    return vocab
+
+
+def _inline_rows(table_def: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """Reference rows given verbatim, or None.
+
+    A date dimension is a calendar, not a sample: its months, quarters and
+    years are facts that agree with each other, so they are taken as written
+    rather than generated column by column.
+    """
+    for key in ("__inline_data__", "__rows_data__", "inline_data"):
+        candidate = table_def.get(key)
+        if isinstance(candidate, list) and candidate and all(
+                isinstance(r, dict) for r in candidate):
+            return candidate
+    return None
+
+
+def _table_from_def(
+    schemas: Dict[str, Any], table_name: str, table_def: Dict[str, Any],
+    default_rows: int, relationships: List[Relationship],
+) -> Tuple[Table, List[Column]]:
+    """One table and its columns; inline relationships go into ``relationships``."""
+    # Support both __table_description__ and __description__ as table-level metadata
+    table_desc = (
+        table_def.get("__table_description__")
+        or table_def.get("__description__")
+        or None
+    )
+    table_rows = _table_row_count(table_def, default_rows)
+
+    # A table whose rows are given verbatim must not have its key range
+    # synthesised: a date_key of 20240101 does not fit in 1..730.
+    has_inline_rows = any(
+        isinstance(table_def.get(k), list) and table_def.get(k)
+        for k in ("__inline_data__", "__rows_data__", "inline_data"))
+
+    # Nested per-table format: {"rows": N, "columns": {...}}. Column defs come
+    # from the sub-dict while table-level keys stay on the outer def. (This is
+    # the misata.yaml shape handed to dict callers.)
+    col_source = _column_defs_of(table_def)
+    pk_col = _detect_pk(col_source)
+    table_constraints = _table_constraints(table_name, table_def)
+    table_correlations = _table_correlations(table_def)
+
+    table_cols: List[Column] = []
+    for col_name, col_def in col_source.items():
+        if col_name.startswith("__") or not isinstance(col_def, dict):
+            continue
+        rel = _column_relationship(schemas, table_name, col_name, col_def)
+        if rel is not None:
+            relationships.append(rel)
+        col = _col_from_dict(col_name, col_def, primary_key_col=pk_col,
+                             row_count=(None if has_inline_rows else table_rows))
+        if col is not None:
+            table_cols.append(col)
+
+    inline_rows = _inline_rows(table_def)
+    table = Table(
+        name=table_name,
+        row_count=len(inline_rows) if inline_rows else table_rows,
+        description=table_desc,
+        constraints=table_constraints,
+        correlations=table_correlations,
+        state_machine=table_def.get("__state_machine__") or None,
+        cluster_effect=table_def.get("__cluster_effect__") or None,
+        is_reference=bool(inline_rows),
+        inline_data=inline_rows,
+    )
+    return table, table_cols
+
+
 def from_dict_schema(
     schemas: Dict[str, Any],
     row_count: Optional[int] = None,
@@ -848,13 +1146,10 @@ def from_dict_schema(
     schemas = _unwrap_envelope(schemas)
     schemas = _hoist_table_scoped_envelope_directives(schemas)
 
-    # `locale` is published at the top level by our own JSON Schema, so that is
-    # the spelling editors autocomplete people into, and it lives on
+    # `locale` is published at the top level by the JSON Schema and lives on
     # RealismConfig internally. _unwrap_envelope folds it in for the envelope
-    # form and returns early for the flat one, so the flat form dropped it: a
-    # dict schema carrying locale ja_JP produced Philadelphia and an English
-    # name, with no error, which is the documented spelling silently doing
-    # nothing in the form most people write.
+    # form; the flat form is folded in here, so either spelling reaches the
+    # generator.
     if isinstance(schemas.get("locale"), str):
         realism_block = dict(schemas.get("__realism__") or {})
         realism_block.setdefault("locale", schemas["locale"])
@@ -887,161 +1182,42 @@ def from_dict_schema(
         else:
             warn(f"Skipping unparseable relationships[{i}]: {rel_def!r}", ConformanceWarning)
 
-    # Top-level directives (not tables): declared outcome curves and rate
-    # curves, the schema-level half of the engine contract. A single malformed
-    # directive must NOT abort the whole generation — it is skipped with a
-    # warning so the rest of the schema still produces data, mirroring the
-    # resilience of the LLM-parser path. (A frontend or hand-written schema can
-    # easily get one curve wrong; losing all output over it is the wrong failure.)
-    outcome_curves: List[OutcomeCurve] = []
-    for i, curve_def in enumerate(schemas.get("__outcome_curves__") or []):
-        try:
-            outcome_curves.append(OutcomeCurve(**curve_def))
-        except Exception as e:
-            warn(f"Skipping invalid __outcome_curves__[{i}]: {e}", ConformanceWarning)
-            _DROPPED.append(("outcome_curves", i, str(e)))
-    rate_curves: List[RateCurve] = []
-    for i, rate_def in enumerate(schemas.get("__rate_curves__") or []):
-        try:
-            if isinstance(rate_def, dict) and not rate_def.get("rate_points"):
-                # "curve_points" is the outcome curves' key and agents carry it over; it was ignored, so the curve held nothing
-                rate_def = {**{k: v for k, v in rate_def.items() if k not in ("curve_points", "points")},
-                            "rate_points": rate_def.get("curve_points") or rate_def.get("points") or []}
-                if not rate_def["rate_points"]:
-                    raise ValueError("no rate_points: give [{'period': 'YYYY-MM', 'rate': 0.03}, ...]")
-            rate_curves.append(RateCurve(**rate_def))
-        except Exception as e:
-            warn(f"Skipping invalid __rate_curves__[{i}]: {e}", ConformanceWarning)
-            _DROPPED.append(("rate_curves", i, str(e)))
-    group_shares: List[GroupShares] = []
-    for i, share_def in enumerate(schemas.get("__group_shares__") or []):
-        try:
-            group_shares.append(GroupShares(**share_def))
-        except Exception as e:
-            warn(f"Skipping invalid __group_shares__[{i}]: {e}", ConformanceWarning)
-            _DROPPED.append(("group_shares", i, str(e)))
-    waterfalls: List[WaterfallIdentity] = []
-    for i, wf_def in enumerate(schemas.get("__waterfalls__") or []):
-        try:
-            waterfalls.append(WaterfallIdentity(**wf_def))
-        except Exception as e:
-            warn(f"Skipping invalid __waterfalls__[{i}]: {e}", ConformanceWarning)
-            _DROPPED.append(("waterfalls", i, str(e)))
-    # Units that wear out. Registering the envelope key is not the same as
-    # building the object, so each entry is constructed here or recorded as
-    # dropped.
-    degradations: List["Degradation"] = []
-    for i, d_def in enumerate(schemas.get("__degradations__") or []):
-        try:
-            d_def = dict(d_def)
-            d_def["responses"] = [
-                SensorResponse(**r) for r in (d_def.get("responses") or [])
-            ]
-            degradations.append(Degradation(**d_def))
-        except Exception as e:
-            warn(f"Skipping invalid __degradations__[{i}]: {e}", ConformanceWarning)
-            _DROPPED.append(("degradations", i, str(e)))
-
-    stock_flows: List[StockFlowIdentity] = []
-    for i, sf_def in enumerate(schemas.get("__stock_flows__") or []):
-        try:
-            stock_flows.append(StockFlowIdentity(**sf_def))
-        except Exception as e:
-            warn(f"Skipping invalid __stock_flows__[{i}]: {e}", ConformanceWarning)
-            _DROPPED.append(("stock_flows", i, str(e)))
-
-    # Every SchemaConfig declaration is reachable from the dict and YAML forms,
-    # so `misata lint` accepts the files the docs show. One table, so the next
-    # declaration is one line rather than a new branch.
-    from misata.schema import (Bitemporal, CohortRetention, DagEdges,
-                               Duplicates, EventLog, GraphMotifs,
-                               JointDistribution, LateArrival, Lifecycle,
-                               Missingness, Outliers, Process, ScenarioEvent,
-                               TimeGrid, TransitiveClosure, Typos)
-    declared: Dict[str, List[Any]] = {}
-    for key, model in (("events", ScenarioEvent),
-                       ("lifecycles", Lifecycle),
-                       ("retention", CohortRetention),
-                       ("missingness", Missingness),
-                       ("late_arrivals", LateArrival),
-                       ("time_grids", TimeGrid),
-                       ("duplicates", Duplicates),
-                       ("event_logs", EventLog),
-                       ("outliers", Outliers),
-                       ("typos", Typos),
-                       ("bitemporal", Bitemporal),
-                       ("dag_edges", DagEdges),
-                       ("graph_motifs", GraphMotifs),
-                       ("joint_distributions", JointDistribution),
-                       ("closures", TransitiveClosure),
-                       ("processes", Process)):
-        out: List[Any] = []
-        for i, raw in enumerate(schemas.get(f"__{key}__") or []):
-            try:
-                out.append(model(**raw))
-            except Exception as e:
-                warn(f"Skipping invalid __{key}__[{i}]: {e}", ConformanceWarning)
-                _DROPPED.append((key, i, str(e)))
-        declared[key] = out
+    # Top-level directives (not tables): the schema-level half of the engine
+    # contract. A malformed entry is skipped with a warning rather than
+    # aborting generation, mirroring the resilience of the LLM-parser path.
+    declared = _declared_directives(schemas)
 
     # __noise__ injects declared data-quality defects (nulls, outliers, typos,
-    # duplicates) at a known rate — so a data-cleaning / DQ pipeline can be
-    # tested against ground truth, the same contract as the rate curves above.
+    # duplicates) at a known rate, so a data-cleaning pipeline can be tested
+    # against ground truth. Unlike the shaping directives it fails loudly: a
+    # malformed spec silently dropped would run that test on clean data.
     noise_config: Optional[NoiseConfig] = None
     raw_noise = schemas.get("__noise__")
     if raw_noise:
         try:
             noise_config = NoiseConfig(**raw_noise)
         except Exception as e:
-            # Deliberately fail-loud (unlike the shaping curves): __noise__ is the
-            # ground truth a data-quality pipeline is tested against. Silently
-            # dropping a malformed spec would run the test on clean data without
-            # the user knowing — a worse failure than aborting.
             raise ValueError(f"__noise__ is invalid: {e}") from e
 
-    # A top-level `rows` is the schema's own default for tables that do not
-    # state one, and the published JSON Schema offers it. An explicit row_count
-    # argument still wins, since that is the caller overriding the document.
-    effective_row_count = row_count
-    if effective_row_count is None:
-        declared_rows = schemas.get("__rows__")
-        if declared_rows is None:
-            declared_rows = schemas.get("rows")
-        if isinstance(declared_rows, int) and not isinstance(declared_rows, bool) and declared_rows >= 0:
-            effective_row_count = declared_rows
-    if effective_row_count is None:
-        effective_row_count = 1000
+    effective_row_count = _default_row_count(schemas, row_count)
 
-    # __realism__ carries locale and the realism switches. Dropping it meant a
-    # declared locale changed nothing at all on every surface that loads a dict
-    # or YAML schema, which is all of them except the CLI.
+    # __realism__ carries locale and the realism switches. It fails loudly for
+    # the same reason as __noise__: an ignored realism block hands back data
+    # that looks fine and is not what was asked for.
     realism_config: Optional[RealismConfig] = None
     raw_realism = schemas.get("__realism__")
     if raw_realism:
         try:
             realism_config = RealismConfig(**raw_realism)
         except Exception as e:
-            # Loud, for the same reason as __noise__: a silently ignored realism
-            # block hands back data that looks fine and is not what was asked for.
             raise ValueError(f"realism is invalid: {e}") from e
 
     # __domain__ stores the domain name on the SchemaConfig for post-generation validation
     domain: Optional[str] = schemas.get("__domain__") or None
-
-    # __vocabulary__ is the schema-embedded mini-capsule: column name → real
-    # values, sampled by the engine for open-ended text columns.
-    vocabularies: Optional[Dict[str, List[str]]] = None
-    raw_vocab = schemas.get("__vocabulary__")
-    if isinstance(raw_vocab, dict):
-        cleaned = {
-            str(k).strip().lower(): [str(x).strip() for x in v if str(x).strip()]
-            for k, v in raw_vocab.items()
-            if isinstance(v, (list, tuple))
-        }
-        vocabularies = {k: v for k, v in cleaned.items() if len(v) >= 2} or None
-    # Per-table __vocabulary__ dunders (canvas round-trip) collect here and
-    # merge below; explicit top-level entries win on key collisions.
-    _table_vocabularies: Dict[str, List[str]] = {}
+    vocabularies = _schema_vocabularies(schemas)
+    # Per-table __vocabulary__ entries collect here and merge below; explicit
+    # top-level entries win on key collisions.
+    table_vocabularies: Dict[str, List[str]] = {}
 
     for table_name, table_def in schemas.items():
         if table_name.startswith("__"):
@@ -1065,188 +1241,10 @@ def from_dict_schema(
                 ConformanceWarning,)
             continue
 
-        # Support both __table_description__ and __description__ as table-level metadata
-        table_desc = (
-            table_def.get("__table_description__")
-            or table_def.get("__description__")
-            or None
-        )
-
-        # Per-table row count: lets a 6-table schema say "4 regions, 50 sites, 5000 logs"
-        # instead of forcing one global count on every table. Accept several spellings;
-        # fall back to the global row_count when none is given.
-        table_rows = effective_row_count
-        for rows_key in ("__rows__", "__row_count__", "rows", "row_count"):
-            val = table_def.get(rows_key)
-            # Honour an explicit 0 (empty table) — only a missing/negative/non-int
-            # value falls back to the global default. `bool` is excluded since it
-            # subclasses int.
-            if isinstance(val, int) and not isinstance(val, bool) and val >= 0:
-                table_rows = val
-                break
-
-        # A table whose rows are given verbatim must not have its key range
-        # synthesised: a date_key of 20240101 does not fit in 1..730, and
-        # bounding it turned three working presets into an InfeasibleSchema.
-        _has_inline_rows = any(
-            isinstance(table_def.get(k), list) and table_def.get(k)
-            for k in ("__inline_data__", "__rows_data__", "inline_data"))
-
-        # Nested per-table format: {"rows": N, "columns": {...}} — read the
-        # column defs from the sub-dict while table-level keys stay on the
-        # outer def. (This is the misata.yaml shape handed to dict callers.)
-        col_source = _column_defs_of(table_def)
-
-        pk_col = _detect_pk(col_source)
-        table_cols: List[Column] = []
-
-        # Per-table constraints — e.g. inequality (end_date > start_date), col_range, etc.
-        # Format: __constraints__: [{type: "inequality", column_a: "x", operator: ">", column_b: "y"}]
-        # ``name`` is required by the Constraint model but is purely descriptive; auto-fill
-        # it from the constraint's shape so dict/LLM/MCP callers don't have to invent one.
-        table_constraints: List[Constraint] = []
-        for i, c_def in enumerate(table_def.get("__constraints__") or []):
-            if isinstance(c_def, dict) and not c_def.get("name"):
-                c_def = {**c_def, "name": _auto_constraint_name(c_def, i)}
-            try:
-                table_constraints.append(Constraint(**c_def))
-            except Exception as e:
-                warn(f"Table '{table_name}' __constraints__[{i}] is invalid and was skipped: {e}", ConformanceWarning)
-
-        # Per-table Pearson correlations between numeric columns (applied post-generation).
-        # Supports two formats:
-        #
-        # Pairwise list (simple):
-        #   __correlations__: [{col_a: "bmi", col_b: "systolic_bp", r: 0.41}]
-        #
-        # Full matrix (complete):
-        #   __correlations__:
-        #     method: cholesky
-        #     matrix:
-        #       columns: [hba1c, glucose, bmi, systolic_bp]
-        #       values:
-        #         hba1c:   [1.00, 0.68, 0.31, 0.22]
-        #         glucose: [0.68, 1.00, 0.35, 0.28]
-        #         ...
-        _raw_corr = table_def.get("__correlations__") or []
-        if isinstance(_raw_corr, dict) and "matrix" in _raw_corr:
-            # Expand full matrix into pairwise pairs
-            mat_spec = _raw_corr["matrix"]
-            cols_order = mat_spec.get("columns", [])
-            values_map = mat_spec.get("values", {})
-            table_correlations: List[Dict[str, Any]] = []
-            for i, col_a in enumerate(cols_order):
-                row_vals = values_map.get(col_a, [])
-                if isinstance(row_vals, (list, tuple)):
-                    for j, col_b in enumerate(cols_order):
-                        if j > i and j < len(row_vals):
-                            r = float(row_vals[j])
-                            if abs(r) > 0.001:
-                                table_correlations.append({"col_a": col_a, "col_b": col_b, "r": r})
-        else:
-            table_correlations = list(_raw_corr)
-
-        for col_name, col_def in col_source.items():
-            if col_name.startswith("__") or not isinstance(col_def, dict):
-                continue
-
-            # Collect FK relationships — nested dict form,
-            # ``foreign_key: "parent_table.parent_key"`` string shorthand, or
-            # ``references: "parent_table.parent_key"`` string form.
-            fk_ref = col_def.get("foreign_key")
-            if fk_ref and isinstance(fk_ref, dict):
-                # ``{"table": "parent"}`` with no explicit ``column`` points at
-                # the parent's actual primary key, not the literal "id". A
-                # parent whose key is named something else (explicit
-                # ``primary_key: true`` on another column, or no "id" column
-                # at all) would otherwise get a Relationship to a column that
-                # does not exist, and the engine's `.set_index(rel.parent_key)`
-                # would raise KeyError. Resolve it the way _detect_pk does
-                # elsewhere in this file, and fall back to "id" only when the
-                # parent table cannot be found (or is not declared yet in this
-                # dict).
-                _parent_def = schemas.get(fk_ref["table"])
-                _resolved_pk = (
-                    _detect_pk(_column_defs_of(_parent_def)) if _parent_def is not None else None
-                )
-                relationships.append(Relationship(
-                    parent_table=fk_ref["table"],
-                    child_table=table_name,
-                    parent_key=fk_ref.get("column") or _resolved_pk or "id",
-                    child_key=col_name,
-                    # every parent with at least this many children (an order with a line): only the explicit
-                    # __relationships__ form carried it, which the MCP tool never mentions, so 40-59% of orders came
-                    # back with no lines and a total of 0
-                    **({"min_children": int(fk_ref["min_children"])} if fk_ref.get("min_children") else {}),
-                ))
-            elif isinstance(fk_ref, str) and "." in fk_ref:
-                # The shorthand a hand-written or LLM-written schema reaches
-                # for first. Without this branch the column was typed as a
-                # foreign key while its relationship silently never existed,
-                # and validation failed with a confusing message.
-                p_table, p_key = fk_ref.rsplit(".", 1)
-                relationships.append(Relationship(
-                    parent_table=p_table.strip(),
-                    child_table=table_name,
-                    parent_key=p_key.strip(),
-                    child_key=col_name,
-                ))
-            elif (
-                isinstance(col_def.get("references"), str)
-                and "." in col_def["references"]
-                and (fk_ref or str(col_def.get("type", "")).lower() == "foreign_key")
-            ):
-                p_table, p_key = col_def["references"].rsplit(".", 1)
-                relationships.append(Relationship(
-                    parent_table=p_table.strip(),
-                    child_table=table_name,
-                    parent_key=p_key.strip(),
-                    child_key=col_name,
-                ))
-
-            col = _col_from_dict(col_name, col_def, primary_key_col=pk_col,
-                                 row_count=(None if _has_inline_rows else table_rows))
-            if col is not None:
-                table_cols.append(col)
-
-        state_machine = table_def.get("__state_machine__") or None
-        cluster_effect = table_def.get("__cluster_effect__") or None
-
-        # Table-level vocabulary rides the canvas round-trip as a dunder in
-        # the table def; merge it up into the schema-level mini-capsule.
-        table_vocab = table_def.get("__vocabulary__")
-        if isinstance(table_vocab, dict):
-            for k, v in table_vocab.items():
-                if isinstance(v, (list, tuple)):
-                    vals = [str(x).strip() for x in v if str(x).strip()]
-                    if len(vals) >= 2:
-                        _table_vocabularies[str(k).strip().lower()] = vals
-
-        # Reference rows given verbatim. A date dimension is a calendar, not a
-        # sample: its months, quarters and years are facts that agree with each
-        # other or the table is wrong. Generating those three columns
-        # independently is how a public star-schema page ended up showing June
-        # 2024 labelled Q4 2025. `Table.inline_data` already existed; the dict
-        # path just never passed anything to it, and dropped the key in silence.
-        inline_rows = None
-        for key in ("__inline_data__", "__rows_data__", "inline_data"):
-            candidate = table_def.get(key)
-            if isinstance(candidate, list) and candidate and all(
-                    isinstance(r, dict) for r in candidate):
-                inline_rows = candidate
-                break
-
-        tables.append(Table(
-            name=table_name,
-            row_count=len(inline_rows) if inline_rows else table_rows,
-            description=table_desc,
-            constraints=table_constraints,
-            correlations=table_correlations,
-            state_machine=state_machine,
-            cluster_effect=cluster_effect,
-            is_reference=bool(inline_rows),
-            inline_data=inline_rows,
-        ))
+        table, table_cols = _table_from_def(
+            schemas, table_name, table_def, effective_row_count, relationships)
+        table_vocabularies.update(_table_vocabulary(table_def))
+        tables.append(table)
         columns_map[table_name] = table_cols
 
     config = SchemaConfig(
@@ -1254,28 +1252,7 @@ def from_dict_schema(
         tables=tables,
         columns=columns_map,
         relationships=_dedupe_relationships(relationships),
-        outcome_curves=outcome_curves,
-        rate_curves=rate_curves,
-        group_shares=group_shares,
-        waterfalls=waterfalls,
-        stock_flows=stock_flows,
-        degradations=degradations,
-        events=declared["events"],
-        lifecycles=declared["lifecycles"],
-        retention=declared["retention"],
-        missingness=declared["missingness"],
-        late_arrivals=declared["late_arrivals"],
-        time_grids=declared["time_grids"],
-        duplicates=declared["duplicates"],
-        event_logs=declared["event_logs"],
-        outliers=declared["outliers"],
-        typos=declared["typos"],
-        bitemporal=declared["bitemporal"],
-        dag_edges=declared["dag_edges"],
-        graph_motifs=declared["graph_motifs"],
-        joint_distributions=declared["joint_distributions"],
-        closures=declared["closures"],
-        processes=declared["processes"],
+        **declared,
         preset=schemas.get("__preset__"),
         generation_mode=(schemas.get("__generation_mode__")
                          or schemas.get("generation_mode") or "anchored"),
@@ -1289,7 +1266,7 @@ def from_dict_schema(
               else (schemas["seed"] if isinstance(schemas.get("seed"), int)
                     else 42)),
         domain=domain,
-        vocabularies=({**_table_vocabularies, **(vocabularies or {})} or None),
+        vocabularies=({**table_vocabularies, **(vocabularies or {})} or None),
     )
     # Carry what this parse could not build, so feasibility can refuse it by
     # name instead of the schema quietly arriving one declaration short.

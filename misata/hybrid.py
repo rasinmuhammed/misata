@@ -25,7 +25,7 @@ class LearnedDistribution:
     dtype: str
     distribution_type: str
     parameters: Dict[str, Any]
-    sample_stats: Dict[str, float]
+    sample_stats: Dict[str, Any]
 
     def to_schema_params(self) -> Dict[str, Any]:
         """Convert to Misata schema distribution_params."""
@@ -140,7 +140,7 @@ class DistributionLearner:
                 if p > best_p:
                     best_p = p
                     best_dist = dist_name
-            except Exception:
+            except Exception:  # noqa: BLE001 - a distribution test that cannot fit the sample is skipped
                 continue
 
         # Build parameters based on best distribution
@@ -267,7 +267,7 @@ class DistributionLearner:
                             relationship_type="linear",
                             strength=strength
                         ))
-                except Exception:
+                except Exception:  # noqa: BLE001 - a column pair that cannot be correlated is skipped
                     continue
 
     def get_correlation_report(self) -> str:
@@ -308,7 +308,7 @@ class HybridSchemaGenerator:
         Args:
             sample_data: Dict of table_name -> DataFrame
         """
-        combined_schema = {
+        combined_schema: Dict[str, Any] = {
             "tables": [],
             "columns": {},
             "relationships": [],
@@ -335,7 +335,7 @@ class HybridSchemaGenerator:
         if not self.learned_schema:
             return llm_schema
 
-        enhanced = json.loads(json.dumps(llm_schema))  # Deep copy
+        enhanced: Dict[str, Any] = json.loads(json.dumps(llm_schema))  # Deep copy
 
         # Override columns with learned distributions
         for table_name, learned_cols in self.learned_schema["columns"].items():
@@ -366,7 +366,8 @@ class HybridSchemaGenerator:
         df = pd.read_csv(csv_path)
         table_name = csv_path.split("/")[-1].replace(".csv", "")
 
-        return self.learner.fit(df, table_name)
+        schema: Dict[str, Any] = self.learner.fit(df, table_name)
+        return schema
 
 
 # Convenience function for CLI

@@ -312,7 +312,7 @@ async def generate_data(request: GenerateRequest):
 
         # Build preview and stats
         preview = {}
-        stats = {}
+        stats: Dict[str, Dict[str, Any]] = {}
         files_created = set()
 
         # Generate and stream to disk
@@ -440,7 +440,7 @@ async def validate_schema(schema_config: Dict[str, Any]):
             "relationships": len(schema.relationships),
             "events": len(schema.events)
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - any parse or validation error means the schema is invalid
         return {
             "valid": False,
             "error": str(e)

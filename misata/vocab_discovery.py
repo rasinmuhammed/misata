@@ -31,7 +31,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, cast
 
 from misata.vocab_validator import validate_vocabulary
 
@@ -89,8 +89,8 @@ class Discovery:
 
 def _load_cache() -> Dict[str, dict]:
     try:
-        return json.loads(_CACHE_PATH.read_text(encoding="utf-8"))
-    except Exception:
+        return cast(Dict[str, dict], json.loads(_CACHE_PATH.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
         return {}
 
 
@@ -98,7 +98,7 @@ def _save_cache(cache: Dict[str, dict]) -> None:
     try:
         _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _CACHE_PATH.write_text(json.dumps(cache, indent=1, ensure_ascii=False), encoding="utf-8")
-    except Exception:
+    except (OSError, TypeError, ValueError):
         pass  # cache is an optimization, never a failure
 
 
@@ -181,14 +181,14 @@ def discover_column(
 
         try:
             candidates = _search_candidates(term)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - network discovery is best-effort; the failure is reported
             d.reason = f"search failed: {exc}"
             return d
 
         for cand in candidates:
             try:
                 labels = fetch_class_members(cand["qid"], limit=120)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - network discovery is best-effort; the failure is reported
                 # SPARQL throttling (outage windows rate-limit hard) — stop
                 # discovery gracefully rather than hammering the endpoint.
                 d.reason = f"sparql unavailable: {str(exc)[:80]}"

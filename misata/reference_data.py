@@ -154,7 +154,7 @@ def detect_domain(table_names: List[str]) -> str:
             domain_scores[domain] = score
     
     if domain_scores:
-        return max(domain_scores, key=domain_scores.get)
+        return max(domain_scores, key=domain_scores.__getitem__)
     
     return "generic"
 

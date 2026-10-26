@@ -59,7 +59,8 @@ def apply_cross_table_constraints(
     """Enforce every collected cross-table constraint. Mutates and returns ``tables``."""
     for child_name, c in constraints:
         child = tables.get(child_name)
-        parent = tables.get(getattr(c, "parent_table", None))
+        parent_name: Any = getattr(c, "parent_table", None)
+        parent = tables.get(parent_name)
         col = getattr(c, "column", None)
         pcol = getattr(c, "parent_column", None)
         if child is None or parent is None:

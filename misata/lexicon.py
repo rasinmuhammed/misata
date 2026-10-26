@@ -317,7 +317,7 @@ def _person_pools() -> Tuple[List[str], List[str]]:
         family = sorted({str(x) for x in P.last_names})
         if len(given) > 100 and len(family) > 100:
             return given, family
-    except Exception:
+    except (ImportError, AttributeError):
         pass
     from misata.vocab_seeds import FIRST_NAMES, LAST_NAMES
     return list(FIRST_NAMES), list(LAST_NAMES)

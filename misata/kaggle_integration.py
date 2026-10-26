@@ -294,7 +294,7 @@ def _get_kaggle_api() -> Optional[Any]:
             "Kaggle API not installed. Run: pip install \"misata[kaggle]\"",
         )
         return None
-    except Exception:
+    except Exception:  # noqa: BLE001 - missing credentials or network failure means no API
         return None
 
 
@@ -382,7 +382,7 @@ def enrich_from_kaggle(
                 curated_refs = {c.dataset_ref for c in candidates}
                 if desc.dataset_ref not in curated_refs:
                     candidates.append(desc)
-    except Exception:
+    except Exception:  # noqa: BLE001 - live search is best-effort
         pass  # live search is best-effort
 
     if not candidates:
@@ -427,7 +427,7 @@ def enrich_from_kaggle(
                     if ingestion.accepted:
                         result.assets_added += ingestion.assets_written
                 result.datasets_ingested += 1
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - a dataset that fails to ingest is recorded and skipped
                 result.errors.append(f"{descriptor.dataset_ref}: {exc}")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -442,7 +442,7 @@ def _auto_map_csv(csv_path: Path, max_rows: int = 100) -> Dict[str, str]:
         with csv_path.open("r", encoding="utf-8", errors="replace", newline="") as fh:
             reader = _csv.DictReader(fh)
             columns = reader.fieldnames or []
-    except Exception:
+    except (OSError, _csv.Error):
         return {}
     return detect_column_assets(list(columns))
 
@@ -565,7 +565,7 @@ def kaggle_status(asset_store_dir: Optional[str] = None) -> str:
                     count = len(payload.get("values", []))
                     total_assets += 1
                     lines.append(f"    {jf.stem:<20s}: {count:>6,} values")
-                except Exception:
+                except (OSError, ValueError, AttributeError, TypeError):
                     lines.append(f"    {jf.stem} (unreadable)")
 
     if not lines:
@@ -618,7 +618,7 @@ def kaggle_find(domain: str, max_results: int = 5) -> List[KaggleDatasetDescript
                     )
                     if desc.dataset_ref not in curated_refs:
                         results.append(desc)
-        except Exception:
+        except Exception:  # noqa: BLE001 - live search is best-effort
             pass
 
     return results[:max_results]

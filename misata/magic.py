@@ -76,5 +76,5 @@ def _misata_cell(line: str, cell: str) -> None:  # type: ignore[type-arg]
             f"<tbody>{rows_html}</tbody></table>"
         )
         display(HTML(html))
-    except Exception:
+    except Exception:  # noqa: BLE001 - the notebook summary is cosmetic and never blocks generation
         pass

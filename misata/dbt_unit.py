@@ -48,7 +48,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import pandas as pd
 
@@ -121,7 +121,7 @@ def load_manifest(path: Path) -> Dict[str, Any]:
         raise ManifestError(
             f"{path} does not look like a dbt manifest (no 'nodes' key)."
         )
-    return manifest
+    return cast(Dict[str, Any], manifest)
 
 
 def load_catalog(manifest_path: Path) -> Optional[Dict[str, Any]]:
@@ -713,7 +713,7 @@ def fixture_csv(df: "pd.DataFrame", columns: Optional[Dict[str, str]] = None) ->
     """
     if columns:
         df = coerce_to_declared_types(df, columns)
-    return df.to_csv(index=False, lineterminator="\n")
+    return cast(str, df.to_csv(index=False, lineterminator="\n"))
 
 
 # --------------------------------------------------------------------------- #

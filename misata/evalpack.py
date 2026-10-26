@@ -163,7 +163,8 @@ def _month_label(start: Any, end: Any) -> Optional[str]:
     start = pd.Timestamp(start)
     end = pd.Timestamp(end)
     if start.day == 1 and start.normalize() == start and end == start + pd.DateOffset(months=1):
-        return start.strftime("%Y-%m")
+        label: str = start.strftime("%Y-%m")
+        return label
     return None
 
 
