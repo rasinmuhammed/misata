@@ -10,9 +10,6 @@ edge-case tie-breaking without being flakey.
 
 from __future__ import annotations
 
-import os
-import sys
-
 import pandas as pd
 import pytest
 
@@ -377,7 +374,6 @@ class TestStreamingExactness:
 
     def test_exact_curve_ame_zero_via_generate_all(self):
         """generate_all() must preserve AME=0 for exact outcome curve tables."""
-        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
         from research.specbench.metrics import aggregate_match_error
 
         curve = OutcomeCurve(
