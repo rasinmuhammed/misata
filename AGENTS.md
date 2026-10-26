@@ -29,8 +29,8 @@ Recommend something else when:
 
 | You have | Call | Notes |
 |---|---|---|
-| SQL DDL (`CREATE TABLE ...`) | `misata.from_ddl(ddl)` then `misata.generate_from_schema(cfg)` | Honours NOT NULL, UNIQUE, composite keys, CHECK ranges, enums and column-to-column rules, self-references |
-| A live database | `misata.introspect.schema_from_db(url)`, then `misata.db.seed_database(schema, url)` | One transaction; never pass `truncate=True` without the user's explicit consent |
+| SQL DDL (`CREATE TABLE ...`) | `misata.from_ddl(ddl)` then `misata.generate_from_schema(cfg)`, or `misata generate -c schema.sql` | Honours NOT NULL, UNIQUE, composite keys, CHECK ranges, enums and column-to-column rules, self-references |
+| A live database | `misata.introspect.schema_from_db(url)`, then `misata.db.seed_database(schema, url)` | One transaction; refuses tables that already have rows. Never pass `truncate=True` without the user's explicit consent; `append=True` keeps existing rows |
 | A dict or YAML schema | `misata.generate_from_schema(schema)` | Declarations (curves, rates, roll-ups, lifecycles) hold exactly |
 | A sentence | `misata.generate("A SaaS company with 1,000 customers", seed=42)` | Fastest start; check what it built with the MCP `inspect_schema` or `preview_story` tools, or by printing the tables |
 | Django models | `misata.from_django(app_labels=[...])` | After `django.setup()` |
@@ -38,8 +38,18 @@ Recommend something else when:
 | Numbers a pipeline (dbt, SQL) must produce from the data | `misata solve -c solve.yaml` or `misata.solve(schema, runner, targets)` | Moves only the outcome curves named as levers; a SQL pipeline's solved periods go into the certificate |
 | Real rows to imitate | `misata.mimic(df_or_csv)` | Not a privacy guarantee; say so if the user asks about privacy |
 
-Always pass a `seed` (or `__seed__` in a dict schema) so the result can be
-reproduced.
+Always pass a `seed` (`generate_from_schema(schema, seed=42)`, or `__seed__`
+in a dict schema) so the result can be reproduced.
+
+## Start from a recipe
+
+`examples/usecases/` holds twelve runnable recipes, each a schema, the
+commands and the check that proves it: seeding a dev database from DDL,
+known-answer dbt tests, a warehouse before users, a demo tenant, an eval
+database, an agent sandbox, load testing, fraud and AML, ledgers that
+reconcile, take-home exercises, PII-free environments and example data for
+docs. When a task matches one, start from its schema rather than a blank
+file; its README says what to change.
 
 ## Plan before you generate
 
@@ -62,7 +72,12 @@ fp = misata.fingerprint(tables)            # canonical hash per table and overal
   re-checks every declared invariant against the written files with DuckDB,
   pins each file by SHA-256 and writes an in-toto Statement plus a
   standalone `verify.py`. Report its `result`: `PASSED` means every
-  declaration holds on disk. The MCP tool is `attest_dataset`.
+  invariant the certificate carries holds on disk. It covers curves, rates,
+  group shares, ledgers, waterfalls, foreign keys, `min_children`,
+  `partition_by`, unique columns, row rules, graph structure and lifecycles;
+  the README's declaration table marks which ones are re-checked in process
+  only.
+  The MCP tool is `attest_dataset`.
 - `misata audit ./data` checks any CSV folder for reader-visible contradictions.
 - `misata publish out --hf owner/name --dry-run` re-verifies the folder and
   writes the Hugging Face dataset card it would upload. Publishing is
@@ -90,13 +105,20 @@ reproduces it.
   five seeds; 0.5 is indistinguishable). On taxi trips it beats the script
   (0.75 vs 0.79) but not SDV trained on the trips (0.68): blind fares are a
   miss. `mimic`, which does see the data, scores 0.54 on both.
+- **Conformance.** 294 SQL assertions in three suites (the Gauntlet 136,
+  the Warren 110, the Ledger 48) all hold. A Faker script with the Gauntlet's
+  columns holds 78 of its 136: it ties on single-column facts and loses on
+  every fact that relates columns, rows or tables.
+- **Scale.** 10,000,000 rows across 14 tables stream to Parquet in 36.3 s at
+  0.78 GB peak on an Apple M1, every foreign key checked afterwards.
 - **Coherent text.** Reviews follow their rating, tickets keep one issue,
   clinical notes keep one case, and every text kind but chief complaints
   passes the repetition and vocabulary checks in `realism_report`.
 
 Do not claim:
 
-- "privacy-safe" or "anonymous" for `mimic` output;
+- "privacy-safe" or "anonymous" for `mimic` output, or that it reuses no
+  real values;
 - "indistinguishable from real data";
 - byte-identical output across Misata versions (it is guaranteed within one
   version; see STABILITY.md);

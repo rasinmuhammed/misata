@@ -325,6 +325,7 @@ def generate_from_schema(
     verify: bool = False,
     strict: bool = True,
     preset: "Optional[str]" = None,
+    seed: "Optional[int]" = None,
 ) -> "Dict[str, Any]":
     """Generate data from an already-built SchemaConfig.
 
@@ -353,6 +354,8 @@ def generate_from_schema(
                            arithmetic that proves it. Set False for the older
                            behaviour, where the engine warns and then resolves
                            the conflict by overriding one of your declarations.
+        seed:              Generate with this seed instead of the schema's own.
+                           The schema passed in is left unchanged.
 
     Returns:
         Dict mapping table name → ``pd.DataFrame``.
@@ -371,6 +374,8 @@ def generate_from_schema(
     if isinstance(schema, dict):
         from misata.compat import from_dict_schema
         schema = from_dict_schema(schema)
+    if seed is not None:
+        schema = schema.model_copy(deep=True, update={"seed": seed})
 
     if preset is not None or getattr(schema, "preset", None):
         from misata.presets import apply_preset

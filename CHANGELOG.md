@@ -285,6 +285,8 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- `misata.generate_from_schema(schema, seed=42)` generates with that seed
+  and leaves the schema's own unchanged, as `misata.generate` does.
 - `misata.seed_database` refuses a table that already has rows unless
   `truncate=True` or `append=True` says what to do with it, as `misata
   seed` does, and writes nothing. It used to stop partway with the
