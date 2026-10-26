@@ -251,6 +251,11 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Output changes
 
+- Attestations and evalpack certificates carry more invariants (row rules),
+  so their invariant counts and `attestation.intoto.json` files change.
+- `save_yaml_schema` writes `nullable: false` only for a column that
+  declared it. A column left at the model's default is written without the
+  key and reloads as nullable, which changes no generated value.
 - `misata serve` listens on 127.0.0.1 by default instead of 0.0.0.0.
 - A structured spec story that parses completely logs its summary at INFO
   instead of emitting a warning. Rules it could not translate still warn.
