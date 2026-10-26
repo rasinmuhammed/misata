@@ -1,7 +1,7 @@
 [project]
 name = "misata"
 version = "0.9.8"
-description = "Outcome-conformant synthetic data & Instant Sandbox Oracle for AI coding agents (Cursor, Claude Code, Windsurf). Realistic multi-table database seeder with 0 orphan FKs, $0 LLM cost, 2s runtime. MCP server included."
+description = "Declarative synthetic data for Python. State the facts a dataset must hold and get multi-table data that holds them exactly, with a DuckDB certificate anyone can rerun."
 authors = [
     {name = "Muhammed Rasin", email = "rasin@misata.studio"}
 ]
@@ -10,38 +10,33 @@ license = {text = "MIT"}
 requires-python = ">=3.10"
 keywords = [
     "synthetic-data",
-    "synthetic-data-python",
-    "python-synthetic-data",
-    "data-generation",
-    "fake-data",
+    "synthetic-data-generator",
+    "declarative",
+    "test-data",
     "test-data-generator",
     "database-seeding",
+    "seed-data",
+    "fixtures",
+    "pytest-fixtures",
     "mock-data",
-    "tabular-data",
+    "fake-data",
+    "demo-data",
     "multi-table",
     "relational-data",
     "referential-integrity",
-    "outcome-conformant",
-    "data-conformance",
-    "scenario-simulation",
-    "pytest-fixtures",
+    "foreign-keys",
+    "data-quality",
+    "data-contracts",
+    "duckdb",
     "dbt",
-    "machine-learning",
-    "testing",
+    "sql-ddl",
+    "postgresql",
+    "sqlite",
+    "text-to-sql",
+    "attestation",
     "mcp",
     "mcp-server",
-    "llm",
-    "ai",
     "ai-agents",
-    "database",
-    "sandbox",
-    "test-oracle",
-    "cursor",
-    "claude-code",
-    "windsurf",
-    "snaplet",
-    "database-sandbox",
-    "sqlite-sandbox",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

@@ -15,7 +15,7 @@
         {
             "guid": "misata",
             "name": "Misata",
-            "description": "Misata generates realistic, multi-table synthetic data that conforms to the outcomes you declare — exact revenue curves, fraud rates, referential integrity, and statistical structure — from a sentence, a YAML schema, or an existing database schema. No ML model is required. No real data is needed.\n\nMisata ships a Model Context Protocol (MCP) server so AI coding agents (Claude, Cursor, Windsurf) can call it directly. It integrates with Apache Spark, Delta Lake, and dbt. It is used for database seeding, integration test fixtures, BI demo data, and statistical method validation.",
+            "description": "Misata is declarative synthetic data for Python. You state the facts a dataset must hold, such as monthly revenue, channel shares, balanced ledgers, foreign keys and state machines, and it generates multi-table data that holds them exactly, from a YAML schema, SQL DDL, a live database or a sentence. A DuckDB certificate that anyone can rerun proves the result. No ML model and no real data are needed.\n\nMisata ships a Model Context Protocol (MCP) server so AI coding agents (Claude, Cursor, Windsurf) can call it directly. It integrates with Apache Spark, Delta Lake, and dbt. It is used for database seeding, integration test fixtures, BI demo data, and statistical method validation.",
             "webpageUrl": {
                 "url": "https://misata.studio"
             },
