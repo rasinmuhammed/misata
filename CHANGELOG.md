@@ -285,6 +285,13 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- Generating from a schema never changes it. Semantic inference, curve
+  repairs, presets and quality retries work on a copy, so a schema
+  reused after `generate_from_schema` or `generate_stream` (to attest,
+  explain or generate again) is the one that was written.
+- `POST /api/enhance-schema` enriches the schema instead of failing on a
+  method that did not exist; `/api/industry-suggestions`, which never
+  worked, is removed.
 - Works with DuckDB 2.0. The `verify.py` files Misata writes read every
   result to the end, which DuckDB 2 requires before the next query on a
   connection, and the benchmark suites no longer call `fetchone()` on a

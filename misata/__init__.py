@@ -374,8 +374,9 @@ def generate_from_schema(
     if isinstance(schema, dict):
         from misata.compat import from_dict_schema
         schema = from_dict_schema(schema)
-    if seed is not None:
-        schema = schema.model_copy(deep=True, update={"seed": seed})
+    # Presets, capsules and quality retries all adjust the schema; they work
+    # on a copy so the caller's schema is never changed by generating from it.
+    schema = schema.model_copy(deep=True, update={} if seed is None else {"seed": seed})
 
     if preset is not None or getattr(schema, "preset", None):
         from misata.presets import apply_preset

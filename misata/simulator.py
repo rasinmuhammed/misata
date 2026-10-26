@@ -289,6 +289,9 @@ class DataSimulator:
         # date) regardless of which parser produced this schema. Repairing it
         # here, at the entry point every caller passes through, covers every
         # parser at once. repair_curve_time_columns documents the repair.
+        # The simulator works on its own copy: repairs, presets and semantic
+        # inference never reach the schema the caller holds.
+        config = config.model_copy(deep=True)
         repair_curve_time_columns(config)
         if getattr(config, "preset", None):
             from misata.presets import apply_preset

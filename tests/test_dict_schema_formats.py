@@ -1312,3 +1312,22 @@ def test_generate_from_schema_takes_a_seed_without_changing_the_schema():
     assert schema.seed == 3
     assert misata.fingerprint(seeded) == misata.fingerprint(declared)
     assert misata.fingerprint(seeded) != misata.fingerprint(default)
+
+
+def test_generating_never_changes_the_callers_schema():
+    import warnings
+
+    import misata
+
+    schema = misata.from_dict_schema({
+        "orders": {"__rows__": 200, "order_id": {"type": "integer", "unique": True,
+                                                 "min": 1, "max": 200},
+                   "status": {"type": "string"}, "placed_on": {"type": "date"}},
+        "__seed__": 4,
+    })
+    before = schema.model_dump_json()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        misata.generate_from_schema(schema)
+        list(misata.generate_stream(schema))
+    assert schema.model_dump_json() == before
