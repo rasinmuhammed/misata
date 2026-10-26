@@ -1219,8 +1219,9 @@ def mimic(source: str, rows: Optional[int], output: str, seed: Optional[int]) ->
     Generate a synthetic twin of a CSV file (not a privacy guarantee).
 
     Misata profiles every column's distribution, cardinality, and semantic
-    type, then produces a fresh dataset that matches the structure without
-    reusing any real values.
+    type, then samples a new dataset with the same structure. The output is
+    fitted to real rows and can reproduce rare real values, so it is not
+    anonymous; generate from a schema when no real data may go in.
 
     \b
     Examples:
