@@ -285,6 +285,10 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- Works with DuckDB 2.0. The `verify.py` files Misata writes read every
+  result to the end, which DuckDB 2 requires before the next query on a
+  connection, and the benchmark suites no longer call `fetchone()` on a
+  relation, which DuckDB 2 removed.
 - `misata.generate_from_schema(schema, seed=42)` generates with that seed
   and leaves the schema's own unchanged, as `misata.generate` does.
 - `misata.seed_database` refuses a table that already has rows unless

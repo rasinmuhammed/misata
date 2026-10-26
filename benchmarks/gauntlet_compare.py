@@ -389,7 +389,7 @@ def score(tables: Dict[str, pd.DataFrame], label: str,
     results = []
     for cat, name, sql in build_assertions():
         try:
-            violations = int(con.sql(sql).fetchone()[0] or 0)
+            violations = int(con.execute(sql).fetchone()[0] or 0)
             error = None
         except Exception as e:
             violations, error = -1, str(e).split("\n")[0]

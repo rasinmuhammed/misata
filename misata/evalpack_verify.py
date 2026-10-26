@@ -74,10 +74,12 @@ def show(value: Any) -> str:
 def run(con: Any, sql: str) -> Tuple[Any, Optional[str]]:
     """The first column of the first row, or the error text."""
     try:
-        row = con.execute(sql).fetchone()
+        # Read to the end: DuckDB 2 keeps a partly read result open on its
+        # connection and refuses the next statement until it is finished.
+        rows = con.execute(sql).fetchall()
     except Exception as exc:  # noqa: BLE001 - a failing query is a wrong answer
         return None, str(exc).splitlines()[0]
-    return (row[0] if row else None), None
+    return (rows[0][0] if rows else None), None
 
 
 def load_questions(pack: Path) -> Dict[str, Dict[str, Any]]:

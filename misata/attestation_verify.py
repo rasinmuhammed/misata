@@ -165,10 +165,12 @@ def _source(directory: Path, paths: List[Path]) -> str:
 def evaluate(con: Any, invariant: Dict[str, Any]) -> Tuple[str, bool]:
     """Run one invariant; return the observed value as written and whether it held."""
     try:
-        row = con.execute(invariant["sql"]).fetchone()
+        # Read to the end: DuckDB 2 keeps a partly read result open on its
+        # connection and refuses the next statement until it is finished.
+        rows = con.execute(invariant["sql"]).fetchall()
     except Exception as exc:  # noqa: BLE001 - any SQL failure is a failed invariant
         return f"error: {str(exc).splitlines()[0]}", False
-    observed = format_value(row[0] if row else None, invariant["valueType"], invariant["expected"])
+    observed = format_value(rows[0][0] if rows else None, invariant["valueType"], invariant["expected"])
     if invariant.get("comparator") == "within_tolerance":
         return observed, within_tolerance(observed, invariant["expected"], invariant["tolerance"])
     return observed, observed == invariant["expected"]

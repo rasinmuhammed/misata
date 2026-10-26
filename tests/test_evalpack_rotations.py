@@ -146,7 +146,8 @@ class TestCandidates:
     def _coincidental_sql(self, pack, question):
         """Right on the first rotation only: the gold answer shifted by a row-level fact."""
         first = _rotation_dirs(pack)[0] / "tables" / "orders.csv"
-        anchor = duckdb.sql(f"SELECT MAX(order_id) FROM read_csv_auto('{first}')").fetchone()[0]
+        with duckdb.connect() as con:
+            anchor = con.execute(f"SELECT MAX(order_id) FROM read_csv_auto('{first}')").fetchone()[0]
         return f"SELECT ({question.gold_sql}) + (SELECT MAX(order_id) FROM orders) - {anchor}"
 
     def test_gold_sql_passes_on_every_rotation(self, pack):

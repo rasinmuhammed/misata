@@ -906,7 +906,7 @@ def run(json_path: str | None = None) -> int:
     results: List[Dict[str, Any]] = []
     for cat, name, sql in assertions:
         try:
-            violations = int(con.sql(sql).fetchone()[0] or 0)
+            violations = int(con.execute(sql).fetchone()[0] or 0)
             error = None
         except Exception as e:  # a failing query is a failing assertion
             violations, error = -1, str(e).split("\n")[0]
