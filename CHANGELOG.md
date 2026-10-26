@@ -285,6 +285,7 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- `CITATION.cff` and the README cite the software itself.
 - `mimic` keeps an `ssn`, `tax_id` or other national ID column a national
   ID. It was profiled as a phone number because its dashes matched the
   phone shape; a phone now also needs a phone's ten to fifteen digits.

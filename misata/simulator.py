@@ -4063,9 +4063,7 @@ class DataSimulator:
     def _apply_rate_curves(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Enforce exact per-period rate targets for boolean/categorical columns.
 
-        Implements the Rate-Conformance (RCE) axis from the SpecBench paper
-        (arXiv:2606.08736v1, §4).  For each ``RateCurve`` attached to this
-        table, the method:
+        For each ``RateCurve`` attached to this table, the method:
 
         1. Groups rows by period using the declared ``time_column``.
         2. Resolves the target rate for each observed period via optional linear
