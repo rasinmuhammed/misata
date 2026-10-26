@@ -218,6 +218,24 @@ def _split_exactly(total: int, shares: Dict[str, float]) -> Dict[str, int]:
     return base
 
 
+def planned_motif_edges(spec: Any, n_edges: int) -> Dict[Tuple[str, bool], int]:
+    """Edges each motif kind receives, keyed by ``(kind, flagged)``.
+
+    Pure arithmetic on the declaration, so a checker can know the counts
+    before any row exists: each budget is the rate times the edge count,
+    split across kinds by largest remainder, and a kind whose share is
+    smaller than its smallest case gets no edges.
+    """
+    planned: Dict[Tuple[str, bool], int] = {}
+    for shares, rate, flagged in ((spec.shares, spec.rate, True),
+                                  (spec.benign_shares, spec.benign_rate, False)):
+        if not shares or rate <= 0:
+            continue
+        for kind, target in _split_exactly(int(round(rate * n_edges)), shares).items():
+            planned[(kind, flagged)] = target if target >= min(_MOTIF_SIZES[kind]) else 0
+    return planned
+
+
 def _case_sizes(target: int, sizes: Tuple[int, ...],
                 rng: np.random.Generator) -> List[int]:
     """Allowed case sizes summing to exactly `target`."""

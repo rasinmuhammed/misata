@@ -165,3 +165,26 @@ def test_partitioned_and_duckdb_outputs_attest_and_catch_tampering(tmp_path, fmt
     assert report.returncode == 1, report.stdout + report.stderr
     assert "does not match the attested" in report.stdout
     assert "Traceback" not in report.stderr
+
+
+def test_each_partition_streams_into_one_file(tmp_path):
+    schema = _schema(rows=3_000)
+    _write(schema, "parquet", tmp_path, partition_by="status", batch_size=200)
+    for folder in (tmp_path / "orders").iterdir():
+        assert [p.name for p in folder.iterdir()] == ["part-00000.parquet"]
+    read = duckdb.sql(f"SELECT * FROM read_parquet('{tmp_path}/orders/**/*.parquet', "
+                      f"hive_partitioning = true)").df()
+    _same_rows(read, _expected(schema, batch_size=200)["orders"])
+
+
+def test_open_partition_files_are_bounded(tmp_path, monkeypatch):
+    import misata.sinks as sinks
+
+    monkeypatch.setattr(sinks, "MAX_OPEN_PARTITIONS", 2)
+    schema = _schema(rows=3_000)
+    _write(schema, "parquet", tmp_path, partition_by="status", batch_size=200)
+    files = sorted((tmp_path / "orders").glob("*/*.parquet"))
+    assert len(files) > 3
+    read = duckdb.sql(f"SELECT * FROM read_parquet('{tmp_path}/orders/**/*.parquet', "
+                      f"hive_partitioning = true)").df()
+    _same_rows(read, _expected(schema, batch_size=200)["orders"])

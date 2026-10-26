@@ -13,7 +13,10 @@ whole table, so output size is bounded by disk, not memory. Three formats:
     ``partition_by``, every table holding that column is written Hive-style
     instead: ``<table>/<column>=<value>/part-00000.parquet``, the column
     carried by the path and dropped from the files, as Hive, Spark, DuckDB and
-    Polars expect.
+    Polars expect. Each partition streams into one file, a row group per
+    batch, unless more partitions are live than :data:`MAX_OPEN_PARTITIONS`;
+    then the least recently written one is closed and continues in a new
+    part file when its rows return.
 ``duckdb``
     One ``data.duckdb`` file holding every table.
 
@@ -25,8 +28,9 @@ later batch or partition cannot disagree with an earlier one.
 from __future__ import annotations
 
 import re
+from collections import OrderedDict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 
@@ -39,6 +43,10 @@ DUCKDB_FILE = "data.duckdb"
 #: More partitions than this means the column is close to unique, which makes
 #: millions of tiny files rather than a dataset anyone can read.
 MAX_PARTITIONS = 10_000
+
+#: Partition files open for writing at once, well under the usual limit on
+#: open file descriptors.
+MAX_OPEN_PARTITIONS = 64
 
 HIVE_NULL = "__HIVE_DEFAULT_PARTITION__"
 _HIVE_UNSAFE = re.compile(r"[\x00-\x1f\"#%'*/:=?\\\x7f{}\[\]^]")
@@ -172,6 +180,8 @@ class ParquetSink(_ArrowSink):
         self._writers: Dict[str, Any] = {}
         self._parts: Dict[str, List[Path]] = {}
         self._partitions: Dict[str, Set[str]] = {}
+        self._open: "OrderedDict[Tuple[str, str], Any]" = OrderedDict()
+        self._part_numbers: Dict[Tuple[str, str], int] = {}
 
     def _partitioned(self, table: str, batch: pd.DataFrame) -> bool:
         return self.partition_by is not None and self.partition_by in batch.columns
@@ -194,7 +204,6 @@ class ParquetSink(_ArrowSink):
         values = batch.drop(columns=[column])
         self._arrow(table, values)  # fixes the table's types before the first split
         seen = self._partitions.setdefault(table, set())
-        parts = self._parts.setdefault(table, [])
         for key, group in batch.groupby(column, dropna=False, sort=True):
             folder = f"{column}={_hive_value(key)}"
             seen.add(folder)
@@ -202,11 +211,26 @@ class ParquetSink(_ArrowSink):
                 raise SinkError(
                     f"partitioning {table} by {column} makes more than {MAX_PARTITIONS:,} "
                     f"partitions; choose a column with fewer distinct values")
-            path = self.root / table / folder / f"part-{len(parts):05d}.parquet"
+            data = self._arrow(table, group.drop(columns=[column]))
+            self._partition_writer(table, folder, data.schema).write_table(data)
+
+    def _partition_writer(self, table: str, folder: str, schema: Any) -> Any:
+        """The open writer for one partition, opening a new part file if needed."""
+        import pyarrow.parquet as pq
+
+        slot = (table, folder)
+        writer = self._open.pop(slot, None)
+        if writer is None:
+            if len(self._open) >= MAX_OPEN_PARTITIONS:
+                self._open.popitem(last=False)[1].close()
+            number = self._part_numbers.get(slot, 0)
+            self._part_numbers[slot] = number + 1
+            path = self.root / table / folder / f"part-{number:05d}.parquet"
             path.parent.mkdir(parents=True, exist_ok=True)
-            pq.write_table(self._arrow(table, group.drop(columns=[column])), path,
-                           compression=self.compression)
-            parts.append(path)
+            writer = pq.ParquetWriter(path, schema, compression=self.compression)
+            self._parts.setdefault(table, []).append(path)
+        self._open[slot] = writer
+        return writer
 
     def files(self, table: str) -> List[Path]:
         return list(self._parts.get(table) or [self.root / f"{table}.parquet"])
@@ -217,9 +241,10 @@ class ParquetSink(_ArrowSink):
         return pd.read_parquet(self.root / f"{table}.parquet")
 
     def close(self) -> None:
-        for writer in self._writers.values():
+        for writer in [*self._writers.values(), *self._open.values()]:
             writer.close()
         self._writers.clear()
+        self._open.clear()
 
 
 class DuckDBSink(_ArrowSink):

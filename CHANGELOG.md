@@ -30,6 +30,12 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   `CHECK (plan IN (...))`) and declared NOT NULL, each as a count of
   violating rows that must be 0. Columns a dirt declaration targets are left
   out. A DDL schema of three tables now carries 22 invariants instead of 6.
+- Declared graph structure is attested. A `dag_edges` table must have no
+  cycle outside the cases a `graph_motifs` declaration planted, checked by
+  Kahn's algorithm as one DuckDB recursive query that finishes after the
+  longest path whether or not a cycle exists (0.4 seconds over 300,000
+  edges). Each motif kind's edge count and the flagged total are exact and
+  checked. The DuckDB floor is 1.3, for `USING KEY`.
 - Every command that reads a schema file reads SQL DDL from a `.sql` file:
   `misata generate -c schema.sql`, `misata explain schema.sql`,
   `misata attest out -s schema.sql`, and `schema:` in `solve.yaml`.
@@ -139,8 +145,10 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   so output is bounded by disk. `--format parquet --partition-by COLUMN`
   writes Hive-style `table/column=value/part-00000.parquet`, with the column
   in the path and not the files; a column with more than 10,000 values is
-  refused. `--format duckdb` writes every table into `data.duckdb`. Column
-  types are fixed from each table's first batch, so parts never disagree.
+  refused. Each partition streams into one file, a row group per batch,
+  with at most 64 files open at once. `--format duckdb` writes every table
+  into `data.duckdb`. Column types are fixed from each table's first batch,
+  so parts never disagree.
 - `misata attest` and `--attest` read every layout `generate` writes:
   partitioned folders are attested part by part, each subject annotated
   with the tables it holds, and `data.duckdb` is attached read-only.

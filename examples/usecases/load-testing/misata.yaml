@@ -1,0 +1,25 @@
+# misata.yaml
+name: checkout_load
+seed: 3
+tables:
+  users:
+    rows: 100000
+    columns:
+      user_id: {type: int, unique: true, min: 1, max: 100000}
+      region: {type: categorical, choices: [us-east, us-west, eu-west, ap-south], probabilities: [0.4, 0.2, 0.25, 0.15]}
+      signed_up_at: {type: date, start: "2023-01-01", end: "2025-10-31"}
+  requests:
+    rows: 2500000
+    columns:
+      request_id: {type: int, unique: true, min: 1, max: 100000000}
+      user_id: {type: foreign_key, sampling: pareto}
+      route: {type: categorical, choices: [cart, checkout, search, product, login], probabilities: [0.18, 0.04, 0.33, 0.4, 0.05]}
+      status: {type: categorical, choices: ["200", "304", "404", "429", "500"], probabilities: [0.9, 0.05, 0.03, 0.015, 0.005]}
+      latency_ms: {type: float, distribution: lognormal, mean: 120, std: 90, min: 3, max: 30000, decimals: 1}
+      requested_at:
+        type: datetime
+        start: "2025-11-24"
+        end: "2025-12-01"
+        hour_weights: [1, 1, 1, 1, 1, 2, 3, 5, 7, 8, 8, 8, 9, 9, 8, 8, 8, 9, 11, 13, 14, 12, 7, 3]
+relationships:
+  - users.user_id -> requests.user_id

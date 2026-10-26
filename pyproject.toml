@@ -93,7 +93,7 @@ dev = [
     "jsonschema>=4.0.0",   # YAML validation tests
     "scikit-learn>=1.0.0", # ML-efficacy (TSTR) path in fidelity_report
     "hypothesis>=6.100",   # property-based fuzzing of the dict-schema contract
-    "duckdb>=0.9.0",       # evalpack verification tests
+    "duckdb>=1.3.0",       # evalpack verification tests
     "pyarrow>=14.0.0",     # Parquet sinks and partitioned attestation tests
     "jinja2>=3.1.0",       # document template tests
     # Upper bound is deliberate: the MCP server targets FastMCP as it exists
@@ -119,7 +119,7 @@ bedrock = [
 ]
 hf = [
     "huggingface_hub>=0.25.0",  # misata publish --hf
-    "duckdb>=0.9.0",            # re-verifies the dataset before upload
+    "duckdb>=1.3.0",            # re-verifies the dataset before upload
 ]
 formulas = [
     "simpleeval>=0.9.0",
@@ -170,13 +170,13 @@ spark = [
     "pyspark>=3.3.0",         # Apache Spark + Delta Lake integration (write_delta, from_catalog_schema, etc.)
 ]
 evalpack = [
-    "duckdb>=0.9.0",          # Independent SQL verification of evalpack answer keys
+    "duckdb>=1.3.0",          # Independent SQL verification of evalpack answer keys
 ]
 parquet = [
     "pyarrow>=14.0.0",        # --format parquet, partitioned output, to_parquet()
 ]
 duckdb = [
-    "duckdb>=0.9.0",          # --format duckdb: every table in one file
+    "duckdb>=1.3.0",          # --format duckdb: every table in one file
     "pyarrow>=14.0.0",
 ]
 all = [

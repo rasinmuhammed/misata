@@ -374,3 +374,70 @@ def test_the_cli_reads_ddl(tmp_path):
         assert attested.exit_code == 0, attested.output
         invariants = json.loads(attested.output)["data"]["statement"]["predicate"]["invariants"]
         assert any(i["kind"] == "inequality" for i in invariants)
+
+
+GRAPH = {
+    "accounts": {"__rows__": 800, "id": {"type": "integer", "unique": True, "min": 1, "max": 800}},
+    "transfers": {"__rows__": 9_000, "src": {"type": "integer", "min": 1, "max": 800},
+                  "dst": {"type": "integer", "min": 1, "max": 800},
+                  "amount": {"type": "float", "min": 1, "max": 5_000}},
+    "__dag_edges__": [{"name": "background", "table": "transfers", "node_table": "accounts",
+                       "node_key": "id", "from_column": "src", "to_column": "dst"}],
+    "__graph_motifs__": [{"name": "rings", "table": "transfers", "node_table": "accounts",
+                          "node_key": "id", "from_column": "src", "to_column": "dst",
+                          "rate": 0.02, "shares": {"cycle": 0.5, "fan_in": 0.3, "chain": 0.2},
+                          "benign_rate": 0.0011, "benign_shares": {"cycle": 0.7, "fan_out": 0.3},
+                          "flag_column": "is_suspicious"}],
+}
+
+
+class TestGraphs:
+    """Declared graph structure is attested: an acyclic background and exact motif counts."""
+
+    @pytest.fixture()
+    def graph_dir(self, tmp_path):
+        schema = misata.from_dict_schema(GRAPH, seed=13)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _write(misata.generate_from_schema(schema), tmp_path, "csv")
+        return tmp_path, schema
+
+    def test_graph_declarations_become_invariants_and_hold(self, graph_dir):
+        directory, schema = graph_dir
+        result = attest(directory, schema, write=False)
+        observed = {i["id"]: i["observed"] for i in result.invariants}
+        assert observed["transfers.src->dst.acyclic"] == "0"
+        # 180 flagged edges split 90/54/36. Ten benign edges split 7/3, and
+        # three edges are fewer than the smallest fan-out, so it gets none.
+        assert observed["transfers.rings.cycle.motif_edges"] == "97"
+        assert observed["transfers.rings.fan_in.motif_edges"] == "54"
+        assert observed["transfers.rings.chain.motif_edges"] == "36"
+        assert observed["transfers.rings.fan_out.motif_edges"] == "0"
+        assert observed["transfers.rings.flagged_edges"] == "180"
+        assert result.passed, result.summary()
+
+    @pytest.mark.parametrize("seed", [1, 2, 3])
+    def test_planned_counts_match_every_seed(self, seed):
+        from misata.graphs import planned_motif_edges
+
+        schema = misata.from_dict_schema(GRAPH, seed=seed)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            edges = misata.generate_from_schema(schema)["transfers"]
+        spec = schema.graph_motifs[0]
+        planned = planned_motif_edges(spec, len(edges))
+        cased = edges[edges["motif_case"].fillna("") != ""]
+        for (kind, flagged), count in planned.items():
+            rows = cased[(cased["motif"] == kind) & (cased["is_suspicious"] == flagged)]
+            assert len(rows) == count, (kind, flagged)
+
+    def test_a_planted_cycle_fails_only_the_acyclic_invariant(self, graph_dir):
+        directory, schema = graph_dir
+        transfers = pd.read_csv(directory / "transfers.csv", keep_default_na=False)
+        background = transfers.index[transfers["motif_case"] == ""]
+        first, second = background[0], background[1]
+        a, b = transfers.loc[first, "src"], transfers.loc[first, "dst"]
+        transfers.loc[second, ["src", "dst"]] = [b, a]
+        transfers.to_csv(directory / "transfers.csv", index=False)
+        failures = {f["id"] for f in attest(directory, schema, write=False).failures}
+        assert failures == {"transfers.src->dst.acyclic"}

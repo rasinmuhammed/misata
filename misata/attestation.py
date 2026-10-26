@@ -19,7 +19,7 @@ declared answer and the answer observed in the written files.
 
 The invariants come from the declarations, never from the data: outcome-curve
 totals and their row plan, rate anchors, foreign keys, unique columns, ledger
-identities, group shares and waterfalls. Expected and observed values are
+identities, group shares, waterfalls, row rules and declared graph structure. Expected and observed values are
 written as decimal strings at a fixed precision, so float formatting can never
 decide equality. ``result`` is ``PASSED`` only when every invariant holds.
 
@@ -288,6 +288,80 @@ def _row_rule_invariants(schema: "SchemaConfig") -> List[Invariant]:
     return out
 
 
+def acyclic_sql(table: str, from_column: str, to_column: str, where: str = "") -> str:
+    """Count the nodes on or downstream of a cycle among an edge table's rows.
+
+    Kahn's algorithm as a keyed recursive CTE: every node starts with its
+    in-degree, and each round removes the nodes left with none, lowering
+    their successors' counts. The rounds stop after the longest path whether
+    or not a cycle exists, and a node still holding a count afterwards sits
+    on a cycle or below one. Zero means the graph is acyclic. Needs DuckDB
+    1.3 or later for ``USING KEY``.
+    """
+    src, dst = quote_ident(from_column), quote_ident(to_column)
+    filtered = f" WHERE {where}" if where else ""
+    return (
+        "WITH RECURSIVE e AS ("
+        f"SELECT DISTINCT {src} AS src, {dst} AS dst FROM {quote_ident(table)}{filtered}), "
+        "nodes AS (SELECT src AS n FROM e UNION SELECT dst FROM e), "
+        "peel(n, remaining) USING KEY (n) AS ("
+        "SELECT nodes.n, COALESCE(indegree.c, 0) FROM nodes LEFT JOIN "
+        "(SELECT dst, COUNT(*) AS c FROM e GROUP BY dst) indegree ON indegree.dst = nodes.n "
+        "UNION "
+        "SELECT e.dst, ANY_VALUE(r.remaining) - COUNT(*) "
+        "FROM peel w JOIN e ON e.src = w.n JOIN recurring.peel r ON r.n = e.dst "
+        "WHERE w.remaining = 0 GROUP BY e.dst) "
+        "SELECT COUNT(*) FROM peel WHERE remaining > 0"
+    )
+
+
+def _graph_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Declared graph structure: an acyclic background and exact motif counts.
+
+    A ``dag_edges`` table has no cycle, except inside the cases a
+    ``graph_motifs`` declaration on the same endpoints planted. Each motif
+    kind carries exactly its planned number of edges, and a flag column marks
+    exactly the flagged ones.
+    """
+    from misata.graphs import planned_motif_edges
+
+    rows = {t.name: t.row_count for t in schema.tables}
+    out = []
+    for dag in schema.dag_edges:
+        cases = [m.case_column for m in schema.graph_motifs
+                 if (m.table, m.from_column, m.to_column) == (dag.table, dag.from_column,
+                                                              dag.to_column)]
+        where = " AND ".join(f"COALESCE(CAST({quote_ident(c)} AS VARCHAR), '') = ''"
+                             for c in cases)
+        out.append(Invariant(
+            id=f"{dag.table}.{dag.from_column}->{dag.to_column}.acyclic",
+            kind="acyclic", sql=acyclic_sql(dag.table, dag.from_column, dag.to_column, where),
+            expected="0", value_type="integer", table=dag.table,
+        ))
+    for motif in schema.graph_motifs:
+        if motif.table not in rows:
+            continue
+        table = quote_ident(motif.table)
+        label = quote_ident(motif.label_column)
+        planned = planned_motif_edges(motif, rows[motif.table])
+        for kind in sorted({k for k, _ in planned}):
+            edges = sum(n for (k, _), n in planned.items() if k == kind)
+            out.append(Invariant(
+                id=f"{motif.table}.{motif.name}.{kind}.motif_edges", kind="motif_edges",
+                sql=f"SELECT COUNT(*) FROM {table} WHERE {label} = {quote_literal(kind)}",
+                expected=str(edges), value_type="integer", table=motif.table,
+            ))
+        if motif.flag_column:
+            flag = quote_ident(motif.flag_column)
+            flagged = sum(n for (_, f), n in planned.items() if f)
+            out.append(Invariant(
+                id=f"{motif.table}.{motif.name}.flagged_edges", kind="flagged_edges",
+                sql=f"SELECT COUNT(*) FROM {table} WHERE CAST({flag} AS BOOLEAN)",
+                expected=str(flagged), value_type="integer", table=motif.table,
+            ))
+    return out
+
+
 def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     """Every invariant the schema's declarations imply, before any data exists.
 
@@ -315,6 +389,7 @@ def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     invariants += _rate_invariants(schema)
     invariants += _unique_invariants(schema)
     invariants += _row_rule_invariants(schema)
+    invariants += _graph_invariants(schema)
 
     seen: Dict[str, int] = {}
     unique_ids = []
