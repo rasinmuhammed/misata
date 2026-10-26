@@ -1,6 +1,6 @@
 ---
-title: Generate Synthetic Data from SQL DDL | Misata
-description: Use misata.from_ddl() to parse CREATE TABLE statements and generate synthetic data that matches your real database schema, no YAML authoring required.
+title: "Generate Test Data From SQL DDL (CREATE TABLE)"
+description: "Parse CREATE TABLE statements with misata.from_ddl and generate data that honours primary and foreign keys, NOT NULL, UNIQUE, composite keys, CHECK ranges and enums."
 ---
 
 # Generate Synthetic Data from SQL DDL
@@ -159,10 +159,9 @@ Generate and seed directly:
 import misata
 
 schema = misata.from_ddl(open("schema.sql").read())
-tables = misata.generate_from_schema(schema)
 
-# Seed PostgreSQL
-misata.seed_database(tables, "postgresql://user:pass@localhost/mydb")
+# Seed PostgreSQL: generates and inserts in one transaction
+misata.seed_database(schema, "postgresql://user:pass@localhost/mydb")
 ```
 
 ## Constraints the importer carries into generation
@@ -198,3 +197,5 @@ leaves the database exactly as it was.
 - [YAML Schema](../generation/yaml.md), full control over distributions and constraints
 - [Database Seeding](database-seeding-python.md), seed your generated data into a real database
 - [Validate](../validate.md), verify generated data quality
+- [Seed a dev database from its DDL](../usecases/seed-a-dev-database.md), the end-to-end recipe with an attestation of 22 invariants
+- [Validity benchmark](../validity-benchmark.md), violations per schema against a Faker script and SDV

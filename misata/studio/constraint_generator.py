@@ -21,15 +21,14 @@ Example:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
 from misata.schema import SchemaConfig
 from misata.reference_data import detect_domain, get_reference_data
 from misata.studio.outcome_curve import (
-    OutcomeCurve, CurvePoint,
-    generate_transactions_for_bucket
+    OutcomeCurve, generate_transactions_for_bucket
 )
 from misata.causal.graph import get_saas_template, CausalGraph
 from misata.causal.solver import CausalSolver
@@ -44,7 +43,7 @@ try:
     CONSTRAINT_ENGINE_AVAILABLE = True
 except ImportError:
     CONSTRAINT_ENGINE_AVAILABLE = False
-    ConstraintEngine = None
+    ConstraintEngine = None  # type: ignore[assignment,misc]
     # Silent - this is optional for studio features
 
 
@@ -173,7 +172,7 @@ class ConstrainedWarehouseGenerator:
                 self._generate_causal_flow()
                 # If successful, we still need to generate dimensions and fill remaining columns
                 # The causal flow populates 'self.generated_tables' with the core rows.
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - falls back to stochastic generation
                 print(f"⚠️ Causal Generation Failed: {e}. Falling back to stochastic.")
         
         # 2. Separate dimension tables from fact tables
@@ -248,7 +247,7 @@ class ConstrainedWarehouseGenerator:
         if total_violations > 0:
             print(f"[CONSTRAINT] Total violations fixed: {total_violations} rows removed")
         else:
-            print(f"[CONSTRAINT] ✅ All tables 100% compliant!")
+            print("[CONSTRAINT] ✅ All tables 100% compliant!")
 
     def _generate_causal_flow(self):
         """
@@ -421,7 +420,6 @@ class ConstrainedWarehouseGenerator:
         
         # With constraint: use the outcome curve to generate rows
         curve = constraint.outcome_curve
-        n_periods = len(curve.points)
         
         # Determine bucket duration
         if curve.time_unit == "day":
@@ -486,14 +484,13 @@ class ConstrainedWarehouseGenerator:
         col_name_lower = col.name.lower()
         
         if col.type == "int":
+            low = 0 if col.min_val is None else int(col.min_val)
+            high = 100 if col.max_val is None else int(col.max_val)
             if col.distribution == "normal":
-                mean = col.mean or (col.min_val + col.max_val) / 2
-                std = col.std or (col.max_val - col.min_val) / 6
-                values = self.rng.normal(mean, std, size)
-                values = np.clip(values, col.min_val, col.max_val)
-                return values.astype(int)
-            else:  # uniform
-                return self.rng.integers(col.min_val or 0, col.max_val or 100, size)
+                mean = (low + high) / 2 if col.mean is None else col.mean
+                std = (high - low) / 6 if col.std is None else col.std
+                return np.clip(self.rng.normal(mean, std, size), low, high).astype(int)
+            return self.rng.integers(low, high + 1, size)
         
         elif col.type == "float":
             # Smart price detection
@@ -684,7 +681,7 @@ def convert_schema_config_to_spec(
     else:
         # 1. Identify Fact Table Heuristically (largest table with date + amount)
         # or just pick the one with most rows that isn't reference
-        candidate_tables = []
+        candidate_tables: List[Dict[str, Any]] = []
         
         for table_name, columns in config.columns.items():
             # Find table definition

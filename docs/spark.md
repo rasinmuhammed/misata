@@ -1,3 +1,8 @@
+---
+title: "Synthetic Data for Databricks and Spark: Delta Lake With Integrity"
+description: "Write related Misata tables straight into Delta Lake on Databricks, Glue, EMR, Dataproc or local PySpark, verify foreign keys with anti-joins, and import Spark schemas."
+---
+
 # Databricks & Apache Spark
 
 The `misata.spark` module writes Misata-generated data straight into **Delta Lake** and

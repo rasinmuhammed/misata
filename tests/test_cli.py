@@ -285,6 +285,13 @@ class TestCLIInit:
         assert "tables:" in content
         assert "relationships:" in content
 
+    def test_the_template_passes_strict_lint(self, runner, tmp_path):
+        """A schema with no outcome curves is complete, not a lint finding."""
+        out = tmp_path / "misata.yaml"
+        assert runner.invoke(main, ["init", "--output", str(out)]).exit_code == 0
+        result = runner.invoke(main, ["lint", str(out), "--strict"])
+        assert result.exit_code == 0, result.output
+
     def test_init_story_mode_writes_valid_yaml(self, runner, tmp_path):
         """--story flag produces a loadable misata.yaml."""
         out = tmp_path / "misata.yaml"
@@ -430,6 +437,45 @@ class TestCLISandboxAndMcp:
         assert result.exit_code == 0
         assert "Running query:" in result.output
         assert "row(s) returned" in result.output
+
+    def test_sandbox_from_a_schema_file_keeps_its_declarations(self, runner, tmp_path):
+        from misata.cli import main
+        schema = tmp_path / "misata.yaml"
+        schema.write_text(
+            "name: box\n"
+            "seed: 9\n"
+            "tables:\n"
+            "  orders:\n"
+            "    rows: 400\n"
+            "    columns:\n"
+            "      order_id: {type: int, unique: true, min: 1, max: 100000}\n"
+            "      amount: {type: float, min: 1, max: 500}\n"
+            "      ordered_on: {type: date, start: '2025-01-01', end: '2025-02-28'}\n"
+            "outcome_curves:\n"
+            "  - table: orders\n"
+            "    column: amount\n"
+            "    time_column: ordered_on\n"
+            "    value_mode: absolute\n"
+            "    start_date: '2025-01-01'\n"
+            "    curve_points:\n"
+            "      - {month: 1, target_value: 21000.55}\n"
+            "      - {month: 2, target_value: 23500.10}\n",
+            encoding="utf-8",
+        )
+        sb_file = tmp_path / "box.db"
+        result = runner.invoke(main, ["sandbox", "-c", str(schema), "--db", str(sb_file)])
+        assert result.exit_code == 0, result.output
+
+        with sqlite3.connect(sb_file) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0] == 400
+            # A declared date is stored as YYYY-MM-DD, so an inclusive text
+            # bound on the last day keeps that day's rows.
+            february = conn.execute(
+                "SELECT ROUND(SUM(amount), 2) FROM orders "
+                "WHERE ordered_on BETWEEN '2025-02-01' AND '2025-02-28'"
+            ).fetchone()[0]
+            assert february == 23500.10
+            assert len(conn.execute("SELECT MIN(ordered_on) FROM orders").fetchone()[0]) == 10
 
     def test_mcp_status_command(self, runner):
         from misata.cli import main

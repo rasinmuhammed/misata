@@ -1,20 +1,13 @@
 """What each declaration owes the reader, and whether it has paid.
 
 Misata's stated rule is that a capability earns a place only if it can be
-*declared* and *verified*. Measured against the code rather than the docs, 7 of
-24 declarations met it: seventeen had no pre-generation refusal, five had no
-post-generation audit, and ``joint_distributions`` had neither despite shipping
-in 0.9.6.48. The rule was true of the design and false of most of the language,
-which is the worst of both, because nothing said so.
+*declared* and *verified*. Every declaration keeps it, and the floor in the
+contract test only moves up, so that cannot quietly stop being true.
 
-All 24 keep it now. The floor in the contract test only moves up, so that
-cannot quietly stop being true.
-
-The failure was structural, not careless. Feasibility lives in one module and
-the audit in another, each a growing pile of hand-written functions, and
-nothing related the two to the list of declarations they are supposed to cover.
-A new declaration could be added, wired, documented and released without either
-half, and did.
+Feasibility lives in one module and the audit in another, each a set of
+hand-written functions. Without something relating the two to the list of
+declarations they are supposed to cover, a new declaration could be added,
+wired, documented and released without either half.
 
 This module is the join. Every declaration is listed once, with the two
 obligations named, and :mod:`tests.test_declaration_contract` fails when the

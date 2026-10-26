@@ -10,10 +10,12 @@ reference to a `customer` table nobody had written.
 
 import warnings
 
+import pandas as pd
 import pytest
 
 import misata
 from misata.ddl import from_ddl
+from misata.exceptions import ConformanceWarning
 
 
 def rels(schema):
@@ -188,3 +190,58 @@ def test_a_plain_schema_generates_with_every_key_resolving():
 ])
 def test_common_dialect_spellings_generate(ddl):
     misata.generate_from_schema(from_ddl(ddl, default_rows=20))
+
+
+CLINIC = """
+CREATE TABLE patients (
+  patient_id SERIAL PRIMARY KEY,
+  date_of_birth DATE NOT NULL
+);
+CREATE TABLE appointments (
+  appointment_id SERIAL PRIMARY KEY,
+  patient_id INT NOT NULL REFERENCES patients(patient_id),
+  booked_at TIMESTAMP NOT NULL,
+  seen_at TIMESTAMP,
+  CHECK (seen_at IS NULL OR seen_at >= booked_at)
+);
+CREATE TABLE prescriptions (
+  prescription_id SERIAL PRIMARY KEY,
+  appointment_id INT NOT NULL REFERENCES appointments(appointment_id),
+  drug_code VARCHAR(12) NOT NULL,
+  postcode VARCHAR(10) NOT NULL
+);
+"""
+
+
+def _clinic():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ConformanceWarning)
+        schema = from_ddl(CLINIC, default_rows=600)
+    schema.seed = 2
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return schema, misata.generate_from_schema(schema)
+
+
+def test_a_rule_guarded_by_is_null_is_honoured_without_a_warning():
+    schema, tables = _clinic()
+    rule = schema.get_table("appointments").constraints[0]
+    assert (rule.type, rule.column_a, rule.operator, rule.column_b) == (
+        "inequality", "seen_at", ">=", "booked_at")
+    seen = tables["appointments"].dropna(subset=["seen_at"])
+    assert (pd.to_datetime(seen["seen_at"]) >= pd.to_datetime(seen["booked_at"])).all()
+
+
+def test_a_birth_date_spans_living_adults():
+    _, tables = _clinic()
+    born = pd.to_datetime(tables["patients"]["date_of_birth"])
+    assert born.min() >= pd.Timestamp("1940-01-01")
+    assert born.max() <= pd.Timestamp("2007-12-31")
+
+
+def test_a_short_code_column_holds_codes():
+    _, tables = _clinic()
+    codes = tables["prescriptions"]["drug_code"].astype(str)
+    assert codes.str.fullmatch(r"[A-Z]{3}\d{6}").all()
+    assert not tables["prescriptions"]["postcode"].astype(str).str.fullmatch(
+        r"[A-Z]{3}\d+").any()

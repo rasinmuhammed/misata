@@ -1,6 +1,6 @@
 ---
-title: Research Benchmarks
-description: Run Misata's offline benchmark harness for proof-backed comparisons against manual Faker baselines.
+title: "Research Benchmark Harness: Misata Against a Faker Baseline"
+description: "Run Misata's offline benchmark harness to compare a declared, verified Misata workflow with a hand-written Faker baseline on the same tasks."
 ---
 
 # Research Benchmarks

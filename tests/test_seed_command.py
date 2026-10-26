@@ -111,6 +111,20 @@ def test_refuses_nonempty_without_truncate(db):
     assert "already contain data" in second.output
 
 
+def test_python_api_refuses_nonempty_and_writes_nothing(db):
+    from misata.db import seed_database
+    from misata.exceptions import ConfigurationError
+
+    config = schema_from_db(db, default_rows=20,
+                            include_tables=["customers", "products", "orders"])
+    seed_database(config, db)
+    before = table_row_counts(db, ["customers", "products", "orders"])
+    with pytest.raises(ConfigurationError, match="truncate=True"):
+        seed_database(config, db)
+    assert table_row_counts(db, ["customers", "products", "orders"]) == before
+    assert seed_database(config, db, truncate=True).total_rows == sum(before.values())
+
+
 def test_truncate_reseeds_deterministically(db):
     args = ["seed", db, "--rows", "20", "--skip", "schema_migrations", "--truncate", "--yes"]
     CliRunner().invoke(main, args)
@@ -402,8 +416,10 @@ class TestUniqueForeignKey:
         """There is no valid answer, so inventing one would be the bug."""
         import pytest
         import misata
-        with pytest.raises(ValueError, match="at most one row per parent"):
+        from misata.feasibility import InfeasibleSchema
+        with pytest.raises(InfeasibleSchema) as caught:
             misata.generate_from_schema(self._schema(40))
+        assert [c.kind for c in caught.value.conflicts] == ["unique_fk_exceeds_parents"]
 
 
 class TestUniqueTextColumns:
@@ -454,7 +470,6 @@ class TestUniqueTextColumns:
     def test_it_holds_across_batches(self):
         """A table generated in several passes must be unique over the whole
         table, not within each chunk."""
-        import misata
         from misata.simulator import DataSimulator
         import pandas as pd
 

@@ -104,6 +104,15 @@ Returns all supported built-in industry domains and their default table hierarch
 ### Tool 12: `check_realism`
 Finds the statistical tells of generated data in a folder of CSVs, without real data to compare against: money spread evenly from min to max, every customer with the same number of orders, balanced categories, flat hour or weekday profiles, timestamps piled at midnight, placeholder values, emails unrelated to names, templated or low-vocabulary text, text that ignores its row (review tone vs rating, title vs body), no nulls. Returns a 0-1 score and each tell with its evidence. Fix findings in the schema, not the rows.
 
+### Tool 13: `explain_schema`
+Reports what `generate_from_schema` would do with a schema without generating a row: each table's planned row count and approximate memory, the declarations and the columns each one writes, curve period plans and their warnings, the invariants an attestation will check, and, when generation would refuse, every conflict with its arithmetic and remedy.
+
+### Tool 14: `solve_outcome`
+Finds outcome-curve values that make metrics computed from the data hit per-period targets. Each metric is a DuckDB query over the generated tables returning (period, value) rows; each target names the metric, the `table.column` outcome curve that moves it, the value per period and, for levers that lower the metric (refunds against net revenue), `direction: "inverse"`. Returns the solved curve points per lever, the trajectory, and a reason: converged, max_iterations, max_seconds, diverging, unresponsive, infeasible or pipeline_error. Writes nothing; the CLI `misata solve` also writes the dataset and a certificate.
+
+### Tool 15: `attest_dataset`
+Proves a folder of CSV or Parquet files holds every invariant its schema declared: outcome-curve totals, rate anchors, group shares, ledger identities, foreign keys and unique columns, each recomputed with DuckDB. Writes an in-toto v1 Statement (`attestation.intoto.json`) that pins each file by SHA-256, an unsigned DSSE envelope ready for cosign or `actions/attest`, and a standalone `verify.py` that needs only `duckdb`. Returns `PASSED` or `FAILED` with each failing invariant.
+
 ---
 
 ## 4. Misata CLI Reference

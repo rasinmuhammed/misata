@@ -1,6 +1,6 @@
 ---
-title: dbt Seed Integration | Misata
-description: Generate synthetic data and write CSV seed files directly into your dbt project with misata dbt-seed. One command, realistic test data in your warehouse.
+title: "dbt Test Data: Generate dbt Seeds and Unit Test Fixtures"
+description: "Write synthetic CSV seeds into a dbt project with misata dbt-seed, from the project's own contract or a story, with keys that join across every seed and a CI workflow."
 ---
 
 # dbt Seed Integration
@@ -14,7 +14,7 @@ Run it bare inside a dbt project and Misata builds the schema from the propertie
 ```bash
 cd my-dbt-project
 misata dbt-seed      # reads models/**/*.yml and seeds/**/*.yml
-dbt build            # seed + run + test — your own tests, passing
+dbt build            # seed + run + test: your own tests, passing
 ```
 
 The translation is exact where it matters:
@@ -173,3 +173,5 @@ for table_name, df in tables.items():
 - [Database Seeding in Python](database-seeding-python.md), seed directly into a live database
 - [SQL DDL to Schema](from-ddl.md), generate from your existing CREATE TABLE statements
 - [Export](../export.md), Parquet, DuckDB, JSONL export options
+- [Known-answer tests for dbt models](../usecases/dbt-known-answer-tests.md), seeds whose correct model output is declared first
+- [Solve for a pipeline's output](solve.md), when the model transforms the rows before the number you check

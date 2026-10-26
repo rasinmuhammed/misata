@@ -1,3 +1,8 @@
+---
+title: "Synthetic Data Presets for Demos, Tests, Load, ML and Evals"
+description: "Name the job and Misata fills in what the schema left open: demo dates that end today, small test tables, load-test volume, realistic mess for ML, or evaluation dirt."
+---
+
 # Use-case presets
 
 "Realistic" means different things to different jobs, so name the job:
@@ -25,3 +30,6 @@ row count or realism setting is kept. `demo` and `eval` leave dates alone when
 curves or processes carry their own, because moving the columns without them
 would break the declaration. `misata.apply_preset(schema, name)` returns the
 adjusted copy if you want to inspect it before generating.
+
+See [A demo tenant that tells a story](../usecases/demo-tenant.md) for
+`preset: demo` in a complete recipe.

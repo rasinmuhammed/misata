@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
 from enum import Enum
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -81,7 +81,7 @@ class GenerationReportBundle:
 def _json_safe(value: Any) -> Any:
     """Convert report objects and numpy/pandas values into JSON-safe structures."""
     if is_dataclass(value):
-        return _json_safe(asdict(value))
+        return _json_safe(asdict(cast(Any, value)))
     if isinstance(value, dict):
         return {str(key): _json_safe(item) for key, item in value.items()}
     if isinstance(value, (list, tuple, set)):
@@ -282,7 +282,7 @@ class FidelityChecker:
 
         actual = series.value_counts(normalize=True)
         if probabilities:
-            expected = dict(zip(choices, probabilities))
+            expected = dict(zip(choices, probabilities, strict=True))
         else:
             expected = {choice: 1 / len(choices) for choice in choices}
 
@@ -522,13 +522,14 @@ def _curve_tolerance(schema_config: Any, table_name: str, column_name: str) -> f
             col for col in schema_config.get_columns(table_name)
             if getattr(col, "name", None) == column_name
         )
-    except Exception:
+    except (StopIteration, AttributeError, TypeError):
         return 0.0
 
     params = getattr(column, "distribution_params", {}) or {}
     decimals = params.get("decimals")
     if isinstance(decimals, int) and decimals > 0:
-        return 10 ** (-decimals)
+        step: float = 10 ** (-decimals)
+        return step
     return 0.01 if getattr(column, "type", None) == "float" else 0.0
 
 
@@ -550,8 +551,8 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
     tables_by_name = {getattr(table, "name", None): table for table in getattr(schema_config, "tables", [])}
 
     for curve in curves:
-        table_name = getattr(curve, "table", None)
-        column_name = getattr(curve, "column", None)
+        table_name: Any = getattr(curve, "table", None)
+        column_name: Any = getattr(curve, "column", None)
         time_column = getattr(curve, "time_column", "date")
         result: Dict[str, Any] = {
             "type": "outcome_curve",
@@ -606,7 +607,7 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
                 col for col in schema_config.get_columns(table_name)
                 if getattr(col, "name", None) == column_name
             ).distribution_params or {})
-        except Exception:
+        except (StopIteration, AttributeError, TypeError, ValueError):
             pass
         declared_min = col_params.get("min")
         declared_max = col_params.get("max")
@@ -616,7 +617,7 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
         for resolved in plan.curves:
             if resolved.column != column_name:
                 continue
-            for bucket, target in zip(resolved.buckets, resolved.targets):
+            for bucket, target in zip(resolved.buckets, resolved.targets, strict=True):
                 mask = (timestamps >= bucket.start) & (timestamps < bucket.end)
                 observed = float(values.loc[mask].sum())
                 target_float = float(target)
@@ -717,7 +718,7 @@ def _rate_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: Any)
     """Evaluate exact RateCurve targets against generated tables."""
     results: List[Dict[str, Any]] = []
     for rate_curve in getattr(schema_config, "rate_curves", []) or []:
-        table_name = getattr(rate_curve, "table", None)
+        table_name: Any = getattr(rate_curve, "table", None)
         column_name = getattr(rate_curve, "column", None)
         time_column = getattr(rate_curve, "time_column", "date")
         result: Dict[str, Any] = {
@@ -820,7 +821,7 @@ def _locale_domain_fit(tables: Dict[str, pd.DataFrame], schema_config: Any) -> D
     try:
         from misata.locales.registry import LocaleRegistry
         pack = LocaleRegistry.global_instance().get_pack(locale)
-    except Exception:
+    except (ImportError, TypeError):
         pack = None
 
     for table_name, df in tables.items():
@@ -938,7 +939,7 @@ def build_oracle_report(
     try:
         from misata.coherence import coherence_audit as _coherence_audit
         coherence = _coherence_audit(tables, repair=False).to_dict()
-    except Exception as exc:  # advisory must never break the Oracle
+    except Exception as exc:  # noqa: BLE001 - advisory, must never break the Oracle
         coherence = {"misata_report": "coherence", "error": str(exc)}
 
     hard_passed = (
@@ -989,4 +990,4 @@ def build_oracle_report(
             "Privacy, fidelity, locale fit, and quality scores are advisory heuristics.",
         ],
     }
-    return _json_safe(oracle)
+    return cast(Dict[str, Any], _json_safe(oracle))

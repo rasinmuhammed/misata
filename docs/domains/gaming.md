@@ -1,5 +1,5 @@
 ---
-title: Generate Gaming Synthetic Data in Python | Misata
+title: "Generate Gaming Synthetic Data in Python"
 description: Generate realistic gaming synthetic datasets in Python, players, matches, sessions, and achievements with Pareto XP distributions, realistic K/D ratios, and leaderboard data. No real player data required.
 ---
 
@@ -71,7 +71,7 @@ print(top_players)
 
 ```python
 tables = misata.generate(
-    "Battle royale game that launched 18 months ago — player surge at launch, "
+    "Battle royale game that launched 18 months ago: player surge at launch, "
     "plateau through mid-year, spike after a major update in month 12",
     rows=10_000,
     seed=42,
@@ -81,10 +81,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Southeast Asian mobile game — regional usernames, Asian country distribution
+# Southeast Asian mobile game: regional usernames, Asian country distribution
 tables = misata.generate("Mobile MOBA popular in Southeast Asia with 5k players", rows=5000)
 
-# European esports — European player distribution, competitive ranks
+# European esports: European player distribution, competitive ranks
 tables = misata.generate("European esports platform with 3k ranked players", rows=3000)
 ```
 

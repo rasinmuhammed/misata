@@ -167,3 +167,34 @@ class TestTableNestedDirectivesValidate:
         }
         errors = list(Draft202012Validator(schema).iter_errors(doc))
         assert errors == [], "\n".join(str(e) for e in errors)
+
+
+@pytest.mark.parametrize("definition,model", [
+    ("constraint", "Constraint"), ("outcome_curve", "OutcomeCurve"),
+    ("rate_curve", "RateCurve"), ("event", "ScenarioEvent"),
+    ("noise_config", "NoiseConfig"), ("realism_config", "RealismConfig"),
+])
+def test_every_model_field_is_published(definition, model):
+    """A field the engine reads but the schema omits fails validation in the IDE."""
+    import misata.schema as models
+
+    published = set(misata.json_schema()["$defs"][definition]["properties"])
+    missing = set(getattr(models, model).model_fields) - published
+    assert not missing, f"$defs/{definition} lacks {sorted(missing)}"
+
+
+def test_every_relationship_field_is_published():
+    import misata.schema as models
+
+    full_form = misata.json_schema()["$defs"]["relationship"]["oneOf"][1]["properties"]
+    missing = set(models.Relationship.model_fields) - set(full_form)
+    assert not missing, f"$defs/relationship lacks {sorted(missing)}"
+
+
+def test_every_constraint_type_is_published():
+    from typing import get_args
+
+    import misata.schema as models
+
+    published = set(misata.json_schema()["$defs"]["constraint"]["properties"]["type"]["enum"])
+    assert set(get_args(models.Constraint.model_fields["type"].annotation)) == published

@@ -1,6 +1,6 @@
 ---
-title: Plain-English Generation, Misata Synthetic Data Generator
-description: Generate realistic multi-table synthetic datasets from a single sentence. Misata's StoryParser detects domain, scale, locale, and growth patterns automatically, no config required.
+title: "Generate Synthetic Data From Plain English"
+description: "Turn one sentence into a set of related tables: Misata's story parser detects the domain, scale, locale and growth pattern, with no configuration or API key."
 ---
 
 # Plain-English Generation
@@ -52,7 +52,7 @@ print(report.locale)            # None (no locale detected)
 print(report.table_preview)
 # [{"name": "users", "rows": 5000, "columns": 12},
 #  {"name": "subscriptions", "rows": 5000, "columns": 8}]
-print(report.warnings)          # [] — clean detection
+print(report.warnings)          # [], clean detection
 
 print(report.summary())
 # ✓ Domain: saas  [high]  matched: saas, mrr
@@ -108,7 +108,7 @@ Name the domain explicitly and it always wins:
 # Ambiguous
 misata.generate("A platform with subscription payments and crypto wallets")
 
-# Unambiguous — fintech wins because the word "fintech" scores +5
+# Unambiguous: fintech wins because the word "fintech" scores +5
 misata.generate("A fintech platform with subscription payments and crypto wallets")
 ```
 
@@ -140,7 +140,7 @@ This is Misata's core differentiator: natural language maps to **exact per-month
 
 ```python
 # From–to with interpolation
-misata.generate("SaaS company — MRR from $50k in January to $200k in December")
+misata.generate("SaaS company: MRR from $50k in January to $200k in December")
 
 # Multiple control points
 misata.generate("SaaS mrr $50k in Jan, $90k in June, $200k in December")
@@ -155,13 +155,13 @@ Quarter keywords expand to all three constituent months:
 
 ```python
 # "Q4 spike" → months 10, 11, 12 all boosted by 1.3×
-misata.generate("Ecommerce orders — Q4 spike, Q1 slump")
+misata.generate("Ecommerce orders: Q4 spike, Q1 slump")
 
 # "strong Q4" → months 10, 11, 12 lifted by 1.15×
-misata.generate("SaaS revenue — strong Q4, flat Q2")
+misata.generate("SaaS revenue: strong Q4, flat Q2")
 
 # Quarter-level anchors
-misata.generate("SaaS mrr — $100k in Q1, $150k in Q2, $200k in Q3, $250k in Q4")
+misata.generate("SaaS mrr: $100k in Q1, $150k in Q2, $200k in Q3, $250k in Q4")
 ```
 
 | Pattern | Months affected | Factor |
@@ -174,9 +174,9 @@ misata.generate("SaaS mrr — $100k in Q1, $150k in Q2, $200k in Q3, $250k in Q4
 ### Named seasonal events
 
 ```python
-misata.generate("Ecommerce orders — Black Friday spike, Christmas peak")
-misata.generate("EdTech enrollments — back to school surge")
-misata.generate("SaaS signups — New Year spike, summer slump")
+misata.generate("Ecommerce orders: Black Friday spike, Christmas peak")
+misata.generate("EdTech enrollments: back to school surge")
+misata.generate("SaaS signups: New Year spike, summer slump")
 ```
 
 | Event phrase | Month | Factor |
@@ -196,12 +196,12 @@ misata.generate("SaaS signups — New Year spike, summer slump")
 When you know the end-state but not the absolute numbers, use a multiplier:
 
 ```python
-# Pure multiplier — Misata derives a sensible baseline and scales it
-misata.generate("SaaS startup — MRR 10x growth over the year")
+# Pure multiplier: Misata derives a sensible baseline and scales it
+misata.generate("SaaS startup: MRR 10x growth over the year")
 misata.generate("Fintech transaction volume doubled over the year")
 misata.generate("Ecommerce GMV tripled in one year")
 
-# Multiplier + one anchor — uses the anchor as the pivot
+# Multiplier + one anchor: uses the anchor as the pivot
 # Jan is pinned at $50k; Dec is derived as $100k (2× Jan)
 misata.generate("SaaS mrr $50k in January, doubled by December")
 
@@ -221,8 +221,8 @@ misata.generate("SaaS revenue halved after the pivot")
 ### Qualitative month modifiers
 
 ```python
-misata.generate("SaaS mrr — dip in March, peak in November")
-misata.generate("Ecommerce orders — slump in January, boom in December")
+misata.generate("SaaS mrr: dip in March, peak in November")
+misata.generate("Ecommerce orders: slump in January, boom in December")
 ```
 
 | Keyword | Factor |
@@ -277,19 +277,19 @@ A curve is only built when the story contains at least one of these signal words
 ```python
 import misata
 
-# Step 1 — preview (zero rows generated)
+# Step 1: preview (zero rows generated)
 report = misata.preview("A fintech with 5k customers, Black Friday spike", rows=5000)
 if report.domain_confidence == "none":
     print("⚠ No domain detected")
     print(report.warnings)
 
-# Step 2 — inspect full schema
+# Step 2: inspect full schema
 schema = misata.parse("A fintech with 5k customers, Black Friday spike", rows=5000)
 print(schema.summary())
 # Tables: customers, accounts, transactions
 # Outcome curves: 1 (transactions.amount, monthly)
 
-# Step 3 — generate
+# Step 3: generate
 tables = misata.generate_from_schema(schema, seed=42)
 print(tables["transactions"].head())
 ```

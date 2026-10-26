@@ -18,11 +18,12 @@ log says the same thing, exactly.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 
 def _lifecycle_for(config: Any, table: str) -> Optional[Any]:
@@ -52,10 +53,11 @@ def apply_event_log(
 
     lc = _lifecycle_for(config, spec.entity_table)
     if lc is None:
-        warnings.warn(
+        warn(
             f"EventLog '{spec.name}': no lifecycle declared on "
             f"'{spec.entity_table}', so there is no path to project onto the "
-            f"log. Declare one, or drop this event_log."
+            f"log. Declare one, or drop this event_log.",
+            ConformanceWarning,
         )
         return tables
 
@@ -64,9 +66,10 @@ def apply_event_log(
                           (spec.table, events, spec.event_time_column),
                           (spec.entity_table, entities, lc.state_column)):
         if col not in df.columns:
-            warnings.warn(
+            warn(
                 f"EventLog '{spec.name}': column '{col}' missing from "
-                f"'{name}'. Skipping.")
+                f"'{name}'. Skipping.",
+                ConformanceWarning,)
             return tables
 
     entity_pk = None
@@ -79,54 +82,63 @@ def apply_event_log(
                               if c in events.columns and c in entities.columns]
             break
     if entity_pk is None or entity_pk not in entities.columns:
-        warnings.warn(
+        warn(
             f"EventLog '{spec.name}': no declared relationship links "
-            f"{spec.table}.{spec.entity_key} to {spec.entity_table}. Skipping.")
+            f"{spec.table}.{spec.entity_key} to {spec.entity_table}. Skipping.",
+            ConformanceWarning,)
         return tables
-
-    # For each state, the ordered (event_type, timestamp_column) its path
-    # implies. Computed once per state, not once per row.
-    ts_of = {st.name: getattr(st, "timestamp", None) for st in lc.states}
-    plan: Dict[Any, list] = {}
-    reached_of: Dict[Any, list] = {}
-    for st in lc.states:
-        path = lc.path_to(st.name) or [st.name]
-        reached_of[st.name] = path
-        plan[st.name] = [(spec.state_events[s], ts_of.get(s))
-                         for s in path if s in spec.state_events]
 
     ent = entities.set_index(entity_pk)
     ent = ent[~ent.index.duplicated(keep="first")]
     states = ent[lc.state_column]
+
+    # Each entity's ordered (event_type, timestamp_column) steps, from the
+    # route its own timestamps show it took. Routes are shared by many
+    # entities, so each one's steps are built once.
+    ts_of = {st.name: getattr(st, "timestamp", None) for st in lc.states}
+    stamp_cols = [c for c in lc.timestamp_columns() if c in ent.columns]
+    state_of_col = {ts: name for name, ts in ts_of.items() if ts}
+    present = ent[stamp_cols].notna().to_numpy()
+    steps_of: Dict[tuple, list] = {}
+    plan: Dict[Any, list] = {}
+    for k, st, row in zip(states.index, states.to_numpy(), present, strict=True):
+        key = (st, row.tobytes())
+        if key not in steps_of:
+            stamped = [state_of_col[c] for c, on in zip(stamp_cols, row, strict=True) if on]
+            route = lc.route_taken(st, stamped, stamp_cols) or [st]
+            steps_of[key] = [(spec.state_events[s], ts_of.get(s))
+                             for s in route if s in spec.state_events]
+        plan[k] = steps_of[key]
 
     # Allocate rows by what each entity's state REQUIRES, rather than hoping the
     # foreign key happened to give it enough. min_children can only promise one
     # row per entity, and a done task needs three; the first version of this
     # pass left 523 done tasks with no completion event for exactly that reason.
     keys = list(ent.index)
-    need = [len(plan.get(states.get(k), [])) for k in keys]
+    need = [len(plan[k]) for k in keys]
     total_need = int(sum(need))
     n = len(events)
     if total_need > n:
-        warnings.warn(
+        warn(
             f"EventLog '{spec.name}': the declared states need {total_need} "
             f"events but '{spec.table}' has only {n} rows. Raise "
             f"{spec.table}.row_count to at least {total_need}; the log cannot "
-            f"be complete as declared."
+            f"be complete as declared.",
+            ConformanceWarning,
         )
         return tables
 
     owner = np.empty(n, dtype=object)
     slot = np.zeros(n, dtype="int64")     # which step of the plan this row is
     at = 0
-    for k, cnt in zip(keys, need):
+    for k, cnt in zip(keys, need, strict=True):
         for i in range(cnt):
             owner[at] = k
             slot[at] = i
             at += 1
     # Surplus rows become filler, spread over the entities that can hold it.
     if at < n:
-        extra_keys = [k for k, c in zip(keys, need) if c > 0]
+        extra_keys = [k for k, c in zip(keys, need, strict=True) if c > 0]
         if not extra_keys:
             extra_keys = keys
         idx = rng.integers(0, len(extra_keys), size=n - at)
@@ -144,10 +156,11 @@ def apply_event_log(
     # Per entity: resolve the timestamps its own lifecycle already wrote, fill
     # the gaps monotonically, then place its rows.
     times_cache: Dict[Any, list] = {}
+    filled: Optional[list]
     filler_cache: Dict[Any, list] = {}
     for k in keys:
         st = states.get(k)
-        steps = plan.get(st) or []
+        steps = plan[k]
         if not steps:
             continue
         row = ent.loc[k]
@@ -171,9 +184,8 @@ def apply_event_log(
                         else prev + hour)
             filled.append(prev)
         times_cache[k] = filled
-        # Filler may ONLY use declared filler events. Letting it reuse the
-        # state events meant a 'completed' filler could land before the task
-        # started, which is the same defect wearing a different hat.
+        # Filler may ONLY use declared filler events. Reusing the state events
+        # would let a 'completed' filler land before the task started.
         filler_cache[k] = list(spec.filler_events or [])
 
     for i in range(n):
@@ -186,14 +198,14 @@ def apply_event_log(
             continue
         j = int(slot[i])
         if j >= 0:
-            types[i] = plan[states.get(k)][j][0]
+            types[i] = plan[k][j][0]
             stamps[i] = filled[j]
         else:
             pool = filler_cache.get(k) or []
             if not pool:
                 # Nothing legal to add: repeat the first event of the path,
                 # which is always true of the entity and never terminal.
-                types[i] = plan[states.get(k)][0][0]
+                types[i] = plan[k][0][0]
                 stamps[i] = filled[0]
             else:
                 types[i] = pool[int(rng.integers(0, len(pool)))]
@@ -211,9 +223,9 @@ def apply_event_log(
         out[c] = pd.Series(owner).map(ent[c]).to_numpy()
 
     # Moving a row into another partition invalidates every OTHER partitioned
-    # reference it carries: an event reassigned to a task in tenant 3 was still
-    # pointing at an actor in tenant 5, which is the leak `partition_by` exists
-    # to prevent, re-opened by the pass that fixed the log. Any pass that can
+    # reference it carries: an event reassigned to a task in tenant 3 would
+    # still point at an actor in tenant 5, which is the leak `partition_by`
+    # exists to prevent. Any pass that can
     # change a row's partition owes the row's other keys a redraw.
     if partition_cols:
         _redraw_sibling_keys(out, tables, config, spec, partition_cols, rng)
@@ -254,12 +266,11 @@ def _redraw_sibling_keys(
         p_ids = parent[rel.parent_key].to_numpy()
 
         # If the relationship also declares temporal eligibility, honour it
-        # here too. The redraw rewrote which parent a row points at, and doing
-        # that without asking when the parent was born put 1,407 events before
-        # their actor had signed up: fixing a partition leak by opening a
-        # causality hole is not a fix.
+        # here too. The redraw changes which parent a row points at, so it may
+        # only pick parents that already existed at the child's timestamp;
+        # otherwise closing a partition leak would open a causality hole.
         births = None
-        child_ns = None
+        child_ns: Any = None
         ptime = getattr(rel, "parent_time", None)
         ctime = getattr(rel, "child_time", None)
         if ptime and ctime and ptime in parent.columns and ctime in out.columns:
@@ -290,11 +301,12 @@ def _redraw_sibling_keys(
                 draw = np.minimum(draw, pool.size - 1)
             values[rows] = pool[draw]
         if stranded:
-            warnings.warn(
+            warn(
                 f"EventLog '{spec.name}': {stranded} event(s) happen before any "
                 f"{rel.parent_table} row in their partition existed, so "
                 f"{rel.child_key} cannot both stay in the partition and "
-                f"postdate its parent. Start {rel.parent_table}.{ptime} earlier."
+                f"postdate its parent. Start {rel.parent_table}.{ptime} earlier.",
+                ConformanceWarning,
             )
         out[rel.child_key] = values
 
@@ -307,9 +319,10 @@ def apply_event_logs(
     for spec in (getattr(config, "event_logs", None) or []):
         try:
             apply_event_log(tables, spec, config, rng)
-        except Exception as e:
-            warnings.warn(f"EventLog '{spec.name}' failed ({e}); "
-                          f"table left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"EventLog '{spec.name}' failed ({e}); "
+                          f"table left as generated.",
+            ConformanceWarning,)
     return tables
 
 

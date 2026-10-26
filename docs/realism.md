@@ -1,3 +1,8 @@
+---
+title: "Realism Report: Detect the Tells of Fake or Generated Data"
+description: "Scan any tables, from Faker, SDV, Mockaroo or Misata, for the shapes real data almost never has: uniform money, flat weekdays, even fan-out, placeholder names and templated text."
+---
+
 # Realism report: find the tells of generated data
 
 `misata audit` catches contradictions: orders shipped before they were placed,
@@ -21,7 +26,7 @@ report.score    # 0.0 - 1.0: pass = 1, warn = 0.5, fail = 0
 ```bash
 misata realism ./seed_data/                 # exit 1 on any failure
 misata realism ./seed_data/ --strict        # exit 1 on warnings too
-misata realism ./seed_data/ --skip too_clean --json
+misata realism ./seed_data/ --skip too_clean --json   # the report is data.realism
 ```
 
 ## The checks

@@ -31,7 +31,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, cast
 
 from misata.vocab_validator import validate_vocabulary
 
@@ -89,8 +89,8 @@ class Discovery:
 
 def _load_cache() -> Dict[str, dict]:
     try:
-        return json.loads(_CACHE_PATH.read_text(encoding="utf-8"))
-    except Exception:
+        return cast(Dict[str, dict], json.loads(_CACHE_PATH.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
         return {}
 
 
@@ -98,7 +98,7 @@ def _save_cache(cache: Dict[str, dict]) -> None:
     try:
         _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _CACHE_PATH.write_text(json.dumps(cache, indent=1, ensure_ascii=False), encoding="utf-8")
-    except Exception:
+    except (OSError, TypeError, ValueError):
         pass  # cache is an optimization, never a failure
 
 
@@ -137,15 +137,13 @@ def _search_terms(table: str, column: str, domain_hint: str = "") -> List[str]:
 def _search_candidates(term: str) -> List[dict]:
     """wbsearchentities hits with wrong-kind descriptions filtered out."""
     import urllib.parse
-    import urllib.request
-    from misata.wikidata import SEARCH_ENDPOINT, USER_AGENT
+
+    from misata.wikidata import SEARCH_ENDPOINT, _http_json
     url = SEARCH_ENDPOINT + "?" + urllib.parse.urlencode({
         "action": "wbsearchentities", "search": term, "language": "en",
         "type": "item", "format": "json", "limit": _MAX_CANDIDATES_PER_TERM + 3,
     })
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        raw = json.loads(resp.read().decode("utf-8"))
+    raw = _http_json(url, timeout=30)
     out = []
     for hit in raw.get("search", []):
         desc = (hit.get("description") or "").lower()
@@ -183,14 +181,14 @@ def discover_column(
 
         try:
             candidates = _search_candidates(term)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - network discovery is best-effort; the failure is reported
             d.reason = f"search failed: {exc}"
             return d
 
         for cand in candidates:
             try:
                 labels = fetch_class_members(cand["qid"], limit=120)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - network discovery is best-effort; the failure is reported
                 # SPARQL throttling (outage windows rate-limit hard) — stop
                 # discovery gracefully rather than hammering the endpoint.
                 d.reason = f"sparql unavailable: {str(exc)[:80]}"

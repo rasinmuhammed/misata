@@ -1,0 +1,52 @@
+# misata.yaml
+name: helpdesk_sandbox
+seed: 42
+tables:
+  accounts:
+    rows: 600
+    columns:
+      account_id: {type: int, unique: true, min: 1, max: 600}
+      plan: {type: categorical, choices: [starter, growth, scale], probabilities: [0.55, 0.3, 0.15]}
+      region: {type: categorical, choices: [amer, emea, apac]}
+  invoices:
+    rows: 9000
+    columns:
+      invoice_id: {type: int, unique: true, min: 1, max: 1000000}
+      account_id: {type: foreign_key}
+      product: {type: categorical, choices: [seats, usage, support]}
+      amount: {type: float, min: 20, max: 4000}
+      issued_at: {type: date, start: "2025-01-01", end: "2025-04-30"}
+  tickets:
+    rows: 12000
+    columns:
+      ticket_id: {type: int, unique: true, min: 1, max: 1000000}
+      account_id: {type: foreign_key}
+      priority: {type: categorical, choices: [low, normal, urgent], probabilities: [0.3, 0.55, 0.15]}
+      escalated: {type: boolean}
+      opened_at: {type: date, start: "2025-01-01", end: "2025-04-30"}
+relationships:
+  - accounts.account_id -> invoices.account_id
+  - accounts.account_id -> tickets.account_id
+outcome_curves:
+  - table: invoices
+    column: amount
+    time_column: issued_at
+    value_mode: absolute
+    start_date: "2025-01-01"
+    curve_points:
+      - {month: 1, target_value: 182340.55}
+      - {month: 2, target_value: 190118.02}
+      - {month: 3, target_value: 204977.61}
+      - {month: 4, target_value: 211503.89}
+group_shares:
+  - table: invoices
+    measure: amount
+    group_column: product
+    shares: {seats: 0.6, usage: 0.3, support: 0.1}
+rate_curves:
+  - table: tickets
+    column: escalated
+    time_column: opened_at
+    rate_points:
+      - {period: "2025-01", rate: 0.12}
+      - {period: "2025-04", rate: 0.07}

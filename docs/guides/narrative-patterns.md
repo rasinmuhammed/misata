@@ -13,10 +13,10 @@ Describe a growth trajectory in plain English and Misata builds an exact per-mon
 import misata
 
 # These all produce precisely shaped data:
-tables = misata.generate("SaaS company — MRR from $50k in Jan to $200k in Dec, Q3 slump")
-tables = misata.generate("Ecommerce orders — Black Friday spike, Christmas peak, Q1 slump")
-tables = misata.generate("SaaS startup — MRR 10x growth over the year")
-tables = misata.generate("Fintech payments — strong Q4, flat Q2, dip in March")
+tables = misata.generate("SaaS company: MRR from $50k in Jan to $200k in Dec, Q3 slump")
+tables = misata.generate("Ecommerce orders: Black Friday spike, Christmas peak, Q1 slump")
+tables = misata.generate("SaaS startup: MRR 10x growth over the year")
+tables = misata.generate("Fintech payments: strong Q4, flat Q2, dip in March")
 ```
 
 ---
@@ -41,13 +41,13 @@ Pin exact values for specific months using natural phrasing:
 # From–to
 "SaaS mrr from $50k in January to $200k in December"
 
-# Multiple control points — Misata interpolates between them
+# Multiple control points: Misata interpolates between them
 "SaaS mrr $50k in Jan, $90k in June, $200k in Dec"
 
 # Single anchor + qualitative modifier
 "SaaS mrr $50k in Jan, peak in November"
 
-# value-then-month or month-then-value — both work
+# value-then-month or month-then-value: both work
 "$200k in December"
 "December: $200k"
 "December at $200k"
@@ -78,13 +78,13 @@ Quarter keywords expand to all three constituent months in that quarter. This is
 
 ```python
 # Qualitative quarter modifiers
-"Ecommerce orders — Q4 spike"         # Oct, Nov, Dec each boosted by 1.3×
-"SaaS mrr — Q1 slump"                 # Jan, Feb, Mar each reduced to 0.72×
-"Fintech payments — strong Q4"        # Oct, Nov, Dec lifted by 1.15×
-"SaaS mrr — Q3 dip, Q4 push"         # Jul–Sep down, Oct–Dec up
-"Ecommerce — Q2 flat, Q4 boom"        # Apr–Jun stays flat, Oct–Dec surges
+"Ecommerce orders: Q4 spike"          # Oct, Nov, Dec each boosted by 1.3×
+"SaaS mrr: Q1 slump"                  # Jan, Feb, Mar each reduced to 0.72×
+"Fintech payments: strong Q4"         # Oct, Nov, Dec lifted by 1.15×
+"SaaS mrr: Q3 dip, Q4 push"          # Jul–Sep down, Oct–Dec up
+"Ecommerce: Q2 flat, Q4 boom"         # Apr–Jun stays flat, Oct–Dec surges
 
-# Quarter numeric anchors — pin exact values for entire quarters
+# Quarter numeric anchors: pin exact values for entire quarters
 "SaaS mrr $100k in Q1, $150k in Q2, $200k in Q3, $250k in Q4"
 "$80k in Q1, $200k in Q4"            # Misata interpolates Q2 and Q3
 ```
@@ -110,10 +110,10 @@ Quarter keywords expand to all three constituent months in that quarter. This is
 Named commercial events map to specific months with calibrated boost factors. Add them anywhere in your story.
 
 ```python
-"Ecommerce orders — Black Friday spike, Christmas peak"
-"EdTech enrollments — back to school surge, New Year spike"
-"SaaS signups — New Year spike, summer slump"
-"Insurance payments — tax season boost"
+"Ecommerce orders: Black Friday spike, Christmas peak"
+"EdTech enrollments: back to school surge, New Year spike"
+"SaaS signups: New Year spike, summer slump"
+"Insurance payments: tax season boost"
 ```
 
 ### Event reference
@@ -138,7 +138,7 @@ Events stack with each other and with monthly anchors. In the example below, Nov
 
 ```python
 tables = misata.generate(
-    "Ecommerce store with 5k orders — revenue from $80k in Jan to $120k in Oct, "
+    "Ecommerce store with 5k orders: revenue from $80k in Jan to $120k in Oct, "
     "Black Friday spike, Christmas peak",
     rows=5000, seed=42
 )
@@ -153,12 +153,12 @@ tables = misata.generate(
 Use a multiplier when you know the end-state relative to the start but don't have absolute numbers.
 
 ```python
-# Pure multiplier — Misata derives a sensible baseline
-misata.generate("SaaS startup — MRR 10x growth over the year")
+# Pure multiplier: Misata derives a sensible baseline
+misata.generate("SaaS startup: MRR 10x growth over the year")
 misata.generate("Fintech GMV doubled over the year")
 misata.generate("Ecommerce sales tripled in one year")
 
-# Multiplier + single anchor — anchor is the pivot point
+# Multiplier + single anchor: anchor is the pivot point
 # January is pinned at $50k; December is derived as $100k
 misata.generate("SaaS mrr $50k in January, doubled by December")
 
@@ -195,7 +195,7 @@ All three systems compose. Order in the story doesn't matter.
 ```python
 # Monthly anchor + quarterly modifier + named event + multiplier
 tables = misata.generate(
-    "SaaS company with 5k users — "
+    "SaaS company with 5k users: "
     "MRR from $50k in January, "     # anchor: month 1 = $50k
     "doubled by December, "          # multiplier: month 12 = $100k
     "Q3 slump, "                     # quarter modifier: months 7–9 dipped
@@ -292,7 +292,7 @@ Curve: subscriptions.mrr
 
 ```python
 tables = misata.generate(
-    "SaaS startup with 2k users — MRR $5k in January, 10x growth over the year, "
+    "SaaS startup with 2k users: MRR $5k in January, 10x growth over the year, "
     "strong Q4 push, slow Q1 next year",
     rows=2000, seed=42
 )
@@ -302,7 +302,7 @@ tables = misata.generate(
 
 ```python
 tables = misata.generate(
-    "Ecommerce store with 10k customers — "
+    "Ecommerce store with 10k customers: "
     "revenue from $200k in Jan to $350k in Sep, "
     "Black Friday spike, Christmas peak, Q1 slump after holidays",
     rows=10_000, seed=42
@@ -313,7 +313,7 @@ tables = misata.generate(
 
 ```python
 tables = misata.generate(
-    "Fintech with 5k customers — transaction volume strong Q4, "
+    "Fintech with 5k customers: transaction volume strong Q4, "
     "flat Q2, tax season bump in April, Q1 slow start",
     rows=5000, seed=42
 )
@@ -323,7 +323,7 @@ tables = misata.generate(
 
 ```python
 tables = misata.generate(
-    "B2B SaaS platform with 1k enterprise customers — "
+    "B2B SaaS platform with 1k enterprise customers: "
     "ARR $500k in Jan, doubled by December, summer slump",
     rows=1000, seed=42
 )
@@ -333,7 +333,7 @@ tables = misata.generate(
 
 ```python
 tables = misata.generate(
-    "Netflix-like streaming with 20k subscribers — "
+    "Netflix-like streaming with 20k subscribers: "
     "watch hours spike in Q4 holiday season, summer slump, "
     "watch volume from $1M in Jan to $2.5M in Dec",
     rows=20_000, seed=42

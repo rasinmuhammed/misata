@@ -1,5 +1,5 @@
 ---
-title: Generate Real Estate Synthetic Data in Python | Misata
+title: "Generate Real Estate Synthetic Data in Python"
 description: Generate realistic real estate synthetic datasets in Python, agents, properties, and transactions with lognormal home price distributions, realistic days-on-market, and referential integrity. No real MLS data required.
 ---
 
@@ -75,10 +75,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# UK property market — GBP pricing, British address format, UK cities
+# UK property market: GBP pricing, British address format, UK cities
 tables = misata.generate("UK estate agency with 300 properties in London and Manchester", rows=300)
 
-# Australian market — AUD pricing, Australian cities, state codes
+# Australian market: AUD pricing, Australian cities, state codes
 tables = misata.generate("Australian real estate agency with 400 properties", rows=400)
 ```
 

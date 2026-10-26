@@ -1,4 +1,4 @@
-"""Grammars for the free-text kinds that used to be short flat lists.
+"""Grammars for the free-text kinds that need more variety than a flat list.
 
 Business notes, survey feedback, churn, return, cancellation and audit
 reasons, delivery instructions, bank statement descriptors, chief complaints,
@@ -16,7 +16,7 @@ ticket's issue).
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, cast
 
 import numpy as np
 
@@ -1049,7 +1049,7 @@ def _slots(rng: np.random.Generator, size: int) -> List[Dict[str, str]]:
              "The Book Nook", "Ember Pizza", "Saltwater Surf", "Juniper Yoga", "Moss Plants"]
     from misata.scenarios import street_lines
     streets = list(street_lines(rng, size))
-    out = []
+    out: List[Dict[str, str]] = []
     for r in rows:
         d = dict(r)
         d.update({
@@ -1631,7 +1631,9 @@ def _home_slots(g: Grammar, rng: np.random.Generator, slots: List[Dict[str, str]
     for s in slots:
         place, access, spots, quirks = _HOMES[int(rng.integers(len(_HOMES)))]
         sp = [spots[int(i)] for i in rng.choice(len(spots), size=2, replace=False)]
-        fill = lambda x: _SLOT_RE.sub(lambda m: s.get(m.group(1)) or g.expand(m.group(1), **s), x)
+        def fill(x: str, s: dict = s) -> str:
+            return _SLOT_RE.sub(lambda m: s.get(m.group(1)) or g.expand(m.group(1), **s), x)
+
         s.update(hm_place=place, hm_access=fill(access[int(rng.integers(len(access)))]),
                  hm_spot=fill(sp[0]), hm_spot2=fill(sp[1]), hm_quirk=fill(quirks[int(rng.integers(len(quirks)))]))
         s["hm_place_cap"] = place[0].upper() + place[1:]
@@ -1661,7 +1663,7 @@ def _product_faults(rng: np.random.Generator, out: List[str], slots: List[Dict[s
     from misata.microtext import _FAMILY_LINES
     fam_g = Grammar(_FAMILY_LINES, rng)
     res = []
-    for o, s in zip(out, slots):
+    for o, s in zip(out, slots, strict=True):
         fam = _family_of(s.get("item", ""))
         if fam and f"neg_{fam}" in _FAMILY_LINES and rng.random() < share:
             line = fam_g.expand(f"neg_{fam}", **s).rstrip(".")
@@ -1702,7 +1704,9 @@ def _booking_slots(g: Grammar, rng: np.random.Generator, slots: List[Dict[str, s
     """One cancelled booking per row, with reasons and asks that fit it."""
     for s in slots:
         thing, reasons, asks = _BOOKINGS[int(rng.integers(len(_BOOKINGS)))]
-        fill = lambda x: _SLOT_RE.sub(lambda m: s.get(m.group(1)) or g.expand(m.group(1), **s), x)
+        def fill(x: str, s: dict = s) -> str:
+            return _SLOT_RE.sub(lambda m: s.get(m.group(1)) or g.expand(m.group(1), **s), x)
+
         r = [reasons[int(i)] for i in rng.choice(len(reasons), size=2, replace=False)]
         s.update(bk_thing=fill(thing), bk_reason=fill(r[0]), bk_reason2=fill(r[1]),
                  bk_reason_cap=fill(r[0][0].upper() + r[0][1:]), bk_ask=fill(asks[int(rng.integers(len(asks)))]))
@@ -1731,7 +1735,9 @@ def _topic_slots(rng: np.random.Generator, slots: List[Dict[str, str]],
             t = _POST_TOPICS[int(rng.integers(len(_POST_TOPICS)))]
         obj, vs, terms, acts, wins, pains = t
         city = s.get("city", "London")
-        fix = lambda x: x.replace("{city}", city)
+        def fix(x: str, city: str = city) -> str:
+            return x.replace("{city}", city)
+
         terms, acts = pick(terms, 3), pick(acts, 2)
         pi = int(rng.integers(len(pains)))
         s.update(pt_obj=fix(obj), pt_obj_cap=fix(obj[0].upper() + obj[1:]), pt_vs=fix(vs),
@@ -1778,9 +1784,9 @@ def render(kind: str, rng: np.random.Generator, size: int, *,
             jg = s.get("job_title") or str(jobs[i])
             s["job_given"] = jg
             s["job_lower"] = " ".join(w if w.isupper() and len(w) > 1 else w.lower() for w in jg.split())
-    out = [g.expand(sym, **s) for sym, s in zip(symbols, slots)]
+    out = [g.expand(sym, **s) for sym, s in zip(symbols, slots, strict=True)]
     if kind == "bio":
-        out = [_facet_bio(g, rng, s) if rng.random() < 0.55 else o for o, s in zip(out, slots)]
+        out = [_facet_bio(g, rng, s) if rng.random() < 0.55 else o for o, s in zip(out, slots, strict=True)]
     if kind == "return":
         out = _product_faults(rng, out, slots, 0.35)
     detail = {"churn": "churn_detail", "cancel": "cancel_detail", "return": "return_detail",
@@ -1792,16 +1798,16 @@ def render(kind: str, rng: np.random.Generator, size: int, *,
             a = g.expand(detail, **s) if rng.random() < p else ""
             b = g.expand(detail, **s) if rng.random() < p2 else ""
             return o + a + (b if b[:14] != a[:14] else "")
-        out = [_two(o, s) for o, s in zip(out, slots)]
+        out = [_two(o, s) for o, s in zip(out, slots, strict=True)]
     sign = {"note": "note_sign", "clinical": "clin_sign", "discharge": "dis_sign"}.get(kind)
     if sign:
         p_sign = 0.45 if kind == "note" else 0.3
-        out = [o + (g.expand(sign, **s) if rng.random() < p_sign else "") for o, s in zip(out, slots)]
+        out = [o + (g.expand(sign, **s) if rng.random() < p_sign else "") for o, s in zip(out, slots, strict=True)]
     frame = {"churn": "reason_frame", "cancel": "booking_frame", "return": "return_frame",
              "audit": "audit_frame", "delivery": "delivery_frame"}.get(kind)
     if frame:
         out = [(g.expand(frame, **dict(s, text=o[0].lower() + o[1:])) if rng.random() < 0.35 else o)
-               for o, s in zip(out, slots)]
+               for o, s in zip(out, slots, strict=True)]
     out = [_TIDY_COMMA.sub(",", _TIDY_SPACE.sub(" ", o)).strip() for o in out]
     reg = "casual" if kind == "feedback" else _REGISTER.get(kind)
     if kind in ("post_title", "email_subject", "caption", "complaint"):
@@ -1809,7 +1815,7 @@ def render(kind: str, rng: np.random.Generator, size: int, *,
     elif kind == "bio":
         # the job title is the row's own value: never paraphrase inside it
         out = vary_keeping(out, [(sl.get("job_given", ""), sl.get("city", ""), sl.get("city2", ""),
-                                  sl.get("company", "")) for sl in slots], rng, reg, styles=False)
+                                  sl.get("company", "")) for sl in slots], rng, cast(str, reg), styles=False)
     elif reg:
         sentences = kind in ("feedback", "note", "clinical")
         out = vary(out, rng, reg, styles=sentences)

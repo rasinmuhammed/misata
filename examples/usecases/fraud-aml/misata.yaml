@@ -1,0 +1,38 @@
+# misata.yaml
+name: transfer_network
+seed: 21
+tables:
+  accounts:
+    rows: 20000
+    columns:
+      account_id: {type: int, unique: true, min: 1, max: 20000}
+      kind: {type: categorical, choices: [personal, business], probabilities: [0.85, 0.15]}
+      country: {type: categorical, choices: [US, GB, DE, AE, SG], probabilities: [0.45, 0.2, 0.15, 0.1, 0.1]}
+      opened_on: {type: date, start: "2019-01-01", end: "2025-06-30"}
+  transfers:
+    rows: 300000
+    columns:
+      transfer_id: {type: int, unique: true, min: 1, max: 100000000}
+      src: {type: int, min: 1, max: 20000}
+      dst: {type: int, min: 1, max: 20000}
+      amount: {type: float, distribution: lognormal, mean: 900, std: 2500, min: 1, max: 250000, decimals: 2}
+      sent_at: {type: datetime, start: "2025-07-01", end: "2025-10-01"}
+dag_edges:
+  - name: background
+    table: transfers
+    node_table: accounts
+    node_key: account_id
+    from_column: src
+    to_column: dst
+graph_motifs:
+  - name: laundering
+    table: transfers
+    node_table: accounts
+    node_key: account_id
+    from_column: src
+    to_column: dst
+    rate: 0.01
+    shares: {cycle: 0.4, fan_in: 0.25, fan_out: 0.2, scatter_gather: 0.15}
+    benign_rate: 0.01
+    benign_shares: {cycle: 0.5, fan_in: 0.5}
+    flag_column: is_suspicious

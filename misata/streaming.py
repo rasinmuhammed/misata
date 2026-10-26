@@ -6,9 +6,8 @@ without loading everything into memory.
 """
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Optional, Union
+from typing import Any, Callable, Dict, Generator, Optional
 
-import numpy as np
 import pandas as pd
 
 from misata.exceptions import ExportError, FileWriteError
@@ -100,18 +99,18 @@ class StreamingExporter:
             return rows
             
         except Exception as e:
-            raise FileWriteError(f"Failed to write CSV: {e}", path=str(file_path))
+            raise FileWriteError(f"Failed to write CSV: {e}", path=str(file_path)) from e
     
     def _write_parquet_batch(self, table_name: str, df: pd.DataFrame) -> int:
         """Write a batch to Parquet file using append mode."""
         try:
             import pyarrow as pa
             import pyarrow.parquet as pq
-        except ImportError:
+        except ImportError as exc:
             raise ExportError(
                 "PyArrow required for Parquet export",
                 details={"suggestion": "pip install pyarrow"}
-            )
+            ) from exc
         
         file_path = self.output_dir / f"{table_name}.parquet"
         
@@ -135,7 +134,7 @@ class StreamingExporter:
             return rows
             
         except Exception as e:
-            raise FileWriteError(f"Failed to write Parquet: {e}", path=str(file_path))
+            raise FileWriteError(f"Failed to write Parquet: {e}", path=str(file_path)) from e
     
     def finalize(self) -> Dict[str, int]:
         """Finalize all exports and return summary.
@@ -147,7 +146,7 @@ class StreamingExporter:
         for handle in self._file_handles.values():
             try:
                 handle.close()
-            except Exception:
+            except (OSError, ValueError):
                 pass
         
         self._file_handles.clear()

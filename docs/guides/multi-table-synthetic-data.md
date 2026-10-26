@@ -1,6 +1,6 @@
 ---
-title: Multi-Table Synthetic Data in Python, FK-Safe Relational Datasets
-description: Generate multi-table synthetic data in Python with referential integrity guaranteed. Learn how Misata creates realistic relational datasets for testing, ML, and demos, in one line of code.
+title: "Multi-Table Synthetic Data in Python With Valid Foreign Keys"
+description: "Generate related tables whose foreign keys always resolve, with realistic fan-out, parent-before-child dates and roll-ups that match their children."
 ---
 
 # Multi-Table Synthetic Data in Python
@@ -12,7 +12,7 @@ multi-table relational generation.
 ## The problem with single-table generators
 
 ```python
-# Faker approach — you write FK logic by hand
+# Faker approach: you write FK logic by hand
 import random
 from faker import Faker
 
@@ -23,7 +23,7 @@ customers = [{"id": i, "email": fake.email()} for i in customer_ids]
 
 # Nothing stops order.customer_id from referencing a non-existent customer
 orders = [{"id": j, "customer_id": random.randint(1, 10000)} for j in range(5000)]
-# ^ broken — 10x the valid range, no referential integrity enforced
+# ^ broken: 10x the valid range, no referential integrity enforced
 ```
 
 Every relationship is your problem. Misata handles this automatically.
@@ -39,7 +39,7 @@ tables = misata.generate("An ecommerce store with 1000 customers and orders.", s
 customers = tables["customers"]  # 1,000 rows
 orders    = tables["orders"]     # 5,000+ rows
 
-# FK integrity is automatic — no orphans
+# FK integrity is automatic: no orphans
 assert (~orders["customer_id"].isin(customers["customer_id"])).sum() == 0
 ```
 
@@ -177,4 +177,4 @@ tables = {name: pd.concat([tables.get(name, pd.DataFrame()), batch], ignore_inde
 
 - [Faker vs SDV vs Misata](faker-vs-sdv-vs-misata.md)
 - [Database seeding with Python](database-seeding-python.md)
-- [Python synthetic data generator](python-synthetic-data-generator.md)
+- [Python synthetic data generator](../python-synthetic-data-generator.md)

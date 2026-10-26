@@ -49,9 +49,12 @@ Rate curve variant (fraud rate / churn rate)::
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from misata.schema import OutcomeCurve, RateCurve, SchemaConfig
 
 
 # ---------------------------------------------------------------------------
@@ -566,7 +569,7 @@ class RateCurveBuilder:
             rates = np.clip(np.interp(months, x_known, y_known), 0.0, 1.0)
             rate_points = [
                 {"period": f"{m:02d}", "rate": round(float(r), 6)}
-                for m, r in zip(months, rates)
+                for m, r in zip(months, rates, strict=True)
             ]
         else:
             rate_points = [

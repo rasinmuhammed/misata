@@ -13,8 +13,6 @@ Usage:
     launch()
 """
 
-from typing import Optional
-
 
 def launch(
     port: int = 8501,
@@ -45,11 +43,11 @@ def launch(
         sys.argv = [arg for arg in sys.argv if arg]  # Remove empty strings
         
         stcli.main()
-    except ImportError:
+    except ImportError as exc:
         raise ImportError(
             "Misata Studio requires streamlit. Install with:\n"
             "  pip install misata[studio]"
-        )
+        ) from exc
 
 
 __all__ = ["launch"]

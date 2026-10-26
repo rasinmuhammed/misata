@@ -1,3 +1,8 @@
+---
+title: "LLM-Assisted Schema Design for Synthetic Data"
+description: "Use Groq, OpenAI, Claude, Gemini or Ollama to design a richer schema from an open-ended story, then generate the rows deterministically and offline."
+---
+
 # LLM-Assisted Generation
 
 Use a language model to produce a richer schema from an open-ended story, useful for complex or unusual domains where the rule-based parser falls short.
@@ -26,7 +31,7 @@ gen = LLMSchemaGenerator(provider="groq")
 # gen = LLMSchemaGenerator(provider="ollama", model="llama3")
 
 schema = gen.generate_from_story(
-    "A fraud detection dataset — 2% positive rate, FICO scores, "
+    "A fraud detection dataset: 2% positive rate, FICO scores, "
     "transaction velocity features, device fingerprints"
 )
 

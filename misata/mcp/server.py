@@ -34,18 +34,16 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-# FastMCP has lived in two places across `mcp` releases. Pin to neither: a
-# server that stops importing because an upstream package tidied its namespace
-# is a packaging failure, not a Misata one, and it took CI down on all four
-# interpreters while the local environment still had the older layout.
+# FastMCP has lived in two places across `mcp` releases, so both are tried and
+# neither is pinned: an upstream namespace change must not stop the server
+# importing.
 #
 # Every `mcp` import sits inside this guard, including `mcp.types`. `mcp` is an
-# optional extra, so a plain `pip install misata` leaves it absent, and an
-# unguarded import there meant `misata-mcp` died on a bare ModuleNotFoundError
-# naming a package the reader never asked for. The message below is the one
-# thing a person in that position can act on, so nothing may import ahead of it.
+# optional extra, so a plain `pip install misata` leaves it absent, and the
+# install hint below is the one thing a person in that position can act on,
+# so nothing may import ahead of it.
 _INSTALL_HINT = (
     "The MCP extra is not installed, or this version of `mcp` does not expose "
     "FastMCP at mcp.server.fastmcp or mcp.server. Install it with:\n\n"
@@ -62,8 +60,9 @@ try:
 except ImportError as exc:  # pragma: no cover - import-time guard
     raise ImportError(_INSTALL_HINT) from exc
 
-import misata
-from misata.story_parser import StoryParser
+import misata  # noqa: E402 - must follow the mcp import guard
+from misata.mcp.workspace import ROOTS_ENV_VAR, PathNotAllowedError, confine  # noqa: E402
+from misata.story_parser import StoryParser  # noqa: E402
 
 
 mcp = FastMCP(
@@ -140,7 +139,8 @@ def _domain_catalogue() -> List[Dict[str, Any]]:
 
 def _df_preview(df, n: int = 5) -> List[Dict[str, Any]]:
     """Return up to N rows as JSON-safe dicts."""
-    return json.loads(df.head(n).to_json(orient="records", date_format="iso", default_handler=str))
+    rows = json.loads(df.head(n).to_json(orient="records", date_format="iso", default_handler=str))
+    return cast(List[Dict[str, Any]], rows)
 
 
 def _load_csv_dir(path: str):
@@ -151,13 +151,36 @@ def _load_csv_dir(path: str):
     """
     import pandas as pd
 
-    folder = Path(path).expanduser().resolve()
+    folder = confine(path)
     if not folder.is_dir():
         raise NotADirectoryError(f"{path!r} is not a directory")
     csvs = sorted(folder.glob("*.csv"))
     if not csvs:
         raise FileNotFoundError(f"no .csv files in {path!r}")
     return {p.stem: pd.read_csv(p) for p in csvs}
+
+
+_DEFAULT_SANDBOX = Path(".misata") / "sandbox.db"
+_MAX_ROWS = 10_000
+
+_OUTPUT_DIR_HINT = (
+    "Use a writable directory inside the server's workspace, or omit output_dir "
+    "to write to a fresh temporary directory."
+)
+
+
+def _output_dir(output_dir: Optional[str]) -> Path:
+    """Resolve and create the directory a generation tool writes into.
+
+    Raises:
+        PathNotAllowedError: ``output_dir`` is outside the allowed roots.
+        OSError: the directory could not be created.
+    """
+    if not output_dir:
+        return Path(tempfile.mkdtemp(prefix="misata-mcp-"))
+    path = confine(output_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _coherence_block(tables, *, schema=None, top: int = 8) -> Dict[str, Any]:
@@ -200,7 +223,7 @@ def _domain_block(tables, domain: str) -> Dict[str, Any]:
         }
     try:
         report = misata.validate_domain(tables, domain=domain)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - the plausibility check is advisory
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
     d = report.to_dict() if hasattr(report, "to_dict") else {}
     return {
@@ -228,7 +251,7 @@ def _tool_error(exc: Exception, suggestion: str) -> Dict[str, Any]:
         try:
             message = "; ".join(str(e.get("msg", "")).removeprefix("Value error, ")
                                 for e in errors()) or message
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unexpected errors() shape keeps the plain message
             pass
     return {
         "ok": False,
@@ -262,7 +285,7 @@ def list_domains() -> Dict[str, Any]:
             "count": len(StoryParser.DOMAIN_KEYWORDS),
             "domains": _domain_catalogue(),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "This should never fail — please report a bug at https://github.com/rasinmuhammed/misata/issues")
 
 
@@ -305,7 +328,7 @@ def preview_story(story: str, rows: int = 1000) -> Dict[str, Any]:
             "warnings": report.warnings,
             "summary": report.summary(),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Check that the story is a non-empty string. "
@@ -338,7 +361,7 @@ def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
     """
     try:
         schema = misata.parse(story, rows=rows)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Try preview_story() first to see how Misata interprets your description. "
@@ -431,22 +454,14 @@ def generate_dataset(
     """
     sample_rows = max(0, min(sample_rows, 50))
 
-    if output_dir:
-        out_path = Path(output_dir).expanduser().resolve()
-        try:
-            out_path.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            return _tool_error(
-                exc,
-                f"Could not create output directory '{output_dir}'. "
-                "Check that the path is writable, or omit output_dir to use a temp directory.",
-            )
-    else:
-        out_path = Path(tempfile.mkdtemp(prefix="misata-mcp-"))
+    try:
+        out_path = _output_dir(output_dir)
+    except OSError as exc:
+        return _tool_error(exc, _OUTPUT_DIR_HINT)
 
     try:
         tables = misata.generate(story, rows=rows, seed=seed)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Try preview_story() first to verify Misata understands the story. "
@@ -846,23 +861,15 @@ def generate_from_schema(
     """
     sample_rows = max(0, min(sample_rows, 50))
 
-    if output_dir:
-        out_path = Path(output_dir).expanduser().resolve()
-        try:
-            out_path.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            return _tool_error(
-                exc,
-                f"Could not create output directory '{output_dir}'. "
-                "Check that the path is writable, or omit output_dir to use a temp directory.",
-            )
-    else:
-        out_path = Path(tempfile.mkdtemp(prefix="misata-mcp-"))
+    try:
+        out_path = _output_dir(output_dir)
+    except OSError as exc:
+        return _tool_error(exc, _OUTPUT_DIR_HINT)
 
     try:
         config = misata.from_dict_schema(schema, row_count=rows, seed=seed)
         tables = misata.generate_from_schema(config)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Check the schema dict format in this tool's description: each table maps "
@@ -1024,7 +1031,7 @@ def seed_database(
 
     try:
         config = schema_from_db(db_url, default_rows=rows, include_tables=tables)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Check the connection string and that the database is reachable. "
@@ -1105,7 +1112,7 @@ def seed_database(
             smart_mode=False, use_llm=False,
         )
         integrity = verify_referential_integrity(config, db_url)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "The schema was read but the write failed. Check that the "
@@ -1175,96 +1182,36 @@ def create_sandbox(
     Returns:
         Dictionary with db_url, db_path, table summaries, DDL, and sample verification queries.
     """
-    import sqlite3
-    from pathlib import Path
-    from misata.db import (
-        create_tables,
-        seed_database as _seed_db,
-        verify_referential_integrity,
-        _topological_sort,
-    )
-    from misata.templates.library import load_template, list_templates
-
-    target_path = Path(db_path) if db_path else Path(".misata/sandbox.db")
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    db_url = f"sqlite:///{target_path.resolve()}"
-
-    # Resolve schema config
-    if schema:
-        from misata.compat import from_dict_schema
-        config = from_dict_schema(schema)
-    elif domain and domain.lower() in list_templates():
-        config = load_template(domain.lower(), row_multiplier=max(0.1, rows / 500.0))
-    elif story:
-        parser = StoryParser()
-        config = parser.parse(story, default_rows=rows)
-    else:
-        chosen_domain = domain.lower() if domain and domain.lower() in list_templates() else "saas"
-        config = load_template(chosen_domain, row_multiplier=max(0.1, rows / 500.0))
-
-    config.seed = seed
-
-    # Connect and create tables
-    conn = sqlite3.connect(target_path)
-    conn.execute("PRAGMA foreign_keys=ON")
-    dialect = "sqlite"
+    from misata.sandbox import SandboxError, create_sandbox as _create
 
     try:
-        create_tables(config, conn, dialect)
-    finally:
-        conn.close()
-
-    # Seed the database
-    try:
-        report = _seed_db(
-            config, db_url, create=False, truncate=True,
-            smart_mode=False, use_llm=False,
-        )
-        integrity = verify_referential_integrity(config, db_url)
-    except Exception as exc:
-        return _tool_error(exc, "Failed to seed sandbox database.")
-
-    # Inspect table schemas and build sample queries
-    con = sqlite3.connect(target_path)
-    ddl_statements = []
-    tables_summary = {}
-    for table_name in _topological_sort(config):
-        row = con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?", (table_name,)).fetchone()
-        if row and row[0]:
-            ddl_statements.append(row[0] + ";")
-        cols_info = con.execute(f'PRAGMA table_info("{table_name}")').fetchall()
-        tables_summary[table_name] = {
-            "rows": report.table_rows.get(table_name, 0),
-            "columns": [c[1] for c in cols_info],
-        }
-
-    # Generate sample queries
-    sample_queries = []
-    for t_name in tables_summary:
-        sample_queries.append(f'SELECT * FROM "{t_name}" LIMIT 3;')
-    for rel in config.relationships[:3]:
-        sample_queries.append(
-            f'SELECT p.*, c.* FROM "{rel.parent_table}" p JOIN "{rel.child_table}" c ON p."{rel.parent_key}" = c."{rel.child_key}" LIMIT 3;'
-        )
-
-    con.close()
+        target = confine(db_path) if db_path else confine(_DEFAULT_SANDBOX)
+        box = _create(domain=domain, story=story, schema=schema, rows=rows,
+                      seed=seed, path=target)
+    except PathNotAllowedError as exc:
+        return _tool_error(exc, f"Pick a db_path inside the workspace, or ask the user to "
+                                f"extend {ROOTS_ENV_VAR}.")
+    except SandboxError as exc:
+        return _tool_error(exc, "Choose a new db_path, or adjust the schema, story or domain.")
+    except Exception as exc:  # noqa: BLE001 - every failure returns an envelope, never a traceback
+        return _tool_error(exc, "Failed to build the sandbox schema; check the schema or story.")
 
     return {
         "ok": True,
-        "message": f"Sandbox database created and seeded with {report.total_rows:,} rows across {len(tables_summary)} tables.",
-        "db_url": db_url,
-        "db_path": str(target_path.resolve()),
+        "message": (f"Sandbox database created and seeded with {box.total_rows:,} rows "
+                    f"across {len(box.tables)} tables."),
+        "db_url": box.db_url,
+        "db_path": str(box.path),
         "dialect": "sqlite",
-        "tables": tables_summary,
-        "total_rows": report.total_rows,
-        "integrity_verified": integrity.verified,
-        "foreign_keys_count": len(config.relationships),
-        "ddl": "\n\n".join(ddl_statements),
-        "sample_queries": sample_queries,
-        "how_to_query": (
-            "Use the query_sandbox tool, or connect directly using sqlite3 in Python or CLI:\n"
-            f"    sqlite3 {target_path}"
-        ),
+        "tables": {name: {"rows": t.rows, "columns": list(t.columns)}
+                   for name, t in box.tables.items()},
+        "total_rows": box.total_rows,
+        "integrity_verified": box.integrity_verified,
+        "foreign_keys_count": box.foreign_keys,
+        "ddl": box.ddl,
+        "sample_queries": list(box.sample_queries),
+        "how_to_query": ("Use the query_sandbox tool, or open the file with any SQLite "
+                         f"client: {box.path}"),
     }
 
 
@@ -1296,51 +1243,33 @@ def query_sandbox(
     Returns:
         Dict with columns, rows (as list of dicts), row_count, and execution status.
     """
-    import sqlite3
-    from pathlib import Path
+    from misata.sandbox import SandboxError, query_sandbox as _query
+    from misata.sqlutil import ReadOnlyViolation
 
-    target_path = Path(db_path) if db_path else Path(".misata/sandbox.db")
-    if not target_path.exists():
-        return {
-            "ok": False,
-            "error": "FileNotFound",
-            "message": f"Sandbox database not found at {target_path}. Call create_sandbox first.",
-        }
-
-    # Guard read-only queries
     cleaned = query.strip().rstrip(";").strip()
-    first_word = cleaned.split()[0].upper() if cleaned else ""
-    if first_word not in ("SELECT", "WITH", "PRAGMA", "EXPLAIN"):
-        return {
-            "ok": False,
-            "error": "ReadOnlyViolation",
-            "message": "Only read-only queries (SELECT, WITH, PRAGMA, EXPLAIN) are permitted in query_sandbox.",
-        }
-
     try:
-        conn = sqlite3.connect(target_path)
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute(cleaned)
-        rows_raw = cur.fetchmany(limit)
-        columns = [desc[0] for desc in cur.description] if cur.description else []
-        rows = [dict(row) for row in rows_raw]
-        conn.close()
-        return {
-            "ok": True,
-            "query": cleaned,
-            "columns": columns,
-            "rows": rows,
-            "row_count": len(rows),
-            "truncated": len(rows) == limit,
-        }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "error": type(exc).__name__,
-            "message": str(exc),
-            "query": cleaned,
-        }
+        target = confine(db_path) if db_path else confine(_DEFAULT_SANDBOX)
+        result = _query(cleaned, path=target, limit=max(1, min(limit, _MAX_ROWS)))
+    except PathNotAllowedError as exc:
+        return _tool_error(exc, f"Query a sandbox inside the workspace, or ask the user to "
+                                f"extend {ROOTS_ENV_VAR}.")
+    except FileNotFoundError as exc:
+        return {"ok": False, "error": "FileNotFound",
+                "message": f"{exc}. Call create_sandbox first."}
+    except ReadOnlyViolation as exc:
+        return {"ok": False, "error": "ReadOnlyViolation", "message": str(exc),
+                "query": cleaned}
+    except SandboxError as exc:
+        return {"ok": False, "error": type(exc).__name__, "message": str(exc),
+                "query": cleaned}
+    return {
+        "ok": True,
+        "query": cleaned,
+        "columns": list(result.columns),
+        "rows": list(result.rows),
+        "row_count": result.row_count,
+        "truncated": result.truncated,
+    }
 
 
 # Checks a schema for infeasible declarations. Changes nothing.
@@ -1450,7 +1379,7 @@ def validate_yaml(yaml_text: str) -> Dict[str, Any]:
     finally:
         try:
             tmp_path.unlink(missing_ok=True)
-        except Exception:
+        except OSError:
             pass
 
     # Stage 3 — feasibility (declarations that parse, and contradict each
@@ -1530,7 +1459,7 @@ def audit_dataset(dataset_dir: str, top_findings: int = 20) -> Dict[str, Any]:
     """
     try:
         tables = _load_csv_dir(dataset_dir)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Point dataset_dir at a folder with one CSV per table. The "
@@ -1539,7 +1468,7 @@ def audit_dataset(dataset_dir: str, top_findings: int = 20) -> Dict[str, Any]:
         )
     try:
         report = misata.coherence_audit(tables)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "The CSVs loaded but the audit failed — please report this.")
 
     d = report.to_dict()
@@ -1554,6 +1483,191 @@ def audit_dataset(dataset_dir: str, top_findings: int = 20) -> Dict[str, Any]:
         "tables_audited": list(tables.keys()),
         "findings": findings[:top_findings],
         "findings_truncated": max(0, len(findings) - top_findings),
+    }
+
+
+# Reads a schema and reports what generating it would do. Generates nothing.
+@mcp.tool(
+    title="Explain what a schema will generate",
+    annotations=ToolAnnotations(
+        title="Explain what a schema will generate",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+def explain_schema(schema: Dict[str, Any], seed: Optional[int] = 42,
+                   max_invariants: int = 50) -> Dict[str, Any]:
+    """Show what generate_from_schema would do with a schema, without generating.
+
+    Call it before ``generate_from_schema`` on a schema you designed: it is
+    cheap, and it catches the mistakes that would otherwise surface after a
+    long run. Returns each table's planned row count and approximate memory,
+    the declarations and the columns each one writes, any column two
+    declarations both write, every outcome curve's period plan and warnings,
+    and the invariants ``attest_dataset`` will check on the output. When
+    ``will_generate`` is false, ``conflicts`` names each contradiction with
+    the arithmetic and a remedy; fix those in the schema and call again.
+
+    Args:
+        schema:         The schema dict you would pass to generate_from_schema.
+        seed:           The seed you would generate with.
+        max_invariants: How many invariants to include in the response.
+
+    Returns:
+        ``{"ok", "will_generate", "total_rows", "estimated_bytes", "tables",
+        "relationships", "declarations", "writers", "overlaps", "conflicts",
+        "conformance", "invariants", "invariants_total"}``.
+    """
+    from misata.explain import explain
+
+    try:
+        plan = explain(misata.from_dict_schema(schema, seed=seed)).to_dict()
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
+        return _tool_error(exc, "Check the schema against generate_from_schema's "
+                                "description; the error names the field.")
+    invariants = plan.pop("invariants")
+    limit = max(0, min(max_invariants, 1000))
+    return {"ok": True, **plan, "invariants": invariants[:limit],
+            "invariants_total": len(invariants)}
+
+
+@mcp.tool(
+    title="Solve outcome curves to hit a pipeline's targets",
+    annotations=ToolAnnotations(
+        title="Solve outcome curves to hit a pipeline's targets",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+def solve_outcome(schema: Dict[str, Any], queries: Dict[str, str],
+                  targets: List[Dict[str, Any]], tolerance: str = "1%",
+                  max_iterations: int = 15, seed: Optional[int] = 42) -> Dict[str, Any]:
+    """Find outcome-curve values that make SQL metrics over the data hit targets.
+
+    Use it when the number that matters is computed from the generated
+    tables rather than declared on them: net revenue after refunds, revenue
+    after a fee, a ratio of two tables. Each query runs in DuckDB over the
+    generated tables and returns two columns, the period and the value, one
+    row per period. Each target names a metric, the ``table.column`` outcome
+    curve that moves it (the lever, which must have exact per-period
+    values), and the value per period. Set ``direction: "inverse"`` when a
+    larger lever lowers the metric, as refunds lower net revenue.
+
+    Nothing is written. On success, replace each lever curve's
+    ``curve_points`` in your schema with ``levers[lever]``, then generate as
+    usual; ``attest_dataset`` will confirm the curves hold.
+
+    Args:
+        schema:         The schema dict, with an outcome curve per lever.
+        queries:        Metric name to DuckDB query, e.g. ``{"net": "SELECT
+                        date_trunc('month', ordered_at), SUM(amount) * 0.97
+                        FROM orders GROUP BY 1"}``.
+        targets:        ``[{"metric", "lever", "values": {"2025-01": 70000},
+                        "direction"?}]``.
+        tolerance:      Relative tolerance per period, e.g. ``"0.5%"``.
+        max_iterations: Generate-and-query rounds allowed, at most 40.
+        seed:           Seed used for every round.
+
+    Returns:
+        ``{"ok", "converged", "reason", "message", "iterations",
+        "best_iteration", "levers", "steps"}``. ``reason`` is one of
+        converged, max_iterations, max_seconds, diverging, unresponsive,
+        infeasible, pipeline_error; ``message`` says what to change when it
+        is not converged.
+    """
+    from misata.solve import SolveError, SQLRunner, solve
+
+    try:
+        runner = SQLRunner(queries, timeout=30.0, memory_limit="2GB")
+        result = solve(misata.from_dict_schema(schema, seed=seed), runner, targets,
+                       tolerance=tolerance, max_iterations=max(1, min(max_iterations, 40)),
+                       max_seconds=300.0)
+    except SolveError as exc:
+        return _tool_error(exc, "Each lever must be an outcome curve with exact values, and "
+                                "each target's periods must fall inside that curve.")
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
+        return _tool_error(exc, "Check the schema with explain_schema first.")
+    data = result.to_dict()
+    return {"ok": result.converged, "converged": result.converged, "reason": result.reason,
+            "message": result.message, "iterations": result.iterations,
+            "best_iteration": result.best_iteration, "levers": data["levers"],
+            "conflicts": data["conflicts"], "steps": data["steps"][-10:]}
+
+
+# Reads the dataset and writes three attestation files beside it.
+@mcp.tool(
+    title="Attest a dataset against its schema",
+    annotations=ToolAnnotations(
+        title="Attest a dataset against its schema",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+def attest_dataset(
+    dataset_dir: str,
+    schema: Dict[str, Any],
+    seed: Optional[int] = 42,
+    max_invariants: int = 50,
+) -> Dict[str, Any]:
+    """Prove a written dataset holds what its schema declared, in a standard format.
+
+    Recomputes every invariant the schema implies (outcome-curve totals, rate
+    anchors, group shares, ledger identities, foreign keys, unique columns)
+    with DuckDB against the files, and pins each file by SHA-256. Writes
+    ``attestation.intoto.json`` (an in-toto v1 Statement that cosign and
+    GitHub's actions/attest accept), ``attestation.dsse.json`` and
+    ``verify.py`` into ``dataset_dir``. Anyone can rerun ``python verify.py``
+    with only duckdb installed.
+
+    Use it after ``generate_from_schema`` with the same schema and seed, and
+    report ``result`` to the user: ``PASSED`` means every declared property
+    holds in the files on disk.
+
+    Args:
+        dataset_dir:    Folder with one ``<table>.csv`` or ``<table>.parquet``
+                        per table (the ``output_dir`` of generate_from_schema).
+        schema:         The same schema dict passed to generate_from_schema.
+        seed:           The seed used to generate, recorded in the Statement.
+        max_invariants: How many invariants to include in the response.
+
+    Returns:
+        ``{"ok", "result", "invariants_held", "invariants_total", "failures",
+        "subjects", "files", "invariants"}``.
+    """
+    from misata.attestation import AttestationError, attest
+
+    try:
+        directory = confine(dataset_dir)
+        config = misata.from_dict_schema(schema, seed=seed)
+        result = attest(directory, config)
+    except PathNotAllowedError as exc:
+        return _tool_error(exc, f"Pass a dataset_dir inside the allowed roots, or set "
+                                f"{ROOTS_ENV_VAR}.")
+    except AttestationError as exc:
+        return _tool_error(exc, "Generate the dataset first, into this folder, from the "
+                                "same schema.")
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
+        return _tool_error(exc, "Check that the schema is the one the dataset was generated "
+                                "from.")
+
+    invariants = result.invariants
+    limit = max(0, min(max_invariants, 1000))
+    return {
+        "ok": True,
+        "result": result.statement["predicate"]["result"],
+        "invariants_held": len(invariants) - len(result.failures),
+        "invariants_total": len(invariants),
+        "failures": result.failures,
+        "subjects": result.statement["subject"],
+        "files": {k: str(v) for k, v in result.files.items()},
+        "invariants": invariants[:limit],
+        "invariants_truncated": max(0, len(invariants) - limit),
     }
 
 
@@ -1598,7 +1712,7 @@ def check_realism(dataset_dir: str, skip: Optional[List[str]] = None) -> Dict[st
     """
     try:
         tables = _load_csv_dir(dataset_dir)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "Point dataset_dir at a folder with one CSV per table.")
     try:
         report = misata.realism_report(tables, skip=skip or ())
@@ -1661,14 +1775,14 @@ def validate_domain(dataset_dir: str, domain: str) -> Dict[str, Any]:
 
     try:
         tables = _load_csv_dir(dataset_dir)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Point dataset_dir at a folder with one CSV per table.",
         )
     try:
         report = misata.validate_domain(tables, domain=domain)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "domain must be one of: clinical_trial, clinical, financial, fintech.",
@@ -1707,7 +1821,7 @@ def main() -> None:
     try:
         from misata import __version__ as _engine_version
         mcp._mcp_server.version = _engine_version
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - the version label is cosmetic
         pass
 
     # FastMCP.run() handles signal management, transport setup, and request loop.

@@ -14,9 +14,16 @@ warnings, never guessed at.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+
+if TYPE_CHECKING:
+    from misata.schema import Column, Relationship, SchemaConfig
+    from misata.semantic import SemanticInference
+
+_log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -30,9 +37,8 @@ _IDENT_LINE_RE = re.compile(r"^\s*([a-z][a-z0-9_]*)\s*$")
 _ARROW_FK_RE = re.compile(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*(?:→|->)\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)")
 _MATCH_FK_RE = re.compile(r"(?i)\b([a-z_]\w*)\b\s+must match values? from\s+(?:the\s+)?([a-z_]\w*)\s+table")
 _RANGE_RE = re.compile(r"(?i)\b([a-z_]\w*?)s?\b\s+must be\s+(-?\d+)\s+(?:to|-|through)\s+(-?\d+)")
-# The same sentence shape for dates. Without it a spec could bound every number
-# and not the one thing that decides whether a child can postdate its parent,
-# so the documented example warned about 2,866 rows it could not place.
+# The same sentence shape for dates, so a spec can bound the window that
+# decides whether a child row can postdate its parent.
 _DATE_RANGE_RE = re.compile(
     r"(?i)\b([a-z_]\w*)\b\s+must be\s+(\d{4}-\d{2}-\d{2})\s+(?:to|-|through)\s+(\d{4}-\d{2}-\d{2})"
 )
@@ -90,6 +96,15 @@ class SpecReport:
                 self.untranslated[:6]
             )
         return line
+
+    def emit(self) -> None:
+        """Report the parse: a warning when a rule was left out, a log line otherwise."""
+        if self.untranslated:
+            from misata.exceptions import ConformanceWarning, warn
+
+            warn(self.summary(), ConformanceWarning)
+        else:
+            _log.info(self.summary())
 
 
 @dataclass
@@ -312,21 +327,28 @@ def _extract_curves(text: str, report: "SpecReport") -> List[Dict[str, Any]]:
     return curves
 
 
-def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", SpecReport]:
-    from misata.schema import Column, Relationship, SchemaConfig, Table
-    from misata.semantic import SemanticInference
+_Key = Tuple[str, str]
 
-    report = SpecReport()
-    specs = _split_tables(text, default_rows)
-    if not specs:
-        raise ValueError("No table blocks found in the spec.")
-    report.tables = len(specs)
+
+@dataclass
+class _SpecRules:
+    """Column rules read from a spec, keyed by ``(table, column)``."""
+
+    fks: Dict[_Key, _Key] = field(default_factory=dict)
+    enums: Dict[_Key, List[str]] = field(default_factory=dict)
+    ranges: Dict[_Key, Tuple[int, int]] = field(default_factory=dict)
+    date_ranges: Dict[_Key, Tuple[str, str]] = field(default_factory=dict)
+    template_choices: Dict[_Key, Dict[str, Any]] = field(default_factory=dict)
+
+
+def _collect_foreign_keys(specs: List[_TableSpec], text: str) -> Dict[_Key, _Key]:
+    """Foreign keys in both syntaxes, as ``(child, col) -> (parent, key)``.
+
+    The arrow syntax is read from the whole text, because rules often live in
+    a final validation section rather than in the table block.
+    """
     by_name = {t.name: t for t in specs}
-    inference = SemanticInference()
-
-    # Foreign keys, both syntaxes, from the WHOLE text (rules often live in a
-    # final validation section). (child_table, child_col, parent_table, parent_col)
-    fks: Dict[Tuple[str, str], Tuple[str, str]] = {}
+    fks: Dict[_Key, _Key] = {}
 
     for t in specs:
         for m in _MATCH_FK_RE.finditer(t.body):
@@ -337,195 +359,165 @@ def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", Spe
                 )
                 fks[(t.name, col)] = (parent, parent_key)
 
+    def _is_pk(tbl: str, col: str) -> bool:
+        cols = by_name[tbl].columns
+        return bool(cols) and cols[0] == col
+
     for m in _ARROW_FK_RE.finditer(text):
         lt, lc, rt, rc = m.groups()
         if lt not in by_name or rt not in by_name or lt == rt:
             continue
-        # The side whose column is its own primary key is the parent.
-        def _is_pk(tbl: str, col: str) -> bool:
-            cols = by_name[tbl].columns
-            return bool(cols) and cols[0] == col
-        if _is_pk(lt, lc) and not _is_pk(rt, rc):
-            parent, pk, child, ck = lt, lc, rt, rc
-        elif _is_pk(rt, rc) and not _is_pk(lt, lc):
+        # The side whose column is its own primary key is the parent; when
+        # neither or both are, the left side is.
+        if _is_pk(rt, rc) and not _is_pk(lt, lc):
             parent, pk, child, ck = rt, rc, lt, lc
         else:
             parent, pk, child, ck = lt, lc, rt, rc
         if ck in by_name[child].columns:
             fks[(child, ck)] = (parent, pk)
+    return fks
 
-    # Enumerations and ranges per table block
-    enums: Dict[Tuple[str, str], List[str]] = {}
-    ranges: Dict[Tuple[str, str], Tuple[int, int]] = {}
-    date_ranges: Dict[Tuple[str, str], Tuple[str, str]] = {}
-    template_choices: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    for t in specs:
-        lines = t.body.split("\n")
-        for j, line in enumerate(lines):
-            em = _ENUM_HEAD_RE.match(line.strip())
-            if em:
-                # Match on the whole heading ("Interaction types") so words the
-                # head pattern consumed, like "types", still count as tokens.
-                phrase = re.sub(r"(?i)\b(must|only|be)\b", " ", line)
-                col = _find_column(t, phrase)
-                items, _ = _collect_enum_items(lines, j + 1)
-                if col and len(items) >= 2:
-                    enums[(t.name, col)] = items
-                    report.enums += 1
-                elif len(items) >= 2:
-                    found = _find_column_anywhere(specs, phrase, exclude=t.name)
-                    if found:
-                        enums[found] = items
-                        report.enums += 1
-                    else:
-                        report.untranslated.append(
-                            f"{t.name}: enumeration '{em.group(1)}' matched no column"
-                        )
-                elif items:
-                    report.untranslated.append(
-                        f"{t.name}: enumeration '{em.group(1)}' matched no column"
-                    )
-        for dm in _DATE_RANGE_RE.finditer(t.body):
-            owner, col = t.name, _find_column(t, dm.group(1))
-            if not col:
-                found = _find_column_anywhere(specs, dm.group(1), exclude=t.name)
-                if found:
-                    owner, col = found
-            if col:
-                date_ranges[(owner, col)] = (dm.group(2), dm.group(3))
-                report.ranges += 1
 
-        for rm in _RANGE_RE.finditer(t.body):
-            col = _find_column(t, rm.group(1))
-            if col:
-                ranges[(t.name, col)] = (int(rm.group(2)), int(rm.group(3)))
-                report.ranges += 1
-            else:
-                found = _find_column_anywhere(specs, rm.group(1), exclude=t.name)
-                if found:
-                    ranges[found] = (int(rm.group(2)), int(rm.group(3)))
-                    report.ranges += 1
-        for col, variants in _parse_templates(t.body, t, report).items():
-            template_choices[(t.name, col)] = variants
-
-    # Known prose rules we deliberately do not fake
-    if re.search(r"(?i)sentiment must match rating", text):
-        report.untranslated.append(
-            "'sentiment must match rating' coupling (columns generated independently)"
-        )
-
-    # Build the SchemaConfig
-    tables: List[Table] = []
-    columns: Dict[str, List[Column]] = {}
-    relationships: List[Relationship] = []
-
-    for t in specs:
-        cols: List[Column] = []
-        for i, name in enumerate(t.columns):
-            key = (t.name, name)
-            if key in fks:
-                parent, pk = fks[key]
-                relationships.append(Relationship(
-                    parent_table=parent, child_table=t.name,
-                    parent_key=pk, child_key=name,
-                ))
-                report.relationships += 1
-                report.lock(t.name, name)
-                cols.append(Column(name=name, type="foreign_key", nullable=False))
-                continue
-            if key in template_choices:
-                report.lock(t.name, name)
-                cols.append(Column(
-                    name=name, type="text",
-                    distribution_params=dict(template_choices[key]),
-                ))
-                continue
-            if key in enums:
-                report.lock(t.name, name)
-                cols.append(Column(
-                    name=name, type="categorical",
-                    distribution_params={"choices": enums[key]},
-                ))
-                continue
-            if key in date_ranges:
-                start, end = date_ranges[key]
-                report.lock(t.name, name)
-                cols.append(Column(
-                    name=name, type="date",
-                    distribution_params={"start": start, "end": end},
-                ))
-                continue
-            if key in ranges:
-                lo, hi = ranges[key]
-                report.lock(t.name, name)
-                cols.append(Column(
-                    name=name, type="int",
-                    distribution_params={"min": lo, "max": hi},
-                ))
-                continue
-            if name == "sentiment" or name.endswith("_sentiment"):
-                cols.append(Column(
-                    name=name, type="categorical",
-                    distribution_params={"choices": list(_SENTIMENT_CHOICES)},
-                ))
-                continue
-            if name in _BOOLEAN_NAMES or name.startswith(("is_", "has_")):
-                cols.append(Column(name=name, type="boolean"))
-                continue
-            if i == 0 and (name == "id" or name.endswith("_id")):
-                report.lock(t.name, name)
-                cols.append(Column(
-                    name=name, type="int", unique=True,
-                    distribution_params={"min": 1, "max": max(t.rows * 10, 1000)},
-                ))
-                continue
-
-            inferred = inference.infer_column(name)
-            if inferred is not None:
-                itype, iparams = inferred
-                cols.append(Column(name=name, type=itype, distribution_params=iparams))
-            elif (name.endswith(("_date", "_at", "_on", "_for", "_until",
-                                 "_from", "_time"))
-                  or name in ("date", "created", "updated")
-                  or name.startswith(("date_", "signed_up", "hired", "issued",
-                                      "scheduled", "completed", "cancelled",
-                                      "started", "ended", "closed", "shipped",
-                                      "delivered", "renewed", "expires"))):
-                # `_on` and `_for` are how English actually writes these:
-                # issued_on, hired_on, scheduled_for. Without them every one
-                # fell through to free text, so a spec declaring four date
-                # columns produced four columns of business-note prose and
-                # said nothing about it.
-                cols.append(Column(
-                    name=name, type="date",
-                    distribution_params={"start": "2024-01-01", "end": "2025-12-31"},
-                ))
-            elif name.endswith(("_score", "_votes", "_minutes", "quantity", "_count")):
-                cols.append(Column(
-                    name=name, type="int", distribution_params={"min": 1, "max": 100},
-                ))
-            elif name.endswith(("amount", "revenue", "price")):
-                cols.append(Column(
-                    name=name, type="float",
-                    distribution_params={"min": 10, "max": 10_000, "decimals": 2},
-                ))
-            else:
-                cols.append(Column(name=name, type="text"))
-
-        if not cols:
-            report.untranslated.append(f"{t.name}: no columns found; skipped")
+def _collect_enums(t: _TableSpec, specs: List[_TableSpec], rules: _SpecRules,
+                   report: SpecReport) -> None:
+    lines = t.body.split("\n")
+    for j, line in enumerate(lines):
+        em = _ENUM_HEAD_RE.match(line.strip())
+        if not em:
             continue
-        tables.append(Table(name=t.name, row_count=t.rows, columns=[c.name for c in cols]))
-        columns[t.name] = cols
+        # Match on the whole heading ("Interaction types") so words the head
+        # pattern consumed, like "types", still count as tokens.
+        phrase = re.sub(r"(?i)\b(must|only|be)\b", " ", line)
+        col = _find_column(t, phrase)
+        items, _ = _collect_enum_items(lines, j + 1)
+        if col and len(items) >= 2:
+            rules.enums[(t.name, col)] = items
+            report.enums += 1
+            continue
+        found = _find_column_anywhere(specs, phrase, exclude=t.name) if len(items) >= 2 else None
+        if found:
+            rules.enums[found] = items
+            report.enums += 1
+        elif items:
+            report.untranslated.append(
+                f"{t.name}: enumeration '{em.group(1)}' matched no column"
+            )
 
-    built = {t.name for t in tables}
-    relationships = [
-        r for r in relationships if r.parent_table in built and r.child_table in built
-    ]
 
-    # Declared aggregates. A curve naming a table or column the spec never
-    # built is reported rather than dropped, because the whole point of this
-    # path is that what you wrote is what you get.
+def _collect_ranges(t: _TableSpec, specs: List[_TableSpec], rules: _SpecRules,
+                    report: SpecReport) -> None:
+    for dm in _DATE_RANGE_RE.finditer(t.body):
+        owner, col = t.name, _find_column(t, dm.group(1))
+        if not col:
+            found = _find_column_anywhere(specs, dm.group(1), exclude=t.name)
+            if found:
+                owner, col = found
+        if col:
+            rules.date_ranges[(owner, col)] = (dm.group(2), dm.group(3))
+            report.ranges += 1
+
+    for rm in _RANGE_RE.finditer(t.body):
+        col = _find_column(t, rm.group(1))
+        key = (t.name, col) if col else _find_column_anywhere(specs, rm.group(1), exclude=t.name)
+        if key:
+            rules.ranges[key] = (int(rm.group(2)), int(rm.group(3)))
+            report.ranges += 1
+
+
+def _collect_rules(specs: List[_TableSpec], text: str, report: SpecReport) -> _SpecRules:
+    """Every foreign key, enumeration, range and template the spec declares."""
+    rules = _SpecRules(fks=_collect_foreign_keys(specs, text))
+    for t in specs:
+        _collect_enums(t, specs, rules, report)
+        _collect_ranges(t, specs, rules, report)
+        for col, variants in _parse_templates(t.body, t, report).items():
+            rules.template_choices[(t.name, col)] = variants
+    return rules
+
+
+_DATE_SUFFIXES = ("_date", "_at", "_on", "_for", "_until", "_from", "_time")
+_DATE_PREFIXES = ("date_", "signed_up", "hired", "issued", "scheduled", "completed",
+                  "cancelled", "started", "ended", "closed", "shipped", "delivered",
+                  "renewed", "expires")
+
+
+def _declared_column(t: _TableSpec, name: str, rules: _SpecRules,
+                     relationships: List["Relationship"],
+                     report: SpecReport) -> Optional["Column"]:
+    """The column a spec rule fixes, locked in the report, or None."""
+    from misata.schema import Column, Relationship
+
+    key = (t.name, name)
+    if key in rules.fks:
+        parent, pk = rules.fks[key]
+        relationships.append(Relationship(
+            parent_table=parent, child_table=t.name,
+            parent_key=pk, child_key=name,
+        ))
+        report.relationships += 1
+        report.lock(t.name, name)
+        return Column(name=name, type="foreign_key", nullable=False)
+    if key in rules.template_choices:
+        report.lock(t.name, name)
+        return Column(name=name, type="text",
+                      distribution_params=dict(rules.template_choices[key]))
+    if key in rules.enums:
+        report.lock(t.name, name)
+        return Column(name=name, type="categorical",
+                      distribution_params={"choices": rules.enums[key]})
+    if key in rules.date_ranges:
+        start, end = rules.date_ranges[key]
+        report.lock(t.name, name)
+        return Column(name=name, type="date",
+                      distribution_params={"start": start, "end": end})
+    if key in rules.ranges:
+        lo, hi = rules.ranges[key]
+        report.lock(t.name, name)
+        return Column(name=name, type="int", distribution_params={"min": lo, "max": hi})
+    return None
+
+
+def _inferred_column(t: _TableSpec, i: int, name: str, inference: "SemanticInference",
+                     report: SpecReport) -> "Column":
+    """A column no spec rule fixes, typed from its name."""
+    from misata.schema import Column
+
+    if name == "sentiment" or name.endswith("_sentiment"):
+        return Column(name=name, type="categorical",
+                      distribution_params={"choices": list(_SENTIMENT_CHOICES)})
+    if name in _BOOLEAN_NAMES or name.startswith(("is_", "has_")):
+        return Column(name=name, type="boolean")
+    if i == 0 and (name == "id" or name.endswith("_id")):
+        report.lock(t.name, name)
+        return Column(name=name, type="int", unique=True,
+                      distribution_params={"min": 1, "max": max(t.rows * 10, 1000)})
+
+    inferred = inference.infer_column(name)
+    if inferred is not None:
+        itype, iparams = inferred
+        return Column(name=name, type=itype, distribution_params=iparams)
+    # `_on` and `_for` are how English writes dates (issued_on, scheduled_for),
+    # so they read as dates rather than free text.
+    if (name.endswith(_DATE_SUFFIXES) or name in ("date", "created", "updated")
+            or name.startswith(_DATE_PREFIXES)):
+        return Column(name=name, type="date",
+                      distribution_params={"start": "2024-01-01", "end": "2025-12-31"})
+    if name.endswith(("_score", "_votes", "_minutes", "quantity", "_count")):
+        return Column(name=name, type="int", distribution_params={"min": 1, "max": 100})
+    if name.endswith(("amount", "revenue", "price")):
+        return Column(name=name, type="float",
+                      distribution_params={"min": 10, "max": 10_000, "decimals": 2})
+    return Column(name=name, type="text")
+
+
+def _declared_curves(text: str, built: Set[str], columns: Dict[str, List["Column"]],
+                     report: SpecReport) -> List[Dict[str, Any]]:
+    """The spec's curves whose table and columns were built.
+
+    A curve naming a table or column the spec never built is reported rather
+    than dropped, because the whole point of this path is that what you wrote
+    is what you get.
+    """
     outcome_curves = []
     for spec_curve in _extract_curves(text, report):
         table_name, column_name = spec_curve["table"], spec_curve["column"]
@@ -542,6 +534,49 @@ def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", Spe
                 f"column {', '.join(repr(m) for m in missing)}")
             continue
         outcome_curves.append(spec_curve)
+    return outcome_curves
+
+
+def parse_spec(text: str, default_rows: int = 1000) -> Tuple["SchemaConfig", SpecReport]:
+    from misata.schema import SchemaConfig, Table
+    from misata.semantic import SemanticInference
+
+    report = SpecReport()
+    specs = _split_tables(text, default_rows)
+    if not specs:
+        raise ValueError("No table blocks found in the spec.")
+    report.tables = len(specs)
+    inference = SemanticInference()
+    rules = _collect_rules(specs, text, report)
+
+    # Known prose rules we deliberately do not fake
+    if re.search(r"(?i)sentiment must match rating", text):
+        report.untranslated.append(
+            "'sentiment must match rating' coupling (columns generated independently)"
+        )
+
+    tables: List[Table] = []
+    columns: Dict[str, List[Column]] = {}
+    relationships: List[Relationship] = []
+
+    for t in specs:
+        cols: List[Column] = []
+        for i, name in enumerate(t.columns):
+            declared = _declared_column(t, name, rules, relationships, report)
+            cols.append(declared if declared is not None
+                        else _inferred_column(t, i, name, inference, report))
+        if not cols:
+            report.untranslated.append(f"{t.name}: no columns found; skipped")
+            continue
+        tables.append(Table(name=t.name, row_count=t.rows, columns=[c.name for c in cols]))
+        columns[t.name] = cols
+
+    built = {t.name for t in tables}
+    relationships = [
+        r for r in relationships if r.parent_table in built and r.child_table in built
+    ]
+
+    outcome_curves = _declared_curves(text, built, columns, report)
     report.curves = len(outcome_curves)
 
     return SchemaConfig(
@@ -638,8 +673,10 @@ def merge_refinements(
             if cname in locked.get(tname, set()):
                 # Contractual column: a coupling is the only accepted change,
                 # and every mapped value must stay inside the declared pool.
+                # A value mapping can be checked against the pool; templates
+                # write free text, which a declared pool cannot admit.
                 declared = (col.distribution_params or {}).get("choices")
-                if not has_coupling or declared is None:
+                if not (has_coupling and isinstance(mapping, dict)) or declared is None:
                     continue
                 allowed = {str(v) for v in declared}
                 mapped = {str(v) for vs in mapping.values() for v in _as_list(vs)}

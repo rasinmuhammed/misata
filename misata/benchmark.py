@@ -217,7 +217,7 @@ class AccuracyBenchmark:
             statistic, p_value = stats.chisquare(observed, expected)
         else:
             # Use exact test for small samples
-            statistic = sum((o - e)**2 / (e + 1e-10) for o, e in zip(observed, expected))
+            statistic = sum((o - e)**2 / (e + 1e-10) for o, e in zip(observed, expected, strict=True))
             p_value = 0.1  # Approximate
 
         passed = p_value > self.alpha
@@ -338,7 +338,7 @@ def benchmark_generated_data(
                 probs = params.get("probabilities")
 
                 if probs:
-                    expected = dict(zip(choices, probs))
+                    expected = dict(zip(choices, probs, strict=True))
                 else:
                     expected = {c: 1/len(choices) for c in choices}
 

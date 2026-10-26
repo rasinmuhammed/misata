@@ -46,7 +46,7 @@ print(fake.text())         # "Lorem ipsum dolor sit amet consectetur..."
 
 1. **Relational Blindness & Orphan Keys**: Faker generates values one by one in Python loops. It has no topological ordering, no foreign key graphs, and no multi-table coordination.
 ```python
-# The painful Faker loop — manual glue code with frequent orphan keys:
+# The painful Faker loop, manual glue code with frequent orphan keys:
 customers = [{"id": i, "email": fake.email()} for i in range(1000)]
 orders = [
     {
@@ -105,7 +105,7 @@ MRR targets, churn percentages) are pinned exactly.
 ```python
 import misata
 
-# One line — no real data, no model training, no FK wiring
+# One line: no real data, no model training, no FK wiring
 tables = misata.generate("A fintech company with 2000 customers and banking transactions.", seed=42)
 
 customers    = tables["customers"]     # 2,000 rows
@@ -126,7 +126,7 @@ schema = misata.parse(
 )
 tables = misata.generate_from_schema(schema)
 
-# Monthly MRR sums match the targets exactly — not approximately
+# Monthly MRR sums match the targets exactly, not approximately
 monthly = tables["subscriptions"].groupby(
     pd.to_datetime(tables["subscriptions"]["start_date"]).dt.month
 )["mrr"].sum()
@@ -143,7 +143,7 @@ match real ABO/Rh statistics. Credit scores match real FICO distributions. MRR
 follows a log-normal curve because real SaaS revenue is log-normal.
 
 ```python
-# Healthcare — blood types follow real ABO/Rh frequencies (no config needed)
+# Healthcare: blood types follow real ABO/Rh frequencies (no config needed)
 tables = misata.generate("A hospital with 500 patients and doctors.", seed=42)
 patients = tables["patients"]
 
@@ -189,7 +189,7 @@ valid  = set(ids)
 
 customers = [{"customer_id": i, "email": fake.email(), "name": fake.name()} for i in ids]
 
-# Manual FK wiring — you're responsible for this
+# Manual FK wiring: you're responsible for this
 orders = [
     {
         "order_id":    j,
@@ -200,7 +200,7 @@ orders = [
     for j in range(1, 5001)
 ]
 
-# No integrity guarantee — you'd need to assert this yourself
+# No integrity guarantee: you'd need to assert this yourself
 ```
 
 ~30 lines. You wrote the distribution, the FK logic, and the date range manually.
@@ -208,7 +208,7 @@ orders = [
 ### SDV
 
 ```python
-# SDV requires real data — this task cannot be completed from scratch.
+# SDV requires real data: this task cannot be completed from scratch.
 # You would need real customer and order tables to fit the model first.
 ```
 
@@ -223,7 +223,7 @@ tables    = misata.generate("An ecommerce store with 1000 customers and orders."
 customers = tables["customers"]   # 1,000 rows, realistic email/name/signup_date
 orders    = tables["orders"]      # 5,000+ rows, right-skewed amounts
 
-# FK integrity is guaranteed — no assertion needed, but it holds:
+# FK integrity is guaranteed, no assertion needed, but it holds:
 assert (~orders["customer_id"].isin(customers["customer_id"])).sum() == 0
 ```
 

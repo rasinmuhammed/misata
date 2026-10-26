@@ -112,7 +112,7 @@ def simulate_process(cases: pd.DataFrame, spec, rng: np.random.Generator
         # dwell in the current state before leaving it for `nxt`
         dt = np.empty(len(a))
         cur = state[a]
-        for (s_, n_) in set(zip(cur.tolist(), nxt.tolist())):
+        for (s_, n_) in set(zip(cur.tolist(), nxt.tolist(), strict=True)):
             m = (cur == s_) & (nxt == n_)
             cfg = dwell_by_pair.get((s_, n_)) or dwell_by_state.get(s_) or default
             dt[m] = _draw_dwell(cfg, int(m.sum()), rng)
@@ -179,7 +179,7 @@ def process_audit(events: pd.DataFrame, spec, cases: Optional[pd.DataFrame] = No
     if (ev[sc].to_numpy() != expected.to_numpy()).any():
         out.append("step numbers are not 1..n within every case")
     prev_a = g[ac].shift()
-    pairs = list(zip(prev_a[prev_a.notna()], ev[ac][prev_a.notna()]))
+    pairs = list(zip(prev_a[prev_a.notna()], ev[ac][prev_a.notna()], strict=True))
     bad = sum(1 for p in pairs if p not in allowed)
     if bad:
         out.append(f"{bad} transitions are not declared")

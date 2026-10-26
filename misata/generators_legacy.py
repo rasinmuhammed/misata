@@ -65,10 +65,9 @@ STATES = [
 
 # Business vocabulary, used wherever a single plausible word is asked for.
 #
-# `word()` used to return a Lorem Ipsum term straight from the pool below, so a
-# column declared `text_type: "word"` came back "consectetur" or "ullamco". The
-# README says in as many words that lorem ipsum cannot reach output, and a
-# `cost_centre` column on the public star-schema page was full of it.
+# `word()` draws from this pool, never from the Lorem Ipsum pool below, so a
+# column declared `text_type: "word"` holds a business label. Lorem ipsum must
+# never reach output.
 #
 # These read as the sort of short label a code, centre, tag or category column
 # actually holds, so the failure mode is a dull value rather than a Latin one.
@@ -246,10 +245,8 @@ class TextGenerator:
     def word(self) -> str:
         """A single plausible label, never a Latin one.
 
-        This returned a Lorem Ipsum word until a `cost_centre` column on a
-        public page came back reading "veniam" and "consectetur". Anything a
-        schema calls a word is a short business label in practice, so that is
-        what it gets.
+        Anything a schema calls a word, such as a `cost_centre`, is a short
+        business label in practice, so that is what it gets.
         """
         return self.rng.choice(self._pools["business_words"])
 

@@ -1,3 +1,8 @@
+---
+title: "Business Rule Constraints for Synthetic Data: Inequality, Range, Sum"
+description: "Keep rules such as price above cost, a value between two columns, child sums within a parent total, uniqueness and NOT NULL true on every generated row, enforced during generation."
+---
+
 # Constraints
 
 Enforce business rules that survive every row of generation. Constraints run at generation time, not as post-processing.

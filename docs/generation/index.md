@@ -1,6 +1,6 @@
 ---
-title: Generation Methods, Misata Python Synthetic Data
-description: Six ways to generate synthetic data with Misata, plain English stories, YAML schemas, database introspection, Python dicts, LLM-assisted, and incremental generation.
+title: "Ways to Generate Synthetic Data: Story, YAML, Database, Dict, LLM"
+description: "Six ways to describe the data Misata generates: a plain-English story, a YAML schema, an existing database, a Python dict, an LLM-designed schema, or incremental growth of a dataset."
 ---
 
 # Generation Methods

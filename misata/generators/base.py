@@ -6,7 +6,7 @@ pattern for creating generators based on column type.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type
 
 import numpy as np
 
@@ -319,11 +319,11 @@ class TextGenerator(BaseGenerator):
         try:
             from misata.locales.registry import LocaleRegistry
             return LocaleRegistry.global_instance().get_faker(locale)
-        except Exception:
+        except ImportError:
             try:
                 from faker import Faker
                 return Faker(locale)
-            except Exception:
+            except Exception:  # noqa: BLE001 - faker is optional and may reject any locale
                 return None
 
     def set_locale(self, locale: str) -> None:
@@ -420,11 +420,11 @@ class TextGenerator(BaseGenerator):
             from misata.locales.registry import LocaleRegistry
             pack = LocaleRegistry.global_instance().get_pack(self._locale)
             pattern = pack.national_id_pattern
-        except Exception:
+        except (ImportError, AttributeError):
             pattern = r"\d{9}"
         try:
             return np.array([self._expand_pattern(pattern) for _ in range(size)])
-        except Exception:
+        except (ValueError, IndexError):
             return np.array([f"ID-{i:08d}" for i in range(size)])
 
     def _postcode(self, size: int) -> np.ndarray:
@@ -432,11 +432,11 @@ class TextGenerator(BaseGenerator):
             from misata.locales.registry import LocaleRegistry
             pack = LocaleRegistry.global_instance().get_pack(self._locale)
             pattern = pack.postcode_pattern
-        except Exception:
+        except (ImportError, AttributeError):
             pattern = r"\d{5}"
         try:
             return np.array([self._expand_pattern(pattern) for _ in range(size)])
-        except Exception:
+        except (ValueError, IndexError):
             if self._faker:
                 return np.array([self._faker.postcode() for _ in range(size)])
             return np.array([f"{i:05d}" for i in range(size)])
@@ -448,7 +448,7 @@ class TextGenerator(BaseGenerator):
             pack = LocaleRegistry.global_instance().get_pack(self._locale)
             if pack.top_cities:
                 return self._rng.choice(pack.top_cities, size=size)
-        except Exception:
+        except (ImportError, AttributeError, ValueError):
             pass
         if self._faker:
             return np.array([self._faker.city() for _ in range(size)])

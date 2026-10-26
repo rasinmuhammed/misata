@@ -13,7 +13,12 @@ import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
+
+import numpy as np
+import pandas as pd
+
+from misata.engines import FactEngine
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +58,7 @@ try:
             Exception.__init__(self, msg)
 
         def __str__(self) -> str:
-            return self.args[0]
+            return cast(str, self.args[0])
 
 except ImportError:
     pass
@@ -63,24 +68,13 @@ def repair_curve_time_columns(schema: Any) -> None:
     """Resolve an outcome/rate curve's time_column to a real date column,
     in place, before validate_schema ever sees it.
 
-    Why this exists: llm_parser.py has carried this exact repair for a while
-    (a dotted path like "orders.order_date", or a non-date column an LLM
-    named "month"), but only for schemas that came through that one parser.
-    Every other producer of a schema, StoryParser's compositional path most
-    notably, a hand-written YAML, an MCP tool call, hit validate_schema
-    first with no chance to self-correct, and validate_schema's job is to
-    reject, not repair. That's an ordering bug: DataSimulator.__init__ calls
-    validate_schema() before apply_semantic_inference() ever runs, so a
-    curve pointing at a plain categorical "month" column failed hard before
-    the fix that would have caught it got a turn.
-
-    Found via a live prompt-to-data run in Studio: "monthly revenue growing
-    through October and November, then a December dip" produced a table
-    with a categorical "month" column and an OutcomeCurve pointing at it,
-    and generation failed with a schema error a user had no obvious way to
-    self-serve past. This closes that gap at the one place every caller
-    passes through, DataSimulator's own __init__, rather than patching each
-    parser separately.
+    A curve's ``time_column`` may arrive as a dotted path
+    ("orders.order_date") or name a non-date column such as a categorical
+    "month". ``validate_schema`` rejects rather than repairs, and
+    ``DataSimulator.__init__`` validates before semantic inference runs, so the
+    repair has to happen first. Doing it here, on the one path every schema
+    producer passes through (parsers, hand-written YAML, MCP tool calls),
+    keeps the behaviour identical whichever of them built the schema.
     """
     columns = getattr(schema, "columns", None)
     if not isinstance(columns, dict):
@@ -300,8 +294,9 @@ def validate_schema(schema: Any) -> None:
     # below the min), the engine would have to break the bounds to honour the
     # curve — fail loudly instead of silently violating one of the two.
     for curve in getattr(schema, "outcome_curves", []) or []:
-        cols = {c.name: c for c in schema.get_columns(curve.table)} if curve.table in table_names else {}
-        col = cols.get(getattr(curve, "column", None))
+        curve_columns: Dict[Any, Any] = (
+            {c.name: c for c in schema.get_columns(curve.table)} if curve.table in table_names else {})
+        col = curve_columns.get(getattr(curve, "column", None))
         if col is None:
             continue
         params = getattr(col, "distribution_params", {}) or {}
@@ -392,10 +387,6 @@ def validate_schema(schema: Any) -> None:
     if issues:
         raise SchemaValidationError(issues)
 
-import numpy as np
-import pandas as pd
-
-from misata.engines import FactEngine
 
 
 class Severity(Enum):
@@ -735,7 +726,7 @@ class DataValidator:
                 tolerance = 0.01 if self._column_decimals(table_name, curve.column) else 0.0
                 mismatches = [
                     (expected, actual)
-                    for expected, actual in zip(curve.targets, actual_values)
+                    for expected, actual in zip(curve.targets, actual_values, strict=True)
                     if abs(expected - actual) > tolerance
                 ]
                 if mismatches:
@@ -837,7 +828,7 @@ class CsvValidationReport:
             try:
                 sc_cols = schema.get_columns(name)
                 schema_col_map = {c.name: c for c in sc_cols}
-            except Exception:
+            except (AttributeError, TypeError):
                 pass
 
         for col in df.columns:
@@ -857,7 +848,7 @@ class CsvValidationReport:
                 try:
                     pd.to_datetime(series.dropna().iloc[:20])
                     sem = "date"
-                except Exception:
+                except (ValueError, TypeError, OverflowError):
                     sem = "categorical" if n_unique / max(len(df), 1) < 0.2 else "text"
 
             range_str = ""
@@ -875,7 +866,7 @@ class CsvValidationReport:
                 try:
                     dt = pd.to_datetime(series.dropna())
                     range_str = f"{dt.min().date()} → {dt.max().date()}"
-                except Exception:
+                except (ValueError, TypeError, OverflowError, AttributeError):
                     pass
 
             notes = []
@@ -910,7 +901,7 @@ class CsvValidationReport:
                     issues.append(f"{col}: schema expects {expected!r} but found {sem!r}")
                     deductions += 8
                 else:
-                    notes.append(f"schema ✓")
+                    notes.append("schema ✓")
 
                 if sc.unique and n_unique < len(df):
                     dup = len(df) - n_unique
@@ -1246,7 +1237,7 @@ class StreamingDataValidator:
                 tolerance = 0.01 if self._column_decimals(table_name, curve.column) else 0.0
                 mismatches = [
                     (expected, actual)
-                    for expected, actual in zip(curve.targets, actual_values)
+                    for expected, actual in zip(curve.targets, actual_values, strict=True)
                     if abs(expected - actual) > tolerance
                 ]
                 if not mismatches:

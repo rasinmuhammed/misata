@@ -2,9 +2,9 @@
 
 Faker has a native Arabic person provider for ``ar_SA`` only. ``ar_AE``,
 ``ar_BH``, ``ar_JO`` and ``ar_EG`` fall back to the English provider
-silently, so before this module a Qatari, Emirati, Kuwaiti, Bahraini or
-Omani customer table came back with names like "Gerald Holden" next to
-correctly localised cities and IDs.
+silently, which would put names like "Gerald Holden" in a Qatari, Emirati,
+Kuwaiti, Bahraini or Omani customer table next to correctly localised cities
+and IDs.
 
 The pools below are written in Arabic script, matching what ``ar_SA``
 already returns, and family names are chosen per country so an Omani
@@ -17,7 +17,7 @@ the region ("الكواري", not "كواري").
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 
 _MALE: List[str] = [
     "محمد", "أحمد", "عبدالله", "خالد", "سالم", "سعود", "فهد", "ناصر", "راشد",
@@ -86,17 +86,17 @@ def install_gulf_names(fake, locale: str) -> None:
 
     class GulfNameProvider(BaseProvider):
         def first_name_male(self) -> str:
-            return self.random_element(male)
+            return cast(str, self.random_element(male))
 
         def first_name_female(self) -> str:
-            return self.random_element(female)
+            return cast(str, self.random_element(female))
 
         def first_name(self) -> str:
             pool = male if self.generator.random.random() < 0.5 else female
-            return self.random_element(pool)
+            return cast(str, self.random_element(pool))
 
         def last_name(self) -> str:
-            return self.random_element(family)
+            return cast(str, self.random_element(family))
 
         last_name_male = last_name
         last_name_female = last_name

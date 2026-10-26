@@ -11,27 +11,18 @@ This module implements vectorized data generation with support for:
 
 import os
 import re
-import warnings
 import zlib
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-# Lookup/reference tables enumerate labels (property_types, order_statuses…);
-# their label columns must be distinct and domain-appropriate.
-_REFERENCE_TABLE_RE = re.compile(
-    r"(?:^|_)(?:types?|status(?:es)?|categor(?:y|ies)|tiers?|levels?|"
-    r"methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?|classes|"
-    r"segments?|sizes?|grades?|ranks?|bands?|brackets?)$",
-    re.IGNORECASE,
-)
-
 from misata.assets import AssetStore
 from misata.curve_inheritance import TemporalDensityMap, resolve_inherits_curve_from
 from misata.engines import FactEngine
+from misata.exceptions import ConformanceWarning, warn
 # Use the original generators.py TextGenerator which supports seed
 from misata.generators_legacy import TextGenerator
 from misata.noise import NoiseInjector
@@ -43,6 +34,15 @@ from misata.schema import Column, Relationship, ScenarioEvent, SchemaConfig
 from misata.validation import StreamingDataValidator
 from misata.vocabulary import SemanticVocabularyGenerator
 from misata.workflows import WorkflowEngine
+
+# Lookup/reference tables enumerate labels (property_types, order_statuses…);
+# their label columns must be distinct and domain-appropriate.
+_REFERENCE_TABLE_RE = re.compile(
+    r"(?:^|_)(?:types?|status(?:es)?|categor(?:y|ies)|tiers?|levels?|"
+    r"methods?|channels?|stages?|roles?|priorit(?:y|ies)|kinds?|classes|"
+    r"segments?|sizes?|grades?|ranks?|bands?|brackets?)$",
+    re.IGNORECASE,
+)
 
 
 # Column-name tokens whose values are money-like and therefore right-skewed in
@@ -141,8 +141,9 @@ def _datetime_range_ns(start: "pd.Timestamp", end: "pd.Timestamp") -> "tuple[int
     warning instead of crashing with ``low >= high``.
     """
     if end < start:
-        warnings.warn(
-            f"date range start {start.date()} is after end {end.date()}; swapping"
+        warn(
+            f"date range start {start.date()} is after end {end.date()}; swapping",
+            ConformanceWarning,
         )
         start, end = end, start
     if end == start:
@@ -201,6 +202,23 @@ class GenerationResult:
     table_row_counts: Dict[str, int] = field(default_factory=dict)
 
 
+@dataclass
+class _BufferPlan:
+    """Which tables a run materialises whole, and the passes that need them."""
+
+    tables: set
+    whole_table_rules: set
+    lifecycle_tables: set
+    dyn_tables: set
+    rollup_specs: list
+    rollup_acc: Any
+    xt_constraints: list
+    group_share_specs: list
+    waterfall_specs: list
+    stock_flow_specs: list
+    scd2_tables: set
+
+
 _MISSING = object()
 
 
@@ -247,7 +265,7 @@ class DataSimulator:
                  smart_mode: bool = False, use_llm: bool = True,
                  custom_generators: Optional[Dict[str, Dict[str, Any]]] = None,
                  preloaded_context: Optional[Dict[str, pd.DataFrame]] = None,
-                 skip_tables: Optional[Any] = None):
+                 skip_tables: Optional[Any] = None, strict: bool = True):
         """
         Initialize the simulator.
 
@@ -260,15 +278,20 @@ class DataSimulator:
             custom_generators: Optional dict of ``{table: {column: callable}}`` where
                 each callable receives ``(partial_df, context_tables)`` and returns a
                 ``pd.Series`` or array of length ``len(partial_df)``.
+            strict: Refuse declarations that cannot all hold, raising
+                :class:`~misata.feasibility.InfeasibleSchema` before the first
+                row is generated. False keeps the warn-and-resolve behaviour.
         """
         from misata.validation import validate_schema, repair_curve_time_columns
         # Repair before validating, not after: a curve's time_column can
         # arrive pointing at a plain categorical column (an LLM or a
         # compositional parser naming it "month" rather than typing it as a
-        # date) regardless of which parser produced this schema. Fixing it
-        # here, once, at the entry point every caller passes through, beats
-        # patching every parser separately. See repair_curve_time_columns's
-        # docstring for the bug this closes.
+        # date) regardless of which parser produced this schema. Repairing it
+        # here, at the entry point every caller passes through, covers every
+        # parser at once. repair_curve_time_columns documents the repair.
+        # The simulator works on its own copy: repairs, presets and semantic
+        # inference never reach the schema the caller holds.
+        config = config.model_copy(deep=True)
         repair_curve_time_columns(config)
         if getattr(config, "preset", None):
             from misata.presets import apply_preset
@@ -277,12 +300,15 @@ class DataSimulator:
 
 
         self.config = config
+        self.strict = strict
         self.context: Dict[str, pd.DataFrame] = {}  # Lightweight context (IDs only)
         self._pk_store: Dict[str, np.ndarray] = {}  # Full PK arrays for FK sampling
         self._key_store: Dict[Tuple[str, str], np.ndarray] = {}  # the same for parent keys not named "id"
         # (table, column) -> values already emitted for a unique text column,
         # so uniqueness holds across batches rather than within one.
         self._unique_text_seen: Dict[tuple, set] = {}
+        # (table, column) -> parent keys a unique foreign key has already used.
+        self._unique_fk_used: Dict[Tuple[str, str], np.ndarray] = {}
         self.text_gen = TextGenerator(seed=config.seed)
         self.batch_size = batch_size
         self.smart_mode = smart_mode
@@ -295,10 +321,11 @@ class DataSimulator:
         self._sequence_counters: Dict[str, int] = {}    # Stable counters for primary keys
         self._smart_pools: Dict[str, np.ndarray] = {}   # Cache smart value pools
         self._text_pools: Dict[str, np.ndarray] = {}    # Cache text pools for vectorized sampling
-        # Gap 3: parent table temporal density maps for child-table curve inheritance.
-        # Populated after _generate_fact_table() and used during FK + date generation.
+        # Temporal density of each curve-shaped parent table, so child tables can
+        # inherit its shape. Populated after _generate_fact_table() and read during
+        # FK and date generation.
         self._parent_temporal_density: Dict[str, TemporalDensityMap] = {}
-        # Gap B: per-table, per-period running totals for relative-curve accumulation.
+        # Per-table, per-period running totals for relative curves across batches.
         # Structure: {table_name: {period_key: running_sum}}
         self._relative_curve_totals: Dict[str, Dict[str, float]] = {}
 
@@ -326,8 +353,8 @@ class DataSimulator:
             _attached = auto_attach_capsules(self.config, self.domain_capsule)
             if _attached:
                 self.domain_capsule.metadata["registry_capsules"] = _attached
-        except Exception:
-            pass  # registry is an enhancement, never a failure mode
+        except Exception:  # noqa: BLE001 - registry capsules are an enhancement, never a failure mode
+            pass
         # User-supplied capsule file: its vocabularies beat built-in pools.
         capsule_file = getattr(realism, "capsule_file", None)
         if capsule_file:
@@ -358,7 +385,7 @@ class DataSimulator:
         try:
             from misata.locales.registry import LocaleRegistry
             self._locale_faker = LocaleRegistry.global_instance().get_faker(self.locale)
-        except Exception:
+        except Exception:  # noqa: BLE001 - Faker may reject any locale; the built-in generators stand in
             self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
 
@@ -683,9 +710,10 @@ class DataSimulator:
             t = pool_t[self.rng.integers(0, len(pool_t))]
             out.append(_TEMPLATE_PLACEHOLDER_RE.sub(_fill, t))
         if missing:
-            warnings.warn(
+            warn(
                 f"Column '{column.name}': no variable pool for placeholder(s) "
-                f"{sorted(missing)}; left intact."
+                f"{sorted(missing)}; left intact.",
+                ConformanceWarning,
             )
         return np.array(out)
 
@@ -743,8 +771,8 @@ class DataSimulator:
             try:
                 from misata.smart_values import SmartValueGenerator
                 self._smart_gen = SmartValueGenerator()
-            except Exception as exc:
-                warnings.warn(f"Smart value generation unavailable: {exc}")
+            except Exception as exc:  # noqa: BLE001 - smart values are optional; generation warns and continues
+                warn(f"Smart value generation unavailable: {exc}")
                 self._smart_gen = None
         return self._smart_gen
 
@@ -868,8 +896,8 @@ class DataSimulator:
             and relationship.parent_table in self._pk_store
         ):
             return self._pk_store[relationship.parent_table]
-        # The same for a key named anything else (orders.order_id): without it a
-        # child of a parent past MAX_CONTEXT_ROWS only ever drew the first rows.
+        # The same for a key named anything else (orders.order_id), so a child
+        # of a parent past MAX_CONTEXT_ROWS draws from every row, not the first.
         if not relationship.filters and (relationship.parent_table, relationship.parent_key) in self._key_store:
             return self._key_store[(relationship.parent_table, relationship.parent_key)]
 
@@ -877,7 +905,7 @@ class DataSimulator:
         if relationship.parent_key not in parent_df.columns:
              return np.array([])
 
-        # Apply filters if defined (Logic Gap Fix)
+        # Apply filters if defined
         if relationship.filters:
             mask = np.ones(len(parent_df), dtype=bool)
             for col, val in relationship.filters.items():
@@ -899,6 +927,14 @@ class DataSimulator:
             valid_ids = parent_df[relationship.parent_key].values
 
         return valid_ids
+
+    def _lifecycle_timestamps(self, table_name: str) -> set:
+        """Per-state timestamp columns a lifecycle on this table owns."""
+        owned: set = set()
+        for spec in (getattr(self.config, "lifecycles", None) or []):
+            if spec.table == table_name:
+                owned.update(spec.timestamp_columns())
+        return owned
 
     def _derived_time_columns(self, table_name: str) -> set:
         """Timestamps that are consequences rather than causes.
@@ -1049,7 +1085,7 @@ class DataSimulator:
         orphaned = alive == 0
         if orphaned.any():
             first = pd.Timestamp(birth_sorted[0]).date()
-            warnings.warn(
+            warn(
                 f"Temporal eligibility {relationship.parent_table}->"
                 f"{relationship.child_table}.{relationship.child_key}: "
                 f"{int(orphaned.sum())} of {size} rows happened before the "
@@ -1057,14 +1093,15 @@ class DataSimulator:
                 f"({relationship.parent_time} starts {first}); they reference "
                 f"the earliest parent, which violates the declaration. Move "
                 f"{relationship.parent_table}.{relationship.parent_time} "
-                f"earlier, or start {relationship.child_table} later."
+                f"earlier, or start {relationship.child_table} later.",
+                ConformanceWarning,
             )
             alive = np.maximum(alive, 1)
 
         draw = (self.rng.random(size) * alive).astype("int64")
         draw = np.minimum(draw, alive - 1)
         values = ids_sorted[draw]
-        birth_map = {pid: int(b) for pid, b in zip(ids_sorted, birth_sorted)}
+        birth_map = {pid: int(b) for pid, b in zip(ids_sorted, birth_sorted, strict=True)}
         return values, (birth_map, child_ns)
 
     def _partitioned_fk(
@@ -1162,21 +1199,22 @@ class DataSimulator:
             values[rows] = ids[draw]
 
         if stranded:
-            warnings.warn(
+            warn(
                 f"Partitioned foreign key {relationship.parent_table}->"
                 f"{relationship.child_table}.{relationship.child_key}: "
                 f"{stranded} of {size} rows are in a partition "
                 f"({', '.join(cols)}) that has no {relationship.parent_table} "
                 f"row at all, so they cannot stay inside it. Give every "
                 f"partition at least one {relationship.parent_table} row, or "
-                f"raise {relationship.parent_table}.row_count."
+                f"raise {relationship.parent_table}.row_count.",
+                ConformanceWarning,
             )
 
         eligibility = None
         if births is not None:
-            eligibility = ({pid: int(b) for pid, b in zip(p_pids, births)},
+            eligibility = ({pid: int(b) for pid, b in zip(p_pids, births, strict=True)},
                            child_ns)
-        partition = ({pid: int(code) for pid, code in zip(p_pids, p_codes)},
+        partition = ({pid: int(code) for pid, code in zip(p_pids, p_codes, strict=True)},
                      c_codes)
         return values, eligibility, partition
 
@@ -1281,25 +1319,31 @@ class DataSimulator:
                    relationship.child_table, relationship.child_key)
         state = self.__dict__.setdefault("_min_children_state", {})
         seen, rows_so_far, warned, carried = state.get(rel_key, (Counter(), 0, False, []))
-        counts = Counter(values.tolist())
-        counts.update(seen)
+        # A parent's count is its earlier batches plus this one, looked up per
+        # parent rather than merged, so a batch costs time in its own size.
+        batch = Counter(values.tolist())
+
+        def count(pid: Any) -> int:
+            return int(seen.get(pid, 0)) + int(batch.get(pid, 0))
+
         table = self.config.get_table(relationship.child_table)
         planned = (self._planned_row_count(relationship.child_table, table.row_count)
                    if table is not None else len(values))
         last_batch = rows_so_far + len(values) >= planned
         if not warned and min_children * len(parent_ids) > planned:
-            warnings.warn(
+            warn(
                 f"Relationship {relationship.parent_table}->{relationship.child_table}: "
                 f"min_children={min_children} needs at least "
                 f"{min_children * len(parent_ids)} child rows but only "
-                f"{planned} exist; covering as many parents as possible."
+                f"{planned} exist; covering as many parents as possible.",
+                ConformanceWarning,
             )
             warned = True
         # Each batch owes the parents in proportion to its share of the rows,
         # plus any an earlier batch could not reach. Owing every uncovered
-        # parent at once stole whole batches until all were covered, then let
-        # the popular parents pile up unchecked (one order held 65 lines).
-        owed = parent_ids
+        # parent at once would steal whole batches until all were covered, then
+        # let the popular parents pile up unchecked.
+        owed: Iterable[Any] = parent_ids
         if planned > len(values):
             n = len(parent_ids)
             lo = rows_so_far * n // planned
@@ -1307,7 +1351,7 @@ class DataSimulator:
             owed = list(dict.fromkeys(list(carried) + list(parent_ids[lo:hi])))
         needed: list = []
         for pid in owed:
-            short = min_children - counts.get(pid, 0)
+            short = min_children - count(pid)
             if short > 0:
                 needed.extend([pid] * short)
         if not needed:
@@ -1325,7 +1369,7 @@ class DataSimulator:
             if ni >= len(needed):
                 break
             donor = values[pos]
-            if counts[donor] <= min_children:
+            if count(donor) <= min_children:
                 continue
             if eligibility is not None:
                 born, child_ns = eligibility
@@ -1337,20 +1381,21 @@ class DataSimulator:
                 want = parent_part.get(needed[ni], _MISSING)
                 if want is not _MISSING and child_part[pos] != want:
                     continue      # that parent lives in another partition
-            counts[donor] -= 1
+            batch[donor] -= 1
             values[pos] = needed[ni]
-            counts[needed[ni]] = counts.get(needed[ni], 0) + 1
+            batch[needed[ni]] += 1
             ni += 1
         seen.update(values.tolist())
         state[rel_key] = (seen, rows_so_far + len(values), warned, list(dict.fromkeys(owed_all[ni:])))
         if last_batch and not warned:
             remaining = sum(1 for pid in parent_ids if seen.get(pid, 0) < min_children)
             if remaining:
-                warnings.warn(
+                warn(
                     f"Relationship {relationship.parent_table}->{relationship.child_table}: "
                     f"{remaining} parent(s) remain under min_children="
                     f"{min_children}; the child table cannot cover them without "
-                    "starving other parents."
+                    "starving other parents.",
+                    ConformanceWarning,
                 )
         return values
 
@@ -1363,6 +1408,24 @@ class DataSimulator:
                 return True
         return False
 
+    def _unique_fk(self, table_name: str, column_name: str, relationship: Any,
+                   parent_ids: np.ndarray, size: int) -> np.ndarray:
+        """Parent keys for a unique foreign key, never repeating across batches."""
+        key = (table_name, column_name)
+        used = self._unique_fk_used.get(key)
+        available = parent_ids if used is None else parent_ids[~np.isin(parent_ids, used)]
+        if size > len(available):
+            raise ValueError(
+                f"{table_name}.{column_name} is unique and references "
+                f"{relationship.parent_table}.{relationship.parent_key}, so it can "
+                f"hold at most one row per parent: {len(available):,} unused parents, "
+                f"{size:,} rows requested. Lower {table_name}'s row count to "
+                f"{len(parent_ids):,} or fewer."
+            )
+        chosen = self.rng.choice(available, size=size, replace=False)
+        self._unique_fk_used[key] = chosen if used is None else np.concatenate([used, chosen])
+        return chosen
+
     def _generate_self_referential_fk(
         self,
         relationship: Relationship,
@@ -1372,10 +1435,9 @@ class DataSimulator:
         """Generate a self-referential FK as a forest (orgs.parent_org_id → orgs.org_id).
 
         A hierarchy is not "any row may point at any row minus itself". That
-        rule permits cycles, and the Warren suite duly found them: two orgs
-        naming each other as parent, and a four-hop loop. It also produced no
-        roots at all, because foreign keys were exempt from nulling, so every
-        node had a parent and a cycle was arithmetically unavoidable.
+        rule permits cycles (two orgs naming each other as parent, or a
+        four-hop loop), and without roots every node has a parent, so a cycle
+        is arithmetically unavoidable.
 
         This builds a forest instead, and does it by construction rather than by
         repair: rows are given a fixed order, and a row may only reference a row
@@ -1398,12 +1460,13 @@ class DataSimulator:
             # Without the row's own key there is no order to reference
             # backwards along, so fall back to whatever already exists.
             if len(context_ids) == 0:
-                warnings.warn(
+                warn(
                     f"Self-referential foreign key '{relationship.child_key}' in "
                     f"'{relationship.child_table}': no '{relationship.parent_key}' "
                     f"values available yet (declare '{relationship.parent_key}' "
                     f"before '{relationship.child_key}'). Emitting NULLs to "
-                    f"preserve integrity."
+                    f"preserve integrity.",
+                    ConformanceWarning,
                 )
                 return np.array([None] * size, dtype=object)
             return self.rng.choice(context_ids, size=size)
@@ -1459,9 +1522,9 @@ class DataSimulator:
     def _collect_context_columns(self, table_name: str, df: pd.DataFrame) -> List[str]:
         """Return the columns that must be retained for future FK/date/depends_on lookups.
 
-        Gap 3 extension: also retains the time column from any OutcomeCurve or RateCurve
-        attached to this table, so that child tables can weight FK sampling by temporal
-        density (Level-1 inheritance) without any additional config.
+        Also retains the time column of any OutcomeCurve or RateCurve attached to
+        this table, so child tables can weight FK sampling by temporal density
+        (level-1 inheritance) without any additional config.
         """
         table = self.config.get_table(table_name)
         if table and table.is_reference:
@@ -1563,8 +1626,8 @@ class DataSimulator:
                     ):
                         needed_cols.add(target_col)
 
-        # Gap 3: retain the outcome/rate curve time column so child tables can
-        # perform temporal FK weighting (Level-1 curve inheritance).
+        # Retain the outcome/rate curve time column so child tables can weight
+        # FK sampling by time (level-1 curve inheritance).
         for curve in getattr(self.config, "outcome_curves", []):
             if getattr(curve, "table", None) == table_name:
                 needed_cols.add(getattr(curve, "time_column", "date"))
@@ -1654,7 +1717,6 @@ class DataSimulator:
         patterns) that each ignore it. A capsule pool has a finite number of
         company names, so a unique column drawing from one collides as soon as
         the row count approaches the pool size, and Postgres rejects the insert.
-        Seeding a Rails-shaped schema died on `tags.name` this way.
 
         Enforcing it here rather than at those four sites is deliberate: this is
         the one function every column passes through, so a branch added later
@@ -1665,6 +1727,11 @@ class DataSimulator:
         insert, whichever branch produced it.
         """
         values = self._generate_column_raw(table_name, column, size, table_data)
+        if column.name in self._lifecycle_timestamps(table_name):
+            # The lifecycle writes these over the finished table. Until then
+            # they are empty, so no pass reacts to placeholder dates; the draw
+            # above still runs, keeping every other column's values unchanged.
+            return np.full(size, np.datetime64("NaT"), dtype="datetime64[ns]")
         max_len = (column.distribution_params or {}).get("max_length")
         if max_len and column.type in ("text", "categorical") and len(values):
             values = _truncate_text(values, int(max_len))
@@ -1957,8 +2024,8 @@ class DataSimulator:
                                 parent_values = parent_map.reindex(fk_values).values
                     else:
                         parent_values = None
-                except Exception as e:
-                    warnings.warn(f"Failed to resolve cross-table dependency {parent_col}: {e}")
+                except Exception as e:  # noqa: BLE001 - an unresolved dependency warns and the column generates unmapped
+                    warn(f"Failed to resolve cross-table dependency {parent_col}: {e}", ConformanceWarning)
             
             if parent_values is not None and mapping:
                 
@@ -2140,7 +2207,7 @@ class DataSimulator:
                     from misata.locales.registry import LocaleRegistry
                     pack = LocaleRegistry.global_instance().get_pack(self.locale)
                     return np.array([pack.country_name] * size)
-                except Exception:
+                except (ImportError, LookupError):
                     pass
 
             choices = params.get("choices", ["A", "B", "C"])
@@ -2237,8 +2304,12 @@ class DataSimulator:
                     # Check range capacity. The inclusive range [low, high] holds
                     # (high - low + 1) distinct integers.
                     if (high - low + 1) < total_needed_for_table:
-                        # Auto-expand range to fix user error (common in tests/small ranges)
-                        warnings.warn(f"Range {high-low+1} too small for unique column {column.name} (needs {total_needed_for_table}). Extending max.")
+                        # A default range is sized to the table silently; a
+                        # declared one only reaches here with strict=False.
+                        if "max" in params:
+                            warn(f"Range {high-low+1} too small for unique column "
+                                 f"{column.name} (needs {total_needed_for_table}). "
+                                 f"Extending max.", ConformanceWarning)
                         high = low + total_needed_for_table + 100
 
                     range_size = high - low + 1
@@ -2301,10 +2372,10 @@ class DataSimulator:
                 return np.array(values).astype(int)
             elif distribution == "normal":
                 mean = params.get("mean", 100)
-                # Std scales with the mean when unspecified (fixed 20 made
-                # large-mean int columns visually constant). For small means a
-                # flat std of 20 drove counts deeply negative (mean=2 gave
-                # ~45% negative rows); a count-scale std keeps the spread sane.
+                # Std scales with the mean when unspecified: a fixed 20 makes
+                # large-mean int columns visually constant, and for small means
+                # drives counts deeply negative (mean=2 would give about 45%
+                # negative rows). A count-scale std keeps the spread sane.
                 if "std" in params:
                     std = params["std"]
                 elif isinstance(mean, (int, float)) and abs(float(mean)) > 80:
@@ -2443,23 +2514,22 @@ class DataSimulator:
                 per_row = parent_map.reindex(fk_vals).values.astype(float)
                 return per_row
 
-            # Default mean/std must respect declared bounds. A normal with no
-            # explicit mean/std used to fall back to N(100, 20) regardless of
-            # min/max; with max below ~40 the post-clip collapsed the column
-            # to a constant (min 0, max 5 → every value 5.0), and the clip
-            # ties silently wrecked declared correlations.
+            # Default mean/std must respect declared bounds. A fixed N(100, 20)
+            # clipped to a narrow [min, max] collapses the column to a constant
+            # (min 0, max 5 gives every value 5.0), and the tied values break
+            # declared correlations.
             _lo, _hi = params.get("min"), params.get("max")
             # Suffix scale priors: a *_multiplier defaults near 1.5, never the
-            # generic N(100, 20) (ride-share field report: base_fare_multiplier
-            # of 73–102). Applied only when nothing explicit was declared.
+            # generic N(100, 20), which would read as a multiplier of 73 to 102.
+            # Applied only when nothing explicit was declared.
             _cname = column.name.lower()
             if not any(k in params for k in ("mean", "std", "min", "max", "mu", "sigma", "choices")):
                 if _cname.endswith(("_multiplier", "_factor", "_coefficient")) or _cname == "multiplier":
                     params = {**params, "min": 0.8, "max": 3.5}
                 elif (_cname.endswith(("_percent", "_pct", "_percentage"))
                       or _cname in ("percent", "percentage")):
-                    # "percent" means out of 100. Without this a discount_percent
-                    # column ran to 162 (a 162% discount).
+                    # "percent" means out of 100, so a discount_percent stays
+                    # inside 0 to 100.
                     params = {**params, "min": 0.0, "max": 100.0}
                 elif _cname.endswith(("_rate", "_ratio", "_share", "_fraction", "_probability")):
                     params = {**params, "min": 0.0, "max": 1.0}
@@ -2526,8 +2596,9 @@ class DataSimulator:
                 and "std" not in params
             ):
                 # Std must scale with the declared mean. A fixed default of 20
-                # made mean=80000 columns visually constant (±0.06% spread) and
-                # correlation-dead. Bounds, when present, cap the spread.
+                # would make a mean=80000 column visually constant (±0.06%
+                # spread) and correlation-dead. Bounds, when present, cap the
+                # spread.
                 _default_mean = float(_raw_mean)
                 if _has_bounds:
                     _default_std = (float(_hi) - float(_lo)) / 6.0
@@ -2641,11 +2712,22 @@ class DataSimulator:
                             np.floor(self.rng.exponential(span / 4.0, size)), span).astype(int)
                     else:
                         deltas = self.rng.integers(min_delta, max_delta + 1, size=size)
-                    base_dates = pd.to_datetime(table_data[base_col], errors="coerce")
-                    dates = base_dates + pd.to_timedelta(deltas, unit="D")
+                    base_dates = pd.DatetimeIndex(
+                        pd.to_datetime(table_data[base_col], errors="coerce"))
+                    dates = (base_dates + pd.to_timedelta(deltas, unit="D")).normalize()
+                    # The derived day keeps the weekly rhythm of its own
+                    # mechanism; a row the shift would carry outside its
+                    # declared gap from the base column keeps its day.
+                    earliest = (base_dates + pd.Timedelta(days=min_delta)).normalize()
+                    latest = (base_dates + pd.Timedelta(days=max_delta)).normalize()
+                    if earliest.notna().any():
+                        shaped = self._shape_activity_times(
+                            dates, table_name, column, earliest.min(), latest.max(),
+                            date_only=True)
+                        dates = shaped.where((shaped >= earliest) & (shaped <= latest), dates)
                     if params.get("max_date") == "today":
                         today = pd.Timestamp.now().normalize()
-                        dates = dates.clip(upper=today)
+                        dates = dates.where(~(dates > today), today)
                     # column.type == "date" here, never "datetime": the
                     # contract is a calendar day, not a timestamp, regardless
                     # of whether the base column it's offset from carried a
@@ -2686,11 +2768,11 @@ class DataSimulator:
                             # "date" means a calendar day, never a timestamp.
                             values = parent_dates + deltas_ns
                             return pd.DatetimeIndex(pd.to_datetime(values)).normalize().values
-                except Exception as e:
-                    warnings.warn(f"Failed to generate relative date: {e}. Falling back to random range.")
+                except Exception as e:  # noqa: BLE001 - falls back to the declared range with a warning
+                    warn(f"Failed to generate relative date: {e}. Falling back to random range.", ConformanceWarning)
 
-            # Gap 3 — Level-2 curve inheritance: ``inherits_curve_from: "parent_table.time_col"``
-            # Samples dates using the parent table's temporal density so that child row
+            # Level-2 curve inheritance: ``inherits_curve_from: "parent_table.time_col"``
+            # samples dates from the parent table's temporal density, so child row
             # timestamps cluster around the same periods as their parent rows.
             inherits_from = params.get("inherits_curve_from")
             if inherits_from:
@@ -2712,16 +2794,13 @@ class DataSimulator:
             random_ints = self.rng.integers(start_int, end_int, size=size)
             values = pd.to_datetime(random_ints)
 
-            # This is the "date" branch, not "datetime": _add_realistic_time
-            # exists for genuine timestamps (appointments snapping to 15-min
-            # grids, signups following waking-hour rhythms) and was being
-            # called here regardless, which meant a plain "date" column
-            # carried a time-of-day anyway -- drawn_amount-adjacent bug: a
-            # loan origination date reading "2025-09-12 08:16:54" gives away
-            # a synthetic file as fast as an unrounded dollar figure does.
-            # normalize() truncates to midnight, matching what "date" means
-            # everywhere else in this schema. Activity dates still get the
-            # weekly rhythm their semantics imply.
+            # This is the "date" branch, not "datetime": time-of-day shaping
+            # (appointments on 15-minute grids, signups in waking hours) is for
+            # genuine timestamps. A loan origination date reading
+            # "2025-09-12 08:16:54" gives a synthetic file away, so normalize()
+            # truncates to midnight, matching what "date" means everywhere else
+            # in the schema. Activity dates still get the weekly rhythm their
+            # semantics imply.
             return self._shape_activity_times(
                 pd.DatetimeIndex(values).normalize(), table_name, column,
                 start, end, date_only=True)
@@ -2735,9 +2814,10 @@ class DataSimulator:
                     break
 
             if relationship is None:
-                warnings.warn(
+                warn(
                     f"No relationship defined for foreign key '{column.name}' "
-                    f"in table '{table_name}'. Generating sequential IDs instead."
+                    f"in table '{table_name}'. Generating sequential IDs instead.",
+                    ConformanceWarning,
                 )
                 values = self.rng.integers(1, max(size // 10, 100), size=size)
                 return values
@@ -2751,9 +2831,10 @@ class DataSimulator:
 
             # Check context instead of data
             if relationship.parent_table not in self.context:
-                warnings.warn(
+                warn(
                     f"Parent table '{relationship.parent_table}' not yet generated for "
-                    f"foreign key '{column.name}'. Generating sequential IDs instead."
+                    f"foreign key '{column.name}'. Generating sequential IDs instead.",
+                    ConformanceWarning,
                 )
                 values = self.rng.integers(1, max(size // 10, 100), size=size)
                 return values
@@ -2764,9 +2845,10 @@ class DataSimulator:
                 # The parent has no rows to reference (e.g. a 0-row parent). Emit
                 # NULL foreign keys rather than fabricating orphan IDs — preserving
                 # the engine's referential-integrity guarantee.
-                warnings.warn(
+                warn(
                     f"Parent table '{relationship.parent_table}' has no rows; foreign key "
-                    f"'{column.name}' in '{table_name}' will be null (nothing to reference)."
+                    f"'{column.name}' in '{table_name}' will be null (nothing to reference).",
+                    ConformanceWarning,
                 )
                 return np.array([None] * size, dtype=object)
 
@@ -2777,15 +2859,7 @@ class DataSimulator:
             # insert. Supabase's `profiles.id -> auth.users.id` is the canonical
             # shape, where the FK column IS the primary key.
             if column.unique:
-                if size > len(parent_ids):
-                    raise ValueError(
-                        f"{table_name}.{column.name} is unique and references "
-                        f"{relationship.parent_table}.{relationship.parent_key}, so it can "
-                        f"hold at most one row per parent: {len(parent_ids):,} available, "
-                        f"{size:,} requested. Lower {table_name}'s row count to "
-                        f"{len(parent_ids):,} or fewer."
-                    )
-                return self.rng.choice(parent_ids, size=size, replace=False)
+                return self._unique_fk(table_name, column.name, relationship, parent_ids, size)
 
             # Partition isolation outranks everything, including temporal
             # eligibility, which it composes with rather than replaces: a
@@ -2821,11 +2895,10 @@ class DataSimulator:
                 probabilities = popularity / popularity.sum()
                 values = self.rng.choice(parent_ids, size=size, p=probabilities)
             else:
-                # Gap 3 — Level-1 temporal FK weighting:
-                # If the parent table was generated with an exact OutcomeCurve, its rows
-                # are non-uniformly distributed in time.  Weight FK selection by the
-                # parent row's temporal density so child rows cluster around the same
-                # time periods as their parents (realistic parent-child temporal coherence).
+                # Level-1 temporal FK weighting: a parent generated with an exact
+                # OutcomeCurve is non-uniform in time. Weighting FK selection by the
+                # parent row's temporal density makes child rows cluster around the
+                # same periods as their parents.
                 density_map = self._parent_temporal_density.get(relationship.parent_table)
                 if density_map is not None and relationship.parent_table in self.context:
                     parent_ctx = self.context[relationship.parent_table]
@@ -2847,8 +2920,8 @@ class DataSimulator:
                                     values = self.rng.choice(parent_ids, size=size, p=probabilities)
                                     return self._ensure_min_children(
                                         values, parent_ids, relationship)
-                            except Exception:
-                                pass  # Fall through to popularity sampling on any error
+                            except Exception:  # noqa: BLE001 - falls through to popularity sampling
+                                pass
                 if popularity is not None:
                     values = self.rng.choice(parent_ids, size=size,
                                              p=popularity / popularity.sum())
@@ -2918,9 +2991,8 @@ class DataSimulator:
             if "pattern" in params:
                 # Guard against unsupported regex syntax: the expander handles
                 # \d, #, ?, [..], {n} and literals. An LLM-emitted pattern like
-                # "Et+( Sj+){1,2}" would otherwise leak RAW into every row
-                # (1,500 merchants named like regexes — fraud field report).
-                # If a test expansion still looks like a regex, drop the
+                # "Et+( Sj+){1,2}" would otherwise leak raw into every row, giving
+                # merchants names that look like regexes. If a test expansion still looks like a regex, drop the
                 # pattern and fall through to the semantic path, which knows
                 # what a merchant_name should be.
                 def _leaks(expanded: str) -> bool:
@@ -2936,10 +3008,11 @@ class DataSimulator:
                         if arr.sum() > 0:
                             w = arr / arr.sum()
                     if any(_leaks(self.realistic_text._expand_pattern(p)) for p in pats):
-                        warnings.warn(
+                        warn(
                             f"Column '{column.name}': pattern uses unsupported "
                             f"regex syntax; ignoring it and using semantic "
-                            f"generation instead."
+                            f"generation instead.",
+                            ConformanceWarning,
                         )
                     else:
                         idx = self.rng.choice(len(pats), size=size, p=w)
@@ -2949,11 +3022,12 @@ class DataSimulator:
                 else:
                     _sample = self.realistic_text._expand_pattern(str(pats))
                     if _leaks(_sample):
-                        warnings.warn(
+                        warn(
                             f"Column '{column.name}': pattern "
                             f"{str(pats)[:40]!r} uses unsupported regex "
                             f"syntax; ignoring it and using semantic "
-                            f"generation instead."
+                            f"generation instead.",
+                            ConformanceWarning,
                         )
                     else:
                         return np.array([
@@ -3080,10 +3154,9 @@ class DataSimulator:
             # full semantic vocabulary is reachable from dict schemas, not
             # just the simulator aliases.
             # `subtype` is the spelling the benchmarks and several examples
-            # use, and it was reaching none of this: it is absent from the
-            # published JSON schema, so it fell through to free text and the
-            # column was filled with business-note sentences. Accept it rather
-            # than silently ignoring it.
+            # use. It is absent from the published JSON schema, so it is
+            # accepted here as a synonym rather than left to fall through to
+            # free text.
             # An explicit Column.semantic outranks everything. It is the only
             # signal here that a human actually stated, and a declaration is
             # honoured or refused, never quietly replaced by inference.
@@ -3096,7 +3169,7 @@ class DataSimulator:
             # Only a GUESSED text_type is discarded here. An explicit
             # Column.semantic is a declaration and must survive: the dict path
             # guesses text_type='name' from any column ending in _name, and
-            # that guess was wiping out `semantic: vessel_name` alongside it.
+            # that guess must not take `semantic: vessel_name` with it.
             if params.get("_text_type_is_default") and not _explicit_semantic:
                 declared = None
             # A "name" column on a lookup table (regions, teams, warehouses)
@@ -3148,9 +3221,9 @@ class DataSimulator:
             _lf = self._locale_faker
             _addr_fn = (_lf.address if _lf else None) or self.text_gen.full_address
             _phone_fn = (_lf.phone_number if _lf else None) or self.text_gen.phone_number
-            # "sentence" no longer means lorem ipsum: free-text notes come from
-            # the seeded business-note grammar, which composes thousands of
-            # distinct human-looking sentences.
+            # "sentence" is free-text notes from the seeded business-note
+            # grammar, which composes thousands of distinct human-looking
+            # sentences.
             _note_fn = lambda: str(self.realistic_text.microtext.notes(1)[0])  # noqa: E731
             _LEGACY_GEN_MAP = {
                 "sentence": (_note_fn,               "text_sentence"),
@@ -3189,7 +3262,7 @@ class DataSimulator:
             hours = self.rng.integers(start_hour, end_hour, size=size)
             minutes = self.rng.integers(0, 60, size=size)
             seconds = self.rng.integers(0, 60, size=size)
-            values = np.array([f"{h:02d}:{m:02d}:{s:02d}" for h, m, s in zip(hours, minutes, seconds)])
+            values = np.array([f"{h:02d}:{m:02d}:{s:02d}" for h, m, s in zip(hours, minutes, seconds, strict=True)])
             return values
 
         # DATETIME
@@ -3210,8 +3283,8 @@ class DataSimulator:
         """Apply a scenario event to modify data based on conditions."""
         try:
             mask = df.eval(event.condition)
-        except Exception as e:
-            warnings.warn(f"Failed to evaluate condition '{event.condition}' for event '{event.name}': {e}")
+        except Exception as e:  # noqa: BLE001 - pandas eval of a user expression can raise anything
+            warn(f"Failed to evaluate condition '{event.condition}' for event '{event.name}': {e}", ConformanceWarning)
             return df
 
         if event.modifier_type == "multiply":
@@ -3221,7 +3294,7 @@ class DataSimulator:
         elif event.modifier_type == "set":
             df.loc[mask, event.column] = event.modifier_value
         elif event.modifier_type == "function":
-            warnings.warn(f"Function modifiers not yet implemented for event '{event.name}'")
+            warn(f"Function modifiers not yet implemented for event '{event.name}'", ConformanceWarning)
 
         return df
 
@@ -3257,19 +3330,21 @@ class DataSimulator:
         # Identify affected parent rows
         try:
             affected_mask = parent_df.eval(event.condition)
-        except Exception as e:
-            warnings.warn(
+        except Exception as e:  # noqa: BLE001 - pandas eval of a user expression can raise anything
+            warn(
                 f"Cascade failed: could not evaluate condition '{event.condition}' "
-                f"on parent table '{event.table}': {e}"
+                f"on parent table '{event.table}': {e}",
+                ConformanceWarning,
             )
             return
 
         for child_table_name, column_overrides in event.propagate_to.items():
             child_df = all_tables.get(child_table_name)
             if child_df is None:
-                warnings.warn(
+                warn(
                     f"Cascade skipped: child table '{child_table_name}' not found "
-                    f"(event '{event.name}'). Was it generated?"
+                    f"(event '{event.name}'). Was it generated?",
+                    ConformanceWarning,
                 )
                 continue
 
@@ -3282,9 +3357,10 @@ class DataSimulator:
                 None,
             )
             if rel is None:
-                warnings.warn(
+                warn(
                     f"Cascade skipped: no relationship from '{event.table}' to "
-                    f"'{child_table_name}' found (event '{event.name}')."
+                    f"'{child_table_name}' found (event '{event.name}').",
+                    ConformanceWarning,
                 )
                 continue
 
@@ -3296,8 +3372,9 @@ class DataSimulator:
 
             for col, value in column_overrides.items():
                 if col not in child_df.columns:
-                    warnings.warn(
-                        f"Cascade skipped column '{col}': not present in '{child_table_name}'."
+                    warn(
+                        f"Cascade skipped column '{col}': not present in '{child_table_name}'.",
+                        ConformanceWarning,
                     )
                     continue
                 all_tables[child_table_name].loc[child_mask, col] = value
@@ -3327,11 +3404,13 @@ class DataSimulator:
         plan_table = table.model_copy(update={"row_count": planned_row_count}) if hasattr(table, "model_copy") else table
         plan = self.fact_engine.build_plan(plan_table, columns, curves)
         if plan is None:
-            warnings.warn(
+            warn(
                 f"Exact outcome curves for table '{table_name}' are incompatible. "
-                "Falling back to legacy row-wise generation."
+                "Falling back to legacy row-wise generation.",
+                ConformanceWarning,
             )
             return None
+        plan.warn_if_clamped()
 
         column_map = {column.name: column for column in columns}
 
@@ -3346,7 +3425,7 @@ class DataSimulator:
             )
             feasible = bound_value * conflict["rows"]
             direction = "at least" if conflict["sacrificed"] == "min" else "at most"
-            warnings.warn(
+            warn(
                 f"Outcome curve on '{table_name}.{conflict['column']}', period "
                 f"'{conflict['period']}': exact target {conflict['target']:,.2f} across "
                 f"{conflict['rows']} rows is infeasible under the declared "
@@ -3355,7 +3434,7 @@ class DataSimulator:
                 f"per-row values will violate the declared {conflict['sacrificed']} bound. "
                 f"Widen the bound, adjust the target, or tune "
                 f"min/max_transactions_per_period.",
-                UserWarning,
+                ConformanceWarning,
             )
 
         df_batch = self.fact_engine.generate(plan, column_map)
@@ -3374,9 +3453,10 @@ class DataSimulator:
         table_events = [event for event in self.config.events if event.table == table_name]
         for event in table_events:
             if event.column in constrained_columns:
-                warnings.warn(
+                warn(
                     f"Skipping event '{event.name}' on constrained column "
-                    f"'{table_name}.{event.column}' to preserve exact targets."
+                    f"'{table_name}.{event.column}' to preserve exact targets.",
+                    ConformanceWarning,
                 )
                 continue
             df_batch = self.apply_event(df_batch, event)
@@ -3392,17 +3472,11 @@ class DataSimulator:
         df_batch = self.fact_engine.rebalance(df_batch, plan, column_map)
         df_batch = self.fact_engine.drop_internal_columns(df_batch)
 
-        # The row-wise generation path (_generate_table_batches, below) runs
-        # _apply_null_rates as its own last pass; this exact-curve path had
-        # no equivalent call at all, so any column with a declared null_rate
-        # on a table that also carries an exact outcome curve came back
-        # 100% populated no matter what rate was declared -- found live,
-        # 2026-09-03, building the Snowplow consent/CWV columns: a `user_id`
-        # with null_rate=0.65 on `events` (which carries page_view_unit's
-        # exact curve) generated fully non-null. constrained_columns is
-        # excluded here for the opposite reason null_rates exists elsewhere:
-        # nulling a curve-controlled column would silently break the exact
-        # aggregate this whole code path exists to guarantee.
+        # Like the row-wise path (_generate_table_batches, below), the
+        # exact-curve path applies declared null rates as its last pass, so a
+        # `user_id` with null_rate=0.65 on a curve-carrying table is 65% null.
+        # constrained_columns are excluded: nulling a curve-controlled column
+        # would break the exact aggregate this code path exists to guarantee.
         df_batch = self._apply_null_rates(df_batch, table_name, extra_protected=set(constrained_columns))
 
         ordered_columns = [column.name for column in columns if column.name in df_batch.columns]
@@ -3656,17 +3730,17 @@ class DataSimulator:
             with self._anchor("fact", table_name):
                 fact_df = self._generate_fact_table(table_name, table, columns, exact_curves)
             if fact_df is not None:
-                # Gap 3: build temporal density map from the FactGenerationPlan so
-                # child tables can weight FK/date sampling by parent temporal density.
-                # We derive the density from the actual data since the plan is local
-                # to _generate_fact_table.  Using the first exact curve's time column.
+                # Record this table's temporal density so child tables can weight
+                # FK and date sampling by it. It is derived from the generated rows,
+                # since the plan is local to _generate_fact_table, using the first
+                # exact curve's time column.
                 _curve_time_col = getattr(exact_curves[0], "time_column", "date")
                 self._parent_temporal_density[table_name] = TemporalDensityMap.from_dataframe(
                     table=table_name,
                     time_column=_curve_time_col,
                     df=fact_df,
                 )
-                # Gap 1: enforce RateCurve targets (proportional pass — preserves AME=0).
+                # Enforce RateCurve targets (a proportional pass that keeps AME at 0).
                 fact_df = self._run_pass("rate_curves", table_name, 0,
                                          self._apply_rate_curves, fact_df, table_name)
                 self._update_context(table_name, fact_df)
@@ -3744,8 +3818,7 @@ class DataSimulator:
 
             # And a row in a self-referential hierarchy cannot predate the row
             # it nests inside. Registered on BOTH pipelines: `anchored` is the
-            # default, so a pass wired only into the legacy path is dead code,
-            # which is how this one first shipped doing nothing.
+            # default, so a pass wired only into the legacy path is dead code.
             df_batch = self._run_pass("self_causality", table_name, rows_generated,
                                       self._fix_self_referential_temporal,
                                       df_batch, table_name)
@@ -3784,13 +3857,12 @@ class DataSimulator:
             df_batch = self._run_pass("outcome_curves", table_name, rows_generated,
                                       self.apply_outcome_curves, df_batch, table_name)
 
-            # Gap 1: enforce RateCurve targets (post-generation proportional pass).
+            # Enforce RateCurve targets with a post-generation proportional pass.
             # Runs after apply_outcome_curves so numeric aggregates are untouched.
             df_batch = self._run_pass("rate_curves", table_name, rows_generated,
                                       self._apply_rate_curves, df_batch, table_name)
 
-            # Gap B: relative-curve cross-batch sum correction.
-            # For tables using relative curves (not exact), accumulate running
+            # Relative-curve cross-batch sum correction. For tables using relative curves (not exact), accumulate running
             # per-period totals and apply a correction factor per batch so the
             # final sum per period converges to the implied target.
             df_batch = self._run_pass("rebalance", table_name, rows_generated,
@@ -3811,8 +3883,8 @@ class DataSimulator:
 
             rows_generated += batch_size
 
-        # Gap C: propagate temporal density map transitively to this table
-        # so that its children can weight FK sampling by the inherited density.
+        # Propagate the temporal density map transitively to this table, so its
+        # children can weight FK sampling by the inherited density.
         self._propagate_density_map(table_name)
 
     def apply_constraints(self, df: pd.DataFrame, table: Any) -> pd.DataFrame:
@@ -3882,7 +3954,7 @@ class DataSimulator:
                     if isinstance(x_val, str) and '-' in x_val:
                         try:
                             x_val = pd.to_datetime(x_val).month
-                        except Exception:
+                        except (TypeError, ValueError, OverflowError):
                             x_val = 1
                     p_dict['month'] = pd.to_numeric(x_val, errors='coerce')
                     
@@ -3969,24 +4041,23 @@ class DataSimulator:
                 # Apply!
                 df[target_col] = df[target_col] * row_factors
 
-                # Hold the period totals and the declared bounds together.
-                # The curve used to simply win and warn; both can be satisfied
-                # whenever the arithmetic allows, and when it cannot the schema
-                # is contradictory and says so instead of choosing for you.
+                # Hold the period totals and the declared bounds together. Both
+                # can be satisfied whenever the arithmetic allows; when it cannot,
+                # the schema is contradictory and says so instead of choosing.
                 df = self._fit_curve_within_bounds(
                     df, table_name, target_col, time_col,
                     getattr(curve, "time_unit", "month"),
                 )
                 self._warn_curve_bound_violations(df, table_name, target_col)
 
-            except Exception as e:
-                warnings.warn(f"Failed to apply outcome curve for {table_name}: {e}")
+            except Exception as e:  # noqa: BLE001 - a curve that cannot be applied warns and leaves the table as generated
+                warn(f"Failed to apply outcome curve for {table_name}: {e}", ConformanceWarning)
                 continue
                 
         return df
 
     # ------------------------------------------------------------------
-    # Gap 1 — RateCurve enforcement
+    # RateCurve enforcement
     # ------------------------------------------------------------------
 
     def _apply_rate_curves(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
@@ -4017,15 +4088,17 @@ class DataSimulator:
 
         for rc in table_curves:
             if rc.column not in df.columns:
-                warnings.warn(
+                warn(
                     f"RateCurve: column '{rc.column}' not found in '{table_name}'. "
-                    "Skipping rate enforcement."
+                    "Skipping rate enforcement.",
+                    ConformanceWarning,
                 )
                 continue
             if rc.time_column not in df.columns:
-                warnings.warn(
+                warn(
                     f"RateCurve: time_column '{rc.time_column}' not found in "
-                    f"'{table_name}'. Skipping rate enforcement."
+                    f"'{table_name}'. Skipping rate enforcement.",
+                    ConformanceWarning,
                 )
                 continue
             if not rc.rate_points:
@@ -4097,7 +4170,7 @@ class DataSimulator:
             try:
                 bare_anchors[int(period_str)] = rate
             except ValueError:
-                warnings.warn(f"RateCurve: unrecognised period format '{period_str}'. Skipping anchor.")
+                warn(f"RateCurve: unrecognised period format '{period_str}'. Skipping anchor.", ConformanceWarning)
 
         if not ym_anchors and not calendar_month_anchors and not bare_anchors and all_period_rate is None:
             return df
@@ -4128,16 +4201,14 @@ class DataSimulator:
             # would blend December's high rate into next January's low one
             # linearly across the anchor gap between them (e.g. December at
             # idx 12 and the next February at idx 14 would leave January at
-            # idx 13 roughly halfway between the two rates) — a real,
-            # measured bleed-over this avoids by never treating year
-            # boundaries as points on one continuous line in the first
-            # place.
+            # idx 13 roughly halfway between the two rates). Year boundaries
+            # are therefore never treated as points on one continuous line.
             cal_months = np.array(sorted(calendar_month_anchors.keys()), dtype=float)
             cal_rates = np.array([calendar_month_anchors[int(m)] for m in cal_months], dtype=float)
             all_cal_months = np.arange(1, 13, dtype=float)
             if rc.interpolate and len(cal_months) >= 2:
                 cal_curve = np.clip(np.interp(all_cal_months, cal_months, cal_rates), 0.0, 1.0)
-                calendar_rate_by_month = {int(m): float(r) for m, r in zip(all_cal_months, cal_curve)}
+                calendar_rate_by_month = {int(m): float(r) for m, r in zip(all_cal_months, cal_curve, strict=True)}
             else:
                 calendar_rate_by_month = {int(m): float(r) for m, r in calendar_month_anchors.items()}
 
@@ -4186,7 +4257,7 @@ class DataSimulator:
 
             month_to_rate = {
                 int(m): float(r)
-                for m, r in zip(interp_months, interp_rates)
+                for m, r in zip(interp_months, interp_rates, strict=True)
                 if not np.isnan(r)
             }
 
@@ -4219,7 +4290,6 @@ class DataSimulator:
 
             # Randomly choose which rows become the positive class
             chosen_pos = self.rng.choice(period_indices, size=target_count, replace=False)
-            chosen_pos_set = set(chosen_pos.tolist())
             chosen_neg = period_indices[~np.isin(period_indices, chosen_pos)]
 
             df.loc[chosen_pos, rc.column] = true_val
@@ -4247,7 +4317,7 @@ class DataSimulator:
         return df
 
     # ------------------------------------------------------------------
-    # Gap B — Relative-curve cross-batch accumulation
+    # Relative-curve cross-batch accumulation
     # ------------------------------------------------------------------
 
     def _rebalance_relative_batch(
@@ -4321,14 +4391,15 @@ class DataSimulator:
 
             timestamps = pd.to_datetime(df[time_col], errors="coerce")
 
-            # Build a per-month relative factor for ALL 12 months by linear interpolation
-            # between control points (previously only control-point months were corrected,
-            # which left interpolated months uncorrected and drifted the shape in multi-batch
-            # streaming). Control points outside [1,12] are ignored.
+            # Build a per-month relative factor for all 12 months by linear
+            # interpolation between control points, so interpolated months are
+            # corrected too and the shape holds across streamed batches. Control
+            # points outside [1, 12] are ignored.
             ctrl: Dict[int, float] = {}
             for point in points:
                 if hasattr(point, "month"):
-                    m = int(point.month); rv = float(getattr(point, "relative_value", 1.0))
+                    m = int(point.month)
+                    rv = float(getattr(point, "relative_value", 1.0))
                 elif isinstance(point, dict):
                     m = int(point.get("month", 0))
                     rv = float(point.get("relative_value", point.get("target_value", 1.0)))
@@ -4393,7 +4464,7 @@ class DataSimulator:
         return df
 
     # ------------------------------------------------------------------
-    # Gap C — Deep hierarchy temporal density propagation
+    # Deep hierarchy temporal density propagation
     # ------------------------------------------------------------------
 
     def _propagate_density_map(self, table_name: str) -> None:
@@ -4451,11 +4522,8 @@ class DataSimulator:
                                  time_unit: str = "month") -> pd.DataFrame:
         """Hold the curve's period totals AND the column's declared min/max.
 
-        The curve used to simply win: values were multiplied to hit each
-        period's target and whatever fell outside the declared bounds was
-        warned about and shipped. That is a declaration accepted and then
-        broken, which is the one thing this engine is supposed not to do. A
-        declared invoice floor of 49 was producing rows of 6.71.
+        Scaling values to hit each period's target can push rows outside the
+        declared bounds, which would accept a declaration and then break it.
 
         Both can hold whenever the arithmetic allows it. For each period the
         target sum S is already encoded in the values the curve produced, so
@@ -4489,8 +4557,10 @@ class DataSimulator:
         else:
             periods = pd.Series(0, index=df.index)
 
+        from misata.feasibility import Conflict, InfeasibleSchema
+
         out = values.copy()
-        conflicts = []
+        conflicts: List[Conflict] = []
         for period, idx in df.groupby(periods.values, dropna=False).groups.items():
             block = values.loc[idx].dropna()
             n = len(block)
@@ -4503,12 +4573,15 @@ class DataSimulator:
             if target < floor_total - 1e-6 or target > ceil_total + 1e-6:
                 bound = (f"min={lo:g}" if target < floor_total else f"max={hi:g}")
                 needed = floor_total if target < floor_total else ceil_total
-                conflicts.append(
-                    f"{table_name}.{column_name} period {period}: the curve asks "
-                    f"for a total of {target:,.2f} across {n} row(s), but the "
-                    f"declared {bound} allows a total of {needed:,.2f}. Widen the "
-                    f"bound, change the target, or move rows into this period."
-                )
+                where = f"{table_name}.{column_name}"
+                conflicts.append(Conflict(
+                    kind="curve_exceeds_column_bounds",
+                    where=where,
+                    declarations=[f"outcome_curve on {where}", f"{bound} on {column_name}"],
+                    arithmetic=(f"period {period} needs a total of {target:,.2f} across "
+                                f"{n} row(s), but {bound} allows {needed:,.2f}"),
+                    remedy="widen the bound, change the target, or move rows into this period",
+                ))
                 continue
 
             fitted = block.clip(lower=lo, upper=hi).astype(float)
@@ -4536,7 +4609,6 @@ class DataSimulator:
             out.loc[fitted.index] = fitted
 
         if conflicts:
-            from misata.feasibility import InfeasibleSchema
             raise InfeasibleSchema(conflicts)
 
         df[column_name] = out
@@ -4569,12 +4641,12 @@ class DataSimulator:
             parts.append(f"{below} row(s) below declared min={lo:g}")
         if above:
             parts.append(f"{above} row(s) above declared max={hi:g}")
-        warnings.warn(
+        warn(
             f"Outcome curve on '{table_name}.{column_name}' pushed values past the "
             f"column's declared bounds: {'; '.join(parts)}. The curve takes "
             f"precedence over the declared min/max. Widen the bounds or soften "
             f"the curve to avoid this.",
-            UserWarning,
+            ConformanceWarning,
         )
 
     def _get_column_params(self, table_name: str, column_name: str) -> Dict[str, Any]:
@@ -4621,7 +4693,7 @@ class DataSimulator:
 
         counts = self.rng.multinomial(len(clean_timestamps), probabilities)
         sampled: List[pd.Timestamp] = []
-        for window_start, count in zip(windows, counts):
+        for window_start, count in zip(windows, counts, strict=True):
             if count <= 0:
                 continue
             next_window = window_start + pd.offsets.MonthBegin(1)
@@ -4690,11 +4762,11 @@ class DataSimulator:
         # Validate required columns exist
         for col in constraint.group_by:
             if col not in df.columns:
-                warnings.warn(f"Constraint '{constraint.name}': Column '{col}' not found. Skipping.")
+                warn(f"Constraint '{constraint.name}': Column '{col}' not found. Skipping.", ConformanceWarning)
                 return df
 
         if constraint.column and constraint.column not in df.columns:
-            warnings.warn(f"Constraint '{constraint.name}': Target column '{constraint.column}' not found. Skipping.")
+            warn(f"Constraint '{constraint.name}': Target column '{constraint.column}' not found. Skipping.", ConformanceWarning)
             return df
 
         if constraint.type == "max_per_group":
@@ -4738,29 +4810,30 @@ class DataSimulator:
             # Row-level bound: low_column <= column <= high_column (e.g. bid <= sale <= list).
             df = self._apply_col_range_constraint(df, constraint)
 
-        elif constraint.type == "balanced_ledger":
-            # Double-entry invariant: per group, sum(debit) == sum(credit) exactly.
-            df = self._apply_balanced_ledger(df, constraint)
-
         elif constraint.type == "when_then":
             # Conditional implication: a status gates its dependent columns.
             df = self._apply_when_then(df, constraint)
 
         # lte_parent / sum_lte_parent are cross-table: they need the parent
         # materialised and run in the post-generation pass (generate_all),
-        # not here where only one table's batch is visible.
+        # not here where only one table's batch is visible. balanced_ledger
+        # balances whole entries, whose lines can fall in different batches,
+        # so it runs in _whole_table_rules.
 
         return df
 
     def _whole_table_rules(self, table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         """Re-assert composite keys and column-to-column rules over the
-        concatenated table: batches are each valid, the union may not be."""
+        concatenated table, and balance ledgers: batches are each valid, the
+        union may not be, and a journal entry's lines can span batches."""
         table = self.config.get_table(table_name)
         for c in (table.constraints or []):
             if c.type == "unique_combination":
                 df = self._unique_combination(df, list(c.group_by), table_name)
             elif c.type == "inequality":
                 df = self._apply_inequality_constraint(df, c)
+            elif c.type == "balanced_ledger":
+                df = self._apply_balanced_ledger(df, c)
         return df.reset_index(drop=True)
 
     def _unique_combination(self, df: pd.DataFrame, cols: List[str],
@@ -4806,12 +4879,14 @@ class DataSimulator:
         """
         wc, tc = constraint.when_column, constraint.then_column
         if not wc or not tc or constraint.then is None:
-            warnings.warn(f"Constraint '{constraint.name}': when_then needs "
-                          "when_column, then_column and then. Skipping.")
+            warn(f"Constraint '{constraint.name}': when_then needs "
+                          "when_column, then_column and then. Skipping.",
+            ConformanceWarning,)
             return df
         if wc not in df.columns or tc not in df.columns:
-            warnings.warn(f"Constraint '{constraint.name}': column '{wc}' or "
-                          f"'{tc}' not found. Skipping.")
+            warn(f"Constraint '{constraint.name}': column '{wc}' or "
+                          f"'{tc}' not found. Skipping.",
+            ConformanceWarning,)
             return df
 
         col = df[wc]
@@ -4854,10 +4929,11 @@ class DataSimulator:
                         df.loc[need, tc] = self.rng.choice(
                             pool.to_numpy(), size=int(need.sum()))
                     else:
-                        warnings.warn(
+                        warn(
                             f"Constraint '{constraint.name}': then=not_null has no "
                             f"non-null values in '{tc}' to sample and no then_value; "
-                            "those rows stay null.")
+                            "those rows stay null.",
+                            ConformanceWarning,)
         elif constraint.then == "set":
             df.loc[mask, tc] = constraint.then_value
         return df
@@ -4877,9 +4953,11 @@ class DataSimulator:
         3. Rounding to ``decimals`` leaves a residual on each side; absorb it
            into that side's largest line so both sides equal T exactly.
 
-        Degenerate groups (a lone line, or a side with no lines) are handled by
-        mirroring: a single line becomes a matched debit/credit pair of equal
-        value, which still balances.
+        An entry whose lines are all on one side has half of them moved to
+        the other. An entry with a single line cannot balance, so that line
+        is moved into an entry with two or more; declaring ``min_children: 2``
+        on the entry relationship means no entry is left with fewer than two.
+        Runs over the whole table, so an entry's lines are never split.
         """
         debit_col = getattr(constraint, "debit_column", None)
         credit_col = getattr(constraint, "credit_column", None)
@@ -4888,15 +4966,17 @@ class DataSimulator:
 
         for col in (debit_col, credit_col):
             if not col or col not in df.columns:
-                warnings.warn(
+                warn(
                     f"Constraint '{constraint.name}': balanced_ledger needs "
-                    f"debit_column and credit_column present. Skipping."
+                    f"debit_column and credit_column present. Skipping.",
+                    ConformanceWarning,
                 )
                 return df
         if not group_by:
-            warnings.warn(
+            warn(
                 f"Constraint '{constraint.name}': balanced_ledger needs group_by "
-                f"(the journal-entry key). Skipping."
+                f"(the journal-entry key). Skipping.",
+                ConformanceWarning,
             )
             return df
 
@@ -4988,10 +5068,10 @@ class DataSimulator:
         """
         a, b, op = constraint.column_a, constraint.column_b, constraint.operator
         if not a or not b or op not in self._OPS:
-            warnings.warn(f"Constraint '{constraint.name}': needs column_a, column_b and a valid operator. Skipping.")
+            warn(f"Constraint '{constraint.name}': needs column_a, column_b and a valid operator. Skipping.", ConformanceWarning)
             return df
         if a not in df.columns or b not in df.columns:
-            warnings.warn(f"Constraint '{constraint.name}': column '{a}' or '{b}' not found. Skipping.")
+            warn(f"Constraint '{constraint.name}': column '{a}' or '{b}' not found. Skipping.", ConformanceWarning)
             return df
 
         col_a, col_b = df[a], df[b]
@@ -5062,11 +5142,11 @@ class DataSimulator:
         col = constraint.column
         low, high = constraint.low_column, constraint.high_column
         if not col or not low or not high:
-            warnings.warn(f"Constraint '{constraint.name}': needs column, low_column and high_column. Skipping.")
+            warn(f"Constraint '{constraint.name}': needs column, low_column and high_column. Skipping.", ConformanceWarning)
             return df
         for c in (col, low, high):
             if c not in df.columns:
-                warnings.warn(f"Constraint '{constraint.name}': column '{c}' not found. Skipping.")
+                warn(f"Constraint '{constraint.name}': column '{c}' not found. Skipping.", ConformanceWarning)
                 return df
 
         mid, lo, hi = df[col], df[low], df[high]
@@ -5103,8 +5183,8 @@ class DataSimulator:
             return [8,6,4,3,2,1,1,1,2,3,4,5,6,6,6,6,8,10,14,16,18,18,16,12]
         if domain in ("transport", "mobility", "rideshare", "taxi", "nightlife"):
             # Ride demand: a morning commute, an evening peak, and a long tail
-            # past midnight; the trough is 4-6am, not midnight. A daytime-only
-            # rhythm was the measured miss on the NYC taxi benchmark.
+            # past midnight; the trough is 4-6am, not midnight. Real taxi trips
+            # do not follow a daytime-only rhythm.
             return [7,5,4,3,2,2,3,5,7,7,7,7,7,7,7,7,8,9,10,10,10,10,10,9]
         if domain in ("saas", "edtech"):
             # Workday with morning/afternoon bias
@@ -5414,17 +5494,17 @@ class DataSimulator:
                 d = np.sqrt(np.diag(target_corr_pd))
                 target_corr_pd = target_corr_pd / np.outer(d, d)
                 L = np.linalg.cholesky(target_corr_pd)
-                warnings.warn(
+                warn(
                     f"Table '{table_name}': correlation matrix was not positive-definite "
                     "(conflicting or over-specified pairwise targets). Applied nearest-PD "
                     "repair — realized correlations will be close but not exact.",
-                    stacklevel=2,
+                    ConformanceWarning,
                 )
             except np.linalg.LinAlgError:
-                warnings.warn(
+                warn(
                     f"Table '{table_name}': correlation matrix could not be repaired. "
                     "Correlations skipped for this table.",
-                    stacklevel=2,
+                    ConformanceWarning,
                 )
                 return df
 
@@ -5443,7 +5523,7 @@ class DataSimulator:
                             "quarter": "Q", "year": "Y"}.get(str(time_unit), "M")
                     try:
                         buckets = pd.to_datetime(df[time_col], errors="coerce").dt.to_period(freq)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - a time column that cannot be bucketed is not re-ranked by period
                         buckets = None
                     if buckets is not None and buckets.notna().any():
                         col_vals = df[col].values.copy()
@@ -5490,7 +5570,7 @@ class DataSimulator:
             if when:
                 try:
                     mask = table_data.eval(when).values.astype(bool)
-                except Exception:
+                except Exception:  # noqa: BLE001 - pandas eval of a user expression can raise anything
                     mask = np.zeros(size, dtype=bool)
             else:
                 mask = np.ones(size, dtype=bool)
@@ -5536,7 +5616,7 @@ class DataSimulator:
                 return result.astype(float)
             elif column.type == "boolean":
                 return result.astype(bool)
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             pass
         return result
 
@@ -5560,10 +5640,8 @@ class DataSimulator:
         skipped too, with one exception: a foreign key declared BOTH
         ``nullable`` and with an explicit ``null_rate`` is an *optional*
         reference, and a null there is an absent reference rather than a broken
-        one. The blanket skip made that unexpressible, and for a
-        self-referential hierarchy it was worse than pedantic: with no nulls
-        possible, no row can be a root, so the hierarchy is forced to contain a
-        cycle. Found by the Warren suite, which is what a second shape is for.
+        one. A self-referential hierarchy needs it: with no nulls possible, no
+        row can be a root, so the hierarchy would be forced to contain a cycle.
 
         ``extra_protected`` covers columns a caller knows must stay exactly
         as generated regardless of any declared null_rate -- currently only
@@ -5586,9 +5664,8 @@ class DataSimulator:
         protected = pk_cols | fk_cols | (extra_protected or set())
 
         # Rows a `when_then ... not_null` protects must survive this pass. It
-        # runs after `apply_constraints`, so without this the later declaration
-        # silently undoes the earlier one: 77 deactivated users lost the
-        # timestamp their own status was declared to require. The two are
+        # runs after `apply_constraints`, so a null rate must not empty a
+        # timestamp that a row's own status is declared to require. The two are
         # jointly satisfiable whenever the rate fits in the unprotected rows,
         # so the answer is to satisfy both rather than to refuse either.
         keep_filled = self._when_then_protected_rows(df, table_name)
@@ -5612,13 +5689,14 @@ class DataSimulator:
                 room = int((~keep).sum())
                 wanted = int(round(null_rate * len(df)))
                 if wanted > room:
-                    warnings.warn(
+                    warn(
                         f"Column '{table_name}.{col.name}': null_rate="
                         f"{null_rate:g} asks for {wanted} nulls but a declared "
                         f"when_then requires {int(keep.sum())} rows to stay "
                         f"filled, leaving room for {room}. The when_then wins; "
                         f"lower null_rate to {room / max(len(df), 1):.2f} or "
-                        f"below to make both hold."
+                        f"below to make both hold.",
+                        ConformanceWarning,
                     )
                 mask = mask & ~keep
             _null_column(df, col.name, mask)
@@ -5691,7 +5769,7 @@ class DataSimulator:
                 try:
                     mask = df.eval(null_when).values.astype(bool)
                     _null_column(df, col.name, pd.Series(mask, index=df.index))
-                except Exception:
+                except Exception:  # noqa: BLE001 - pandas eval of a user expression can raise anything
                     pass
 
             # --- missing_if: MAR ---
@@ -5980,7 +6058,12 @@ class DataSimulator:
         if not child_dt:
             return df
 
-        child_min = df[child_dt].min(axis=1)
+        # A row's birth is its earliest causal date. Lifecycle and ingest
+        # timestamps are consequences of the row, so they move with the shift
+        # but never define how far it must go.
+        derived = self._derived_time_columns(table_name)
+        causal_dt = [c for c in child_dt if c not in derived] or child_dt
+        child_min = df[causal_dt].min(axis=1)
         # A strict-inequality nudge so the child starts after, not exactly on,
         # the parent's birth (lognormal hours, capped at ~30 days). Whole
         # seconds only, so the shift never leaks sub-second noise into dates.
@@ -6036,7 +6119,7 @@ class DataSimulator:
             # exceeds the headroom (parent born at the window's edge),
             # causality wins over the bound, loudly.
             # Soft cap (declared column ends): causality may exceed it, with
-            # a warning, matching the 0.8.5.2 precedence rules.
+            # a warning.
             cap_soft = pd.Series(pd.Timedelta.max, index=df.index)
             for c in child_dt:
                 declared_end = col_params.get(c, {}).get("end")
@@ -6072,7 +6155,7 @@ class DataSimulator:
                         cap_hard = np.minimum(
                             cap_hard,
                             (row_end - one_sec - df[t_col]).dt.floor("s"))
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - a curve whose buckets cannot be resolved adds no hard cap
                         continue
             cap = np.minimum(cap_soft, cap_hard)
             capped = np.minimum(total_shift, cap.where(cap > pd.Timedelta(0), pd.Timedelta(0)))
@@ -6083,21 +6166,23 @@ class DataSimulator:
             final_shift = np.minimum(final_shift, cap_hard_nonneg)
             soft_overruns = int((final_shift > cap_soft).sum())
             if soft_overruns:
-                warnings.warn(
+                warn(
                     f"Table '{table_name}': {soft_overruns} row(s) must "
                     f"postdate a parent born at the edge of the declared date "
                     f"range; causality takes precedence over the declared max "
-                    f"date. Widen the child's date range to avoid this."
+                    f"date. Widen the child's date range to avoid this.",
+                    ConformanceWarning,
                 )
             if unresolved:
-                warnings.warn(
+                warn(
                     f"Table '{table_name}': {unresolved} row(s) cannot both "
                     f"postdate their parent and stay inside their declared "
                     f"aggregate period; the declared aggregate takes "
                     f"precedence and these rows keep their period with "
                     f"causality unresolved. The story audit will report "
                     f"them. Align the parent's date range with the curve "
-                    f"window to avoid this."
+                    f"window to avoid this.",
+                    ConformanceWarning,
                 )
             col_types = {c.name: c.type for c in self.config.columns.get(table_name, [])}
             for c in child_dt:
@@ -6119,8 +6204,8 @@ class DataSimulator:
         When a child table carries a column that ALSO exists on an FK parent
         AND the column name carries the parent's head noun (transactions.
         merchant_city ↔ merchants.merchant_city), the child value is the
-        parent's value for that row — generated independently, they disagree
-        on ~99% of rows and the first JOIN exposes it (fraud field report).
+        parent's value for that row. Generated independently, they would
+        disagree on almost every row and the first JOIN would expose it.
         The head-noun requirement keeps generic names (status, created_at)
         from being overwritten wrongly. Columns with their own declared
         derivation (depends_on, formula, rollup) are left alone.
@@ -6179,9 +6264,9 @@ class DataSimulator:
                                       protected: set) -> pd.DataFrame:
         """An order line's amount is its product's price times its quantity.
 
-        Drawn independently, ``orders.amount`` matched ``price * quantity`` on
-        0.2% of rows and was below a single unit's price on 45%: the first
-        JOIN to products exposes it. When a row has a quantity and references
+        Drawn independently, an amount rarely equals ``price * quantity`` and
+        is often below a single unit's price, which the first JOIN to products
+        exposes. When a row has a quantity and references
         a parent with a price, the amount is derived. Columns that carry a
         declared outcome (curve, rollup, formula, dependency) or are otherwise
         protected keep their values: the declaration wins.
@@ -6290,17 +6375,18 @@ class DataSimulator:
             if label_col is not None:
                 label_to_id = {
                     str(lbl).strip().lower(): pid
-                    for pid, lbl in zip(parent_df[rel.parent_key], parent_df[label_col])
+                    for pid, lbl in zip(parent_df[rel.parent_key], parent_df[label_col], strict=True)
                 }
                 hits = sum(1 for s in states if s.strip().lower() in label_to_id)
                 if hits >= len(states) * 0.5:
                     _fallback = next(iter(label_to_id.values()))
                     unmatched = {s for s in states if s.strip().lower() not in label_to_id}
                     if unmatched:
-                        warnings.warn(
+                        warn(
                             f"state_machine on {table_name}.{state_col}: states "
                             f"{sorted(unmatched)} missing from {rel.parent_table}; "
-                            f"mapped to an existing id."
+                            f"mapped to an existing id.",
+                            ConformanceWarning,
                         )
                     states = [label_to_id.get(s.strip().lower(), _fallback) for s in states]
 
@@ -6374,7 +6460,7 @@ class DataSimulator:
                 result = engine.evaluate_with_lookups(df, formula, fk_mappings=fk_mappings)
                 df[col.name] = result
             except (ValueError, ImportError) as e:
-                warnings.warn(f"Formula column '{col.name}' skipped: {e}")
+                warn(f"Formula column '{col.name}' skipped: {e}", ConformanceWarning)
 
         return df
 
@@ -6413,8 +6499,8 @@ class DataSimulator:
         # which is right (a mismatched name and email is the loudest tell that
         # data is fake) and which reintroduces duplicates the generator had
         # already resolved: two rows drawn from the same name pool produce the
-        # same address. Enforcing it in generate_column alone was not enough,
-        # because a later pass rewrote the column.
+        # same address. generate_column alone cannot hold it, because a later
+        # pass rewrites the column.
         for column in self.config.columns.get(table_name, []):
             if column.unique and column.name in df.columns:
                 df[column.name] = self._enforce_unique_text(
@@ -6422,80 +6508,71 @@ class DataSimulator:
 
         return df
 
-    def generate_all(self, bounded_memory: bool = False):
+    def _rollup_specs(self) -> list:
+        """Declared and inferred roll-ups, minus those a declared curve governs.
+
+        A declared outcome curve is an exact promise about a column. Roll-ups
+        run after generation, so an *inferred* roll-up could overwrite the
+        curve: in the canonical orders/order_items schema, order_total would
+        become the sum of its line items and the declared monthly revenue
+        would stop adding up. The declared target wins; the roll-up on that
+        column is dropped with a warning.
         """
-        Generate all tables in dependency order, then cascade story events
-        through the relational graph.
+        from misata.rollups import collect_declared_rollups, infer_rollups
 
-        Memory strategy
-        ---------------
-        Only tables that participate in a cascade event (as source or target)
-        are buffered in memory.  All other tables stream directly to the caller
-        one batch at a time, keeping memory usage proportional to cascade
-        complexity rather than total dataset size.
-
-        Yields:
-            Tuple[str, pd.DataFrame]: (table_name, batch_df)
-        """
-        sorted_tables = self.topological_sort()
-        cascade_events = [e for e in (self.config.events or []) if e.propagate_to]
-
-        # A degraded table is produced per unit, not per row: its length is the
-        # sum of the drawn lives, because a unit that lives 300 cycles has 300
-        # readings. Row-at-a-time generation cannot express that, so it is
-        # produced whole here and the normal loop skips it.
-        #
-        # This sits in generate_all rather than in `misata.generate_from_schema`
-        # because the CLI builds a DataSimulator directly. Hooking the Python
-        # API alone is how four earlier defects shipped: a guarantee wired into
-        # one of two entry points is a guarantee the other one does not have.
-        _degraded = {}
-        for _spec in (getattr(self.config, "degradations", None) or []):
-            from misata.degradation import generate as _degrade
-            _degraded[_spec.table] = _degrade(_spec, seed=self.config.seed or 42)
-
-        # Cross-table roll-ups: parent summary columns computed from child facts so the data
-        # reconciles under a JOIN. Both the parent (target) and the child (source) must be
-        # buffered together for the post-generation pass.
-        from misata.rollups import (collect_declared_rollups, infer_rollups,
-                                     apply_rollups)
         rollup_specs = collect_declared_rollups(self.config)
         try:
             rollup_specs = rollup_specs + infer_rollups(self.config)
-        except Exception:
-            pass  # inference is best-effort; never block generation
+        except Exception:  # noqa: BLE001 - inference is best-effort and never blocks generation
+            pass
 
-        # A declared outcome curve is an exact promise about a column. Roll-ups
-        # run after generation, so without this guard an *inferred* roll-up
-        # would silently overwrite the curve — the canonical orders/order_items
-        # schema would have order_total replaced by the sum of its line items
-        # and the declared monthly revenue would quietly stop adding up.
-        # The declared target wins; the roll-up on that column is dropped.
-        _curve_governed = {
+        curve_governed = {
             (c.table, c.column)
             for c in (getattr(self.config, "outcome_curves", None) or [])
         }
-        if _curve_governed and rollup_specs:
-            _kept = []
-            for _s in rollup_specs:
-                if (_s.parent_table, _s.target_column) in _curve_governed:
-                    warnings.warn(
-                        f"{_s.parent_table}.{_s.target_column} is governed by a declared "
-                        f"outcome curve, so the roll-up from {_s.from_table} was not "
-                        f"applied to it (the declared aggregate takes precedence). "
-                        f"To have both hold, let the roll-up write a different column.",
-                        UserWarning,
-                    )
-                    continue
-                _kept.append(_s)
-            rollup_specs = _kept
-        # Bounded memory: a one-hop roll-up is built from per-batch partials
-        # while its child table streams, so only the parent is held.
+        if not (curve_governed and rollup_specs):
+            return rollup_specs
+        kept = []
+        for spec in rollup_specs:
+            if (spec.parent_table, spec.target_column) in curve_governed:
+                warn(
+                    f"{spec.parent_table}.{spec.target_column} is governed by a declared "
+                    f"outcome curve, so the roll-up from {spec.from_table} was not "
+                    f"applied to it (the declared aggregate takes precedence). "
+                    f"To have both hold, let the roll-up write a different column.",
+                    ConformanceWarning,
+                )
+                continue
+            kept.append(spec)
+        return kept
+
+    def _plan_buffers(self, sorted_tables: List[str], cascade_events: list,
+                      bounded_memory: bool) -> "_BufferPlan":
+        """Decide which tables a post-generation pass needs whole.
+
+        Every pass that rewrites a table from all of its rows (cascades,
+        roll-ups, identities, lifecycles, structure and dynamics passes,
+        composite keys) needs that table materialised; everything else streams.
+        """
+        from misata.bitemporal import bitemporal_tables
+        from misata.crosstable import collect_cross_table_constraints
+        from misata.dynamics import dynamics_tables
+        from misata.eventlog import event_log_tables
+        from misata.graphs import graph_tables
         from misata.rollups import RollupAccumulator, is_streamable
-        _stream_specs = [s for s in rollup_specs if bounded_memory and is_streamable(s)]
-        rollup_acc = RollupAccumulator(_stream_specs) if _stream_specs else None
-        rollup_specs = [s for s in rollup_specs if s not in _stream_specs]
-        rollup_tables: set = {s.parent_table for s in _stream_specs}
+
+        config = self.config
+        present = set(sorted_tables)
+
+        # Cross-table roll-ups compute parent summary columns from child facts
+        # so the data reconciles under a JOIN; parent and child buffer together.
+        # Under bounded memory a one-hop roll-up is built from per-batch
+        # partials while its child streams, so only the parent is held.
+        rollup_specs = self._rollup_specs()
+        stream_specs = [s for s in rollup_specs if bounded_memory and is_streamable(s)]
+        rollup_acc = RollupAccumulator(stream_specs) if stream_specs else None
+        rollup_specs = [s for s in rollup_specs if s not in stream_specs]
+        rollup_tables: set = {s.parent_table for s in stream_specs}
         for s in rollup_specs:
             rollup_tables.add(s.parent_table)
             rollup_tables.add(s.from_table)
@@ -6505,174 +6582,130 @@ class DataSimulator:
                 rollup_tables.add(hop)
 
         # Retention rewrites entity keys and event timestamps; missingness and
-        # late arrival rewrite whole columns. All need the finished table.
-        from misata.bitemporal import bitemporal_tables
-        from misata.eventlog import event_log_tables
-        from misata.graphs import graph_tables
-        from misata.dynamics import dynamics_tables
-        dyn_tables = dynamics_tables(self.config)
-
-        # An event log rewrites the whole child table from its entities' states,
-        # so both sides buffer.
-        dyn_tables |= {t for t in event_log_tables(self.config)
-                       if t in set(sorted_tables)}
-        # Graph and bitemporal passes rewrite whole tables from a structure, so
-        # every table they read or write must be materialised at once.
-        dyn_tables |= {t for t in graph_tables(self.config)
-                       if t in set(sorted_tables)}
-        dyn_tables |= {t for t in bitemporal_tables(self.config)
-                       if t in set(sorted_tables)}
-        # Joint satisfaction rewrites whole columns from a solved cell table,
-        # so its table must be materialised rather than streamed past. Without
-        # this the pass ran against an empty buffer and the declared margins
-        # silently did not appear in the output.
+        # late arrival rewrite whole columns. An event log rewrites the child
+        # table from its entities' states; graph and bitemporal passes rewrite
+        # whole tables from a structure; joint satisfaction rewrites whole
+        # columns from a solved cell table; a degraded table carries the
+        # declarations written against it (missingness, outliers, typos, time
+        # grids); a process reads its whole cases table. All need every row.
+        dyn_tables = dynamics_tables(config)
+        dyn_tables |= {t for t in event_log_tables(config) if t in present}
+        dyn_tables |= {t for t in graph_tables(config) if t in present}
+        dyn_tables |= {t for t in bitemporal_tables(config) if t in present}
         dyn_tables |= {spec.table
-                       for spec in (getattr(self.config, "joint_distributions", None) or [])
-                       if spec.table in set(sorted_tables)}
-
-        # A degraded table is produced whole and must reach the dynamics pass,
-        # or every declaration written against it (missingness, outliers,
-        # typos, time grids) silently does nothing.
-        dyn_tables |= {s.table for s in (getattr(self.config, "degradations", None) or [])
-                       if s.table in set(sorted_tables)}
+                       for spec in (getattr(config, "joint_distributions", None) or [])
+                       if spec.table in present}
+        dyn_tables |= {s.table for s in (getattr(config, "degradations", None) or [])
+                       if s.table in present}
 
         # A lifecycle rewrites its table's state column and per-state
         # timestamps over the whole table, so that table buffers.
         lifecycle_tables = {
-            s.table for s in (getattr(self.config, "lifecycles", None) or [])
-            if s.table in set(sorted_tables)
+            s.table for s in (getattr(config, "lifecycles", None) or [])
+            if s.table in present
         }
-        # A process reads its whole cases table and may write its final state.
-        dyn_tables |= {p.cases_table for p in (getattr(self.config, "processes", None) or [])
-                       if p.cases_table in set(sorted_tables)}
+        dyn_tables |= {p.cases_table for p in (getattr(config, "processes", None) or [])
+                       if p.cases_table in present}
 
         # Cross-table clamps (refund <= its order's total; payments per order
         # never exceed the order) need both sides materialised too.
-        from misata.crosstable import collect_cross_table_constraints
-        xt_constraints = collect_cross_table_constraints(self.config)
+        xt_constraints = collect_cross_table_constraints(config)
         for child_name, c in xt_constraints:
             rollup_tables.add(child_name)
             if getattr(c, "parent_table", None):
                 rollup_tables.add(c.parent_table)
 
-        # Exact group shares rewrite group labels and rescale the measure over
-        # the whole table at once, so their tables buffer too.
-        group_share_specs = [
-            s for s in (getattr(self.config, "group_shares", None) or [])
-            if s.table in set(sorted_tables)
-        ]
-        group_share_tables = {s.table for s in group_share_specs}
-
-        # Waterfall identities rewrite period/type/amount over the whole
-        # movements table, so those tables buffer as well.
-        waterfall_specs = [
-            s for s in (getattr(self.config, "waterfalls", None) or [])
-            if s.table in set(sorted_tables)
-        ]
-        waterfall_tables = {s.table for s in waterfall_specs}
-
-        # Stock-flow identities rewrite SKU/period/quantity columns.
-        stock_flow_specs = [
-            s for s in (getattr(self.config, "stock_flows", None) or [])
-            if s.table in set(sorted_tables)
-        ]
-        stock_flow_tables = {s.table for s in stock_flow_specs}
-
-        # SCD2 histories rewrite entity/validity columns over the whole table.
+        # Group shares, waterfalls, stock flows and SCD2 histories rewrite
+        # their columns over the whole table at once.
+        group_share_specs = [s for s in (getattr(config, "group_shares", None) or [])
+                             if s.table in present]
+        waterfall_specs = [s for s in (getattr(config, "waterfalls", None) or [])
+                           if s.table in present]
+        stock_flow_specs = [s for s in (getattr(config, "stock_flows", None) or [])
+                            if s.table in present]
         scd2_tables = {
-            t.name for t in self.config.tables
-            if getattr(t, "scd2", None) is not None and t.name in set(sorted_tables)
+            t.name for t in config.tables
+            if getattr(t, "scd2", None) is not None and t.name in present
         }
 
-        # Identify which tables must be buffered (cascade resolution OR roll-ups)
         cascade_tables: set = set()
         for event in cascade_events:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
-        # A composite key or column-to-column rule has to hold across the
-        # whole table, not one batch at a time, so those tables are buffered.
+        # A composite key, a column-to-column rule or a balanced ledger has to
+        # hold across the whole table, not one batch at a time, so those
+        # tables are buffered.
         whole_table_rules = {
-            t.name for t in self.config.tables
-            if any(c.type in ("unique_combination", "inequality") for c in (t.constraints or []))
+            t.name for t in config.tables
+            if any(c.type in ("unique_combination", "inequality", "balanced_ledger")
+                   for c in (t.constraints or []))
         }
-        buffer_tables = (cascade_tables | rollup_tables | group_share_tables
-                         | waterfall_tables | scd2_tables | stock_flow_tables
-                         | lifecycle_tables | dyn_tables | whole_table_rules)
+        tables = (cascade_tables | rollup_tables
+                  | {s.table for s in group_share_specs}
+                  | {s.table for s in waterfall_specs}
+                  | scd2_tables
+                  | {s.table for s in stock_flow_specs}
+                  | lifecycle_tables | dyn_tables | whole_table_rules)
+        return _BufferPlan(
+            tables=tables, whole_table_rules=whole_table_rules,
+            lifecycle_tables=lifecycle_tables, dyn_tables=dyn_tables,
+            rollup_specs=rollup_specs, rollup_acc=rollup_acc,
+            xt_constraints=xt_constraints, group_share_specs=group_share_specs,
+            waterfall_specs=waterfall_specs, stock_flow_specs=stock_flow_specs,
+            scd2_tables=scd2_tables,
+        )
 
-        buffered: Dict[str, pd.DataFrame] = {}
-        streamed: list = []   # tables already yielded (order record for phase 3)
+    def _degraded_table(self, table_name: str, trajectory: pd.DataFrame) -> pd.DataFrame:
+        """A degradation trajectory with the table's other declared columns.
 
-        # Phase 1 — generate in dependency order
-        for table_name in sorted_tables:
-            # Append mode: a preloaded table already exists in the target and
-            # is not regenerated. Its context (PKs) is already seeded so
-            # children can reference its rows.
-            if table_name in self._skip_tables:
-                continue
-            # A declared degradation owns its table outright: the trajectory is
-            # the rows. Any other columns the table declares are tiled onto it,
-            # so `quality` and `control_type` still come from the schema.
-            if table_name in _degraded:
-                traj = _degraded[table_name].reset_index(drop=True)
-                extra_cols = [c for c in self.config.columns.get(table_name, [])
-                              if c.name not in traj.columns]
-                for col in extra_cols:
-                    traj[col.name] = self.generate_column(
-                        table_name, col, len(traj), traj)
-                # Buffer rather than yield. Declarations have to compose, and
-                # the dynamics pass (missingness, outliers, typos, retention,
-                # time grids) runs only over buffered tables at the end of
-                # generation. Yielding here skipped all of them, so a
-                # `missingness` rule written against a degraded table did
-                # nothing and every sensor came back fully observed. The
-                # trajectory owns the rows; it does not own the rest of the
-                # schema.
-                buffered[table_name] = traj
-                continue
-            if table_name in buffer_tables:
-                # Buffer: collect all batches for the post-generation passes
-                batches = []
-                for batch in self.generate_batches(table_name):
-                    batches.append(batch)
-                if batches:
-                    buffered[table_name] = pd.concat(batches, ignore_index=True)
-                    if table_name in whole_table_rules:
-                        buffered[table_name] = self._whole_table_rules(table_name, buffered[table_name])
-                        self._refresh_context(table_name, buffered[table_name])
-                    # Lifecycles run HERE, not in phase 2: rewriting the state
-                    # column changes which parents a filtered relationship
-                    # considers eligible (shipments only attach to shipped
-                    # orders). Children are generated after this point, so they
-                    # must see the final states — hence the context refresh.
-                    if lifecycle_tables and table_name in lifecycle_tables:
-                        from misata.lifecycle import (apply_lifecycles,
-                                                      lifecycles_for_table)
-                        for _spec in lifecycles_for_table(self.config, table_name):
-                            with self._anchor("identity", "lifecycle",
-                                              table_name, _spec.state_column):
-                                apply_lifecycles(
-                                    {table_name: buffered[table_name]},
-                                    type("_One", (), {"lifecycles": [_spec]})(),
-                                    self.rng,
-                                )
-                        self._refresh_context(table_name, buffered[table_name])
-            else:
-                # Stream immediately — no post-pass involvement
-                for batch in self.generate_batches(table_name):
-                    if rollup_acc is not None:
-                        rollup_acc.update(table_name, batch)
-                    yield table_name, batch
-                streamed.append(table_name)
+        The trajectory owns the rows; any other columns the table declares are
+        generated onto it, so ``quality`` and ``control_type`` still come from
+        the schema.
+        """
+        traj = trajectory.reset_index(drop=True)
+        extra_cols = [c for c in self.config.columns.get(table_name, [])
+                      if c.name not in traj.columns]
+        for col in extra_cols:
+            traj[col.name] = self.generate_column(table_name, col, len(traj), traj)
+        return traj
 
-        # Phase 2 — apply cascades, then group shares, then roll-ups, to
-        # buffered tables. Group shares run before roll-ups so parent summary
-        # columns sum the post-share children.
-        for event in cascade_events:
-            with self._anchor("cascade", str(event.name), event.table):
-                self.propagate_event_cascade(buffered, event)
-        if group_share_specs:
+    def _buffer_table(self, table_name: str, plan: "_BufferPlan") -> Optional[pd.DataFrame]:
+        """Generate a table whole and apply the passes that must precede its children."""
+        batches = list(self.generate_batches(table_name))
+        if not batches:
+            return None
+        df = pd.concat(batches, ignore_index=True)
+        if table_name in plan.whole_table_rules:
+            df = self._whole_table_rules(table_name, df)
+            self._refresh_context(table_name, df)
+        # Lifecycles run before the children are generated: rewriting the
+        # state column changes which parents a filtered relationship considers
+        # eligible (shipments only attach to shipped orders), so children must
+        # see the final states through the refreshed context.
+        if plan.lifecycle_tables and table_name in plan.lifecycle_tables:
+            from misata.lifecycle import apply_lifecycles, lifecycles_for_table
+            for spec in lifecycles_for_table(self.config, table_name):
+                with self._anchor("identity", "lifecycle", table_name, spec.state_column):
+                    apply_lifecycles(
+                        {table_name: df},
+                        type("_One", (), {"lifecycles": [spec]})(),
+                        self.rng,
+                        date_columns=[c.name for c in self.config.get_columns(table_name)
+                                      if c.type == "date"],
+                    )
+            self._refresh_context(table_name, df)
+        return df
+
+    def _apply_table_identities(self, buffered: Dict[str, pd.DataFrame],
+                                plan: "_BufferPlan") -> None:
+        """Group shares, waterfalls, stock flows and SCD2 histories, in that order.
+
+        Each is applied per table; one that cannot be applied warns and
+        leaves its table as generated.
+        """
+        if plan.group_share_specs:
             from misata.shares import apply_group_shares
-            for spec in group_share_specs:
+            for spec in plan.group_share_specs:
                 if spec.table in buffered:
                     try:
                         with self._anchor("identity", "group_shares",
@@ -6680,15 +6713,16 @@ class DataSimulator:
                             buffered[spec.table] = apply_group_shares(
                                 buffered[spec.table], spec, self.config, self.rng
                             )
-                    except Exception:
-                        warnings.warn(
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
                             f"group_shares on {spec.table}.{spec.measure} "
-                            "could not be applied; leaving the table as generated"
+                            "could not be applied; leaving the table as generated",
+                            ConformanceWarning,
                         )
-        if waterfall_specs:
+        if plan.waterfall_specs:
             from misata.waterfall import apply_waterfalls
             by_table: Dict[str, list] = {}
-            for spec in waterfall_specs:
+            for spec in plan.waterfall_specs:
                 by_table.setdefault(spec.table, []).append(spec)
             for w_table, table_specs in by_table.items():
                 if w_table in buffered:
@@ -6697,123 +6731,219 @@ class DataSimulator:
                             buffered[w_table] = apply_waterfalls(
                                 buffered[w_table], table_specs, self.rng
                             )
-                    except Exception:
-                        warnings.warn(
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
                             f"waterfall on {w_table} could not be applied; "
-                            "leaving the table as generated"
+                            "leaving the table as generated",
+                            ConformanceWarning,
                         )
-        if stock_flow_specs:
+        if plan.stock_flow_specs:
             from misata.stockflow import apply_stock_flow
-            for spec in stock_flow_specs:
+            for spec in plan.stock_flow_specs:
                 if spec.table in buffered:
                     try:
                         with self._anchor("identity", "stock_flow", spec.table):
                             buffered[spec.table] = apply_stock_flow(
                                 buffered[spec.table], spec, self.rng)
-                    except Exception:
-                        warnings.warn(
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
                             f"stock_flow on {spec.table} could not be applied; "
-                            "leaving the table as generated")
-        if scd2_tables:
+                            "leaving the table as generated",
+                            ConformanceWarning,)
+        if plan.scd2_tables:
             from misata.scd2 import apply_scd2
-            for t_name in scd2_tables:
+            for t_name in plan.scd2_tables:
                 table_cfg = self.config.get_table(t_name)
-                if t_name in buffered and table_cfg is not None:
+                if t_name in buffered and table_cfg is not None and table_cfg.scd2 is not None:
+                    scd2 = table_cfg.scd2
                     try:
                         vf_params = next(
                             (c.distribution_params for c in
                              self.config.get_columns(t_name)
-                             if c.name == table_cfg.scd2.valid_from), {})
+                             if c.name == scd2.valid_from), {})
                         with self._anchor("identity", "scd2", t_name):
                             buffered[t_name] = apply_scd2(
-                                buffered[t_name], table_cfg.scd2, self.rng,
+                                buffered[t_name], scd2, self.rng,
                                 col_params=vf_params, table_name=t_name)
-                    except Exception:
-                        warnings.warn(
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
                             f"scd2 on {t_name} could not be applied; "
-                            "leaving the table as generated")
-        # Roll-ups and cross-table clamps interleave in dependency order:
-        # 1. roll-ups that produce a column some clamp reads (orders.total_amount
-        #    from line items) run first,
-        # 2. then the clamps (payments rescaled to never exceed that total),
-        # 3. then the remaining roll-ups, so an aggregate of clamped values
-        #    (customers.lifetime_value from payments) sums the final numbers.
+                            "leaving the table as generated",
+                            ConformanceWarning,)
+
+    def _apply_rollups_and_clamps(self, buffered: Dict[str, pd.DataFrame],
+                                  plan: "_BufferPlan") -> None:
+        """Roll-ups and cross-table clamps, interleaved in dependency order.
+
+        1. roll-ups that produce a column some clamp reads (orders.total_amount
+           from line items) run first,
+        2. then the clamps (payments rescaled to never exceed that total),
+        3. then the remaining roll-ups, so an aggregate of clamped values
+           (customers.lifetime_value from payments) sums the final numbers.
+
+        A roll-up failure leaves the tables as generated rather than failing
+        an otherwise valid run.
+        """
+        from misata.rollups import apply_rollups
+
+        rollup_acc = plan.rollup_acc
         if rollup_acc is not None:
             try:
-                # a child buffered for another reason never streamed past the
-                # accumulator; it is complete now, so feed it in whole
-                for _child in rollup_acc.tables():
-                    if _child in buffered:
-                        rollup_acc.update(_child, buffered[_child])
+                # A child buffered for another reason never streamed past the
+                # accumulator; it is complete now, so it is fed in whole.
+                for child in rollup_acc.tables():
+                    if child in buffered:
+                        rollup_acc.update(child, buffered[child])
                 rollup_acc.apply(buffered)
-            except Exception:
-                pass  # a roll-up failure must never corrupt an otherwise-valid run
-        if rollup_specs or xt_constraints:
-            try:
-                if xt_constraints:
-                    from misata.crosstable import apply_cross_table_constraints
-                    clamp_parents = {c.parent_table for _, c in xt_constraints}
-                    first = [s for s in rollup_specs if s.parent_table in clamp_parents]
-                    rest = [s for s in rollup_specs if s.parent_table not in clamp_parents]
-                    apply_rollups(buffered, first, self.config.relationships)
-                    apply_cross_table_constraints(buffered, xt_constraints, self.config)
-                    apply_rollups(buffered, rest, self.config.relationships)
-                else:
-                    apply_rollups(buffered, rollup_specs, self.config.relationships)
-            except Exception:
-                pass  # a roll-up failure must never corrupt an otherwise-valid run
+            except Exception:  # noqa: BLE001 - a roll-up failure never fails an otherwise valid run
+                pass
+        rollup_specs, xt_constraints = plan.rollup_specs, plan.xt_constraints
+        if not (rollup_specs or xt_constraints):
+            return
+        try:
+            if xt_constraints:
+                from misata.crosstable import apply_cross_table_constraints
+                clamp_parents = {c.parent_table for _, c in xt_constraints}
+                first = [s for s in rollup_specs if s.parent_table in clamp_parents]
+                rest = [s for s in rollup_specs if s.parent_table not in clamp_parents]
+                apply_rollups(buffered, first, self.config.relationships)
+                apply_cross_table_constraints(buffered, xt_constraints, self.config)
+                apply_rollups(buffered, rest, self.config.relationships)
+            else:
+                apply_rollups(buffered, rollup_specs, self.config.relationships)
+        except Exception:  # noqa: BLE001 - a roll-up failure never fails an otherwise valid run
+            pass
 
-        # Dynamics run last: retention reassigns event ownership, and
-        # missingness has to be the final word on which values are null or a
-        # later pass would fill them back in.
-        # Graphs and bitemporal histories run before event logs: both rewrite
-        # whole tables from a structure, and the later passes only ever adjust
-        # clocks and values on rows that already exist.
-        # graph_motifs belongs in this gate too: a schema declaring motifs
-        # without dag_edges skipped the pass entirely and emitted an ordinary
-        # table with none of the declared structure in it.
-        if (getattr(self.config, "dag_edges", None)
-                or getattr(self.config, "closures", None)
-                or getattr(self.config, "graph_motifs", None)):
+    def _apply_structure_passes(self, buffered: Dict[str, pd.DataFrame],
+                                dyn_tables: set) -> List[str]:
+        """Graphs, joint distributions, bitemporal histories, event logs,
+        processes and dynamics, in that order.
+
+        Structure passes rewrite whole tables and come first; the later passes
+        only adjust clocks and values on rows that already exist. Dynamics run
+        last: retention reassigns event ownership, and missingness has to be
+        the final word on which values are null.
+
+        Returns the tables the process pass created, in creation order.
+        """
+        config = self.config
+        # Motifs and closures are graph structure on their own, without
+        # dag_edges, so any of the three runs the graph pass.
+        if (getattr(config, "dag_edges", None)
+                or getattr(config, "closures", None)
+                or getattr(config, "graph_motifs", None)):
             from misata.graphs import apply_graphs
             with self._anchor("identity", "graphs"):
-                apply_graphs(buffered, self.config, self.rng)
+                apply_graphs(buffered, config, self.rng)
 
-        # Joint satisfaction rewrites whole columns from a solved cell table,
-        # so it runs with the other structure passes and before the clock and
-        # value adjustments that follow.
-        if getattr(self.config, "joint_distributions", None):
+        if getattr(config, "joint_distributions", None):
             from misata.joint import apply_joint_distributions
             with self._anchor("identity", "joint"):
-                apply_joint_distributions(buffered, self.config, self.rng)
+                apply_joint_distributions(buffered, config, self.rng)
 
-        if getattr(self.config, "bitemporal", None):
+        if getattr(config, "bitemporal", None):
             from misata.bitemporal import apply_bitemporals
             with self._anchor("identity", "bitemporal"):
-                apply_bitemporals(buffered, self.config, self.rng)
+                apply_bitemporals(buffered, config, self.rng)
 
-        # Event logs run before dynamics: they rewrite event types and times
-        # from the entity's lifecycle, and a grid or a late-arrival pass should
-        # get the last word on the clock.
-        if getattr(self.config, "event_logs", None):
+        # Event logs rewrite event types and times from the entity's
+        # lifecycle; a grid or a late-arrival pass gets the last word on the
+        # clock.
+        if getattr(config, "event_logs", None):
             from misata.eventlog import apply_event_logs
             with self._anchor("identity", "event_logs"):
-                apply_event_logs(buffered, self.config, self.rng)
+                apply_event_logs(buffered, config, self.rng)
 
         # Processes simulate event logs from the finished cases, before the
         # dynamics pass so missingness or time grids can still apply to them.
         process_tables: List[str] = []
-        if getattr(self.config, "processes", None):
+        if getattr(config, "processes", None):
             from misata.process import apply_processes
             with self._anchor("identity", "processes"):
-                process_tables = apply_processes(buffered, self.config, self.rng)
+                process_tables = apply_processes(buffered, config, self.rng)
 
         if dyn_tables:
             from misata.dynamics import apply_dynamics
             with self._anchor("identity", "dynamics"):
-                apply_dynamics(buffered, self.config, self.rng)
+                apply_dynamics(buffered, config, self.rng)
+        return process_tables
 
-        # Phase 3 — yield buffered tables in original dependency order
+    def generate_all(self, bounded_memory: bool = False):
+        """
+        Generate all tables in dependency order, then cascade story events
+        through the relational graph.
+
+        Memory strategy
+        ---------------
+        Only tables that a post-generation pass rewrites whole (cascades,
+        roll-ups, identities, lifecycles, dynamics) are buffered in memory.
+        All other tables stream directly to the caller one batch at a time,
+        keeping memory usage proportional to that work rather than total
+        dataset size.
+
+        Yields:
+            Tuple[str, pd.DataFrame]: (table_name, batch_df)
+
+        Raises:
+            InfeasibleSchema: when ``strict`` and the declarations cannot all
+                hold. Every entry point generates through here, so none of them
+                can skip the check.
+        """
+        if self.strict:
+            from misata.feasibility import check_feasibility
+            check_feasibility(self.config)
+        sorted_tables = self.topological_sort()
+        cascade_events = [e for e in (self.config.events or []) if e.propagate_to]
+
+        # A degraded table is produced per unit, not per row: its length is the
+        # sum of the drawn lives, because a unit that lives 300 cycles has 300
+        # readings. Row-at-a-time generation cannot express that, so it is
+        # produced whole here and the normal loop skips it. This lives in
+        # generate_all, not in one public entry point, because every entry
+        # point (the CLI builds a DataSimulator directly) generates through it.
+        degraded: Dict[str, pd.DataFrame] = {}
+        for spec in (getattr(self.config, "degradations", None) or []):
+            from misata.degradation import generate as _degrade
+            degraded[spec.table] = _degrade(spec, seed=self.config.seed or 42)
+
+        plan = self._plan_buffers(sorted_tables, cascade_events, bounded_memory)
+        rollup_acc = plan.rollup_acc
+        buffered: Dict[str, pd.DataFrame] = {}
+
+        # Phase 1: generate in dependency order.
+        for table_name in sorted_tables:
+            # Append mode: a preloaded table already exists in the target and
+            # is not regenerated. Its context (PKs) is already seeded so
+            # children can reference its rows.
+            if table_name in self._skip_tables:
+                continue
+            if table_name in degraded:
+                # A declared degradation owns its table outright. It is
+                # buffered rather than yielded so the dynamics pass
+                # (missingness, outliers, typos, retention, time grids) sees
+                # its rows like any other table's.
+                buffered[table_name] = self._degraded_table(table_name, degraded[table_name])
+            elif table_name in plan.tables:
+                df = self._buffer_table(table_name, plan)
+                if df is not None:
+                    buffered[table_name] = df
+            else:
+                for batch in self.generate_batches(table_name):
+                    if rollup_acc is not None:
+                        rollup_acc.update(table_name, batch)
+                    yield table_name, batch
+
+        # Phase 2: cascades, then identities, then roll-ups, over the buffered
+        # tables. Group shares run before roll-ups so parent summary columns
+        # sum the post-share children.
+        for event in cascade_events:
+            with self._anchor("cascade", str(event.name), event.table):
+                self.propagate_event_cascade(buffered, event)
+        self._apply_table_identities(buffered, plan)
+        self._apply_rollups_and_clamps(buffered, plan)
+        process_tables = self._apply_structure_passes(buffered, plan.dyn_tables)
+
+        # Phase 3: yield buffered tables in original dependency order.
         for table_name in sorted_tables:
             if table_name in buffered:
                 yield table_name, buffered[table_name]
@@ -6870,7 +7000,6 @@ class DataSimulator:
         """
         Export all generated tables to CSV files, creating files progressively.
         """
-        import os
         os.makedirs(output_dir, exist_ok=True)
 
         # Track open file handles or just append?

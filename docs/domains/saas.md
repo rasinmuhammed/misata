@@ -1,5 +1,5 @@
 ---
-title: Generate SaaS Synthetic Data in Python | Misata
+title: "Generate SaaS Synthetic Data in Python"
 description: Generate realistic SaaS synthetic datasets in Python, users, subscriptions, MRR, churn, and invoices with correct FK relationships and narrative growth curves. No API key required.
 ---
 
@@ -69,7 +69,7 @@ The most powerful SaaS feature is outcome curves, you describe a revenue narrati
 
 ```python
 tables = misata.generate(
-    "SaaS startup — MRR from $50k in January growing to $200k by December, "
+    "SaaS startup: MRR from $50k in January growing to $200k by December, "
     "Q3 slump, strong Q4 push, doubled by year end",
     rows=5000,
     seed=42,
@@ -86,10 +86,10 @@ print(monthly)
 Misata detects locale from the story and applies the right currency, name format, and regional distributions:
 
 ```python
-# German SaaS — EUR pricing, German names, DE locale
+# German SaaS: EUR pricing, German names, DE locale
 tables = misata.generate("A German SaaS company with 2000 users, EUR pricing", rows=2000)
 
-# Multi-region — mixed locale names and country distribution
+# Multi-region: mixed locale names and country distribution
 tables = misata.generate("A global SaaS with users across US, UK, India, and Germany", rows=10_000)
 ```
 

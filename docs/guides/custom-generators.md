@@ -1,3 +1,8 @@
+---
+title: "Custom Column Generators for Misata"
+description: "Register a Python function for a column that needs your own logic, such as a tier from a parent's spend or an internal id format, and keep it inside the integrity and audit passes."
+---
+
 # Custom generators
 
 Declarations cover the common shapes of business data. When a column needs

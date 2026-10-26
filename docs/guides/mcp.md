@@ -100,17 +100,20 @@ The server exposes eleven tools:
 |:--|:--|
 | `create_sandbox` | **Instant Sandbox Oracle.** Spins up an isolated SQLite test database seeded with realistic relational data (zero FK orphans) for testing queries and features |
 | `query_sandbox` | **Query Oracle.** Executes read-only SQL queries against the sandbox so the agent can test and verify code directly |
-| `generate_from_schema` | **Primary.** The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof (per-relationship orphan counts, exact roll-ups, seeded reproducibility), a coherence score, and — when a `__domain__` is declared — a domain-validation pass |
+| `generate_from_schema` | **Primary.** The agent designs a schema dict (any domain); Misata generates CSVs and returns an integrity proof (per-relationship orphan counts, exact roll-ups, seeded reproducibility), a coherence score, and, when a `__domain__` is declared, a domain-validation pass |
 | `generate_dataset` | Story-based generation: Misata's own parser designs the schema from one sentence. Also returns a coherence score |
 | `list_domains` | List all 18 built-in domains with a sample story for each |
 | `preview_story` | Detect domain, scale, locale, and table layout: zero rows generated |
 | `inspect_schema` | Return the full schema (tables, columns, FK relationships) as structured JSON |
 | `audit_dataset` | Run the coherence audit on any folder of CSVs: backwards timestamps, totals that don't reconcile, near-constant columns, scored 0-100 |
+| `explain_schema` | What `generate_from_schema` would do with a schema, without generating: planned rows, which declaration writes which column, curve plans, and every conflict with its remedy |
+| `solve_outcome` | Find outcome-curve values that make SQL metrics over the generated tables hit per-period targets (net revenue after refunds, revenue after a fee) |
+| `attest_dataset` | Prove a folder of CSV or Parquet files holds every invariant its schema declared, as an in-toto Statement with a standalone `verify.py` |
 | `validate_domain` | Flag physiologically or financially impossible values in a folder of CSVs (`clinical`, `financial`) |
 | `validate_yaml` | Two-layer validation (structural JSON Schema + semantic coherence checks) of a `misata.yaml` |
 | `seed_database` | Insert generated rows into a real Postgres or SQLite database. Plans by default; writes only on `apply=true` |
 
-The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a `species` column; Misata is good at guaranteeing the math, FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. `generate_from_schema`'s tool description teaches the agent the full schema-dict language — per-table `__rows__`, the distribution set, formulas with `@parent.column` references, exact roll-ups, pattern codes, correlations, ICC cluster effects, state machines, time-series autocorrelation, plus the schema-level declarations (`__outcome_curves__`, `__group_shares__`, `__waterfalls__`, `__stock_flows__`, `__lifecycles__`, and the `__duplicates__` / `__typos__` / `__outliers__` trio) — so any MCP-capable model can drive most of what the engine supports without reading these docs first.
+The division of labour is deliberate: agents are good at deciding that a veterinary clinic needs a `species` column; Misata is good at guaranteeing the math, FK integrity, exact aggregates, declared distributions, byte-identical reruns under a seed. `generate_from_schema`'s tool description teaches the agent the full schema-dict language: per-table `__rows__`, the distribution set, formulas with `@parent.column` references, exact roll-ups, pattern codes, correlations, ICC cluster effects, state machines, time-series autocorrelation, plus the schema-level declarations (`__outcome_curves__`, `__group_shares__`, `__waterfalls__`, `__stock_flows__`, `__lifecycles__`, and the `__duplicates__` / `__typos__` / `__outliers__` trio), so any MCP-capable model can drive most of what the engine supports without reading these docs first.
 
 Both generation tools write CSVs to a temp directory by default. The agent gets back file paths and a small preview, it never has to dump millions of rows into the chat context.
 
@@ -171,8 +174,8 @@ different part of the engine.
 
 **Let the agent design the schema, you describe the outcome.** The single
 biggest difference between a mediocre result and a good one is whether the
-request states *what has to be true of the data* — a period total, a rate, a
-share, a correlation — rather than a min/max on a column. "Revenue grows to
+request states *what has to be true of the data* (a period total, a rate, a
+share, a correlation) rather than a min/max on a column. "Revenue grows to
 $200k by December" is an `__outcome_curves__` declaration the engine hits
 exactly. "Revenue between $0 and $200k" is not.
 
@@ -180,7 +183,7 @@ exactly. "Revenue between $0 and $200k" is not.
 `generate_from_schema` and `generate_dataset` response now carries a
 `coherence` block with a score from 0 to 100 and its findings. A score in the
 90s means the data holds up. A lower score almost always means the *schema* is
-missing realism structure — correlations between columns that co-vary, per-group
+missing realism structure: correlations between columns that co-vary, per-group
 `profiles`, `time_series` for longitudinal data, a `__state_machine__` for an
 entity that moves through stages. Ask the agent to add that and regenerate,
 rather than accepting the first pass.
@@ -192,7 +195,7 @@ rather than accepting the first pass.
 | one sentence, common domain | `generate_dataset` |
 | specific tables, columns, or declared outcomes | `generate_from_schema` |
 | "will this schema even work?" before a big run | `validate_yaml` |
-| checking data that already exists | `audit_dataset`, `validate_domain` |
+| checking data that already exists | `audit_dataset`, `attest_dataset`, `validate_domain` |
 | loading a real dev database | `seed_database` (plan first) |
 
 **Set a seed if you want the run to be repeatable.** The same schema and seed
@@ -346,8 +349,8 @@ The primary tool: the agent supplies a schema dict it designed itself, Misata ge
 ```
 
 **Output:** the same file/preview envelope as `generate_dataset`, plus an
-integrity proof, a coherence score, and — when the schema declares a
-`__domain__` — a domain-validation pass:
+integrity proof, a coherence score, and, when the schema declares a
+`__domain__`, a domain-validation pass:
 ```json
 {
   "integrity": {
@@ -363,7 +366,7 @@ integrity proof, a coherence score, and — when the schema declares a
     "available": true,
     "score": 96.0,
     "clean": true,
-    "summary": "Coherence: clean — no reader-visible contradictions.",
+    "summary": "Coherence: clean, no reader-visible contradictions.",
     "findings": [],
     "findings_truncated": 0
   }
@@ -375,7 +378,7 @@ customer's `lifetime_value` reconciles exactly with their orders, and the data
 scores 96/100 for coherence with no reader-visible contradictions."*
 
 If the coherence score is low, the `findings` array names what a reader would
-catch — a column that is 98% one value, a `total` that does not equal
+catch: a column that is 98% one value, a `total` that does not equal
 `quantity * unit_price`, a `shipped_at` before its `ordered_at`. Fix those in
 the schema and regenerate.
 
@@ -388,7 +391,7 @@ Generates a full dataset and writes one CSV per table to `output_dir` (defaults 
 **Input:**
 ```json
 {
-  "story": "Ecommerce store — 5k customers, Black Friday spike, Q1 slump",
+  "story": "Ecommerce store: 5k customers, Black Friday spike, Q1 slump",
   "rows": 5000,
   "seed": 42,
   "output_dir": "/tmp/misata_out"
@@ -425,7 +428,7 @@ response carries a `coherence` block identical in shape to
 
 ### `audit_dataset`
 
-Runs the coherence audit on a folder of CSVs — one per table — and scores it 0
+Runs the coherence audit on a folder of CSVs, one per table, and scores it 0
 to 100. Works on anything: a folder Misata just wrote, a folder a person built
 by hand, another tool's output.
 
@@ -458,6 +461,110 @@ postcode / country), near-constant columns, filler text, out-of-scale numerics.
 
 ---
 
+### `explain_schema`
+
+Reports what `generate_from_schema` would do with a schema, without
+generating a row. Call it on a schema the agent designed, before the run:
+conflicts that would refuse generation come back with the arithmetic and a
+remedy, and `writers` shows which declaration owns each column.
+
+**Input:**
+```json
+{ "schema": { "...": "the generate_from_schema schema" }, "seed": 42 }
+```
+
+**Output (abridged):**
+```json
+{
+  "ok": true,
+  "will_generate": true,
+  "total_rows": 6000,
+  "estimated_bytes": 820000,
+  "tables": [{"name": "orders", "rows": 5000, "rows_from": "row_count", "columns": 5}],
+  "declarations": [{"key": "outcome_curves", "count": 1, "summary": "..."}],
+  "writers": {"orders.amount": ["outcome_curve"]},
+  "conflicts": [],
+  "invariants_total": 4
+}
+```
+
+---
+
+### `solve_outcome`
+
+Finds the outcome-curve values that make a metric computed from the data hit
+its targets. Use it when the number that matters is not a column but a
+query: net revenue after refunds, revenue after a fee. Each query runs in a
+sandboxed DuckDB over the generated tables and returns one (period, value)
+row per period. Nothing is written; put the returned `levers` into the
+schema's curves and generate as usual.
+
+**Input:**
+```json
+{
+  "schema": { "...": "a schema with an exact outcome curve on orders.amount" },
+  "queries": {"net": "SELECT date_trunc('month', ordered_at), SUM(amount) * 0.97 FROM orders GROUP BY 1"},
+  "targets": [{"metric": "net", "lever": "orders.amount",
+               "values": {"2025-01": 70000, "2025-02": 65000}}],
+  "tolerance": "0.5%"
+}
+```
+
+**Output (abridged):**
+```json
+{
+  "ok": true,
+  "converged": true,
+  "reason": "converged",
+  "iterations": 4,
+  "levers": {"orders.amount": [{"date": "2025-01-01", "target_value": 72078.0},
+                               {"date": "2025-02-01", "target_value": 66954.03}]}
+}
+```
+
+---
+
+### `attest_dataset`
+
+Proves a folder of files holds every invariant its schema declared. Each
+invariant is derived from the schema before a row is read (curve totals, rate
+anchors, group shares, ledger identities, foreign keys, unique columns), then
+DuckDB runs it against the files. Use it after `generate_from_schema`, with
+the same schema dict and seed.
+
+**Input:**
+```json
+{ "dataset_dir": "/tmp/misata_out", "schema": { "...": "the generate_from_schema schema" }, "seed": 42 }
+```
+
+**Output:**
+```json
+{
+  "ok": true,
+  "result": "PASSED",
+  "invariants_held": 41,
+  "invariants_total": 41,
+  "failures": [],
+  "subjects": [{"name": "orders.csv", "digest": {"sha256": "9e07..."}}],
+  "files": {
+    "statement": "/tmp/misata_out/attestation.intoto.json",
+    "envelope": "/tmp/misata_out/attestation.dsse.json",
+    "verifier": "/tmp/misata_out/verify.py"
+  },
+  "invariants": [
+    {"id": "orders.amount.month:3.outcome_curve_period", "expected": "31000.00",
+     "observed": "31000.00", "passed": true}
+  ],
+  "invariants_truncated": 0
+}
+```
+
+The Statement is an [in-toto v1 Statement](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md)
+that cosign and GitHub's `actions/attest` sign as is. Anyone with the folder
+reruns the proof with `python verify.py`. See [Attest a dataset](attest.md).
+
+---
+
 ### `validate_domain`
 
 Checks a folder of CSVs for values that are physiologically or financially
@@ -468,7 +575,7 @@ impossible for a stated domain.
 { "dataset_dir": "/tmp/trial_export", "domain": "clinical" }
 ```
 
-`domain` must be one of `clinical_trial`, `clinical`, `financial`, `fintech` —
+`domain` must be one of `clinical_trial`, `clinical`, `financial`, `fintech`:
 an unknown domain is refused, not silently passed.
 
 **Output:**
@@ -486,7 +593,7 @@ an unknown domain is refused, not silently passed.
 }
 ```
 
-Built-in ranges — clinical: HbA1c 4-14%, BMI 10-80, systolic BP 60-260, age
+Built-in ranges. Clinical: HbA1c 4-14%, BMI 10-80, systolic BP 60-260, age
 0-130, glucose 2-40, cholesterol 1-20, hemoglobin 3-25. Financial: price >= 0,
 discount 0-1, rate -1 to 100.
 
@@ -495,7 +602,7 @@ discount 0-1, rate -1 to 100.
 ### `seed_database`
 
 Fills a live Postgres or SQLite database with data read from its own schema.
-**Plans by default** — nothing is written until a second call with `apply=true`.
+**Plans by default**: nothing is written until a second call with `apply=true`.
 
 **Input (plan):**
 ```json
@@ -530,7 +637,7 @@ empty tables). Requires the db extra: `pip install "misata[db]"`.
 
 Three-layer validation of a `misata.yaml` string: structural (JSON Schema),
 semantic (FK consistency, formula references, distribution params), then
-feasibility (declarations that each parse but cannot all hold at once — shares
+feasibility (declarations that each parse but cannot all hold at once: shares
 that sum past 1.0, a period total below the sum of its parts).
 
 **Input:**
@@ -560,7 +667,7 @@ that sum past 1.0, a period total below the sum of its parts).
     "tables[1].columns[0]: formula references column 'gross_pay' which is not defined in this table"
   ],
   "warnings": [
-    "tables[0]: no primary key column — consider adding a unique int column"
+    "tables[0]: no primary key column - consider adding a unique int column"
   ]
 }
 ```
@@ -576,7 +683,7 @@ All nine tools return a consistent `{"ok": true/false, ...}` envelope. When some
   "ok": false,
   "error": "ValueError",
   "message": "No domain could be detected from the story.",
-  "suggestion": "Name the domain explicitly — e.g. add 'fintech', 'saas', or 'ecommerce' to your story."
+  "suggestion": "Name the domain explicitly - e.g. add 'fintech', 'saas', or 'ecommerce' to your story."
 }
 ```
 
@@ -605,6 +712,9 @@ generate_dataset       →  misata.generate() + coherence_audit() + to_csv()
 generate_from_schema   →  misata.from_dict_schema() + generate_from_schema()
                           + verify_integrity() + coherence_audit()
 audit_dataset          →  misata.coherence_audit()
+explain_schema         →  misata.explain()
+solve_outcome          →  misata.solve() with SQLRunner
+attest_dataset         →  misata.attest()
 validate_domain        →  misata.validate_domain()
 validate_yaml          →  json_schema() + validate_schema() + check_feasibility()
 seed_database          →  misata.introspect + misata.db.seed_database()
@@ -645,10 +755,26 @@ Misata is listed on [Smithery.ai](https://smithery.ai), the MCP server discovery
 default they use a system temp directory that only the current user can read;
 if you pass a custom `output_dir` the agent writes only inside that directory.
 `audit_dataset` and `validate_domain` read the CSVs in a directory and write
-nothing.
+nothing. `attest_dataset` reads the files in a directory and writes three files
+beside them: the Statement, its DSSE envelope and `verify.py`.
 
 `seed_database` is the only tool that writes to a database. It plans by
 default and inserts nothing until a second call with `apply=true`, and it will
 not overwrite a table that already contains rows without an explicit
 `truncate` or `append`. Point it only at a database you are willing to have
 written to.
+
+Every path argument (`output_dir`, `dataset_dir`, `db_path`) is resolved,
+symlinks included, and must fall inside an allowed root: the working
+directory and the system temporary directory, or exactly the directories
+listed in `MISATA_MCP_ROOTS` when that variable is set. A path outside them
+is refused with the roots named.
+
+`create_sandbox` replaces only a file it created, and refuses any other
+existing database. `query_sandbox` opens the file read-only (`mode=ro`,
+`PRAGMA query_only`, and an authorizer that allows reads only), so `ATTACH`,
+`VACUUM`, `load_extension` and writes hidden in a CTE are refused however
+the query is written. The full threat model is on the
+[security](../security.md) page, and
+[A sandbox an AI agent can act in](../usecases/agent-sandbox.md) shows the
+sandbox and grader together.

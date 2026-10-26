@@ -30,7 +30,7 @@ Built-in fixtures (import directly)::
         assert schema.domain == "fintech"
 """
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, cast
 
 try:
     import pytest
@@ -96,7 +96,7 @@ def misata_fixture(
             max_retries=max_retries,
         )
 
-    return _fixture
+    return cast(Callable[..., Any], _fixture)
 
 
 def misata_schema_fixture(
@@ -133,7 +133,7 @@ def misata_schema_fixture(
         import misata
         return misata.parse(story, rows=rows)
 
-    return _fixture
+    return cast(Callable[..., Any], _fixture)
 
 
 if _PYTEST_AVAILABLE:

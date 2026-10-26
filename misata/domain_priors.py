@@ -401,7 +401,7 @@ def apply_locale_priors(
         pack = LOCALE_PACKS.get(locale)
         if pack is None:
             return existing_params
-    except Exception:
+    except ImportError:
         return existing_params
 
     # Only inject when no explicit user distribution is set

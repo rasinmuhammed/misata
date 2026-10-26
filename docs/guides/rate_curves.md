@@ -1,13 +1,13 @@
 ---
 title: "Rate Curves, Make a Churn or Fraud Rate Rise Over Time"
-description: "Declare the exact share of a boolean or categorical outcome per period — churn rising 2% to 9%, fraud climbing through the year — enforced with zero rate-conformance error."
+description: "Declare the exact share of a boolean or categorical outcome per period, such as churn rising from 2% to 9% or fraud climbing through the year, held to the nearest row."
 ---
 
 # Rate Curves
 
 An **outcome curve** controls *how much* of a numeric column accumulates per period (revenue, volume). A **rate curve** controls *what fraction* of a boolean or categorical outcome is positive per period: a churn rate rising from 2% to 9% over a year, a fraud rate climbing through the holidays, a conversion rate improving each quarter.
 
-This is the Rate-Conformance (RCE) axis from the paper — orthogonal to the aggregate (AME) axis that outcome curves cover. The engine flips exactly `round(n_period × rate)` rows per period, so the realised rate matches your target with **RCE = 0**.
+This is the Rate-Conformance (RCE) axis from the paper, orthogonal to the aggregate (AME) axis that outcome curves cover. The engine flips exactly `round(n_period × rate)` rows per period, so the realised rate matches your target with **RCE = 0**.
 
 > Pick the right tool: a *magnitude over time* is an [outcome curve](outcome_curves.md); a *rate/proportion over time* is a rate curve; a *static split* with no time component is just categorical `probabilities`.
 
@@ -92,5 +92,5 @@ The LLM schema path extracts rate curves from prompts like *"monthly churn rises
 
 ## Common mistakes
 
-- **A static split is not a rate curve.** "70% resolved, 20% pending, 10% escalated" has no time dimension — use categorical `probabilities` instead.
+- **A static split is not a rate curve.** "70% resolved, 20% pending, 10% escalated" has no time dimension. Use categorical `probabilities` instead.
 - **Curves belong on measure columns.** A rate curve targets a boolean/categorical column, never an `id`/foreign-key column (the engine drops those).

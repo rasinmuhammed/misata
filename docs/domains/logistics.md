@@ -1,5 +1,5 @@
 ---
-title: Generate Logistics & Supply Chain Synthetic Data in Python | Misata
+title: "Generate Logistics & Supply Chain Synthetic Data in Python"
 description: Generate realistic logistics synthetic datasets in Python, drivers, vehicles, routes, and shipments with delivery time coherence, on-time rates, and fleet management distributions. No real fleet data required.
 ---
 
@@ -76,7 +76,7 @@ print(f"On-time rate: {on_time/total:.1%}")
 
 ```python
 tables = misata.generate(
-    "Logistics company with 500 drivers — delivery delays in December due to holiday volume surge, "
+    "Logistics company with 500 drivers: delivery delays in December due to holiday volume surge, "
     "on-time rate drops to 70% in December, back to 90% in January",
     rows=2000,
     seed=42,
@@ -86,10 +86,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# German logistics — German city names, EU routes, EUR costs
+# German logistics: German city names, EU routes, EUR costs
 tables = misata.generate("German parcel delivery company with 200 drivers, EU routes", rows=1000)
 
-# Indian logistics — Indian cities, INR pricing, mixed vehicle types
+# Indian logistics: Indian cities, INR pricing, mixed vehicle types
 tables = misata.generate("Indian last-mile delivery company with 300 drivers", rows=1500)
 ```
 

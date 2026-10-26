@@ -6,9 +6,11 @@ Supports database URLs and SQLAlchemy metadata.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Dict, List, Optional, Tuple
 
 from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
+from misata.sqlutil import quote_ident, quote_qualified
 
 
 def schema_from_db(
@@ -104,7 +106,6 @@ def assign_proportional_row_counts(
         parent_to_children.setdefault(rel.parent_table, []).append(rel.child_table)
         child_to_parents.setdefault(rel.child_table, []).append(rel.parent_table)
 
-    table_names = {t.name for t in config.tables}
 
     # ─── Classify each table into a tier ───
     # Reference tables: have children but no parents, and match reference-like names
@@ -212,275 +213,255 @@ def assign_proportional_row_counts(
             child.row_count = min(child.row_count, ceiling)
 
 
+def _enrich_text_column(col: Column, name_lower: str, table_lower: str) -> None:
+    """Give a text column a text_type, a domain hint or a categorical pool."""
+    params = col.distribution_params
+    if params.get("text_type") in ("uuid", "json"):
+        return
+    # UUID
+    if name_lower in ("id", "uuid") or name_lower.endswith("_uuid") or (name_lower.endswith("_id") and col.unique):
+        params["text_type"] = "uuid"
+    # JSON
+    elif name_lower in ("metadata", "settings", "config", "payload", "attributes", "properties", "extra", "preferences"):
+        params["text_type"] = "json"
+    # Email
+    elif "email" in name_lower:
+        params["text_type"] = "email"
+    # Phone
+    elif "phone" in name_lower or "mobile" in name_lower or "tel" in name_lower:
+        col.type = "categorical"
+        params["choices"] = [
+            "+1 (212) 555-0101", "+1 (310) 555-0142", "+1 (415) 555-0198",
+            "+1 (312) 555-0167", "+1 (713) 555-0134", "+1 (602) 555-0156",
+            "+1 (206) 555-0189", "+1 (305) 555-0112", "+1 (404) 555-0178",
+            "+1 (617) 555-0145", "+1 (512) 555-0123", "+1 (303) 555-0191",
+            "+1 (503) 555-0167", "+1 (919) 555-0134", "+1 (703) 555-0156",
+            "+1 (469) 555-0189", "+1 (704) 555-0112", "+1 (858) 555-0178",
+            "+1 (952) 555-0145", "+1 (480) 555-0198",
+        ]
+    # Address / street
+    elif name_lower in ("street", "address", "address_line", "street_address"):
+        params["text_type"] = "address"
+    # City
+    elif name_lower == "city":
+        col.type = "categorical"
+        params["choices"] = [
+            "New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
+            "Philadelphia", "San Antonio", "San Diego", "Dallas", "Austin",
+            "San Francisco", "Seattle", "Denver", "Boston", "Nashville",
+            "Portland", "Las Vegas", "Atlanta", "Miami", "Minneapolis",
+        ]
+    # State
+    elif name_lower in ("state", "province", "region"):
+        col.type = "categorical"
+        params["choices"] = [
+            "California", "Texas", "Florida", "New York", "Pennsylvania",
+            "Illinois", "Ohio", "Georgia", "North Carolina", "Michigan",
+            "New Jersey", "Virginia", "Washington", "Arizona", "Massachusetts",
+            "Tennessee", "Indiana", "Missouri", "Maryland", "Colorado",
+        ]
+    # Zip / postal code
+    elif name_lower in ("zip_code", "postal_code", "zip", "zipcode"):
+        col.type = "categorical"
+        params["choices"] = [
+            "10001", "10013", "10016", "10019", "10022",
+            "90001", "90012", "90036", "90045", "90210",
+            "60601", "60614", "60657", "77001", "77024",
+            "94102", "94110", "94133", "98101", "98109",
+            "33101", "33139", "30301", "30308", "02101",
+        ]
+    # Country
+    elif name_lower == "country":
+        col.type = "categorical"
+        params["choices"] = [
+            "United States", "United Kingdom", "Canada", "Germany", "France",
+            "Australia", "Japan", "India", "Brazil", "Netherlands",
+            "Spain", "Italy", "Sweden", "Switzerland", "Singapore",
+        ]
+        params["probabilities"] = [
+            0.40, 0.10, 0.08, 0.06, 0.05,
+            0.04, 0.04, 0.04, 0.03, 0.03,
+            0.03, 0.03, 0.02, 0.02, 0.03,
+        ]
+    # First name
+    elif name_lower in ("first_name", "firstname", "given_name"):
+        params["text_type"] = "name"
+    # Last name
+    elif name_lower in ("last_name", "lastname", "surname", "family_name"):
+        params["text_type"] = "name"
+    # SKU
+    elif name_lower == "sku":
+        params["smart_generate"] = True
+        params["domain_hint"] = "sku"
+    # Product or category name: generated from the table's domain
+    elif name_lower == "name":
+        # Use table context for domain detection
+        if "product" in table_lower:
+            params["smart_generate"] = True
+            params["domain_hint"] = "product"
+        elif "categor" in table_lower:
+            col.type = "categorical"
+            params["choices"] = [
+                "Electronics", "Clothing & Apparel", "Home & Garden",
+                "Sports & Outdoors", "Beauty & Personal Care", "Books & Media",
+                "Toys & Games", "Food & Grocery", "Health & Wellness",
+                "Automotive", "Office Supplies", "Jewelry & Watches",
+                "Baby & Kids", "Pet Supplies", "Arts & Crafts",
+                "Shoes & Footwear", "Kitchen & Dining", "Tools & Hardware",
+                "Furniture", "Travel & Luggage",
+            ]
+        elif "user" in table_lower or "customer" in table_lower or "person" in table_lower:
+            params["text_type"] = "name"
+        else:
+            params["smart_generate"] = True
+    # Description or body: long text
+    elif name_lower in ("description", "body", "content", "details", "bio", "summary"):
+        if "review" in table_lower:
+            params["smart_generate"] = True
+            params["domain_hint"] = "review_text"
+        elif "product" in table_lower or "categor" in table_lower:
+            col.type = "categorical"
+            params["choices"] = [
+                "Premium quality with durable construction and modern design.",
+                "Versatile and reliable, perfect for everyday use.",
+                "High-performance solution designed for demanding users.",
+                "Eco-friendly materials with excellent craftsmanship.",
+                "Compact and lightweight with advanced features.",
+                "Best-in-class warranty and customer support included.",
+                "Innovative design combining style and functionality.",
+                "Professional-grade quality at an affordable price point.",
+                "Top-rated by customers for reliability and value.",
+                "Engineered for maximum efficiency and long-lasting use.",
+                "Sleek modern aesthetic with intuitive controls.",
+                "Essential everyday item with premium materials.",
+            ]
+        else:
+            params["smart_generate"] = True
+            params["domain_hint"] = "description"
+    # Title
+    elif name_lower == "title":
+        if "review" in table_lower:
+            params["smart_generate"] = True
+            params["domain_hint"] = "review_title"
+        else:
+            params["smart_generate"] = True
+            params["domain_hint"] = "title"
+    # Slug
+    elif name_lower == "slug":
+        params["text_type"] = "word"
+    # Status (convert to categorical with proper enum)
+    elif name_lower == "status":
+        col.type = "categorical"
+        if "order" in table_lower:
+            params["choices"] = ["pending", "processing", "shipped", "delivered", "cancelled"]
+            params["probabilities"] = [0.15, 0.10, 0.15, 0.45, 0.15]
+        elif "user" in table_lower or "account" in table_lower:
+            params["choices"] = ["active", "inactive", "suspended"]
+            params["probabilities"] = [0.80, 0.15, 0.05]
+        else:
+            params["choices"] = ["active", "inactive", "pending"]
+            params["probabilities"] = [0.60, 0.25, 0.15]
+    # Tier / plan
+    elif name_lower in ("tier", "plan", "subscription_plan"):
+        col.type = "categorical"
+        params["choices"] = ["free", "premium", "enterprise"]
+        params["probabilities"] = [0.60, 0.30, 0.10]
+    # Anything else is left to smart value generation
+    else:
+        params["smart_generate"] = True
+
+
+def _enrich_int_column(col: Column, name_lower: str) -> None:
+    """Give an int column a realistic range.
+
+    ``rng.integers(low, high)`` excludes ``high``, so each ``max`` is one past
+    the largest value wanted.
+    """
+    params = col.distribution_params
+    if name_lower == "rating":
+        col.type = "categorical"
+        params["choices"] = [1, 2, 3, 4, 5]
+        params["probabilities"] = [0.05, 0.08, 0.15, 0.35, 0.37]
+    elif name_lower == "quantity" or name_lower == "qty":
+        params["distribution"] = "uniform"
+        params["min"] = 1
+        params["max"] = 11  # exclusive → gives 1-10
+    elif name_lower in ("helpful_votes", "upvotes", "likes"):
+        params["distribution"] = "uniform"
+        params["min"] = 0
+        params["max"] = 51  # exclusive → gives 0-50
+    elif name_lower == "stock_qty" or name_lower == "inventory":
+        params["distribution"] = "uniform"
+        params["min"] = 0
+        params["max"] = 501  # exclusive → gives 0-500
+
+
+def _enrich_float_column(col: Column, name_lower: str) -> None:
+    """Give a money or weight column a realistic range."""
+    params = col.distribution_params
+    if name_lower in ("price", "unit_price"):
+        params["distribution"] = "uniform"
+        params["min"] = 4.99
+        params["max"] = 999.99
+        params["decimals"] = 2
+    elif name_lower == "cost":
+        params["distribution"] = "uniform"
+        params["min"] = 2.00
+        params["max"] = 500.00
+        params["decimals"] = 2
+    elif name_lower in ("subtotal", "total", "line_total"):
+        params["distribution"] = "uniform"
+        params["min"] = 9.99
+        params["max"] = 2500.00
+        params["decimals"] = 2
+    elif name_lower in ("tax", "shipping_cost", "fee"):
+        params["distribution"] = "uniform"
+        params["min"] = 0.00
+        params["max"] = 50.00
+        params["decimals"] = 2
+    elif name_lower == "discount":
+        params["distribution"] = "uniform"
+        params["min"] = 0.00
+        params["max"] = 25.00
+        params["decimals"] = 2
+    elif "weight" in name_lower:
+        params["distribution"] = "uniform"
+        params["min"] = 0.1
+        params["max"] = 30.0
+        params["decimals"] = 2
+
+
+def _enrich_boolean_column(col: Column, name_lower: str) -> None:
+    """Give a flag column a realistic share of true values."""
+    params = col.distribution_params
+    if name_lower in ("is_active", "active", "enabled"):
+        params["probability"] = 0.85
+    elif name_lower in ("is_default",):
+        params["probability"] = 0.20
+    elif name_lower in ("verified_purchase", "verified"):
+        params["probability"] = 0.75
+
+
 def enrich_introspected_schema(config: SchemaConfig) -> None:
     """
     Auto-detect column semantics from names and set proper distribution_params.
 
     This transforms generic introspected columns into well-parameterized ones
-    that produce realistic data. Fixes: wrong domains, bad ranges, missing enums,
-    unrealistic FK values, etc.
+    that produce realistic data: domains, ranges, enums and text types.
+    Foreign keys are left to the simulator.
     """
-    # Collect all table names for FK range inference
-    table_names = {t.name for t in config.tables}
-
     for table in config.tables:
         table_lower = table.name.lower()
-        columns = config.columns.get(table.name, [])
-
-        for col in columns:
+        for col in config.columns.get(table.name, []):
             name_lower = col.name.lower()
-            params = col.distribution_params
-
-            # Skip FK columns — they're handled by the simulator's FK logic
-            if col.type == "foreign_key":
-                continue
-
-            # ── TEXT COLUMNS: Infer text_type and domain_hint ──
             if col.type == "text":
-                if params.get("text_type") in ("uuid", "json"):
-                    continue
-                # UUID
-                if name_lower in ("id", "uuid") or name_lower.endswith("_uuid") or (name_lower.endswith("_id") and col.unique):
-                    params["text_type"] = "uuid"
-                    continue
-                # JSON
-                elif name_lower in ("metadata", "settings", "config", "payload", "attributes", "properties", "extra", "preferences"):
-                    params["text_type"] = "json"
-                    continue
-                # Email
-                elif "email" in name_lower:
-                    params["text_type"] = "email"
-                    continue
-                # Phone
-                elif "phone" in name_lower or "mobile" in name_lower or "tel" in name_lower:
-                    col.type = "categorical"
-                    params["choices"] = [
-                        "+1 (212) 555-0101", "+1 (310) 555-0142", "+1 (415) 555-0198",
-                        "+1 (312) 555-0167", "+1 (713) 555-0134", "+1 (602) 555-0156",
-                        "+1 (206) 555-0189", "+1 (305) 555-0112", "+1 (404) 555-0178",
-                        "+1 (617) 555-0145", "+1 (512) 555-0123", "+1 (303) 555-0191",
-                        "+1 (503) 555-0167", "+1 (919) 555-0134", "+1 (703) 555-0156",
-                        "+1 (469) 555-0189", "+1 (704) 555-0112", "+1 (858) 555-0178",
-                        "+1 (952) 555-0145", "+1 (480) 555-0198",
-                    ]
-                    continue
-                # Address / street
-                elif name_lower in ("street", "address", "address_line", "street_address"):
-                    params["text_type"] = "address"
-                    continue
-                # City
-                elif name_lower == "city":
-                    col.type = "categorical"
-                    params["choices"] = [
-                        "New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
-                        "Philadelphia", "San Antonio", "San Diego", "Dallas", "Austin",
-                        "San Francisco", "Seattle", "Denver", "Boston", "Nashville",
-                        "Portland", "Las Vegas", "Atlanta", "Miami", "Minneapolis",
-                    ]
-                    continue
-                # State
-                elif name_lower in ("state", "province", "region"):
-                    col.type = "categorical"
-                    params["choices"] = [
-                        "California", "Texas", "Florida", "New York", "Pennsylvania",
-                        "Illinois", "Ohio", "Georgia", "North Carolina", "Michigan",
-                        "New Jersey", "Virginia", "Washington", "Arizona", "Massachusetts",
-                        "Tennessee", "Indiana", "Missouri", "Maryland", "Colorado",
-                    ]
-                    continue
-                # Zip / postal code
-                elif name_lower in ("zip_code", "postal_code", "zip", "zipcode"):
-                    col.type = "categorical"
-                    params["choices"] = [
-                        "10001", "10013", "10016", "10019", "10022",
-                        "90001", "90012", "90036", "90045", "90210",
-                        "60601", "60614", "60657", "77001", "77024",
-                        "94102", "94110", "94133", "98101", "98109",
-                        "33101", "33139", "30301", "30308", "02101",
-                    ]
-                    continue
-                # Country
-                elif name_lower == "country":
-                    col.type = "categorical"
-                    params["choices"] = [
-                        "United States", "United Kingdom", "Canada", "Germany", "France",
-                        "Australia", "Japan", "India", "Brazil", "Netherlands",
-                        "Spain", "Italy", "Sweden", "Switzerland", "Singapore",
-                    ]
-                    params["probabilities"] = [
-                        0.40, 0.10, 0.08, 0.06, 0.05,
-                        0.04, 0.04, 0.04, 0.03, 0.03,
-                        0.03, 0.03, 0.02, 0.02, 0.03,
-                    ]
-                    continue
-                # First name
-                elif name_lower in ("first_name", "firstname", "given_name"):
-                    params["text_type"] = "name"
-                    continue
-                # Last name
-                elif name_lower in ("last_name", "lastname", "surname", "family_name"):
-                    params["text_type"] = "name"
-                    continue
-                # SKU
-                elif name_lower == "sku":
-                    params["smart_generate"] = True
-                    params["domain_hint"] = "sku"
-                    continue
-                # Product name / category name — use domain-aware smart gen
-                elif name_lower == "name":
-                    # Use table context for domain detection
-                    if "product" in table_lower:
-                        params["smart_generate"] = True
-                        params["domain_hint"] = "product"
-                    elif "categor" in table_lower:
-                        col.type = "categorical"
-                        params["choices"] = [
-                            "Electronics", "Clothing & Apparel", "Home & Garden",
-                            "Sports & Outdoors", "Beauty & Personal Care", "Books & Media",
-                            "Toys & Games", "Food & Grocery", "Health & Wellness",
-                            "Automotive", "Office Supplies", "Jewelry & Watches",
-                            "Baby & Kids", "Pet Supplies", "Arts & Crafts",
-                            "Shoes & Footwear", "Kitchen & Dining", "Tools & Hardware",
-                            "Furniture", "Travel & Luggage",
-                        ]
-                    elif "user" in table_lower or "customer" in table_lower or "person" in table_lower:
-                        params["text_type"] = "name"
-                    else:
-                        params["smart_generate"] = True
-                    continue
-                # Description / body — long text
-                elif name_lower in ("description", "body", "content", "details", "bio", "summary"):
-                    if "review" in table_lower:
-                        params["smart_generate"] = True
-                        params["domain_hint"] = "review_text"
-                    elif "product" in table_lower or "categor" in table_lower:
-                        col.type = "categorical"
-                        params["choices"] = [
-                            "Premium quality with durable construction and modern design.",
-                            "Versatile and reliable, perfect for everyday use.",
-                            "High-performance solution designed for demanding users.",
-                            "Eco-friendly materials with excellent craftsmanship.",
-                            "Compact and lightweight with advanced features.",
-                            "Best-in-class warranty and customer support included.",
-                            "Innovative design combining style and functionality.",
-                            "Professional-grade quality at an affordable price point.",
-                            "Top-rated by customers for reliability and value.",
-                            "Engineered for maximum efficiency and long-lasting use.",
-                            "Sleek modern aesthetic with intuitive controls.",
-                            "Essential everyday item with premium materials.",
-                        ]
-                    else:
-                        params["smart_generate"] = True
-                        params["domain_hint"] = "description"
-                    continue
-                # Title
-                elif name_lower == "title":
-                    if "review" in table_lower:
-                        params["smart_generate"] = True
-                        params["domain_hint"] = "review_title"
-                    else:
-                        params["smart_generate"] = True
-                        params["domain_hint"] = "title"
-                    continue
-                # Slug
-                elif name_lower == "slug":
-                    params["text_type"] = "word"
-                    continue
-                # Status (convert to categorical with proper enum)
-                elif name_lower == "status":
-                    col.type = "categorical"
-                    if "order" in table_lower:
-                        params["choices"] = ["pending", "processing", "shipped", "delivered", "cancelled"]
-                        params["probabilities"] = [0.15, 0.10, 0.15, 0.45, 0.15]
-                    elif "user" in table_lower or "account" in table_lower:
-                        params["choices"] = ["active", "inactive", "suspended"]
-                        params["probabilities"] = [0.80, 0.15, 0.05]
-                    else:
-                        params["choices"] = ["active", "inactive", "pending"]
-                        params["probabilities"] = [0.60, 0.25, 0.15]
-                    continue
-                # Tier / plan
-                elif name_lower in ("tier", "plan", "subscription_plan"):
-                    col.type = "categorical"
-                    params["choices"] = ["free", "premium", "enterprise"]
-                    params["probabilities"] = [0.60, 0.30, 0.10]
-                    continue
-                # Generic — let smart_values handle it, but pass table context
-                else:
-                    params["smart_generate"] = True
-                    continue
-
-            # ── INT COLUMNS: Set realistic ranges ──
-            # Note: rng.integers(low, high) is EXCLUSIVE on high, so use max+1
+                _enrich_text_column(col, name_lower, table_lower)
             elif col.type == "int":
-                if name_lower == "rating":
-                    col.type = "categorical"
-                    params["choices"] = [1, 2, 3, 4, 5]
-                    params["probabilities"] = [0.05, 0.08, 0.15, 0.35, 0.37]
-                    continue
-                elif name_lower == "quantity" or name_lower == "qty":
-                    params["distribution"] = "uniform"
-                    params["min"] = 1
-                    params["max"] = 11  # exclusive → gives 1-10
-                    continue
-                elif name_lower in ("helpful_votes", "upvotes", "likes"):
-                    params["distribution"] = "uniform"
-                    params["min"] = 0
-                    params["max"] = 51  # exclusive → gives 0-50
-                    continue
-                elif name_lower == "stock_qty" or name_lower == "inventory":
-                    params["distribution"] = "uniform"
-                    params["min"] = 0
-                    params["max"] = 501  # exclusive → gives 0-500
-                    continue
-
-            # ── FLOAT COLUMNS: Set realistic ranges ──
+                _enrich_int_column(col, name_lower)
             elif col.type == "float":
-                if name_lower in ("price", "unit_price"):
-                    params["distribution"] = "uniform"
-                    params["min"] = 4.99
-                    params["max"] = 999.99
-                    params["decimals"] = 2
-                    continue
-                elif name_lower == "cost":
-                    params["distribution"] = "uniform"
-                    params["min"] = 2.00
-                    params["max"] = 500.00
-                    params["decimals"] = 2
-                    continue
-                elif name_lower in ("subtotal", "total", "line_total"):
-                    params["distribution"] = "uniform"
-                    params["min"] = 9.99
-                    params["max"] = 2500.00
-                    params["decimals"] = 2
-                    continue
-                elif name_lower in ("tax", "shipping_cost", "fee"):
-                    params["distribution"] = "uniform"
-                    params["min"] = 0.00
-                    params["max"] = 50.00
-                    params["decimals"] = 2
-                    continue
-                elif name_lower == "discount":
-                    params["distribution"] = "uniform"
-                    params["min"] = 0.00
-                    params["max"] = 25.00
-                    params["decimals"] = 2
-                    continue
-                elif "weight" in name_lower:
-                    params["distribution"] = "uniform"
-                    params["min"] = 0.1
-                    params["max"] = 30.0
-                    params["decimals"] = 2
-                    continue
-
-            # ── BOOLEAN COLUMNS: Set realistic probabilities ──
+                _enrich_float_column(col, name_lower)
             elif col.type == "boolean":
-                if name_lower in ("is_active", "active", "enabled"):
-                    params["probability"] = 0.85
-                elif name_lower in ("is_default",):
-                    params["probability"] = 0.20
-                elif name_lower in ("verified_purchase", "verified"):
-                    params["probability"] = 0.75
+                _enrich_boolean_column(col, name_lower)
 
 
 def schema_from_sqlalchemy(
@@ -488,11 +469,6 @@ def schema_from_sqlalchemy(
     *,
     default_rows: int = 1000,
 ) -> SchemaConfig:
-    try:
-        from sqlalchemy import MetaData  # type: ignore
-    except Exception as exc:
-        raise ImportError("SQLAlchemy is required. Install misata[orm].") from exc
-
     metadata = _extract_metadata(sqlalchemy_obj)
     if metadata is None:
         raise ValueError("Could not extract SQLAlchemy MetaData from object.")
@@ -581,25 +557,22 @@ def _sqlite_introspect(conn, tables: List[str]):
     constraints_map: Dict[str, List[Constraint]] = {}
 
     for table in tables:
-        # `PRAGMA table_info` reports the primary key and nothing about UNIQUE.
-        # A column declared `name TEXT UNIQUE` therefore looked ordinary, the
-        # generator drew it from a finite pool, and the insert was rejected.
-        # Unique indexes carry that information; single-column ones only,
-        # because a unique index over (a, b) constrains the pair.
+        # `PRAGMA table_info` reports the primary key and nothing about UNIQUE,
+        # so uniqueness is read from the unique indexes. A single-column index
+        # makes its column unique; a multi-column one constrains the tuple.
         unique_cols: set = set()
         composite: list = []
-        for idx in conn.execute(f'PRAGMA index_list("{table}")').fetchall():
+        for idx in conn.execute(f"PRAGMA index_list({quote_ident(table)})").fetchall():
             idx_name, is_unique = idx[1], idx[2]
             if not is_unique:
                 continue
-            members = conn.execute(f'PRAGMA index_info("{idx_name}")').fetchall()
+            members = conn.execute(f"PRAGMA index_info({quote_ident(idx_name)})").fetchall()
             if len(members) == 1:
                 unique_cols.add(members[0][2])
             elif len(members) > 1:
-                # UNIQUE (a, b) constrains the pair, not either column. Marking
-                # both individually unique would be a stricter schema than the
-                # database declares; the engine already has a constraint type
-                # for this, it had simply never been emitted from introspection.
+                # UNIQUE (a, b) constrains the pair, not either column, so it
+                # becomes a composite unique constraint rather than two
+                # per-column flags the database never declared.
                 composite.append([m[2] for m in sorted(members)])
 
         # Check constraints from CREATE TABLE statement in sqlite_master
@@ -616,10 +589,10 @@ def _sqlite_introspect(conn, tables: List[str]):
                     choices = [c.strip().strip("'\" ") for c in m.group(2).split(",")]
                     if choices:
                         check_choices[col_name] = choices
-        except Exception:
+        except sqlite3.Error:
             pass
 
-        cur = conn.execute(f'PRAGMA table_info("{table}")')
+        cur = conn.execute(f"PRAGMA table_info({quote_ident(table)})")
         cols: List[Column] = []
         for row in cur.fetchall():
             name = row[1]
@@ -654,7 +627,7 @@ def _sqlite_introspect(conn, tables: List[str]):
                 name=f"{table}_unique_{'_'.join(combo)}",
                 type="unique_combination", group_by=list(combo), action="drop"))
 
-        fk_cur = conn.execute(f'PRAGMA foreign_key_list("{table}")')
+        fk_cur = conn.execute(f"PRAGMA foreign_key_list({quote_ident(table)})")
         for fk in fk_cur.fetchall():
             _mark_fk_column(columns_map[table], fk[3])
             relationships.append(
@@ -716,11 +689,11 @@ def _postgres_introspect(conn, tables: List[str]):
           AND tc.table_name = %s
           AND tc.constraint_type = 'PRIMARY KEY'
     """
-    # A UNIQUE constraint is not a PRIMARY KEY, and only primary keys were read.
-    # So `tags.name varchar UNIQUE` came back as an ordinary column, the
-    # generator drew it from a finite pool, and Postgres rejected the insert on
-    # `tags_name_key`. Every Rails, Laravel and Django schema is full of these
-    # (email, slug, name), which made seeding fail on most real applications.
+    # A UNIQUE constraint is not a PRIMARY KEY, so it is read separately.
+    # Without it `tags.name varchar UNIQUE` would be an ordinary column drawn
+    # from a finite pool, and Postgres would reject the insert on
+    # `tags_name_key`. Rails, Laravel and Django schemas are full of these
+    # (email, slug, name).
     #
     # Single-column constraints only: a UNIQUE over (a, b) constrains the pair,
     # and marking a and b individually unique would be a stricter schema than
@@ -773,7 +746,7 @@ def _postgres_introspect(conn, tables: List[str]):
             cur.execute(enum_sql)
             for enum_name, enum_val in cur.fetchall():
                 enum_defs.setdefault(enum_name, []).append(enum_val)
-        except Exception:
+        except Exception:  # noqa: BLE001 - enum types are optional; the driver's error type varies
             conn.rollback()
 
     with conn.cursor() as cur:
@@ -831,8 +804,8 @@ def _postgres_introspect(conn, tables: List[str]):
                     # ceiling on any child keyed one-to-one off this table.
                     if parent_table not in external:
                         with conn.cursor() as ccur:
-                            ccur.execute(
-                                f'SELECT COUNT(*) FROM "{parent_schema}"."{parent_table}"')
+                            ccur.execute("SELECT COUNT(*) FROM "
+                                         + quote_qualified(parent_schema, parent_table))
                             n = int(ccur.fetchone()[0])
                         external[parent_table] = (parent_schema, parent_col, n)
                 relationships.append(

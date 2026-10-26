@@ -52,12 +52,6 @@ class EnhanceRequest(BaseModel):
     enhancement: str
 
 
-class IndustrySuggestionsRequest(BaseModel):
-    """Request for industry-specific improvements."""
-    schema_config: Dict[str, Any]
-    industry: str
-
-
 class SchemaResponse(BaseModel):
     """Response containing generated schema."""
     schema_config: Dict[str, Any]
@@ -165,7 +159,6 @@ async def simple_generate(request: SimpleGenerateRequest):
     }
     ```
     """
-    import misata as _misata
     from misata.story_parser import StoryParser
 
     parser = StoryParser()
@@ -221,9 +214,9 @@ async def generate_schema_from_story(request: StoryRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Schema generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Schema generation failed: {str(e)}") from e
 
 
 @app.post("/api/generate-from-graph", response_model=SchemaResponse)
@@ -244,20 +237,20 @@ async def generate_schema_from_graph(request: GraphRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Graph schema generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Graph schema generation failed: {str(e)}") from e
 
 
 @app.post("/api/enhance-schema", response_model=SchemaResponse)
 async def enhance_schema(request: EnhanceRequest):
     """
-    Enhance an existing schema with additional requirements.
+    Enrich an existing schema's distributions, guided by a free-text request.
     """
     try:
         llm = LLMSchemaGenerator()
         existing = SchemaConfig(**request.schema_config)
-        enhanced = llm.enhance_schema(existing, request.enhancement)
+        enhanced = llm.enrich_schema(existing, prompt=request.enhancement)
 
         return SchemaResponse(
             schema_config=enhanced.model_dump(),
@@ -266,23 +259,7 @@ async def enhance_schema(request: EnhanceRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Schema enhancement failed: {str(e)}")
-
-
-@app.post("/api/industry-suggestions")
-async def get_industry_suggestions(request: IndustrySuggestionsRequest):
-    """
-    Get AI suggestions for making data more industry-realistic.
-    """
-    try:
-        llm = LLMSchemaGenerator()
-        schema = SchemaConfig(**request.schema_config)
-        suggestions = llm.suggest_industry_improvements(schema, request.industry)
-
-        return suggestions
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Schema enhancement failed: {str(e)}") from e
 
 
 # ============================================================================
@@ -313,7 +290,7 @@ async def generate_data(request: GenerateRequest):
 
         # Build preview and stats
         preview = {}
-        stats = {}
+        stats: Dict[str, Dict[str, Any]] = {}
         files_created = set()
 
         # Generate and stream to disk
@@ -361,7 +338,7 @@ async def generate_data(request: GenerateRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Data generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Data generation failed: {str(e)}") from e
 
 
 @app.get("/api/download/{download_id}")
@@ -441,7 +418,7 @@ async def validate_schema(schema_config: Dict[str, Any]):
             "relationships": len(schema.relationships),
             "events": len(schema.events)
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - any parse or validation error means the schema is invalid
         return {
             "valid": False,
             "error": str(e)
@@ -522,7 +499,7 @@ async def preview_distribution(
         unique, counts = np.unique(values, return_counts=True)
 
         return {
-            "distribution": {choice: int(count) for choice, count in zip(unique, counts)},
+            "distribution": {choice: int(count) for choice, count in zip(unique, counts, strict=True)},
             "sample": values[:20].tolist()
         }
 
@@ -536,4 +513,4 @@ async def preview_distribution(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

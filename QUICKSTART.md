@@ -15,17 +15,17 @@ import misata
 
 tables = misata.generate("A SaaS company with 1000 users and monthly subscriptions", seed=42)
 
-print(tables["users"].head(3))
-#    user_id                    email            name signup_date   plan  churned
-# 0        1  tricia23@example.com  Patricia Müller  2023-04-12  basic    False
-# 1        2     evan44@example.com     Evan Schulz  2023-06-07   pro     True
-# 2        3   helena@example.com   Helena Fischer  2023-09-15  starter  False
+print(tables["users"][["user_id", "name", "country", "signup_date", "churned"]].head(3))
+#    user_id            name  country signup_date  churned
+# 0      597  Olivier Durand  Germany  2023-04-20    False
+# 1     1751   Robert Howard   France  2022-03-21    False
+# 2     1809          Na Xie    Italy  2022-05-05    False
 
-print(tables["subscriptions"].head(3))
-#    subscription_id  user_id     plan     mrr  status  start_date
-# 0                1        1  starter   49.00  active  2023-04-15
-# 1                2        2      pro  149.00  churned 2023-06-10
-# 2                3        3    basic   79.00  active  2023-09-20
+print(tables["subscriptions"][["subscription_id", "user_id", "plan", "mrr", "status"]].head(3))
+#    subscription_id  user_id     plan    mrr     status
+# 0              133      343  starter  28.43     paused
+# 1               32       41  starter  56.37  cancelled
+# 2              261       95     free   0.00  cancelled
 ```
 
 No config files. No real data needed. Referential integrity is automatic.
@@ -39,7 +39,7 @@ No config files. No real data needed. Referential integrity is automatic.
 ```python
 import misata
 
-# One liner — picks domain, generates linked tables, applies realistic distributions
+# One liner: picks domain, generates linked tables, applies realistic distributions
 tables = misata.generate("A fintech company with 2000 customers and banking transactions.", seed=42)
 
 customers    = tables["customers"]     # 2,000 rows
@@ -55,15 +55,20 @@ assert (~transactions["account_id"].isin(accounts["account_id"])).sum() == 0
 ```python
 schema = misata.parse("A healthcare clinic with patients, doctors, and appointments")
 print(schema.summary())
-# Schema: HealthcareDataset
+# Schema: Healthcare Dataset
 # Domain: healthcare
-# Tables (3)
-#   doctors         25 rows  [doctor_id, name, specialty, department]
-#   patients       500 rows  [patient_id, name, age, blood_type, ...]
-#   appointments  1500 rows  [appointment_id, patient_id, doctor_id, type, ...]
-# Relationships (2)
-#   patients.patient_id  → appointments.patient_id
-#   doctors.doctor_id    → appointments.doctor_id
+# Tables: 3
+# Total rows: 40,500
+#
+#   Table              Rows  Columns
+#   -------------- --------  -------
+#   doctors             500  doctor_id, first_name, last_name, specialty, years_experience
+#   patients         10,000  patient_id, first_name, last_name, age, gender … (+2 more)
+#   appointments     30,000  appointment_id, patient_id, doctor_id, appointment_date, status … (+2 more)
+#
+#   Relationships (2):
+#     patients.patient_id → appointments.patient_id
+#     doctors.doctor_id → appointments.doctor_id
 
 # Adjust seed, then generate
 schema.seed = 99
@@ -72,7 +77,7 @@ tables = misata.generate_from_schema(schema)
 
 ### 3. Exact aggregate targets (outcome curves)
 
-Tell Misata what your numbers should sum to — it generates rows that hit those targets:
+Tell Misata what your numbers should sum to: it generates rows that hit those targets:
 
 ```python
 schema = misata.parse(
@@ -82,7 +87,8 @@ schema = misata.parse(
 )
 tables = misata.generate_from_schema(schema)
 
-# All 12 monthly MRR targets hit exactly — to the cent
+# Each month's MRR is its target to the cent: 50,000.00 in January rising to
+# 200,000.00 in December, with September dipping to 111,363.64.
 ```
 
 ### 4. LLM-powered generation (optional)
@@ -111,10 +117,14 @@ tables = misata.generate_from_schema(schema)
 from misata import seed_database
 import misata
 
-tables = misata.generate("A SaaS company with 1000 users.", seed=42)
-report = seed_database(tables, "postgresql://user:pass@localhost/mydb", create=True)
-print(report.total_rows)
+schema = misata.parse("A SaaS company with 1000 users", rows=1000)
+report = seed_database(schema, "sqlite:///dev.db", create=True)
+print(report.total_rows)   # 2200: 1,000 users and 1,200 subscriptions
 ```
+
+The same call takes a PostgreSQL or MySQL URL. It inserts parents before
+children in one transaction and refuses a table that already has rows unless
+you pass `truncate=True` or `append=True`.
 
 Or from the CLI:
 
@@ -123,8 +133,7 @@ misata generate \
   --story "A SaaS company with 1000 users" \
   --rows 1000 \
   --db-url sqlite:///./dev.db \
-  --db-create \
-  --db-truncate
+  --db-create
 ```
 
 ### 6. Reusable runs (recipes)
@@ -156,17 +165,17 @@ Each run writes a `run_manifest.json`, `validation_report.json`, and `quality_re
 | Logistics | logistics, shipping, drivers, routes | drivers, vehicles, routes, shipments |
 | Pharma | pharma, clinical, trials | research_projects, timesheets |
 
-No keyword match → generic single-table schema with a warning. Use `LLMSchemaGenerator` for custom domains.
+Seven of the 18 story domains; [docs/domains.md](docs/domains.md) lists them
+all. A story that matches none gets a generic single-table schema. Write a
+YAML schema, or use `LLMSchemaGenerator`, for anything custom.
 
 ---
 
 ## Run the examples
 
-All examples produce real, impressive output:
-
 ```bash
 python examples/saas_revenue_curve.py       # all 12 MRR targets hit exactly
-python examples/fintech_fraud_detection.py  # FICO distribution, 2.00% fraud rate
+python examples/fintech_fraud_detection.py  # FICO-shaped credit scores, about 2% fraud
 python examples/healthcare_multi_table.py   # ABO/Rh blood types, 2 FK edges
 python examples/ecommerce_seasonal.py       # seasonal curve, power-law amounts
 ```
@@ -175,7 +184,8 @@ python examples/ecommerce_seasonal.py       # seasonal curve, power-law amounts
 
 ## Next steps
 
-- [README](README.md) — full API reference and architecture overview
-- [docs/faker-vs-sdv-vs-misata.md](docs/faker-vs-sdv-vs-misata.md) — when to use each tool
-- [docs/database-seeding-python.md](docs/database-seeding-python.md) — seeding guide
-- [CHANGELOG.md](CHANGELOG.md) — what's new in each version
+- [README](README.md): what Misata guarantees, the evidence, and twelve recipes
+- [LANGUAGE.md](LANGUAGE.md): every declaration, what it guarantees and when it refuses
+- [docs/guides/faker-vs-sdv-vs-misata.md](docs/guides/faker-vs-sdv-vs-misata.md): when to use each tool
+- [docs/guides/database-seeding-python.md](docs/guides/database-seeding-python.md): seeding guide
+- [CHANGELOG.md](CHANGELOG.md): what's new in each version

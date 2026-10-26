@@ -37,7 +37,7 @@ physics being faithful.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -364,7 +364,7 @@ def generate(spec: Degradation, seed: int = 42,
         mode = None
         if modes is not None and weights is not None:
             mode = str(rng.choice(modes, p=weights))
-            frame[spec.failure_mode_column] = np.where(
+            frame[cast(str, spec.failure_mode_column)] = np.where(
                 cycles == life, mode, "none")
 
         for response in spec.responses:

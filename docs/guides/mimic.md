@@ -119,8 +119,14 @@ tables = misata.mimic("customers.csv", rows=10_000, seed=42)
 ```python
 misata.mimic(
     source,          # str | Path | pd.DataFrame | list of those
-    rows=None,       # int — defaults to same count as source
-    seed=None,       # int — for reproducibility
-    table_name="table",  # str — used when source is a DataFrame
+    rows=None,       # int, defaults to same count as source
+    seed=None,       # int, for reproducibility
+    table_name="table",  # str, used when source is a DataFrame
 ) -> dict[str, pd.DataFrame]
 ```
+
+## Related
+
+- [Security model](../security.md): what `mimic` does not promise
+- [Publish to Hugging Face](publish.md): why a fitted folder needs `--allow-fitted`
+- [Realism benchmark](../realism-benchmark.md): how close a twin gets, measured

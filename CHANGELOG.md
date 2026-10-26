@@ -5,6 +5,432 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and versions follow [STABILITY.md](STABILITY.md): batched releases with Output changes and Breaking notes now, [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.
 
+## [0.9.8] - 2026-10-26
+
+### Attestations
+
+- `misata.attest(dir, schema)`, `misata attest DIR --schema misata.yaml` and
+  `misata generate --attest` check written files against the schema and
+  record the result as an in-toto Statement v1 with the predicate
+  `https://misata.studio/attestation/certificate/v1`. Every file is pinned
+  by SHA-256, and every invariant the schema implies (curve totals and row
+  plan, rate anchors to the nearest row, group shares, ledger identities,
+  waterfalls, foreign keys, unique columns) is stored as DuckDB SQL with its
+  declared and observed values. The folder also gets an unsigned DSSE
+  envelope and a `verify.py` that reruns everything with only `duckdb`.
+- The Statement is what `cosign attest-blob` and GitHub's `actions/attest`
+  sign; `docs/guides/attest.md` shows both, and the predicate is specified in
+  `docs/attestation/certificate-v1.md`.
+- `--export odcs` writes an ODCS v3.2.0 data contract whose `type: sql`
+  rules restate every invariant, so `datacontract test` runs the same
+  checks. `--export openlineage` writes a RunEvent with the standard
+  `dataQualityAssertions` facet and a `misata_certificate` facet.
+- Row-level rules are attested: declared inequalities and column ranges
+  (a DDL `CHECK (due_on > issued_on)`), declared string domains (`choices`,
+  `CHECK (plan IN (...))`) and declared NOT NULL, each as a count of
+  violating rows that must be 0. Columns a dirt declaration targets are left
+  out. A DDL schema of three tables now carries 22 invariants instead of 6.
+- Declared graph structure is attested. A `dag_edges` table must have no
+  cycle outside the cases a `graph_motifs` declaration planted, checked by
+  Kahn's algorithm as one DuckDB recursive query that finishes after the
+  longest path whether or not a cycle exists (0.4 seconds over 300,000
+  edges). Each motif kind's edge count and the flagged total are exact and
+  checked. The DuckDB floor is 1.3, for `USING KEY`.
+- A relationship's `min_children` is attested: no parent has fewer
+  children than declared.
+- A relationship's `partition_by` is attested: no child row shares a key
+  with a parent from another partition.
+- Lifecycles are attested. Every row's timestamps must be one of its
+  state's routes from `initial`, in order and not before `start_column`, with every other
+  timestamp null, and each state's count must be within one row of its
+  weighted share. The state column's domain is the lifecycle's states,
+  so a status column whose choices were inferred before the lifecycle
+  rewrote it no longer fails `domain`.
+- Observed decimals never read `-0.00`. A trial balance whose float sum
+  cancels to -1e-10 is zero and matches `0.00`.
+- Every command that reads a schema file reads SQL DDL from a `.sql` file:
+  `misata generate -c schema.sql`, `misata explain schema.sql`,
+  `misata attest out -s schema.sql`, and `schema:` in `solve.yaml`.
+- Every evalpack carries an attestation, checked by `verify_attestation.py`.
+- The MCP server has an `attest_dataset` tool.
+
+### Evalpacks
+
+- `misata evalpack --rotations N` and `build_evalpack(..., rotations=N)`
+  write N databases that share every declared answer and differ in every
+  row. A question ships only when its answer holds on all of them, and a
+  question whose declared answer differs between seeds is dropped as
+  `answer_depends_on_seed`.
+- `verify.py --candidates FILE` scores your SQL against the pack. A query
+  counts as correct only when it matches on every database, so one that
+  depends on particular rows fails even when it fits one of them.
+- `manifest.json` records a near-miss study: each gold SQL with one
+  plausible mistake (a window closed at the wrong end, an inner join, money
+  rounded to whole units) and how often it still matches on one database
+  and on all of them.
+- `misata.evalpack.verify_questions(con, questions)` keeps the questions whose
+  gold SQL matches on a connection, for packs built from an answer key
+  rather than from declarations. It replaces the private `_verify_questions`.
+- A curve's row-count clamp warns once per generated database. Planning
+  alone (conformance preview, validation, evalpack questions) no longer
+  repeats it.
+- New guide, `docs/guides/evalpack.md`.
+- `verify.py --candidates` prints a returned value as written (`237782.06`,
+  not `Decimal('237782.06')`).
+- Building a pack parses each CSV once instead of once per question: three
+  rotations of 43,040 rows build in about 3 seconds, down from 35. The
+  generated `verify.py` and attestation verifier do the same for CSV and
+  JSONL; Parquet stays a view.
+- Declare money targets with cents. With round targets, money rounded to
+  whole units matches the gold answer; in the eval-database recipe that
+  mistake passes 88.6% of the time with round targets and never with cents.
+
+### Agent surface
+
+- Every command takes `--json` (or `MISATA_JSON=1`) and prints one envelope:
+  `ok`, `code`, `exit_code`, `message`, `conflicts` with arithmetic and
+  remedy, `data`, the warnings raised during the run, and the text it would
+  have printed. The JSON Schema ships as
+  `misata/_schemas/cli-envelope.schema.json`. The servers (`serve`,
+  `studio`, `mcp run`) keep their stdout.
+- Exit codes mean one thing everywhere: 0 ok, 1 a check failed, 2 bad
+  arguments or unreadable input, 3 the declarations cannot all hold.
+- `misata explain SCHEMA`, `misata.explain(schema)` and the MCP tool
+  `explain_schema` show what a schema will generate without generating:
+  planned rows (exact, curve plans included), approximate memory, which
+  declaration writes which column, curve plans, the invariants an
+  attestation will check, and every conflict.
+
+### Solve
+
+- `misata solve -c solve.yaml`, `misata.solve(schema, runner, targets)` and
+  the MCP tool `solve_outcome` move outcome curves until a pipeline's
+  metrics hit per-period targets. The pipeline is DuckDB SQL over the
+  generated tables (`SQLRunner`), a dbt project built on a temporary DuckDB
+  (`DbtDuckDBRunner`), or a Python function (`PythonRunner`). Only the
+  curves a target names as its lever change, and every iteration is a
+  complete schema that passed the feasibility gate.
+- Each lever steps by a coupled least-squares fit when periods leak into
+  each other, a secant step when the pipeline adds or subtracts the lever,
+  or a damped ratio otherwise, with `direction: inverse` for levers that
+  lower their metric. Steps never cross zero or grow more than twentyfold.
+- A run stops as `converged`, `max_iterations`, `max_seconds`, `diverging`
+  (the gap widened three times past where it began), `unresponsive` (the
+  lever moved and the metric did not), `pipeline_error` or `infeasible`,
+  always with its trajectory and its closest dataset.
+- `SolveResult.write()` writes the closest dataset, `schema.solved.json`,
+  the source YAML with only the lever curves replaced, and `solve.json`.
+  `SolveResult.attest()` adds each solved period of a SQL pipeline as a
+  `within_tolerance` invariant that `verify.py` reruns against the files.
+- `misata.yaml_schema.load_schema_file()` reads every schema file form
+  (`misata.yaml`, a `SchemaConfig` dump, the dict form), as the CLI does.
+- `DbtDuckDBRunner(..., seeds=...)` and `seeds:` in `solve.yaml` run
+  `dbt seed` before `dbt run`, for projects and packages that ship lookup
+  tables.
+- Proven against two engines Misata did not write: PSLmodels
+  Tax-Calculator (300 households, a declared $2,450,000 of 2024 federal
+  tax, 5 iterations within 0.5%) and snowplow_web on dbt-duckdb (monthly
+  page views, 4 iterations within 1%). The first runs in the test suite
+  when `taxcalc` is installed.
+- New guide, `docs/guides/solve.md`.
+
+### Publish
+
+- `misata publish DIR --hf owner/name`, `misata.prepare_hub_release()` and
+  `misata.publish_to_hub()` upload an attested dataset or an evalpack to the
+  Hugging Face Hub in one commit: the tables (one viewer config per table,
+  one split per rotation for a rotated pack), the spec, the attestation,
+  `verify.py` and a dataset card generated from them. Every digest and
+  invariant is re-checked first, and nothing is uploaded unless all hold.
+- `--dry-run` writes `DATASET_CARD.md` and lists the files instead. The card
+  carries the licence (`--license`, default `cc-by-4.0`), the tags `misata`,
+  `synthetic` and `verified-synthetic`, the invariant table with expected
+  and observed values, and how to re-verify and regenerate.
+- `misata mimic` writes `fitted.json` beside its output, and a folder that
+  holds it publishes only with `--allow-fitted`; the card then says the data
+  was fitted to real rows and is not anonymous.
+- The token comes from `HF_TOKEN` or `hf auth login`, never an option. New
+  extra: `misata[hf]`. New guide, `docs/guides/publish.md`.
+
+### Scale
+
+- `misata generate --format csv|jsonl|parquet|duckdb` writes rows as they
+  are generated, through the same bounded-memory path as `generate_stream`,
+  so output is bounded by disk. `--format parquet --partition-by COLUMN`
+  writes Hive-style `table/column=value/part-00000.parquet`, with the column
+  in the path and not the files; a column with more than 10,000 values is
+  refused. Each partition streams into one file, a row group per batch,
+  with at most 64 files open at once. `--format duckdb` writes every table
+  into `data.duckdb`. Column types are fixed from each table's first batch,
+  so parts never disagree.
+- `misata attest` and `--attest` read every layout `generate` writes:
+  partitioned folders are attested part by part, each subject annotated
+  with the tables it holds, and `data.duckdb` is attached read-only.
+- `verify.py` reports unreadable or damaged files as a failed check instead
+  of a traceback, and names DuckDB when it is not installed.
+- New extras: `misata[parquet]` and `misata[duckdb]`.
+- Streaming cost per batch no longer grows with the number of parents seen.
+  `min_children` coverage and one-hop roll-ups kept per-parent state that
+  every batch merged in full, and a formula reading `@parent.column` rebuilt
+  a lookup over the whole parent table for every batch. All three now cost
+  time in the batch's size, with identical output. Ten million rows across
+  fourteen tables stream to Parquet in 34 seconds on an M1 laptop, down from
+  242, at about 1 GB peak; one million take 2.1 seconds.
+- Streamed roll-ups match the in-memory result. A `mean` over a column with
+  nulls divides by the non-null values (it divided by every row), `min` and
+  `max` over a datetime column work (they raised), and sums over an integer
+  column stay integers.
+- `benchmarks/bench_r3_volume.py --stream DIR` generates to Parquet and
+  checks every key, line and total with DuckDB over the files.
+
+### Security
+
+- Sandboxes are read-only for queries. `query_sandbox` opens the file with
+  `mode=ro`, sets `PRAGMA query_only` and installs an authorizer that allows
+  reads and a short list of schema pragmas, so `ATTACH`, `VACUUM`,
+  `load_extension` and writes hidden in a CTE are refused.
+- `create_sandbox` only replaces a file it created. Sandboxes carry a SQLite
+  application id, and any other existing database is refused with
+  `NotASandboxError` instead of being overwritten.
+- The MCP server reads and writes only inside allowed roots: the working
+  directory and the system temp directory, or exactly the paths in
+  `MISATA_MCP_ROOTS`. Paths that resolve outside them, including through a
+  symlink, are refused with the roots named.
+- Every SQL identifier Misata writes goes through one quoting function
+  (`misata.sqlutil.quote_ident`) for SQLite, Postgres, DuckDB, MySQL and
+  Spark, so a table or column name cannot end a quoted identifier early.
+- `misata serve` and the API's `__main__` bind to 127.0.0.1. Pass
+  `--host 0.0.0.0` to accept remote connections.
+- `misata sandbox --open` starts `sqlite3` without a shell.
+- Network fetches refuse any URL that is not https, and HTML documents are
+  rendered with autoescaping.
+- SECURITY.md now states the threat model: what touches the network, what
+  writes to a database, and what `mimic` does not promise.
+
+### Warnings
+
+- `misata.MisataWarning` is the category of every warning Misata emits, and
+  `misata.ConformanceWarning` marks the ones where a declaration will not
+  hold exactly as written. Both subclass `UserWarning`.
+  `warnings.simplefilter("error", misata.ConformanceWarning)` makes them
+  fatal in CI.
+- A period whose total needs more rows than `max_transactions_per_period`
+  allows (or fewer than the minimum) now says so. The total still holds; the
+  warning names the periods and the per-row mean they ended up with.
+- Warnings point at the line in your code that called Misata, not at an
+  engine module.
+
+### Declared values hold
+
+- A relationship whose child column is declared a plain `int` or `text`
+  makes it a foreign key. It was generated from the column's own type, so
+  `users.user_id -> tasks.assignee_id` over `assignee_id: {type: int}` left
+  most tasks pointing at no user, without a warning.
+- A misspelt type inside a `json` or `array` column is refused when the
+  schema loads, naming the field (`profile.full_name`), instead of failing
+  partway through generation after earlier tables were written.
+- `balanced_ledger` balances whole journal entries over the whole table.
+  It ran per batch, so an entry whose lines straddled a batch boundary had a
+  line moved to another entry, which could leave entries with fewer lines
+  than `min_children` declared, or none.
+- A lifecycle on a table that must postdate its parent keeps the start
+  column inside its declared window. The causality pass took each row's
+  earliest date from every date column, including lifecycle timestamps that
+  hold placeholder values until the lifecycle writes them, and shifted
+  `started_at` years past its declared end. Lifecycle timestamps are now
+  empty until the lifecycle runs and never set how far a row moves.
+- Lifecycle timestamps are whole seconds, and whole days in a `date` column,
+  with each state still at or after the one before it.
+- `misata audit` no longer reports a lifecycle's own timestamps as outside a
+  window they never declared, nor dates moved by the `demo` and `eval`
+  presets as outside the windows those presets moved.
+- `verify.py` names DuckDB when it is missing instead of reporting the files
+  unreadable.
+- A state column with declared values (`choices`, `enum`, or a DDL
+  `CHECK (... IN (...))`) keeps them through geography coherence. The
+  undeclared columns follow it instead: each row's city moves into its
+  state, the country becomes the state's country, and the ZIP and phone
+  follow the city. The same rule protects declared city, postal and phone
+  columns, and `coherence_audit(repair=True)` reports a declared city
+  instead of rewriting it.
+- A unique foreign key is one-to-one across every batch, not only within
+  one, and the dict schema form now keeps `unique` and `nullable` on a
+  foreign key. A child table with more rows than its parent is refused
+  before generation as `unique_fk_exceeds_parents`.
+- Every entry point refuses contradictory declarations. The check ran in
+  `generate_from_schema` only, so `misata generate`, `seed`, `dbt-seed`,
+  `prisma-seed`, `dbt-fixture`, `db.seed_database`, `generate_stream`, the
+  REST API and Spark generated them anyway and broke one (a unique column
+  declared `max: 5` came out holding 1 to 10). It now runs in
+  `DataSimulator.generate_all`, which every path goes through;
+  `DataSimulator(..., strict=False)` keeps the old behaviour.
+- Composition analysis sees what curves and group shares write. It looked
+  for an attribute curves do not have, so `misata lint` never reported a
+  curve sharing its column with outliers or duplicates.
+- An outcome curve whose time column is declared `date` generates whole
+  days, as any other `date` column does. It used to carry times to the
+  nanosecond.
+- A time grid on a curve's `datetime` time column is refused before
+  generation as `time_grid_moves_period`: the grid rolls late rows into the
+  next day, which can move them into the next period and break both
+  declared totals. On a `date` column the two compose.
+- Geography columns hold plain Python strings. A column mixing `str` and
+  `numpy.str_` made DuckDB refuse the frame ("Unsupported string type") in
+  wide schemas with several place columns.
+- The Gauntlet gains two tables and ten assertions. `loyalty_accounts` has
+  a unique foreign key and a declared state. `ad_spend` has a monthly curve
+  split by channel shares, checked per month and over the whole year. Misata
+  holds 136/136 and the Faker script 78/136. The original eleven tables
+  generate the same bytes as before.
+
+### Other
+
+- `mimic` keeps an `ssn`, `tax_id` or other national ID column a national
+  ID. It was profiled as a phone number because its dashes matched the
+  phone shape; a phone now also needs a phone's ten to fifteen digits.
+  Generated US SSNs avoid the area, group and serial numbers that are
+  never issued.
+- Generating from a schema never changes it. Semantic inference, curve
+  repairs, presets and quality retries work on a copy, so a schema
+  reused after `generate_from_schema` or `generate_stream` (to attest,
+  explain or generate again) is the one that was written.
+- `POST /api/enhance-schema` enriches the schema instead of failing on a
+  method that did not exist; `/api/industry-suggestions`, which never
+  worked, is removed.
+- Works with DuckDB 2.0. The `verify.py` files Misata writes read every
+  result to the end, which DuckDB 2 requires before the next query on a
+  connection, and the benchmark suites no longer call `fetchone()` on a
+  relation, which DuckDB 2 removed.
+- `misata.generate_from_schema(schema, seed=42)` generates with that seed
+  and leaves the schema's own unchanged, as `misata.generate` does.
+- `misata.seed_database` refuses a table that already has rows unless
+  `truncate=True` or `append=True` says what to do with it, as `misata
+  seed` does, and writes nothing. It used to stop partway with the
+  driver's unique-key error.
+- The Groq provider defaults to `openai/gpt-oss-120b`. Groq retired
+  `llama-3.3-70b-versatile`, so every story sent through the default
+  failed with a 404.
+- `misata lint --strict` passes a schema without outcome curves, such as
+  the one `misata init` writes. Having no curve is not a finding.
+- `misata mimic --help` says the output is fitted to real rows and is
+  not anonymous, as SECURITY.md does.
+- The pytest plugin finds a relative `schema=` beside the test file before
+  looking at the rootdir, and reads `.sql` and JSON schemas as well as YAML.
+- A DDL rule written `CHECK (seen_at IS NULL OR seen_at >= booked_at)` is
+  honoured and attested as the rule it guards. It was skipped with a
+  warning, so seeding a database that enforces it could fail.
+- `misata provenance` states what real data went in precisely: none when
+  generating from a schema, and `misata mimic` named as the exception whose
+  output is not anonymous. With a folder it reports `fitted.json`, the
+  inputs the attestation records (version, schema hash, seed, result) and
+  every data file's sha256, including partitioned and DuckDB output, and
+  `--json` returns all of it.
+- `misata audit` no longer reports a phone number such as
+  `+1 (613) 948-7315` as an unexpanded regex pattern.
+- A relationship written as an object accepts `parent: entries.entry_id`
+  and `child: lines.entry_id`, as the arrow shorthand does.
+- A schema file that fails validation exits 2 with the reason instead of a
+  traceback.
+- `save_yaml_schema` writes every declaration, per-table constraints, the
+  full form of relationships that carry more than their keys, every column
+  parameter, the preset and the description, and `load_yaml_schema` reads
+  them all back. The Gauntlet and Warren schemas round-trip with equal
+  models and equal fingerprints; a test holds them there.
+- The published JSON Schema accepts what Misata writes: per-table
+  `constraints`, every constraint type (`balanced_ledger`, `when_then`,
+  `lte_parent`, `sum_lte_parent`), the relationship fields `min_children`,
+  `filters`, `partition_by` and the time pairs, curve points named by
+  `month`, `date` or `period` with `target_value` or `relative_value`,
+  `value_mode: count`, and `sampling: auto` and `pareto`. A test fails when
+  a model gains a field the schema lacks.
+- `misata sandbox` no longer needs the `mcp` extra.
+- `misata sandbox -c misata.yaml` (and `create_sandbox(schema=...)` with a
+  `SchemaConfig`) seeds the sandbox from a declared schema with its row
+  counts and seed. The sandbox holds the same rows as `misata generate` and
+  an evalpack's first rotation, so an agent's SQL returns the same number
+  in the sandbox and in the grader.
+- `tools/quality.py` measures lint, complexity, security findings, mypy
+  errors, import cost and dependency count against a baseline that may only
+  go down, and CI runs it.
+
+### Output changes
+
+- A lifecycle state reachable several ways splits its rows across every
+  route in exact counts, weighted by how often a walk taking each
+  transition out of a state equally often follows the route. With
+  `trialing -> churned` beside `trialing -> active -> churned`, some churned
+  rows now carry an activation date, where every one used to churn straight
+  from trial. Event logs follow each row's own route, a `when_then` rule
+  that holds on only some routes is refused, and the audit reports a row
+  whose timestamps match no route as `lifecycle_no_route`. A state with one
+  route generates the same rows as before.
+- A weekend row that a timestamp's rhythm moves goes to a weekday of the
+  same week chosen evenly, instead of the nearest weekday, which piled a
+  weekend's volume onto Friday and Monday. A date derived from another
+  column (`seen_at` after `booked_at`) gets the same weekly rhythm within
+  its declared gap, where it used to be flat across all seven days. Every
+  golden fingerprint changes for this reason alone.
+- `misata generate --format jsonl` writes `json` and `array` columns as
+  nested objects and lists, as `misata.to_jsonl` already did, instead of
+  escaped strings. Neither writes `\/` for a forward slash any more.
+- Email addresses and usernames transliterate accented names: Schröder is
+  `schroeder`, José is `jose`, where every non-ASCII letter used to be
+  dropped (`schrder`). The four golden fingerprints with such a name change
+  for that reason alone, on 8 rows.
+- A date column named for a birth date (`date_of_birth`, `dob`,
+  `birth_date`, `birthday`, `born_on`) with no declared range spans
+  1940-01-01 to 2007-12-31 instead of the generic 2020 to 2024.
+- From DDL, a short `*_code` text column holds codes with a prefix from its
+  name (`drug_code VARCHAR(12)` gives `DRG952339`) instead of text
+  fragments.
+- Seeding a database writes a declared `date` column as `YYYY-MM-DD` and
+  any other timestamp as `YYYY-MM-DD HH:MM:SS`, the forms the CSV export
+  uses, instead of ISO text with a `T`. In SQLite, where dates compare as
+  text, `day <= '2025-04-30'` now includes the last day. Postgres columns
+  keep their `DATE` and `TIMESTAMP` types and values.
+- Tables with a lifecycle whose timestamp columns had placeholder values
+  during generation produce different rows: the start column stays in its
+  window, and state timestamps are whole seconds or whole days.
+- The audit summary reads `Coherence: clean, no reader-visible
+  contradictions.` and `Coherence score N/100: ...`.
+- Attestations and evalpack certificates carry more invariants (row rules),
+  so their invariant counts and `attestation.intoto.json` files change.
+- `save_yaml_schema` writes `nullable: false` only for a column that
+  declared it. A column left at the model's default is written without the
+  key and reloads as nullable, which changes no generated value.
+- `misata serve` listens on 127.0.0.1 by default instead of 0.0.0.0.
+- A structured spec story that parses completely logs its summary at INFO
+  instead of emitting a warning. Rules it could not translate still warn.
+- Warning filters that match on `module=` see the caller's module instead of
+  a Misata module.
+- Prefixed postal columns (`billing_zip`, `ship_postcode`) are generated as
+  postal codes for the row's city, and a US city's code starts with its own
+  ZIP3 on every path.
+- A unique foreign key with too few parents raises `InfeasibleSchema` before
+  generation instead of a `ValueError` partway through it.
+- A curve's time column declared `date` holds midnight values. Schemas that
+  declare it `datetime` generate the same bytes as before.
+- A time grid on a curve's `datetime` time column raises `InfeasibleSchema`.
+- `misata generate` and every other generating command exit 3 with the
+  conflicts on stderr when declarations cannot all hold, instead of
+  generating data that breaks one.
+- Exit codes changed where a command used 1 for bad input: a missing CSV
+  folder, an unknown capsule, rule or model, an existing output without
+  `--force`, and an unparseable story or manifest now exit 2. Error messages
+  go to stderr.
+- `misata attest --json` and `misata realism --json` print the envelope; the
+  Statement is `data.statement` and the report `data.realism`.
+  `misata dbt-mutate --json FILE` is now `--report-json FILE`.
+- A unique integer column with no declared range is sized to its table
+  without a `ConformanceWarning`; only a declared `max` that is too small
+  warns, and only with `strict=False`.
+- An evalpack's `verify.py` prints one line per question and a final count
+  of how many match on every database.
+- With `generate_stream`, `misata generate` and other bounded-memory paths,
+  a roll-up `mean` over a child column with nulls changes to the mean of
+  its non-null values, and a `sum`, `min` or `max` over an integer child
+  column is written as an integer, as the in-memory path already did.
+
 ## [0.9.7.2] - 2026-10-15
 
 - `TimeSeriesConfig(noise_ar=...)`: Gaussian noise can be a stationary AR(1)

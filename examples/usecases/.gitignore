@@ -1,0 +1,11 @@
+# Outputs a recipe writes when run in place.
+out/
+seeds/
+pack/
+*.duckdb
+*.duckdb.wal
+target/
+logs/
+generated_data/
+DATASET_CARD.md
+sandbox.db

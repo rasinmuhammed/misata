@@ -1,3 +1,8 @@
+---
+title: "Seed a Django Project With Synthetic Data"
+description: "misata.from_django reads your models, field types, choices, validators and foreign keys, and generates rows that load into the tables migrate created."
+---
+
 # Seeding a Django project
 
 `misata.from_django()` reads your models (field types, `max_length`,

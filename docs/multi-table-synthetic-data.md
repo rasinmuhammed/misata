@@ -7,7 +7,7 @@ multi-table relational generation.
 ## The problem with single-table generators
 
 ```python
-# Faker approach — you write FK logic by hand
+# Faker approach: you write FK logic by hand
 import random
 from faker import Faker
 
@@ -18,7 +18,7 @@ customers = [{"id": i, "email": fake.email()} for i in customer_ids]
 
 # Nothing stops order.customer_id from referencing a non-existent customer
 orders = [{"id": j, "customer_id": random.randint(1, 10000)} for j in range(5000)]
-# ^ broken — 10x the valid range, no referential integrity enforced
+# ^ broken: 10x the valid range, no referential integrity enforced
 ```
 
 Every relationship is your problem. Misata handles this automatically.
@@ -34,7 +34,7 @@ tables = misata.generate("An ecommerce store with 1000 customers and orders.", s
 customers = tables["customers"]  # 1,000 rows
 orders    = tables["orders"]     # 5,000+ rows
 
-# FK integrity is automatic — no orphans
+# FK integrity is automatic: no orphans
 assert (~orders["customer_id"].isin(customers["customer_id"])).sum() == 0
 ```
 

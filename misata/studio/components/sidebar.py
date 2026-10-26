@@ -1,5 +1,4 @@
 import streamlit as st
-from misata import __version__
 from misata.studio.state.store import StudioStore
 
 def render_sidebar():
@@ -11,7 +10,6 @@ def render_sidebar():
         st.markdown("---")
         
         # 2. Navigation
-        current_tab = StudioStore.get("active_tab", "Schema")
         
         # Helper for nav buttons
         def nav_button(label, key, icon=""):

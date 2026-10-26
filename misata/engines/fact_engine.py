@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from itertools import pairwise
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 
 PERIOD_INDEX_COLUMN = "__misata_period_index__"
@@ -37,6 +40,7 @@ class ResolvedCurve:
     avg_transaction_value: Optional[float] = None
     concentration: float = 2.0
     intra_period_pattern: str = "uniform"
+    counts: bool = False  # value_mode "count": the targets are each period's rows, and no column is written
 
 
 @dataclass
@@ -49,11 +53,45 @@ class FactGenerationPlan:
     row_counts: np.ndarray
     curves: List[ResolvedCurve]
     intra_period_pattern: str = "uniform"
+    #: ``(period, per-row mean)`` for each period whose row count was held to
+    #: the declared min/max transactions per period.
+    clamped: List[Tuple[str, float]] = field(default_factory=list)
 
     @property
     def constrained_columns(self) -> set[str]:
-        return {curve.column for curve in self.curves}
+        return {curve.column for curve in self.curves if not curve.counts}
 
+    def warn_if_clamped(self) -> None:
+        """Report clamped periods; generation calls this, planning alone does not."""
+        if self.clamped:
+            _warn_row_count_clamp(self.curves[0], self.clamped)
+
+
+def _period_name(bucket: PeriodBucket, time_unit: str) -> str:
+    """A period as a reader would write it: 2025-03 for a month, a date otherwise."""
+    fmt = {"year": "%Y", "month": "%Y-%m"}.get(time_unit, "%Y-%m-%d")
+    if time_unit == "quarter":
+        return f"{bucket.start.year}-Q{(bucket.start.month - 1) // 3 + 1}"
+    return str(bucket.start.strftime(fmt))
+
+def _warn_row_count_clamp(curve: ResolvedCurve, clamped: List[Tuple[str, float]]) -> None:
+    """Report periods whose row count was held to the declared min/max.
+
+    The period totals stay exact either way; what changes is the size of each
+    row, which then no longer averages ``avg_transaction_value``.
+    """
+    declared = float(curve.avg_transaction_value or 0.0)
+    worst_label, worst_mean = max(clamped, key=lambda item: abs(item[1] - declared))
+    labels = ", ".join(label for label, _ in clamped[:4]) + (" ..." if len(clamped) > 4 else "")
+    warn(
+        f"{curve.column}: {len(clamped)} of {len(curve.buckets)} periods ({labels}) need a row "
+        f"count outside min/max_transactions_per_period "
+        f"[{curve.min_transactions_per_period}, {curve.max_transactions_per_period}] at "
+        f"avg_transaction_value={declared:g}. Their totals still hold, but rows in "
+        f"{worst_label} average {worst_mean:,.2f} instead of {declared:g}. Widen the "
+        f"min/max transactions per period, or change avg_transaction_value.",
+        ConformanceWarning,
+    )
 
 class FactEngine:
     """Generates fact rows that satisfy exact period-level targets."""
@@ -96,8 +134,13 @@ class FactEngine:
         if len(time_columns) != 1 or len(time_units) != 1 or len(bucket_labels) != 1:
             return None
 
-        primary = resolved_curves[0]
-        row_counts = self._allocate_row_counts(table.row_count, primary)
+        counted = [c for c in resolved_curves if c.counts]
+        primary = counted[0] if counted else resolved_curves[0]
+        clamped: List[Tuple[str, float]] = []
+        if counted:  # rows a period as stated; a sum curve on the same table is then held over those rows
+            row_counts = np.maximum(np.round(np.abs(primary.targets)), 0).astype(int)
+        else:
+            row_counts, clamped = self._allocate_row_counts(table.row_count, primary)
         return FactGenerationPlan(
             time_column=primary.time_column,
             time_unit=primary.time_unit,
@@ -105,6 +148,7 @@ class FactEngine:
             row_counts=row_counts,
             curves=resolved_curves,
             intra_period_pattern=primary.intra_period_pattern,
+            clamped=clamped,
         )
 
     @staticmethod
@@ -136,6 +180,8 @@ class FactEngine:
         """
         conflicts: List[Dict[str, Any]] = []
         for curve in plan.curves:
+            if curve.counts:
+                continue
             column = column_map.get(curve.column)
             params = (getattr(column, "distribution_params", {}) or {}) if column is not None else {}
             lo = params.get("min")
@@ -144,7 +190,7 @@ class FactEngine:
             hi = float(hi) if isinstance(hi, (int, float)) and not isinstance(hi, bool) else None
             if lo is None and hi is None:
                 continue
-            for bucket, target, rows in zip(plan.buckets, curve.targets, plan.row_counts):
+            for bucket, target, rows in zip(plan.buckets, curve.targets, plan.row_counts, strict=True):
                 rows = int(rows)
                 if rows <= 0:
                     continue
@@ -171,15 +217,19 @@ class FactEngine:
         """Build the base scaffold for a constrained fact table."""
         rows: List[pd.DataFrame] = []
         time_column = plan.time_column
+        whole_days = getattr(column_map.get(time_column), "type", None) == "date"
 
-        for bucket, row_count in zip(plan.buckets, plan.row_counts):
+        for bucket, row_count in zip(plan.buckets, plan.row_counts, strict=True):
             if row_count <= 0:
                 continue
 
+            stamps = self._generate_timestamps(bucket, row_count, plan.intra_period_pattern)
+            if whole_days:
+                stamps = self._to_whole_days(stamps, bucket)
             frame = pd.DataFrame(
                 {
                     PERIOD_INDEX_COLUMN: np.full(row_count, bucket.index, dtype=int),
-                    time_column: self._generate_timestamps(bucket, row_count, plan.intra_period_pattern),
+                    time_column: stamps,
                 }
             )
             rows.append(frame)
@@ -190,6 +240,8 @@ class FactEngine:
             df = pd.DataFrame(columns=[PERIOD_INDEX_COLUMN, time_column])
 
         for curve in plan.curves:
+            if curve.counts:
+                continue
             decimals = self._column_decimals(column_map.get(curve.column))
             df[curve.column] = 0.0 if decimals else 0
             for bucket_index, target in enumerate(curve.targets):
@@ -217,6 +269,8 @@ class FactEngine:
             return df
 
         for curve in plan.curves:
+            if curve.counts:
+                continue
             decimals = self._column_decimals(column_map.get(curve.column))
             tolerance = 10.0 ** (-decimals) if isinstance(decimals, int) and decimals > 0 else 1e-9
             for bucket_index, target in enumerate(curve.targets):
@@ -232,11 +286,9 @@ class FactEngine:
                 if abs(current - float(target)) <= tolerance:
                     continue
                 # The declared bounds have to be read here too, not just at
-                # generation. Without them this regeneration silently undid the
-                # bound fitting the first pass had done: a salary column
-                # declared 45,000 to 350,000 came back holding 1,808 and
-                # 815,895, because the aggregate was re-hit by a code path that
-                # had never been told the column had a floor or a ceiling.
+                # generation, or re-hitting the aggregate would undo the bound
+                # fitting the first pass did: a salary declared 45,000 to
+                # 350,000 must stay inside that range after rebalancing.
                 lo, hi = self._declared_bounds(column_map.get(curve.column))
                 df.loc[mask, curve.column] = self._generate_exact_values(
                     target=target,
@@ -260,7 +312,7 @@ class FactEngine:
         time_unit = getattr(curve, "time_unit", "month")
         start_date = self._resolve_start_date(curve, columns, time_column)
 
-        sorted_points = sorted(points, key=self._point_sort_key)
+        sorted_points = self._with_months_between(sorted(points, key=self._point_sort_key), time_unit, start_date)
         buckets: List[PeriodBucket] = []
         targets: List[float] = []
 
@@ -280,33 +332,38 @@ class FactEngine:
             avg_transaction_value=getattr(curve, "avg_transaction_value", None),
             concentration=max(0.1, float(getattr(curve, "concentration", 2.0))),
             intra_period_pattern=getattr(curve, "intra_period_pattern", "uniform"),
+            counts=getattr(curve, "value_mode", "auto") == "count",
         )
 
-    def _allocate_row_counts(self, fallback_row_count: int, curve: ResolvedCurve) -> np.ndarray:
-        # A period's row count has to come from how much activity it needs to
-        # carry, not from the sign of its target. A ledger's net change, a
-        # P&L delta, a cash flow: all legitimately go negative some months.
-        # `np.maximum(targets, 0)` used to clamp every negative target to
-        # zero here, so a declared -$95,000 month got zero rows, not $95,000
-        # split negative. Twelve real months, six of them negative, produced
-        # a dataset with six months completely empty and no warning raised.
+    def _allocate_row_counts(
+        self, fallback_row_count: int, curve: ResolvedCurve,
+    ) -> Tuple[np.ndarray, List[Tuple[str, float]]]:
+        """Rows per period, and the periods held to the declared min/max."""
+        # A period's row count comes from how much activity it carries, so it
+        # is sized by the target's magnitude. Net changes, P&L deltas and cash
+        # flows go negative in some periods, and a -95,000 month needs as many
+        # rows as a +95,000 one.
         magnitude_targets = np.abs(curve.targets)
         row_counts = np.zeros(len(curve.targets), dtype=int)
 
         if curve.avg_transaction_value and curve.avg_transaction_value > 0:
+            clamped: List[Tuple[str, float]] = []
             for index, target in enumerate(magnitude_targets):
                 if target <= 0:
                     continue
-                estimated = int(round(target / curve.avg_transaction_value))
-                estimated = max(curve.min_transactions_per_period, estimated)
-                estimated = min(curve.max_transactions_per_period, estimated)
+                ideal = int(round(target / curve.avg_transaction_value))
+                estimated = min(curve.max_transactions_per_period,
+                                max(curve.min_transactions_per_period, ideal))
+                if estimated != ideal:
+                    clamped.append((_period_name(curve.buckets[index], curve.time_unit),
+                                    target / estimated))
                 row_counts[index] = self._clip_to_target_units(estimated, target)
-            return row_counts
+            return row_counts, clamped
 
         active = magnitude_targets > 0
         active_count = int(active.sum())
         if active_count == 0:
-            return row_counts
+            return row_counts, []
 
         total_rows = max(int(fallback_row_count), active_count)
         base_allocation = magnitude_targets / magnitude_targets.sum()
@@ -345,7 +402,7 @@ class FactEngine:
                 continue
             row_counts[index] = self._clip_to_target_units(row_counts[index], target)
 
-        return row_counts
+        return row_counts, []
 
     def _clip_to_target_units(self, row_count: int, target: float, decimals: int = 2) -> int:
         unit_count = int(round(abs(target) * (10 ** decimals)))
@@ -393,6 +450,16 @@ class FactEngine:
         final_ns = np.clip(final_ns, start_ns, end_ns - 1)
         return pd.to_datetime(np.sort(final_ns))
 
+    @staticmethod
+    def _to_whole_days(stamps: pd.Series, bucket: PeriodBucket) -> pd.Series:
+        """Midnight of each timestamp's day, as a ``date`` column holds it.
+
+        A day-or-coarser bucket starts at midnight, so flooring never leaves
+        it; the clip keeps a finer bucket's rows inside it too.
+        """
+        floored = pd.DatetimeIndex(stamps).floor("D")
+        return pd.Series(np.maximum(floored.values, bucket.start.to_datetime64()))
+
     def _generate_exact_values(
         self,
         target: float,
@@ -414,11 +481,9 @@ class FactEngine:
             return zeros / multiplier if decimals else zeros
 
         # A negative target (a net loss month, a credit-heavy ledger period)
-        # is a real, legitimate value, not "no target". `total_units <= 0`
-        # used to treat it the same as zero and hand back an all-zero column,
-        # so a declared -$3,000 came back as $0 with the total silently wrong
-        # and nothing raised to say so. The split below always works in
-        # magnitude; the sign is reapplied once, at the end, before bounds
+        # is a real, legitimate value, not "no target", so a declared -$3,000
+        # is split as -$3,000 rather than treated as zero. The split below
+        # always works in magnitude; the sign is reapplied once, at the end, before bounds
         # fitting sees the real signed total again.
         sign = -1 if total_units < 0 else 1
         magnitude_units = abs(total_units)
@@ -477,17 +542,17 @@ class FactEngine:
         """Pull every row inside [lo, hi] while keeping the period total exact.
 
         The Dirichlet split hits the aggregate perfectly and knows nothing about
-        the column's declared bounds, so a target of 150,000 across 400 rows
-        produced invoices of 6.71 against a declared min of 49. The aggregate
-        was honoured and the bound was quietly broken.
+        the column's declared bounds: on its own, a target of 150,000 across
+        400 rows can produce invoices of 6.71 against a declared min of 49,
+        honouring the aggregate and quietly breaking the bound.
 
         Both hold whenever ``lo·n <= T <= hi·n``. Everything here is integer
         units of the column's own precision, so clipping and then handing the
         residual to the rows that still have room conserves the total exactly
         rather than to within a rounding error. When the arithmetic genuinely
         cannot hold, this leaves the aggregate intact and the caller's existing
-        `bound_conflicts` check reports the sacrifice, which is the behaviour
-        that was already documented for the impossible case.
+        `bound_conflicts` check reports the sacrifice, as documented for the
+        impossible case.
         """
         n = len(units)
         if n == 0 or (lo is None and hi is None):
@@ -556,6 +621,40 @@ class FactEngine:
 
         return pd.Timestamp.now().normalize().replace(month=1, day=1)
 
+    def _with_months_between(self, points: List[Dict[str, Any]], time_unit: str, start_date: pd.Timestamp) -> List[Dict[str, Any]]:
+        """A monthly curve's months between its declared points, each target read on the line between its neighbours.
+
+        Points are anchors ("$50k in month 1, $200k in month 24", the form this tool documents), not the only months
+        with activity: a curve given at months 1, 7, 12, 18 and 24 made rows in those five months and none in the
+        fourteen between, so a two-year invoice table billed five months. A declared point keeps its exact target."""
+        if time_unit != "month" or len(points) < 2:
+            return points
+        def key(p: Dict[str, Any]) -> Optional[pd.Period]:
+            if "month" in p:
+                return (pd.Timestamp(year=start_date.year, month=start_date.month, day=1) + pd.DateOffset(months=int(p["month"]) - 1)).to_period("M")
+            if "date" in p:
+                return pd.Timestamp(p["date"]).to_period("M")
+            return None
+        keys = [key(p) for p in points]
+        periods = [k for k in keys if k is not None]
+        if len(periods) != len(points) or len(set(periods)) != len(periods):
+            return points
+        keyed = list(zip(periods, points, strict=True))
+        out: List[Dict[str, Any]] = []
+        for (k0, p0), (k1, p1) in pairwise(keyed):
+            out.append(p0)
+            gap = (k1 - k0).n
+            v0, v1 = float(self._extract_target_value(p0)), float(self._extract_target_value(p1))
+            for j in range(1, gap):
+                at = k0 + j
+                v = v0 + (v1 - v0) * j / gap
+                if "month" in p0 and "month" in p1:
+                    out.append({"month": int(p0["month"]) + j, "target_value": round(v, 2)})
+                else:
+                    out.append({"date": at.start_time.strftime("%Y-%m-%d"), "target_value": round(v, 2)})
+        out.append(keyed[-1][1])
+        return out
+
     def _resolve_bucket_window(
         self,
         point: Dict[str, Any],
@@ -564,11 +663,9 @@ class FactEngine:
         start_date: pd.Timestamp,
     ) -> tuple[pd.Timestamp, pd.Timestamp, str]:
         if "month" in point:
-            # `month` counts from the curve's start, not from January. It was
-            # being passed straight to `pd.Timestamp(month=...)`, so any curve
-            # longer than a year raised "month must be in 1..12, not 24" and
-            # took the whole generation down. A two-year revenue curve is an
-            # ordinary thing to declare.
+            # `month` counts from the curve's start, not from January, so it
+            # is an offset from the start month and a curve may run past
+            # month 12.
             month = int(point["month"])
             bucket_start = (pd.Timestamp(year=start_date.year,
                                          month=start_date.month, day=1)
@@ -603,10 +700,7 @@ class FactEngine:
         """Order curve points, whichever way the period was written.
 
         `period` is documented in the published JSON Schema as a string label
-        such as '2024-01', and this called int() on it. So the one spelling the
-        schema requires was the one that crashed, with a bare ValueError out of
-        a sort key: `misata generate` died on the flagship feature, and lint
-        reported it as a warning.
+        such as '2024-01'; a numeric period is accepted too.
 
         ISO period labels sort chronologically as plain text, so a label that is
         not a number sorts by its string. Keys are 4-tuples throughout, because

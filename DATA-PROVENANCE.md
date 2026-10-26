@@ -7,13 +7,17 @@ any generated folder.
 
 ## Is any real data involved?
 
-No. Misata generates from declarations: a schema, distributions, curves,
-identities. There is no training step, no fitting to customer records, no
-corpus of scraped personal data behind the values. Names, emails, and
-addresses come from public-vocabulary pools and format templates, not from
-people. The exception is explicit and opt-in: `misata mimic` fits marginal
-distributions to a table you provide, on your machine, and stores only
-quantiles, never rows.
+Not when you generate from a schema. Misata reads no rows to do it: the
+values come from declarations (a schema, distributions, curves,
+identities), format templates and public vocabulary pools. There is no
+training step and no corpus of scraped personal data behind the values.
+
+The exception is explicit and opt-in: `misata mimic` fits per-column
+quantiles and category frequencies to a table you provide, on your machine.
+It keeps no rows, but the categories it saw and the extremes of each column
+can reappear in its output, so that output is not anonymous. A folder mimic
+writes carries `fitted.json`; `misata provenance` reports it and
+`misata publish` refuses it without `--allow-fitted`.
 
 ## Does generation touch the network?
 

@@ -34,7 +34,7 @@ Usage::
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -119,7 +119,7 @@ def _categorical_similarity(real: pd.Series, syn: pd.Series) -> ColumnFidelity:
 
 
 def _is_numeric_col(real: pd.Series, syn: pd.Series) -> bool:
-    return pd.api.types.is_numeric_dtype(real) and pd.api.types.is_numeric_dtype(syn)
+    return cast(bool, pd.api.types.is_numeric_dtype(real) and pd.api.types.is_numeric_dtype(syn))
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +257,7 @@ def _ml_efficacy(
             "trtr_score": round(float(trtr), 4),
             "efficacy_ratio": round(float(ratio), 4),
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - advisory score, any model failure is reported as unavailable
         return {"available": False, "reason": f"error: {e}"}
 
 
@@ -369,7 +369,6 @@ def privacy_report(
     exact = real[shared].merge(synthetic[shared], how="inner")
     exact_rate = min(1.0, len(exact) / max(1, len(synthetic)))
 
-    rng = np.random.default_rng(seed)
     real_s = real[shared].sample(min(sample_size, len(real)), random_state=seed)
     syn_s = synthetic[shared].sample(min(sample_size, len(synthetic)), random_state=seed)
 

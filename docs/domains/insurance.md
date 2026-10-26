@@ -1,5 +1,5 @@
 ---
-title: Generate Insurance Synthetic Data in Python | Misata
+title: "Generate Insurance Synthetic Data in Python"
 description: Generate realistic insurance synthetic datasets in Python, customers, policies, claims, and payments with actuarially accurate premium distributions, claim rates, and temporal coherence. No real policyholder data required or used.
 ---
 
@@ -75,7 +75,7 @@ print(tables["payments"]["method"].value_counts(normalize=True))
 
 ```python
 tables = misata.generate(
-    "Home insurance portfolio with a hurricane claims surge in Q3 — "
+    "Home insurance portfolio with a hurricane claims surge in Q3: "
     "claim rate spikes to 25% in August-September, average claim amount doubles",
     rows=3000,
     seed=42,
@@ -85,10 +85,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# US insurance — state distribution, US credit scoring
+# US insurance: state distribution, US credit scoring
 tables = misata.generate("US personal lines insurance with auto and home policies", rows=2000)
 
-# UK insurance — GBP premiums, UK cities, British names
+# UK insurance: GBP premiums, UK cities, British names
 tables = misata.generate("UK motor and home insurance company with 1k customers", rows=1000)
 ```
 

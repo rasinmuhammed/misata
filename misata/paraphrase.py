@@ -27,7 +27,7 @@ caller passes, so output stays reproducible.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -642,7 +642,7 @@ def vary(texts: Sequence[str], rng: np.random.Generator, register: str = "casual
         if not isinstance(text, str) or not text:
             out.append(text)
             continue
-        draws = iter(rng.random(64).tolist())
+        draws: Iterator[float] = iter(rng.random(64).tolist())
 
         def nxt() -> float:
             try:
@@ -650,7 +650,7 @@ def vary(texts: Sequence[str], rng: np.random.Generator, register: str = "casual
             except StopIteration:
                 return float(rng.random())
 
-        def swap(m: re.Match) -> str:
+        def swap(m: re.Match[str]) -> str:
             src = m.group(0)
             if nxt() >= rate:
                 return src
@@ -745,7 +745,7 @@ def _front_adjuncts(t: str, nxt, p: float = 0.3) -> str:
     return " ".join(parts)
 
 
-_PROPER_HINTS = frozenset()
+_PROPER_HINTS: frozenset[str] = frozenset()
 
 _ARTICLE = re.compile(r"\b([Aa]n?) ([A-Za-z][\w'-]*)")
 _AN_EXCEPT = ("uni", "use", "user", "usual", "euro", "one", "once", "eu")
@@ -754,7 +754,7 @@ _A_EXCEPT = ("hour", "honest", "heir", "honour", "honor")
 
 def _fix_articles(t: str) -> str:
     """"an new one" -> "a new one" after a swap changed the next word."""
-    def fix(m: re.Match) -> str:
+    def fix(m: re.Match[str]) -> str:
         art, word = m.group(1), m.group(2)
         w = word.lower()
         if word.isupper() and len(word) > 1:
@@ -773,7 +773,7 @@ def vary_keeping(texts: Sequence[str], keep: Sequence, rng: np.random.Generator,
     """``vary`` that leaves each row's ``keep`` phrase or phrases (a product
     noun, a job title, a city) exactly as written, in whatever case."""
     held, found_all = [], []
-    for t, k in zip(texts, keep):
+    for t, k in zip(texts, keep, strict=True):
         ks = [x for x in ([k] if isinstance(k, str) else list(k or [])) if x]
         found = re.findall("|".join(re.escape(x) for x in sorted(ks, key=len, reverse=True)), t, re.I) if ks else []
         for j, f in enumerate(found[:8]):
@@ -781,7 +781,7 @@ def vary_keeping(texts: Sequence[str], keep: Sequence, rng: np.random.Generator,
         held.append(t)
         found_all.append(found[:8])
     out = []
-    for t, found in zip(vary(held, rng, register, **kwargs), found_all):
+    for t, found in zip(vary(held, rng, register, **kwargs), found_all, strict=True):
         for j, f in enumerate(found):
             t = t.replace(chr(j + 1), f, 1)
         out.append(t)

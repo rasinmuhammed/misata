@@ -64,7 +64,7 @@ Real business data is never uniform. Misata applies domain-specific distribution
 automatically:
 
 ```python
-# Fintech — credit score matches real FICO statistics
+# Fintech: credit score matches real FICO statistics
 tables = misata.generate("A fintech company with 2000 customers.", seed=42)
 cs = tables["customers"]["credit_score"]
 
@@ -121,7 +121,7 @@ tables = misata.generate(
 transactions = tables["transactions"]
 
 fraud_rate = transactions["is_fraud"].mean() * 100
-print(f"Fraud rate: {fraud_rate:.2f}%")  # 2.00% — calibrated, not random
+print(f"Fraud rate: {fraud_rate:.2f}%")  # 2.00%, calibrated, not random
 ```
 
 ## Connecting to BI tools
@@ -131,8 +131,9 @@ Generated DataFrames can be written directly to any database your BI tool connec
 ```python
 from misata import seed_database
 
-tables = misata.generate("A SaaS company with 5000 users.", seed=42)
-seed_database(tables, "postgresql://user:pass@localhost/bi_demo", create=True)
+schema = misata.parse("A SaaS company with 5000 users.", rows=5000)
+schema.seed = 42
+seed_database(schema, "postgresql://user:pass@localhost/bi_demo", create=True)
 ```
 
 Then point Tableau, Metabase, Looker, or Power BI at `postgresql://localhost/bi_demo`.

@@ -43,8 +43,6 @@ PDF output requires the optional ``weasyprint`` package::
 
 from __future__ import annotations
 
-import os
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -313,6 +311,28 @@ def _detect_template(columns: List[str]) -> str:
 # DocumentTemplate
 # ---------------------------------------------------------------------------
 
+def _jinja2() -> Any:
+    """The ``jinja2`` module, which the ``documents`` extra installs."""
+    try:
+        import jinja2
+    except ImportError as exc:
+        raise ImportError(
+            "Document templates require Jinja2. "
+            "Install with: pip install 'misata[documents]'"
+        ) from exc
+    return jinja2
+
+
+def _environment(jinja2: Any, fmt: str) -> Any:
+    """A Jinja environment for ``fmt``.
+
+    HTML output escapes every interpolated value, because row values can come
+    from a caller's own data and must never become markup. Markdown and plain
+    text are not HTML, and escaping would corrupt them.
+    """
+    return jinja2.Environment(autoescape=(fmt == "html"), undefined=jinja2.Undefined)
+
+
 class DocumentTemplate:
     """Jinja2-backed document template for generating per-row documents.
 
@@ -343,15 +363,7 @@ class DocumentTemplate:
 
     # ------------------------------------------------------------------
     def _load(self, source: str, fmt: str):
-        try:
-            import jinja2
-        except ImportError as exc:
-            raise ImportError(
-                "Jinja2 is required for document generation. "
-                "Install it with: pip install jinja2"
-            ) from exc
-
-        env = jinja2.Environment(autoescape=False, undefined=jinja2.Undefined)
+        env = _environment(_jinja2(), fmt)
 
         # Built-in name
         if source in _BUILTIN_TEMPLATES or source == "auto":
@@ -375,8 +387,7 @@ class DocumentTemplate:
 
     def _resolve_auto(self, columns: List[str], fmt: str):
         """Resolve the 'auto' template once column names are known."""
-        import jinja2
-        env = jinja2.Environment(autoescape=False, undefined=jinja2.Undefined)
+        env = _environment(_jinja2(), fmt)
         name = _detect_template(columns)
         if fmt == "markdown":
             return env.from_string(_BUILTIN_MARKDOWN.get(name, _BUILTIN_MARKDOWN["generic"]))
@@ -409,7 +420,8 @@ class DocumentTemplate:
             "_subtitle": subtitle,
         }
         ctx.update({k: v for k, v in row.items()})  # expose all cols directly
-        return jt.render(**ctx)
+        rendered: str = jt.render(**ctx)
+        return rendered
 
 
 # ---------------------------------------------------------------------------
@@ -468,7 +480,6 @@ def generate_documents(
         )
         print(paths[0])  # /tmp/receipts/doc_1.html
     """
-    import pandas as pd
 
     # Resolve DataFrame
     if table is None:
@@ -482,7 +493,7 @@ def generate_documents(
         df = df.head(limit)
 
     # Resolve template
-    fmt_for_template = "markdown" if format == "markdown" else (
+    fmt_for_template: Literal["html", "markdown", "txt"] = "markdown" if format == "markdown" else (
         "txt" if format == "txt" else "html"
     )
     if isinstance(template, DocumentTemplate):
@@ -528,7 +539,7 @@ def _safe_val(v: Any) -> Any:
         import pandas as pd
         if pd.isna(v):
             return None
-    except Exception:
+    except (ImportError, TypeError, ValueError):
         pass
     if isinstance(v, float) and math.isnan(v):
         return None

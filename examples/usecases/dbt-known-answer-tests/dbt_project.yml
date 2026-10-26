@@ -1,0 +1,7 @@
+name: shop
+version: "1.0.0"
+profile: shop
+seed-paths: [seeds]
+models:
+  shop:
+    +materialized: table

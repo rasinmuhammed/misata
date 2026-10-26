@@ -15,7 +15,7 @@ class CausalSolver:
         target_constraints: Dict[str, np.ndarray],
         adjustable_nodes: List[str],
         initial_values: Optional[Dict[str, np.ndarray]] = None,
-        bounds: Optional[Tuple[float, float]] = (0, None) # Non-negative by default
+        bounds: Optional[Tuple[float, Optional[float]]] = (0, None) # Non-negative by default
     ) -> Dict[str, np.ndarray]:
         """
         Back-solves the graph.
@@ -32,7 +32,6 @@ class CausalSolver:
         
         # Validation
         sample_size = len(list(target_constraints.values())[0])
-        num_vars = len(adjustable_nodes)
         
         # Flatten initial guess into 1D array for scipy
         # x0 = [node1_t0, node1_t1, ..., node2_t0, ...]
@@ -49,7 +48,7 @@ class CausalSolver:
         # We need to provide values for ALL exogenous nodes for the forward pass.
         # If a node is exogenous but NOT in adjustable_nodes, we need a default.
         # For now, let's assume we pass a full `base_inputs` dict, or default to 1s.
-        base_inputs = {}
+        base_inputs: Dict[str, np.ndarray] = {}
         # TODO: Allow passing base inputs for non-optimized nodes
 
         def objective_function(x):
@@ -74,7 +73,7 @@ class CausalSolver:
             # 3. Forward Pass
             try:
                 results = self.graph.forward_pass(current_inputs)
-            except Exception as e:
+            except Exception:  # noqa: BLE001 - any numeric failure scores as the worst objective
                 # If optimization goes wild (e.g. NaN), return high error
                 return 1e9
 

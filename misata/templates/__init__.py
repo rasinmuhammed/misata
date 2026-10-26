@@ -399,7 +399,7 @@ def template_to_schema(template_name: str, row_multiplier: float = 1.0) -> Schem
         ))
 
     # Parse columns
-    columns = {}
+    columns: Dict[str, List[Column]] = {}
     for table_name, cols in template["columns"].items():
         columns[table_name] = []
         for c in cols:

@@ -54,15 +54,17 @@ Quick start (Databricks notebook)
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
+from misata.sqlutil import quote_ident, quote_literal
+from misata.exceptions import warn
+
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame as SparkDataFrame, SparkSession
-    from pyspark.sql.types import DataType, StructType
+    from pyspark.sql.types import StructType
     from misata.schema import SchemaConfig
 
 
@@ -180,7 +182,7 @@ def _pandas_dtype_to_spark_type(
     # Object column holding python date objects (e.g. an already-normalised date)
     if isinstance(dtype, pd.CategoricalDtype):
         return StringType()
-    if dtype == object:
+    if pd.api.types.is_object_dtype(dtype):
         non_null = series.dropna()
         if len(non_null) > 0:
             import datetime
@@ -264,7 +266,7 @@ def _normalize_for_spark(
     try:
         import pyarrow as pa
         return pa.Table.from_pandas(df, preserve_index=False).combine_chunks().to_pandas()
-    except (ImportError, Exception):
+    except Exception:  # noqa: BLE001 - any Arrow round-trip failure keeps the pandas frame
         return df.copy()
 
 
@@ -283,8 +285,8 @@ def _date_columns_from_schema(schema_config: Any) -> Dict[str, set]:
             date_cols = {c.name for c in cols if getattr(c, "type", None) == "date"}
             if date_cols:
                 result[table.name] = date_cols
-    except Exception:
-        # Be forgiving — if the schema shape is unexpected, fall back to no date hints
+    except Exception:  # noqa: BLE001 - an unexpected schema shape yields no date hints
+        # Be forgiving: if the schema shape is unexpected, fall back to no date hints
         pass
     return result
 
@@ -301,7 +303,7 @@ def _date_columns_from_delta(spark: Any, full_name: str) -> set:
             f.name for f in spark.table(full_name).schema.fields
             if isinstance(f.dataType, DateType)
         }
-    except Exception:
+    except Exception:  # noqa: BLE001 - Spark and Py4J errors vary by runtime
         return set()
 
 
@@ -333,7 +335,7 @@ def _sql_quote(identifier: str) -> str:
         _sql_quote("dev_cat.bronze.orders") → "`dev_cat`.`bronze`.`orders`"
         _sql_quote("workspace")             → "`workspace`"
     """
-    return ".".join(f"`{part.replace('`', '')}`" for part in identifier.split("."))
+    return ".".join(quote_ident(part, "spark") for part in identifier.split("."))
 
 
 def _table_exists_uc(spark: Any, full_name: str) -> bool:
@@ -346,7 +348,7 @@ def _table_exists_uc(spark: Any, full_name: str) -> bool:
     try:
         spark.sql(f"DESCRIBE TABLE {_sql_quote(full_name)}")
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001 - any DESCRIBE failure means the table is absent
         return False
 
 
@@ -370,11 +372,12 @@ def _uc_foreign_keys(spark: Any, catalog: str, database: str) -> Dict[str, Dict[
     # running the heavier multi-join query.  Avoids long timeouts on old runtimes.
     try:
         spark.sql(
-            f"SELECT 1 FROM `{catalog}`.INFORMATION_SCHEMA.TABLES LIMIT 0"
+            f"SELECT 1 FROM {quote_ident(catalog, 'spark')}.INFORMATION_SCHEMA.TABLES LIMIT 0"
         ).collect()
-    except Exception:
+    except Exception:  # noqa: BLE001 - no INFORMATION_SCHEMA means no declared keys
         return {}
 
+    cat = quote_ident(catalog, "spark")
     try:
         rows = spark.sql(f"""
             SELECT
@@ -382,14 +385,14 @@ def _uc_foreign_keys(spark: Any, catalog: str, database: str) -> Dict[str, Dict[
                 kcu.COLUMN_NAME AS child_column,
                 ccu.TABLE_NAME  AS parent_table,
                 ccu.COLUMN_NAME AS parent_column
-            FROM `{catalog}`.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-            JOIN `{catalog}`.INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+            FROM {cat}.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+            JOIN {cat}.INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
               ON  kcu.CONSTRAINT_NAME   = rc.CONSTRAINT_NAME
               AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
-            JOIN `{catalog}`.INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
+            JOIN {cat}.INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
               ON  rc.UNIQUE_CONSTRAINT_NAME   = ccu.CONSTRAINT_NAME
               AND rc.UNIQUE_CONSTRAINT_SCHEMA = ccu.CONSTRAINT_SCHEMA
-            WHERE kcu.TABLE_SCHEMA = '{database}'
+            WHERE kcu.TABLE_SCHEMA = {quote_literal(database)}
         """).collect()
         fks: Dict[str, Dict[str, Any]] = {}
         for row in rows:
@@ -398,14 +401,14 @@ def _uc_foreign_keys(spark: Any, catalog: str, database: str) -> Dict[str, Dict[
                 "column": row["parent_column"],
             }
         return fks
-    except Exception:
+    except Exception:  # noqa: BLE001 - permission and runtime errors mean no declared keys
         return {}
 
 
 def _infer_fk_relationships(
     table_names: List[str],
     schemas: Dict[str, Any],
-) -> Dict[str, Dict[str, str]]:
+) -> Dict[str, Dict[str, Dict[str, str]]]:
     """Heuristic: infer FK relationships from column names of the form ``{parent_singular}_id``.
 
     Returns a dict in the same format as the ``foreign_keys`` parameter of
@@ -413,8 +416,7 @@ def _infer_fk_relationships(
 
         {"orders": {"customer_id": {"table": "customers", "column": "id"}}}
     """
-    table_set = set(table_names)
-    fks: Dict[str, Dict[str, str]] = {}
+    fks: Dict[str, Dict[str, Dict[str, str]]] = {}
 
     # Build a lookup: singular form → table name
     singular_to_table: Dict[str, str] = {}
@@ -448,13 +450,11 @@ def _infer_fk_relationships(
                 unresolved.append(f"{table_name}.{col_name}")
 
     if unresolved:
-        warnings.warn(
+        warn(
             "from_catalog_schema could not auto-infer a parent table for these "
             f"FK-looking columns: {unresolved}. Pass them explicitly via "
             "foreign_keys={'<table>': {'<col>': {'table': '<parent>', 'column': 'id'}}} "
             "to guarantee referential integrity.",
-            UserWarning,
-            stacklevel=3,
         )
 
     return fks
@@ -681,8 +681,8 @@ def write_delta(
         db_full = f"{catalog}.{db}" if catalog else db
         try:
             spark.sql(f"CREATE SCHEMA IF NOT EXISTS {_sql_quote(db_full)}")
-        except Exception as exc:
-            warnings.warn(f"Could not create schema '{db_full}': {exc}")
+        except Exception as exc:  # noqa: BLE001 - the write reports its own error if the schema is missing
+            warn(f"Could not create schema '{db_full}': {exc}")
 
     for table_name, df in tables.items():
         full_name = _full_table_name(table_name, catalog, db)
@@ -713,12 +713,12 @@ def write_delta(
 
                 # Liquid clustering takes precedence over Hive partitioning
                 clustered = bool(cluster_by and table_name in cluster_by)
-                if clustered:
+                if clustered and cluster_by is not None:
                     try:
                         writer = writer.clusterBy(*cluster_by[table_name])
                     except (AttributeError, TypeError):
                         # clusterBy unavailable on this Delta version — fall back
-                        warnings.warn(
+                        warn(
                             f"Liquid clustering not supported by this Delta build; "
                             f"writing '{table_name}' without clustering."
                         )
@@ -746,13 +746,13 @@ def write_delta(
             if optimize_after_write:
                 try:
                     spark.sql(f"OPTIMIZE {_sql_quote(full_name)}")
-                except Exception:
-                    pass  # OPTIMIZE is best-effort
+                except Exception:  # noqa: BLE001 - OPTIMIZE is best-effort
+                    pass
 
             result.table_paths[table_name] = full_name
             result.rows_written[table_name] = len(df)
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - each table's failure is recorded in the result
             result.errors[table_name] = str(exc)
             result.table_paths[table_name] = full_name
             if verbose:
@@ -795,7 +795,8 @@ def _merge_into_delta(
             "Keys must be plain identifiers (letters, digits, underscores)."
         )
     target = DeltaTable.forName(spark, target_table)
-    cond = " AND ".join([f"t.`{k}` = s.`{k}`" for k in keys])
+    quoted = [quote_ident(k, "spark") for k in keys]
+    cond = " AND ".join(f"t.{k} = s.{k}" for k in quoted)
     (
         target.alias("t")
         .merge(source_df.alias("s"), cond)
@@ -878,7 +879,7 @@ def append_to_delta(
                 f"SELECT COALESCE(MAX(id), 0) AS max_id FROM {_sql_quote(full_name)}"
             ).limit(1).collect()
             pk_offsets[t.name] = int(rows[0]["max_id"]) + 1 if rows else 0
-        except Exception:
+        except Exception:  # noqa: BLE001 - a missing table or id column starts at 0
             pk_offsets[t.name] = 0
 
     # Generate new batch
@@ -892,7 +893,7 @@ def append_to_delta(
                 df = df.copy()
                 df["id"] = df["id"] + offset
                 new_tables[name] = df
-            except Exception:
+            except TypeError:
                 pass
 
     # Second pass: shift FK columns so child rows still reference the shifted parent PKs.
@@ -908,7 +909,7 @@ def append_to_delta(
                 child_df = child_df.copy()
                 child_df[rel.child_key] = child_df[rel.child_key] + parent_offset
                 new_tables[rel.child_table] = child_df
-            except Exception:
+            except TypeError:
                 pass
 
     # Conform date typing to whatever the EXISTING table already uses, so the
@@ -989,8 +990,8 @@ def write_delta_stream(
         db_full = f"{catalog}.{db}" if catalog else db
         try:
             spark.sql(f"CREATE SCHEMA IF NOT EXISTS {_sql_quote(db_full)}")
-        except Exception as exc:
-            warnings.warn(f"Could not create schema '{db_full}': {exc}")
+        except Exception as exc:  # noqa: BLE001 - the write reports its own error if the schema is missing
+            warn(f"Could not create schema '{db_full}': {exc}")
 
     # Track whether we've written the first batch per table (overwrite first, append rest)
     first_batch: Dict[str, bool] = {}
@@ -1045,7 +1046,7 @@ def write_delta_stream(
 
             first_batch[table_name] = False
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - each table's failure is recorded in the result
             result.errors[table_name] = str(exc)
             if verbose:
                 print(f"  ✗ {table_name}: {exc}")
@@ -1054,7 +1055,7 @@ def write_delta_stream(
         for table_name, full_name in result.table_paths.items():
             try:
                 spark.sql(f"OPTIMIZE {_sql_quote(full_name)}")
-            except Exception:
+            except Exception:  # noqa: BLE001 - OPTIMIZE is best-effort
                 pass
 
     return result
@@ -1132,7 +1133,6 @@ def from_spark_schema(
         "__rows__": row_count,
     }
 
-    has_id = any(f.name.lower() == "id" for f in df_schema.fields)
 
     for f in df_schema.fields:
         col_def = _spark_field_to_col_def(f)
@@ -1263,11 +1263,11 @@ def from_catalog_schema(
     try:
         rows = spark.sql(f"SHOW TABLES IN {_sql_quote(db_full)}").collect()
         table_names = [r.tableName for r in rows]
-    except Exception:
+    except Exception:  # noqa: BLE001 - fall back to the catalog API
         # Fallback: Spark catalog API (works on Hive metastore, may fail on UC 3-part names)
         try:
             table_names = [t.name for t in spark.catalog.listTables(db_full)]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - re-raised with guidance
             raise RuntimeError(
                 f"Could not list tables in '{db_full}'. "
                 f"Check that the catalog/database exists and you have READ permission.\n"
@@ -1275,7 +1275,7 @@ def from_catalog_schema(
             ) from exc
 
     if not table_names:
-        warnings.warn(f"No tables found in '{db_full}'.")
+        warn(f"No tables found in '{db_full}'.")
 
     row_counts = row_counts or {}
     foreign_keys = foreign_keys or {}
@@ -1287,8 +1287,8 @@ def from_catalog_schema(
         full_name = _full_table_name(tname, catalog, database)
         try:
             struct = spark.table(full_name).schema
-        except Exception as exc:
-            warnings.warn(f"Skipping table '{tname}': could not read schema — {exc}")
+        except Exception as exc:  # noqa: BLE001 - an unreadable table is skipped with a warning
+            warn(f"Skipping table '{tname}': could not read schema — {exc}")
             continue
 
         col_dict: Dict[str, Any] = {
@@ -1481,11 +1481,13 @@ def verify_delta_integrity(
         parent_fqn = _qualify(parent_table)
 
         try:
+            child_key = quote_ident(child_col, "spark")
+            parent_key = quote_ident(parent_col, "spark")
             orphan_df = spark.sql(f"""
-                SELECT c.`{child_col}`
+                SELECT c.{child_key}
                 FROM   {_sql_quote(child_fqn)}  c
-                LEFT ANTI JOIN {_sql_quote(parent_fqn)} p ON c.`{child_col}` = p.`{parent_col}`
-                WHERE  c.`{child_col}` IS NOT NULL
+                LEFT ANTI JOIN {_sql_quote(parent_fqn)} p ON c.{child_key} = p.{parent_key}
+                WHERE  c.{child_key} IS NOT NULL
             """)
             orphan_count = orphan_df.count()
 
@@ -1502,8 +1504,8 @@ def verify_delta_integrity(
                     orphan_count=orphan_count,
                     sample_orphan_values=samples,
                 ))
-        except Exception as exc:
-            # Treat SQL errors as integrity unknown — add as warning violation
+        except Exception as exc:  # noqa: BLE001 - an unrunnable check is reported, not raised
+            # Treat SQL errors as integrity unknown: add as a warning violation
             violations.append(SparkIntegrityViolation(
                 child_table=child_table,
                 child_column=child_col,

@@ -35,10 +35,14 @@ This matches the FactEngine's own date generation strategy exactly.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from itertools import pairwise
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from misata.engines.fact_engine import FactGenerationPlan
 
 
 class TemporalDensityMap:
@@ -84,11 +88,11 @@ class TemporalDensityMap:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_fact_plan(cls, table: str, time_column: str, plan: "FactGenerationPlan") -> "TemporalDensityMap":  # noqa: F821
+    def from_fact_plan(cls, table: str, time_column: str, plan: "FactGenerationPlan") -> "TemporalDensityMap":
         """Construct from a ``FactGenerationPlan`` already resolved by the engine."""
         buckets = [
             (bucket.start, bucket.end, int(count))
-            for bucket, count in zip(plan.buckets, plan.row_counts)
+            for bucket, count in zip(plan.buckets, plan.row_counts, strict=True)
         ]
         return cls(table=table, time_column=time_column, buckets=buckets)
 
@@ -118,7 +122,7 @@ class TemporalDensityMap:
         windows = pd.date_range(first, last, freq=freq)
 
         buckets: List[Tuple[pd.Timestamp, pd.Timestamp, int]] = []
-        for start, end in zip(windows[:-1], windows[1:]):
+        for start, end in pairwise(windows):
             count = int(((timestamps >= start) & (timestamps < end)).sum())
             buckets.append((start, end, count))
 
@@ -133,7 +137,7 @@ class TemporalDensityMap:
     ) -> "TemporalDensityMap":
         """Create a proxy density map for a child table by inheriting parent bucket weights.
 
-        Used for deep hierarchy temporal propagation (Gap C): when a parent has
+        Used for deep hierarchy temporal propagation: when a parent has
         an exact temporal curve but its child table has no direct curve, the child
         should still sample FK values and dates with matching temporal density.
 
@@ -156,7 +160,7 @@ class TemporalDensityMap:
 
         # Translate parent weights into synthetic row counts that preserve ratios
         proxy_buckets: List[Tuple[pd.Timestamp, pd.Timestamp, int]] = []
-        for (bstart, bend, _), weight in zip(parent_map.buckets, parent_map.weights):
+        for (bstart, bend, _), weight in zip(parent_map.buckets, parent_map.weights, strict=True):
             synthetic_count = max(1, int(round(weight * 10_000)))
             proxy_buckets.append((bstart, bend, synthetic_count))
 
@@ -190,7 +194,7 @@ class TemporalDensityMap:
             return np.array([], dtype="datetime64[ns]")
 
         active = [
-            (s, e, w) for (s, e, _), w in zip(self.buckets, self.weights)
+            (s, e, w) for (s, e, _), w in zip(self.buckets, self.weights, strict=True)
             if w > 0 and e > s
         ]
         if not active:
@@ -203,7 +207,7 @@ class TemporalDensityMap:
         counts = rng.multinomial(size, active_weights)
         result_ns: List[int] = []
 
-        for (bstart, bend, _), count in zip(active, counts):
+        for (bstart, bend, _), count in zip(active, counts, strict=True):
             if count <= 0:
                 continue
             lo = bstart.value
@@ -255,7 +259,7 @@ class TemporalDensityMap:
         timestamps = pd.to_datetime(parent_df[self.time_column], errors="coerce")
         row_weights = np.ones(n, dtype=float)  # default: uniform
 
-        for (bstart, bend, _), weight in zip(self.buckets, self.weights):
+        for (bstart, bend, _), weight in zip(self.buckets, self.weights, strict=True):
             mask = (timestamps >= bstart) & (timestamps < bend)
             if mask.any():
                 row_weights[mask.values] = weight

@@ -1,0 +1,37 @@
+# misata.yaml
+name: tasks_api
+seed: 5
+tables:
+  workspaces:
+    rows: 12
+    columns:
+      workspace_id: {type: int, unique: true, min: 1, max: 12}
+      name: {type: text, semantic: company_name}
+      plan: {type: categorical, choices: [free, team, business], probabilities: [0.5, 0.35, 0.15]}
+  users:
+    rows: 60
+    columns:
+      user_id: {type: int, unique: true, min: 1, max: 60}
+      workspace_id: {type: foreign_key}
+      email: {type: text, semantic: email}
+      profile:
+        type: json
+        fields:
+          full_name: text
+          timezone: {type: string, enum: [Europe/London, America/New_York, Asia/Kolkata, Australia/Sydney]}
+          notifications: {type: json, fields: {email: boolean, push: boolean}}
+        optional: [notifications]
+        optional_rate: 0.2
+  tasks:
+    rows: 400
+    columns:
+      task_id: {type: int, unique: true, min: 1, max: 400}
+      workspace_id: {type: foreign_key}
+      assignee_id: {type: foreign_key}
+      status: {type: categorical, choices: [todo, in_progress, done], probabilities: [0.35, 0.25, 0.4]}
+      labels: {type: array, items: {type: string, enum: [bug, feature, docs, urgent, design]}, max_items: 3, unique_items: true}
+      created_at: {type: datetime, start: "2025-09-01", end: "2025-10-31"}
+relationships:
+  - workspaces.workspace_id -> users.workspace_id
+  - workspaces.workspace_id -> tasks.workspace_id
+  - {parent: users.user_id, child: tasks.assignee_id, partition_by: [workspace_id]}

@@ -5,7 +5,7 @@ Pre-configured distribution parameters that match real-world patterns
 for common data types like age, salary, prices, etc.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 import numpy as np
 
 
@@ -490,7 +490,7 @@ def _locale_currency(locale: Optional[str]) -> str:
                 None,
             )
         return getattr(pack, "currency_code", None) or "USD"
-    except Exception:
+    except (ImportError, TypeError):
         return "USD"
 
 

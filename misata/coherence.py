@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -99,12 +100,12 @@ class CoherenceReport:
 
     def summary(self) -> str:
         if self.clean:
-            return "Coherence: clean — no reader-visible contradictions."
+            return "Coherence: clean, no reader-visible contradictions."
         counts = self.by_severity()
         parts = [f"{counts[s]} {s}" for s in ("high", "medium", "low") if counts.get(s)]
         n_repaired = sum(1 for f in self.findings if f.repaired)
         tail = f" ({n_repaired} repaired)" if n_repaired else ""
-        return f"Coherence score {self.score:.0f}/100 — " + ", ".join(parts) + tail
+        return f"Coherence score {self.score:.0f}/100: " + ", ".join(parts) + tail
 
     def to_dict(self) -> Dict[str, Any]:
         ordered = sorted(
@@ -186,7 +187,8 @@ def _numeric(series: pd.Series) -> pd.Series:
 def _is_text_dtype(series: pd.Series) -> bool:
     """String columns are ``str``/``string`` dtype (not ``object``) under
     pandas string inference; accept both so detectors don't skip them."""
-    return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+    text: bool = pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+    return text
 
 
 # --------------------------------------------------------------------------- #
@@ -293,7 +295,7 @@ def _detect_and_repair_temporal(
         return []
     try:
         vals = df[chain].apply(pd.to_datetime, errors="coerce")
-    except Exception:
+    except Exception:  # noqa: BLE001 - a chain that cannot be parsed is not audited
         return []
     # A name that merely contains chain tokens is not a date ("sentiment"
     # contains both "sent" and "time"); an all-NaT candidate sitting between
@@ -303,7 +305,7 @@ def _detect_and_repair_temporal(
         return []
     vals = vals[chain]
     out: List[CoherenceFinding] = []
-    for a, b in zip(chain, chain[1:]):
+    for a, b in pairwise(chain):
         both = vals[a].notna() & vals[b].notna()
         disordered = both & (vals[a] > vals[b])
         n = int(disordered.sum())
@@ -347,9 +349,25 @@ def _detect_scale(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
     return out
 
 
+def _declared_value_columns(schema: Any, table: str) -> frozenset:
+    """Columns whose values the schema states (choices, values, probabilities)."""
+    if schema is None or not hasattr(schema, "get_columns"):
+        return frozenset()
+    return frozenset(
+        c.name for c in schema.get_columns(table)
+        if any((c.distribution_params or {}).get(k) for k in ("choices", "values", "probabilities"))
+    )
+
+
 def _detect_and_repair_geo(
-    table: str, df: pd.DataFrame, repair: bool, rng: np.random.Generator
+    table: str, df: pd.DataFrame, repair: bool, rng: np.random.Generator,
+    owned: frozenset = frozenset(),
 ) -> List[CoherenceFinding]:
+    """Cities placed in a country they do not belong to.
+
+    Repair redraws the city from its row's country, unless the schema declares
+    the city's values, in which case the finding is reported and left alone.
+    """
     from misata.vocab_seeds import CITIES_BY_COUNTRY as COUNTRY_CITIES
     city_col = next((c for c in df.columns
                      if c.lower() == "city" or c.lower().endswith("_city")), None)
@@ -368,14 +386,15 @@ def _detect_and_repair_geo(
     n = int(bad_mask.sum())
     if n == 0:
         return []
+    repairable = repair and city_col not in owned
     finding = CoherenceFinding(
         "geo_contradiction", "medium", table, f"{city_col}/{country_col}",
         f"{n} rows place '{city_col}' in a country it does not belong to.",
-        rows_affected=n, repaired=repair,
+        rows_affected=n, repaired=repairable,
     )
-    if repair:
+    if repairable:
         df.loc[bad_mask, city_col] = [
-            rng.choice(COUNTRY_CITIES[str(c)]) for c in countries[bad_mask]
+            str(rng.choice(COUNTRY_CITIES[str(c)])) for c in countries[bad_mask]
         ]
     return [finding]
 
@@ -456,14 +475,20 @@ def _detect_and_repair_derived_math(
 # Public entry point
 # --------------------------------------------------------------------------- #
 
-_REGEXY_VALUE_RE = re.compile(r"[+*|\\]|\{\d+(,\d+)?\}|\(.*\)")
+#: Regex syntax that never appears in ordinary values: escapes, counted
+#: repetition, ranges in brackets, a quantifier on a letter or group, and
+#: alternation between words. A phone number such as '+1 (613) 948-7315'
+#: carries a plus and parentheses and matches none of them.
+_REGEXY_VALUE_RE = re.compile(
+    r"\\[dwsDWS]|\{\d+(,\d+)?\}|\[[^\]]*-[^\]]*\]"
+    r"|[A-Za-z)\]][+*](?=[\s()]|$|[A-Za-z])|\)[+*?{]|\w\|\w")
 
 
 def _detect_pattern_leak(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
     """Values that look like unexpanded regex patterns ('Et+( Sj+){1,2}').
 
-    A pattern that leaks raw into rows is the loudest possible fake-data tell
-    (fraud field report: 1,500 merchants named like regexes)."""
+    A pattern that leaks raw into rows, such as merchants named like regexes,
+    is the loudest possible fake-data tell."""
     out: List[CoherenceFinding] = []
     for col in df.columns:
         if not _is_text_dtype(df[col]):
@@ -606,7 +631,7 @@ def _detect_rollup_mismatch(tables, schema) -> List[CoherenceFinding]:
     try:
         from misata.rollups import collect_declared_rollups, infer_rollups
         specs = collect_declared_rollups(schema) + infer_rollups(schema)
-    except Exception:
+    except Exception:  # noqa: BLE001 - roll-up inference is best-effort; the audit skips this check
         return out
     for s in specs:
         parent = tables.get(s.parent_table)
@@ -723,56 +748,63 @@ def _detect_lifecycle_violation(tables, schema) -> List[CoherenceFinding]:
                 rows_affected=undeclared,
             ))
 
+        stamped_cols = [(st, spec.timestamp_of(st)) for st in spec.state_names()
+                        if spec.timestamp_of(st) in df.columns]
         for state in spec.state_names():
-            path = spec.path_to(state)
-            if path is None:
+            routes = [path for path, _ in spec.routes_to(state)]
+            in_state = (status == state).to_numpy()
+            if not routes or not in_state.any():
                 continue
-            on_path = {p for p in path}
-            in_state = status == state
-            if not in_state.any():
-                continue
-            for st in spec.state_names():
-                col = spec.timestamp_of(st)
-                if not col or col not in df.columns:
-                    continue
-                vals = df.loc[in_state, col]
-                if st in on_path:
-                    bad = int(vals.isna().sum())
-                    if bad:
-                        out.append(CoherenceFinding(
-                            kind="lifecycle_missing_timestamp", severity="high",
-                            table=spec.table, column=col,
-                            message=(f"{bad} rows in state '{state}' are missing "
-                                     f"'{col}', but '{st}' is on their path"),
-                            rows_affected=bad,
-                        ))
+            # A timestamp every route sets is required, one no route sets is
+            # forbidden, and the rest must together match one whole route.
+            required = set.intersection(*(set(r) for r in routes))
+            allowed = set.union(*(set(r) for r in routes))
+            frame = df.loc[in_state, [col for _, col in stamped_cols]]
+            present = frame.notna().to_numpy()
+            broken = np.zeros(len(frame), dtype=bool)
+            for i, (st, col) in enumerate(stamped_cols):
+                if st in required:
+                    bad_rows = ~present[:, i]
+                    kind, what = "lifecycle_missing_timestamp", "are missing"
+                    why = f"but '{st}' is on every route to it"
+                elif st not in allowed:
+                    bad_rows = present[:, i]
+                    kind, what = "lifecycle_impossible_timestamp", "carry"
+                    why = f"but '{st}' is on no route to it"
                 else:
-                    bad = int(vals.notna().sum())
-                    if bad:
-                        out.append(CoherenceFinding(
-                            kind="lifecycle_impossible_timestamp", severity="high",
-                            table=spec.table, column=col,
-                            message=(f"{bad} rows in state '{state}' carry '{col}', "
-                                     f"but '{st}' is not on their path"),
-                            rows_affected=bad,
-                        ))
-
-            # Path order: consecutive timestamped states must ascend.
-            stamped = [spec.timestamp_of(p) for p in path]
-            stamped = [c for c in stamped if c and c in df.columns]
-            for a_col, b_col in zip(stamped, stamped[1:]):
-                pair = df.loc[in_state, [a_col, b_col]].dropna()
-                if pair.empty:
                     continue
-                bad = int((pair[b_col] < pair[a_col]).sum())
-                if bad:
+                broken |= bad_rows
+                if bad := int(bad_rows.sum()):
                     out.append(CoherenceFinding(
-                        kind="lifecycle_out_of_order", severity="high",
-                        table=spec.table, column=b_col,
-                        message=(f"{bad} rows in state '{state}' have {b_col} "
-                                 f"before {a_col}, against the declared path"),
+                        kind=kind, severity="high", table=spec.table, column=col,
+                        message=f"{bad} rows in state '{state}' {what} '{col}', {why}",
                         rows_affected=bad,
                     ))
+
+            matched = np.zeros(len(frame), dtype=bool)
+            for route in routes:
+                takes = (present == np.array([st in route for st, _ in stamped_cols])).all(axis=1)
+                matched |= takes
+                # Route order: consecutive timestamped states must ascend.
+                on = [c for c in map(spec.timestamp_of, route) if c in frame.columns]
+                for a_col, b_col in pairwise(on):
+                    pair = frame.loc[takes, [a_col, b_col]]
+                    if bad := int((pair[b_col] < pair[a_col]).sum()):
+                        out.append(CoherenceFinding(
+                            kind="lifecycle_out_of_order", severity="high",
+                            table=spec.table, column=b_col,
+                            message=(f"{bad} rows in state '{state}' have {b_col} "
+                                     f"before {a_col}, against the declared route"),
+                            rows_affected=bad,
+                        ))
+            if stamped_cols and (bad := int((~matched & ~broken).sum())):
+                out.append(CoherenceFinding(
+                    kind="lifecycle_no_route", severity="high",
+                    table=spec.table, column=spec.state_column,
+                    message=(f"{bad} rows in state '{state}' timestamp a set of "
+                             f"states that no declared route to it passes through"),
+                    rows_affected=bad,
+                ))
 
         # The chain must postdate its declared start.
         if spec.start_column and spec.start_column in df.columns:
@@ -933,7 +965,7 @@ def _detect_cross_table_bound_violation(tables, schema) -> List[CoherenceFinding
     out: List[CoherenceFinding] = []
     try:
         from misata.crosstable import collect_cross_table_constraints, _find_fk
-    except Exception:
+    except ImportError:
         return out
     for child_name, c in collect_cross_table_constraints(schema):
         child = tables.get(child_name)
@@ -1155,7 +1187,7 @@ def _detect_hierarchy_violation(tables, schema) -> List[CoherenceFinding]:
             continue
         if rel.child_key not in df.columns or rel.parent_key not in df.columns:
             continue
-        parent_of = dict(zip(df[rel.parent_key], df[rel.child_key]))
+        parent_of = dict(zip(df[rel.parent_key], df[rel.child_key], strict=True))
         cyclic = 0
         for start in parent_of:
             seen = {start}
@@ -1217,8 +1249,8 @@ def _detect_event_log_mismatch(tables, schema) -> List[CoherenceFinding]:
         entities = tables.get(spec.entity_table)
         if events is None or entities is None or events.empty or entities.empty:
             continue
-        lc = next((l for l in (getattr(schema, "lifecycles", None) or [])
-                   if l.table == spec.entity_table), None)
+        lc = next((lifecycle for lifecycle in (getattr(schema, "lifecycles", None) or [])
+                   if lifecycle.table == spec.entity_table), None)
         if lc is None or lc.state_column not in entities.columns:
             continue
         pk = next((r.parent_key for r in (schema.relationships or [])
@@ -1235,9 +1267,16 @@ def _detect_event_log_mismatch(tables, schema) -> List[CoherenceFinding]:
         state_of = ent[lc.state_column]
         by_entity = events.groupby(spec.entity_key)[spec.event_type_column].agg(set)
 
+        stamp_cols = [c for c in lc.timestamp_columns() if c in ent.columns]
+        state_of_col = {lc.timestamp_of(s): s for s in lc.state_names() if lc.timestamp_of(s)}
+        present = ent[stamp_cols].notna().to_numpy()
+        route_of: Dict[tuple, List[str]] = {}
         missing = extra = 0
-        for key, st in state_of.items():
-            path = lc.path_to(st) or [st]
+        for (key, st), row in zip(state_of.items(), present, strict=True):
+            if (st, row.tobytes()) not in route_of:
+                stamped = [state_of_col[c] for c, on in zip(stamp_cols, row, strict=True) if on]
+                route_of[st, row.tobytes()] = lc.route_taken(st, stamped, stamp_cols) or [st]
+            path = route_of[st, row.tobytes()]
             required = {spec.state_events[s] for s in path
                         if s in spec.state_events}
             allowed = required | set(spec.filler_events or [])
@@ -1362,17 +1401,17 @@ def _detect_bitemporal_violation(tables, schema) -> List[CoherenceFinding]:
 
         # System time must hand over without a gap: every supersede instant is
         # some sibling's recorded_at.
-        pairs = set(zip(*(df[c] for c in spec.entity_columns), rec)) \
-            if len(spec.entity_columns) > 1 else set(zip(df[spec.entity_columns[0]], rec))
+        pairs = set(zip(*(df[c] for c in spec.entity_columns), rec, strict=True)) \
+            if len(spec.entity_columns) > 1 else set(zip(df[spec.entity_columns[0]], rec, strict=True))
         if len(spec.entity_columns) == 1:
-            handover = [(e, t) for e, t in zip(df[spec.entity_columns[0]], sup)
+            handover = [(e, t) for e, t in zip(df[spec.entity_columns[0]], sup, strict=True)
                         if pd.notna(t)]
         else:
             handover = [(tuple(r), t) for r, t in
-                        zip(df[spec.entity_columns].itertuples(index=False), sup)
+                        zip(df[spec.entity_columns].itertuples(index=False), sup, strict=True)
                         if pd.notna(t)]
             pairs = {(tuple(r), t) for r, t in
-                     zip(df[spec.entity_columns].itertuples(index=False), rec)}
+                     zip(df[spec.entity_columns].itertuples(index=False), rec, strict=True)}
         orphaned = sum(1 for k in handover if k not in pairs)
         if orphaned:
             out.append(CoherenceFinding(
@@ -1398,10 +1437,9 @@ def _detect_graph_violation(tables, schema) -> List[CoherenceFinding]:
             continue
 
         # Declared motifs put cycles in this table on purpose, which is the
-        # entire reason graph_motifs exists. Checking the whole table then
-        # reports every declared ring as a broken DAG: nine tables audited
-        # together, and the only complaint was this one, about a property
-        # somebody asked for. The acyclicity that still has to hold is the
+        # entire reason graph_motifs exists. Checking the whole table would
+        # report every declared ring as a broken DAG, a complaint about a
+        # property somebody asked for. The acyclicity that still has to hold is the
         # background's, and _detect_motif_violation checks exactly that.
         motif_case = next(
             (m.case_column for m in (getattr(schema, "graph_motifs", None) or [])
@@ -1449,15 +1487,15 @@ def _detect_graph_violation(tables, schema) -> List[CoherenceFinding]:
             continue
         anc, des, dep = _closure_of(edges[spec.edge_from].to_numpy(),
                                     edges[spec.edge_to].to_numpy())
-        truth = dict(zip(zip(anc.tolist(), des.tolist()), dep.tolist()))
+        truth = dict(zip(zip(anc.tolist(), des.tolist(), strict=True), dep.tolist(), strict=True))
         have = set(zip(clo[spec.ancestor_column].tolist(),
-                       clo[spec.descendant_column].tolist()))
+                       clo[spec.descendant_column].tolist(), strict=True))
         missing = len(set(truth) - have)
         spurious = len(have - set(truth))
         wrong_depth = 0
         if spec.depth_column and spec.depth_column in clo.columns:
             for a, d, k in zip(clo[spec.ancestor_column], clo[spec.descendant_column],
-                               clo[spec.depth_column]):
+                               clo[spec.depth_column], strict=True):
                 t = truth.get((a, d))
                 if t is not None and int(k) != t:
                     wrong_depth += 1
@@ -1488,7 +1526,7 @@ def _detect_wear_violation(tables, schema) -> List[CoherenceFinding]:
     accumulates cycles, a unit marked failed has a remaining life of zero, and
     accumulated damage stays a fraction. A dataset where a machine gets younger
     is not a subtle statistical drift, it is a defect anyone plotting it would
-    see, and nothing was checking for it.
+    see.
     """
     out: List[CoherenceFinding] = []
     for spec in (getattr(schema, "degradations", None) or []):
@@ -1603,13 +1641,123 @@ def _detect_noise_rate_mismatch(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+def _detect_outcome_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
+    """Every exact outcome curve, read again from the rows: each period's sum (or, value_mode "count", its rows).
+
+    The tool promises "every declared outcome curve is hit exactly", so each one is recomputed: a curve whose months
+    were left empty, or whose column a formula wrote over afterwards, is a finding rather than a clean report."""
+    out: List[CoherenceFinding] = []
+    try:
+        from misata.engines.fact_engine import FactEngine
+    except ImportError:
+        return out
+    eng = FactEngine()
+    for cur in getattr(schema, "outcome_curves", None) or []:
+        df = tables.get(cur.table)
+        if df is None or df.empty or not eng.curve_has_exact_targets(cur) or cur.time_column not in df.columns:
+            continue
+        counts = getattr(cur, "value_mode", "auto") == "count"
+        if not counts and cur.column not in df.columns:
+            continue
+        try:
+            resolved = eng._resolve_curve(cur, (getattr(schema, "columns", None) or {}).get(cur.table, []))
+        except Exception:  # noqa: BLE001 - a curve that cannot be resolved is not audited
+            continue
+        times = pd.to_datetime(df[cur.time_column], errors="coerce")
+        values = None if counts else pd.to_numeric(df[cur.column], errors="coerce").fillna(0)
+        bad, worst = 0, ""
+        for bucket, target in zip(resolved.buckets, resolved.targets, strict=True):
+            mask = (times >= bucket.start) & (times < bucket.end)
+            got = float(mask.sum()) if values is None else float(values[mask].sum())
+            if abs(got - float(target)) > (0.5 if counts else max(0.01, 1e-6 * abs(float(target)))):
+                bad += 1
+                worst = worst or f"{bucket.start:%Y-%m-%d}: declared {float(target):,.2f}, emitted {got:,.2f}"
+        if bad:
+            out.append(CoherenceFinding(
+                kind="outcome_curve_mismatch", severity="high", table=cur.table,
+                column=None if counts else cur.column,
+                message=f"{bad} of {len(resolved.buckets)} periods miss the declared {'rows' if counts else 'total'} ({worst})",
+                rows_affected=bad))
+    return out
+
+
+#: Presets that move declared date windows to end on the day of generation.
+DATE_ANCHORING_PRESETS = ("demo", "eval")
+
+
+def _detect_declared_window_violation(tables, schema) -> List[CoherenceFinding]:
+    """A date outside the window its column declares (min/max, start/end).
+
+    A lifecycle's state timestamps are owned by the lifecycle, which places
+    them after the chain's start; they are checked by the lifecycle audit.
+    The ``demo`` and ``eval`` presets move every window to end on the day the
+    data was generated (unless curves or processes pin the dates), so the
+    windows as written no longer apply.
+    """
+    out: List[CoherenceFinding] = []
+    anchored = (str(getattr(schema, "preset", "") or "").lower() in DATE_ANCHORING_PRESETS
+                and not (schema.outcome_curves or schema.rate_curves
+                         or getattr(schema, "processes", None)))
+    if anchored:
+        return out
+    owned = {(spec.table, c) for spec in (getattr(schema, "lifecycles", None) or [])
+             for c in spec.timestamp_columns()}
+    for table, cols in (getattr(schema, "columns", None) or {}).items():
+        df = tables.get(table)
+        if df is None or df.empty:
+            continue
+        for col in cols:
+            p = col.distribution_params or {}
+            if (col.type not in ("date", "datetime") or col.name not in df.columns
+                    or p.get("formula") or (table, col.name) in owned):
+                continue
+            try:
+                lo, hi = pd.Timestamp(p.get("start")), pd.Timestamp(p.get("end")) + pd.Timedelta(days=1)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            t = pd.to_datetime(df[col.name], errors="coerce")
+            n = int(((t < lo) | (t >= hi)).sum())
+            if n:
+                out.append(CoherenceFinding(
+                    kind="declared_window_violation", severity="high", table=table, column=col.name,
+                    message=f"{n:,} rows dated outside the declared {lo:%Y-%m-%d} to {hi - pd.Timedelta(days=1):%Y-%m-%d}",
+                    rows_affected=n))
+    return out
+
+
+def _detect_empty_rollups(tables, schema) -> List[CoherenceFinding]:
+    """A parent whose rollup reads no child rows: an order with no lines, its total 0. Real orders have lines; past a
+    few percent it is a generation gap, not a business (declare min_children, or size the child table)."""
+    out: List[CoherenceFinding] = []
+    for table, cols in (getattr(schema, "columns", None) or {}).items():
+        df = tables.get(table)
+        if df is None or df.empty:
+            continue
+        for col in cols:
+            r = (col.distribution_params or {}).get("rollup")
+            if not isinstance(r, dict) or str(r.get("agg", "sum")) not in ("sum", "count") or r.get("where"):
+                continue
+            child = tables.get(r.get("from_table"))
+            fk = r.get("fk")
+            pk = next((c.name for c in cols if (c.distribution_params or {}).get("primary_key") or getattr(c, "primary_key", False) or c.name == fk), None)
+            if child is None or fk not in getattr(child, "columns", []) or pk not in df.columns:
+                continue
+            empty = float((~df[pk].isin(child[fk])).mean())
+            if empty > 0.05:
+                out.append(CoherenceFinding(
+                    kind="empty_rollup", severity="high", table=table, column=col.name,
+                    message=(f"{empty:.0%} of {table} have no {r.get('from_table')} rows, so their {col.name} is 0; "
+                             f"declare min_children on {r.get('from_table')}.{fk}, or give it more rows"),
+                    rows_affected=int(round(empty * len(df)))))
+    return out
+
+
 def _detect_rate_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
     """Every declared per-period rate, recomputed from the rows.
 
-    rate_curves is one of the two primitives the whole engine is sold on, and it
-    works: a declared 2% in January and 8% in December came back 0.0200 and
-    0.0800. Nothing checked it. A guarantee nobody recomputes is a claim, and
-    the first regression to break it would have shipped looking clean.
+    rate_curves is one of the two primitives the engine is built on: a declared
+    2% in January and 8% in December must read 0.0200 and 0.0800 from the rows.
+    A guarantee nobody recomputes is only a claim.
     """
     out: List[CoherenceFinding] = []
     for spec in (getattr(schema, "rate_curves", None) or []):
@@ -1659,10 +1807,8 @@ def _detect_rate_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
 def _detect_joint_margin_mismatch(tables, schema) -> List[CoherenceFinding]:
     """Every declared margin, recomputed from the rows that were emitted.
 
-    joint_distributions shipped in 0.9.6.48 with no refusal and no audit, which
-    I wrote, released, and documented the rule against on the same page. The
-    whole claim is that several margins hold at once and exactly; nothing
-    checked whether even one of them did.
+    The whole claim of joint_distributions is that several margins hold at once
+    and exactly, so each one is recomputed rather than assumed.
     """
     out: List[CoherenceFinding] = []
     for spec in (getattr(schema, "joint_distributions", None) or []):
@@ -1699,9 +1845,8 @@ def _detect_motif_violation(tables, schema) -> List[CoherenceFinding]:
     ``graph_motifs`` makes one claim no other declaration here makes: *the
     subgraph of edges carrying no case id is acyclic*, so every cycle in the
     output belongs to a case somebody declared and an accidental pattern cannot
-    exist. That is the whole reason the primitive exists, it is the sentence the
-    documentation leads with, and until now nothing recomputed it. A regression
-    that let one background cycle through would have read as a success.
+    exist. That is the whole reason the primitive exists and the sentence the
+    documentation leads with, so a single background cycle must fail here.
 
     Three things are recomputed from the emitted rows: the background is
     acyclic, the flagged fraction is the declared rate, and the shape mix is the
@@ -1812,7 +1957,7 @@ def _detect_group_share_mismatch(tables, schema) -> List[CoherenceFinding]:
     try:
         from misata.shares import (declared_group_targets, normalized_shares,
                                     split_total_by_shares)
-    except Exception:
+    except ImportError:
         return out
     for spec in getattr(schema, "group_shares", None) or []:
         df = tables.get(spec.table)
@@ -1864,7 +2009,7 @@ def _detect_waterfall_mismatch(tables, schema) -> List[CoherenceFinding]:
     out: List[CoherenceFinding] = []
     try:
         from misata.waterfall import declared_movements
-    except Exception:
+    except ImportError:
         return out
     for spec in getattr(schema, "waterfalls", None) or []:
         df = tables.get(spec.table)
@@ -1881,7 +2026,7 @@ def _detect_waterfall_mismatch(tables, schema) -> List[CoherenceFinding]:
         amounts = pd.to_numeric(scoped[spec.amount_column], errors="coerce").fillna(0)
         periods = scoped[spec.period_column].astype(str)
         types = scoped[spec.type_column].astype(str)
-        inflow_labels = {l for _, _, ins, _ in plan for l in ins}
+        inflow_labels = {label for _, _, ins, _ in plan for label in ins}
         signed = amounts.where(types.isin(inflow_labels), -amounts)
         bad_periods = 0
         running = round(float(spec.starting_value), 2)
@@ -2026,14 +2171,14 @@ def _audit_capsule(schema):
         try:
             from misata.capsule_registry import auto_attach_capsules
             auto_attach_capsules(schema, capsule)
-        except Exception:
+        except Exception:  # noqa: BLE001 - auto-attach is advisory; the user's capsule still loads
             pass
         capsule_file = getattr(getattr(schema, "realism", None), "capsule_file", None)
         if capsule_file:
             from misata.capsules import load_capsule, merge_into
             capsule = merge_into(capsule, load_capsule(capsule_file))
         return capsule if getattr(capsule, "price_bands", None) else None
-    except Exception:
+    except Exception:  # noqa: BLE001 - a capsule that cannot be rebuilt means no band check
         return None
 
 
@@ -2289,6 +2434,9 @@ def coherence_audit(
         report.findings.extend(_detect_motif_violation(tables, schema))
         report.findings.extend(_detect_joint_margin_mismatch(tables, schema))
         report.findings.extend(_detect_rate_curve_mismatch(tables, schema))
+        report.findings.extend(_detect_outcome_curve_mismatch(tables, schema))
+        report.findings.extend(_detect_declared_window_violation(tables, schema))
+        report.findings.extend(_detect_empty_rollups(tables, schema))
         report.findings.extend(_detect_wear_violation(tables, schema))
         report.findings.extend(_detect_vocabulary_leak(tables, schema))
         report.findings.extend(_detect_noise_rate_mismatch(tables, schema))
@@ -2305,7 +2453,8 @@ def coherence_audit(
         report.findings.extend(_detect_label_filler(name, df))
         report.findings.extend(_detect_and_repair_temporal(name, df, repair))
         report.findings.extend(_detect_scale(name, df))
-        report.findings.extend(_detect_and_repair_geo(name, df, repair, rng))
+        report.findings.extend(_detect_and_repair_geo(
+            name, df, repair, rng, _declared_value_columns(schema, name)))
         report.findings.extend(_detect_tenure(name, df))
         report.findings.extend(_detect_and_repair_derived_math(name, df, repair))
         report.findings.extend(_detect_status_gating(name, df))

@@ -1,3 +1,8 @@
+---
+title: "Nested JSON and Array Columns in Synthetic Data"
+description: "Declare nested objects and arrays for API payloads, event properties and documents, with every field generated as realistically as a top-level column."
+---
+
 # Nested JSON and array columns
 
 API payloads, event properties, user preferences and document stores are

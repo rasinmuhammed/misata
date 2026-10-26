@@ -1,12 +1,12 @@
 """How data behaves over time and where it goes missing.
 
-Five declarations the language could not previously express, each enforced
-exactly and each re-checked independently by ``coherence_audit``:
+Five declarations, each enforced exactly and each re-checked independently by
+``coherence_audit``:
 
 - :class:`~misata.schema.CohortRetention` — of the entities in a cohort, exactly
   this fraction are active k periods later. The most-quoted invariant in SaaS
-  and ecommerce analytics, and until now the cohort query every analyst runs
-  first returned a shape nobody chose.
+  and ecommerce analytics, so the cohort query every analyst runs first returns
+  the shape that was declared.
 - :class:`~misata.schema.Missingness` — values go missing *for a reason*
   (MNAR). A flat null rate produces MCAR, the one pattern real data almost
   never has, and the difference is what breaks models in production.
@@ -15,9 +15,8 @@ exactly and each re-checked independently by ``coherence_audit``:
   production system does it.
 
 - :class:`~misata.schema.TimeGrid` — a timestamp lands on a declared grid, in
-  declared hours. Misata already guessed this from column names; the guess was
-  right often enough to be load-bearing and was never checkable. This is the
-  declared form, and the guess stays on as a default.
+  declared hours. Misata also infers grids from column names; this is the
+  declared, checkable form, and the inference stays on as a default.
 - :class:`~misata.schema.Duplicates` — exactly this many rows are copies of
   another row. Deduplication is the most-written, least-tested logic in any
   pipeline, and it cannot be tested against data with no duplicates in it.
@@ -30,11 +29,12 @@ and a guarantee, and the guarantee is the product.
 from __future__ import annotations
 
 import re
-import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 NS_PER_DAY = 86_400_000_000_000
 NS_PER_MINUTE = 60_000_000_000
@@ -166,9 +166,10 @@ def apply_retention(
                           (spec.table, events, spec.cohort_key),
                           (spec.table, events, spec.event_time)):
         if col not in df.columns:
-            warnings.warn(
+            warn(
                 f"CohortRetention on '{spec.table}': column '{col}' missing from "
-                f"'{name}'. Skipping."
+                f"'{name}'. Skipping.",
+                ConformanceWarning,
             )
             return tables
 
@@ -201,11 +202,12 @@ def apply_retention(
     cell_entity = np.concatenate(parts_entity)
     cell_period = np.concatenate(parts_period)
     if len(cell_entity) > len(events):
-        warnings.warn(
+        warn(
             f"CohortRetention on '{spec.table}': the curve needs "
             f"{len(cell_entity)} active entity-periods but the table has only "
             f"{len(events)} rows. Raise {spec.table}.row_count to at least "
-            f"{len(cell_entity)}; the curve cannot be honoured as declared."
+            f"{len(cell_entity)}; the curve cannot be honoured as declared.",
+            ConformanceWarning,
         )
         return tables
 
@@ -251,9 +253,10 @@ def apply_missingness(
     df = tables.get(spec.table)
     if df is None or df.empty or spec.column not in df.columns:
         if df is not None and spec.column not in df.columns:
-            warnings.warn(
+            warn(
                 f"Missingness on '{spec.table}': column '{spec.column}' not "
-                f"found. Skipping."
+                f"found. Skipping.",
+                ConformanceWarning,
             )
         return tables
 
@@ -261,9 +264,10 @@ def apply_missingness(
     if spec.when_column and spec.when_column in df.columns:
         match = _condition_mask(df, spec.when_column, spec.when_op, spec.when_value)
     elif spec.when_column:
-        warnings.warn(
+        warn(
             f"Missingness on '{spec.table}.{spec.column}': condition column "
-            f"'{spec.when_column}' not found; applying the rate to every row."
+            f"'{spec.when_column}' not found; applying the rate to every row.",
+            ConformanceWarning,
         )
         match = pd.Series(True, index=df.index)
     else:
@@ -309,16 +313,18 @@ def apply_late_arrival(
     if df is None or df.empty:
         return tables
     if spec.event_time not in df.columns:
-        warnings.warn(
+        warn(
             f"LateArrival on '{spec.table}': event column '{spec.event_time}' "
-            f"not found. Skipping."
+            f"not found. Skipping.",
+            ConformanceWarning,
         )
         return tables
     if spec.ingest_time not in df.columns:
-        warnings.warn(
+        warn(
             f"LateArrival on '{spec.table}': ingest column '{spec.ingest_time}' "
             f"is not declared on the table, so there is nowhere to record the "
-            f"delay. Add it as a nullable datetime column."
+            f"delay. Add it as a nullable datetime column.",
+            ConformanceWarning,
         )
         return tables
 
@@ -395,10 +401,11 @@ def apply_time_grid(
     first = -(-(lo * 60) // grid) * grid          # first slot at or after open
     last = ((hi * 60 - 1) // grid) * grid          # last slot strictly inside
     if first > last:
-        warnings.warn(
+        warn(
             f"TimeGrid on '{spec.table}.{spec.column}': a {grid}-minute grid "
             f"has no slot inside {lo:02d}:00-{hi:02d}:00. Use a finer grid or "
-            f"a wider window; the column is left as generated.")
+            f"a wider window; the column is left as generated.",
+            ConformanceWarning,)
         return tables
 
     ns = _to_ns(col)
@@ -512,9 +519,10 @@ def apply_duplicates(
     subset = [c for c in (spec.subset or [c for c in df.columns if c not in keys])
               if c in df.columns]
     if not subset:
-        warnings.warn(
+        warn(
             f"Duplicates on '{spec.table}': no comparable columns left after "
-            f"excluding keys {keys}. Skipping.")
+            f"excluding keys {keys}. Skipping.",
+            ConformanceWarning,)
         return tables
 
     n = int(spec.count) if spec.count is not None else exact_count(len(df), spec.fraction)
@@ -527,11 +535,12 @@ def apply_duplicates(
     # module at scale.
     existing = int(df.duplicated(subset=subset).sum())
     if existing > n:
-        warnings.warn(
+        warn(
             f"Duplicates on '{spec.table}': the table already contains "
             f"{existing} duplicate row(s) on {subset}, more than the {n} "
             f"declared. The subset is not distinct enough to control; add a "
-            f"high-cardinality column to 'subset' or raise 'count'.")
+            f"high-cardinality column to 'subset' or raise 'count'.",
+            ConformanceWarning,)
         return tables
     need = n - existing
     if need == 0:
@@ -541,11 +550,12 @@ def apply_duplicates(
     in_dup_group = df.duplicated(subset=subset, keep=False).to_numpy()
     unique_pos = np.flatnonzero(~in_dup_group)
     if len(unique_pos) < 2 * need:
-        warnings.warn(
+        warn(
             f"Duplicates on '{spec.table}': {need} more duplicate(s) declared "
             f"but only {len(unique_pos)} row(s) are currently unique on "
             f"{subset}, so at most {len(unique_pos) // 2} can be made. Lower "
-            f"'count', or widen 'subset'.")
+            f"'count', or widen 'subset'.",
+            ConformanceWarning,)
         need = len(unique_pos) // 2
         if need == 0:
             return tables
@@ -596,9 +606,10 @@ def apply_outliers(
         return tables
     col = pd.to_numeric(df[spec.column], errors="coerce")
     if col.notna().sum() < 4:
-        warnings.warn(
+        warn(
             f"Outliers on '{spec.table}.{spec.column}': needs at least 4 numeric "
-            f"values to have a scale at all. Skipping.")
+            f"values to have a scale at all. Skipping.",
+            ConformanceWarning,)
         return tables
 
     n = int(spec.count) if spec.count is not None else exact_count(len(df), spec.fraction)
@@ -611,18 +622,20 @@ def apply_outliers(
     eligible = np.flatnonzero(col.notna().to_numpy())
     eligible = np.setdiff1d(eligible, already, assume_unique=False)
     if n < len(already):
-        warnings.warn(
+        warn(
             f"Outliers on '{spec.table}.{spec.column}': the column already holds "
             f"{len(already)} value(s) beyond {spec.sigma:g} robust sigma, more "
             f"than the {n} declared. Raise 'count', or raise 'sigma' so the "
-            f"declaration is about values you actually placed.")
+            f"declaration is about values you actually placed.",
+            ConformanceWarning,)
         return tables
     need = n - len(already)
     if need > len(eligible):
-        warnings.warn(
+        warn(
             f"Outliers on '{spec.table}.{spec.column}': {need} more outlier(s) "
             f"declared but only {len(eligible)} row(s) are available. Lower "
-            f"'count'.")
+            f"'count'.",
+            ConformanceWarning,)
         need = len(eligible)
     if need <= 0:
         return tables
@@ -676,11 +689,12 @@ def apply_typos(
 
     choices, pattern = _typo_vocabulary(config, spec.table, spec.column)
     if choices is None and pattern is None:
-        warnings.warn(
+        warn(
             f"Typos on '{spec.table}.{spec.column}': the column declares "
             f"neither 'choices' nor 'pattern', so a typo in it is "
             f"unfalsifiable and the audit could not check the count. Declare "
-            f"one of them, or drop this typos entry.")
+            f"one of them, or drop this typos entry.",
+            ConformanceWarning,)
         return tables
 
     n = int(spec.count) if spec.count is not None else exact_count(len(df), spec.fraction)
@@ -692,16 +706,18 @@ def apply_typos(
     clean = np.flatnonzero(ok.to_numpy())
     dirty_now = int(len(df) - len(clean) - int(as_str.isna().sum()))
     if dirty_now > n:
-        warnings.warn(
+        warn(
             f"Typos on '{spec.table}.{spec.column}': {dirty_now} value(s) are "
             f"already outside the declared choices, more than the {n} asked "
-            f"for. Raise 'count'.")
+            f"for. Raise 'count'.",
+            ConformanceWarning,)
         return tables
     need = n - dirty_now
     if need > len(clean):
-        warnings.warn(
+        warn(
             f"Typos on '{spec.table}.{spec.column}': {need} typo(s) declared but "
-            f"only {len(clean)} clean value(s) exist. Lower 'count'.")
+            f"only {len(clean)} clean value(s) exist. Lower 'count'.",
+            ConformanceWarning,)
         need = len(clean)
     if need <= 0:
         return tables
@@ -797,48 +813,55 @@ def apply_dynamics(
     for spec in (getattr(config, "retention", None) or []):
         try:
             apply_retention(tables, spec, rng)
-        except Exception as e:
-            warnings.warn(f"CohortRetention on '{spec.table}' failed ({e}); "
-                          f"table left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"CohortRetention on '{spec.table}' failed ({e}); "
+                          f"table left as generated.",
+            ConformanceWarning,)
     for spec in (getattr(config, "late_arrivals", None) or []):
         try:
             apply_late_arrival(tables, spec, rng)
-        except Exception as e:
-            warnings.warn(f"LateArrival on '{spec.table}' failed ({e}); "
-                          f"table left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"LateArrival on '{spec.table}' failed ({e}); "
+                          f"table left as generated.",
+            ConformanceWarning,)
     for spec in (getattr(config, "time_grids", None) or []):
         try:
             apply_time_grid(tables, spec, rng)
-        except Exception as e:
-            warnings.warn(f"TimeGrid on '{spec.table}.{spec.column}' failed "
-                          f"({e}); column left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the column as generated
+            warn(f"TimeGrid on '{spec.table}.{spec.column}' failed "
+                          f"({e}); column left as generated.",
+            ConformanceWarning,)
     for spec in (getattr(config, "missingness", None) or []):
         try:
             apply_missingness(tables, spec, rng)
-        except Exception as e:
-            warnings.warn(f"Missingness on '{spec.table}.{spec.column}' failed "
-                          f"({e}); table left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"Missingness on '{spec.table}.{spec.column}' failed "
+                          f"({e}); table left as generated.",
+            ConformanceWarning,)
     for spec in (getattr(config, "outliers", None) or []):
         try:
             apply_outliers(tables, spec, rng)
-        except Exception as e:
-            warnings.warn(f"Outliers on '{spec.table}.{spec.column}' failed "
-                          f"({e}); column left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the column as generated
+            warn(f"Outliers on '{spec.table}.{spec.column}' failed "
+                          f"({e}); column left as generated.",
+            ConformanceWarning,)
     for spec in (getattr(config, "typos", None) or []):
         try:
             apply_typos(tables, spec, config, rng)
-        except Exception as e:
-            warnings.warn(f"Typos on '{spec.table}.{spec.column}' failed "
-                          f"({e}); column left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the column as generated
+            warn(f"Typos on '{spec.table}.{spec.column}' failed "
+                          f"({e}); column left as generated.",
+            ConformanceWarning,)
 
     # Duplicates are last on purpose. A copy made before missingness ran would
     # have its nulls redrawn independently and stop being a copy.
     for spec in (getattr(config, "duplicates", None) or []):
         try:
             apply_duplicates(tables, spec, rng, config)
-        except Exception as e:
-            warnings.warn(f"Duplicates on '{spec.table}' failed ({e}); "
-                          f"table left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"Duplicates on '{spec.table}' failed ({e}); "
+                          f"table left as generated.",
+            ConformanceWarning,)
     return tables
 
 

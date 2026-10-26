@@ -316,3 +316,34 @@ def test_fidelity_ml_efficacy_runs_when_sklearn_present():
     rep = misata.fidelity_report(syn, real, target_column="high_earner")
     assert rep.ml_efficacy is not None and rep.ml_efficacy.get("available")
     assert 0.0 <= rep.ml_efficacy["efficacy_ratio"] <= 1.0
+
+
+class TestIdentifiersAreNotPhones:
+    """A dashed identifier is not a phone number because it has dashes."""
+
+    @staticmethod
+    def _source(column: str):
+        import numpy as np
+        import pandas as pd
+
+        rng = np.random.default_rng(1)
+        return pd.DataFrame({
+            "patient_id": range(1, 301),
+            column: [f"{rng.integers(100, 899)}-{rng.integers(10, 99)}-{rng.integers(1000, 9999)}"
+                     for _ in range(300)],
+        })
+
+    def test_an_ssn_column_stays_an_ssn(self):
+        import re
+
+        import misata
+
+        out = misata.mimic(self._source("ssn"), seed=3, table_name="p")["p"]["ssn"]
+        assert out.str.fullmatch(r"[1-8]\d{2}-[1-9]\d-[1-9]\d{3}").all(), out.head().tolist()
+        assert not out.str.contains(re.escape("+1")).any()
+
+    def test_an_unnamed_dashed_identifier_keeps_its_shape(self):
+        import misata
+
+        out = misata.mimic(self._source("member_ref"), seed=3, table_name="p")["p"]["member_ref"]
+        assert out.str.fullmatch(r"\d{3}-\d{2}-\d{4}").all(), out.head().tolist()

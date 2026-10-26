@@ -1,17 +1,17 @@
 """Which declarations own which column, and who writes last.
 
-Every declaration in Misata is verified individually. Nothing checked that N of
-them on the same table compose, and the record says that is where the bugs are:
+Every declaration in Misata is verified individually. Several declarations on
+one table must also compose, and the ways they can fail are ordering problems:
 
-* 0.8.8.5 — an inferred roll-up overwrote a declared curve, 23% off.
-* 0.9.2 — `null_rate` ran after `apply_constraints` and silently undid a
-  declared `when_then ... not_null` on 77 rows.
-* 0.9.2 — `TimeGrid` moved a timestamp backwards after causality had placed it,
-  so 86 tickets predated their own customer.
-* 0.9.2 — `EventLog` reassigned a row's owner and left its other foreign key
-  pointing into the previous tenant.
+* an inferred roll-up overwriting a declared curve;
+* `null_rate` running after `apply_constraints` and undoing a declared
+  `when_then ... not_null`;
+* `TimeGrid` moving a timestamp backwards after causality has placed it, so a
+  ticket predates its own customer;
+* `EventLog` reassigning a row's owner and leaving its other foreign key
+  pointing into another tenant.
 
-Four ordering defects, all found by accident. This module looks on purpose.
+This module looks for them on purpose.
 
 It is deliberately **static**: it reads the schema and reports which declarations
 claim the same column, ranked by whether the later writer can actually destroy
@@ -22,8 +22,8 @@ can be perfectly compatible and still fight over who writes last.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple
 
 # The order passes actually run in, latest last. Read off `simulator.py` rather
 # than remembered: the first version of this list put `lifecycle` before
@@ -113,10 +113,12 @@ def _claims(config: Any) -> List[Claim]:
                 f"lifecycle '{lc.name}'", "lifecycle")
 
     for spec in (getattr(config, "outcome_curves", None) or []):
-        add(spec.table, getattr(spec, "measure", None), "outcome_curve", "curve")
+        if getattr(spec, "value_mode", None) != "count":
+            add(spec.table, spec.column, "outcome_curve", "curve")
+        add(spec.table, spec.time_column, "outcome_curve", "curve")
     for spec in (getattr(config, "group_shares", None) or []):
-        add(spec.table, getattr(spec, "measure", None), "group_shares",
-            "group_shares")
+        add(spec.table, spec.measure, "group_shares", "group_shares")
+        add(spec.table, spec.group_column, "group_shares", "group_shares")
     for spec in (getattr(config, "bitemporal", None) or []):
         for key in ("valid_from", "valid_to", "recorded_at", "superseded_at"):
             add(spec.table, getattr(spec, key), f"bitemporal '{spec.name}'",
@@ -166,8 +168,8 @@ _DESTRUCTIVE: Dict[Tuple[str, str], str] = {
         "the two agree",
     ("constraints", "null_rate"):
         "null_rate runs after constraints and could undo a "
-        "`when_then ... not_null`; 0.9.2 made the pass skip protected rows, so "
-        "this is a guard against that protection being lost",
+        "`when_then ... not_null`; the null pass skips the rows a when_then "
+        "protects, and this check guards that protection",
     ("causality", "time_grid"):
         "a grid that moved a timestamp backwards would undo causality; "
         "TimeGrid is forward-only for exactly this reason",

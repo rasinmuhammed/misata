@@ -1,3 +1,8 @@
+---
+title: "Python Dict Schema for Synthetic Data Generation"
+description: "Describe tables and columns as a plain Python dict, from an ORM or a JSON schema, and convert it to a Misata schema with from_dict_schema."
+---
+
 # Python Dict Schema
 
 Import your own schema structure, useful when you already have a dict representation of your tables (e.g. from an ORM introspection or a JSON schema).

@@ -6,6 +6,7 @@ relationship arrow shorthand.
 import tempfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 from misata.yaml_schema import load_yaml_schema, save_yaml_schema, MISATA_YAML_TEMPLATE
@@ -150,6 +151,47 @@ class TestLoadYamlSchema:
         assert rel.parent_key == "user_id"
         assert rel.child_table == "orders"
         assert rel.child_key == "user_id"
+
+    def test_object_relationship_names_keys_like_the_shorthand(self):
+        schema = self._load_str(
+            "tables:\n"
+            "  entries:\n"
+            "    rows: 10\n"
+            "    columns:\n"
+            "      entry_id: {type: int, unique: true, min: 1, max: 10}\n"
+            "  lines:\n"
+            "    rows: 40\n"
+            "    columns:\n"
+            "      entry_id: {type: foreign_key}\n"
+            "relationships:\n"
+            "  - {parent: entries.entry_id, child: lines.entry_id, min_children: 2}\n")
+        rel = schema.relationships[0]
+        assert (rel.parent_table, rel.parent_key) == ("entries", "entry_id")
+        assert (rel.child_table, rel.child_key) == ("lines", "entry_id")
+        assert rel.min_children == 2
+
+    def test_a_relationship_makes_a_plain_int_column_a_foreign_key(self):
+        import warnings
+        import misata
+
+        schema = self._load_str(
+            "seed: 3\n"
+            "tables:\n"
+            "  users:\n"
+            "    rows: 30\n"
+            "    columns:\n"
+            "      user_id: {type: int, unique: true, min: 1, max: 30}\n"
+            "  tasks:\n"
+            "    rows: 200\n"
+            "    columns:\n"
+            "      assignee_id: {type: int}\n"
+            "relationships:\n"
+            "  - users.user_id -> tasks.assignee_id\n")
+        assert schema.get_columns("tasks")[0].type == "foreign_key"
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate_from_schema(schema)
+        assert tables["tasks"]["assignee_id"].isin(tables["users"]["user_id"]).all()
 
     def test_inequality_constraint_parsed(self):
         schema = self._load_str(RELATIONAL_YAML)
@@ -506,3 +548,46 @@ class TestAPrimaryKeyIsUniqueOnEveryPath:
         dict_col = next(c for c in dict_cfg.columns["customers"]
                         if c.name == "customer_id")
         assert yaml_col.unique == dict_col.unique is True
+
+
+class TestTheFileHoldsTheWholeSchema:
+    """``save_yaml_schema`` then ``load_yaml_schema`` gives back the same schema.
+
+    The benchmark schemas between them use every declaration Misata has, so a
+    field the writer leaves out shows up here as a model or fingerprint diff.
+    """
+
+    @staticmethod
+    def _schemas():
+        from benchmarks import gauntlet, warren
+
+        return {"gauntlet": gauntlet.build_schema(), "warren": warren.build_schema(),
+                "dbt_example": load_yaml_schema(
+                    Path(__file__).parent.parent / "examples" / "dbt" / "misata.yaml")}
+
+    @pytest.mark.parametrize("name", ["gauntlet", "warren", "dbt_example"])
+    def test_round_trip_is_lossless(self, name, tmp_path):
+        import misata
+
+        schema = self._schemas()[name]
+        path = save_yaml_schema(schema, tmp_path / "misata.yaml")
+        reloaded = load_yaml_schema(path)
+
+        for key in SchemaConfig.model_fields:
+            if key not in ("columns", "tables"):
+                assert getattr(reloaded, key) == getattr(schema, key), key
+        assert [t.model_dump() for t in reloaded.tables] == \
+            [t.model_dump() for t in schema.tables]
+        assert misata.fingerprint(misata.generate_from_schema(reloaded))["__all__"] == \
+            misata.fingerprint(misata.generate_from_schema(schema))["__all__"]
+
+    @pytest.mark.parametrize("name", ["gauntlet", "warren", "dbt_example"])
+    def test_the_written_file_validates(self, name, tmp_path):
+        import misata
+
+        jsonschema = pytest.importorskip("jsonschema")
+        path = save_yaml_schema(self._schemas()[name], tmp_path / "misata.yaml")
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        errors = list(jsonschema.Draft202012Validator(misata.json_schema()).iter_errors(doc))
+        assert errors == [], "\n".join(
+            f"{list(e.absolute_path)}: {e.message[:200]}" for e in errors[:10])

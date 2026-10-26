@@ -7,11 +7,11 @@ verifies the result.
 This document is the reference for **what can be declared**. For every
 declaration it answers four questions:
 
-- **Guarantees** — exactly what holds afterwards, stated so you could test it.
-- **Owns** — which columns the declaration writes. Anything it owns, you should
+- **Guarantees**: exactly what holds afterwards, stated so you could test it.
+- **Owns**: which columns the declaration writes. Anything it owns, you should
   not also govern another way.
-- **Costs** — what it buffers, rewrites, or forces into memory.
-- **Refuses** — when the engine will not generate at all, and what it says.
+- **Costs**: what it buffers, rewrites, or forces into memory.
+- **Refuses**: when the engine will not generate at all, and what it says.
 
 Two rules run through everything:
 
@@ -42,7 +42,7 @@ never want that.
 
 ## Aggregate declarations
 
-### `outcome_curves` — exact per-period totals
+### `outcome_curves`: exact per-period totals
 
 ```python
 OutcomeCurve(
@@ -64,12 +64,12 @@ even beyond the column's declared range; the curve wins.
 instead of `target_value`. That mismatch silently produced totals four orders of
 magnitude off before it was a refusal, which is exactly why it is one now.
 
-### `rate_curves` — exact per-period rates
+### `rate_curves`: exact per-period rates
 
 As above, for a rate rather than a sum. Count-rounding limited: a rate that
 cannot be hit exactly with whole rows is reported rather than approximated.
 
-### `group_shares` — exact proportions across groups
+### `group_shares`: exact proportions across groups
 
 ```python
 GroupShares(table="orders", measure="amount", group_column="segment",
@@ -92,7 +92,7 @@ column's `choices`.
 
 These are the ones no other generator has: facts that span rows and tables.
 
-### `rollups` — a parent aggregate equals its child facts
+### `rollups`: a parent aggregate equals its child facts
 
 ```python
 Column(name="lifetime_value", type="float", distribution_params={"rollup": {
@@ -118,7 +118,7 @@ Period identities: opening + movements = closing; open + received − shipped =
 close; sum(debit) = sum(credit) per journal entry. Each holds to the cent on
 every row and every consecutive pair.
 
-### `lifecycles` — a state implies a legal history
+### `lifecycles`: a state implies a legal history
 
 ```python
 Lifecycle(
@@ -133,13 +133,22 @@ Lifecycle(
 )
 ```
 
-**Guarantees.** For a row in state S with path P from `initial` to S: every state
-in P has its timestamp populated, in path order; every state outside P has its
-timestamp NULL; the whole chain postdates `start_column`. State shares match
-`weights` exactly.
+**Guarantees.** For a row in state S with route P from `initial` to S: every
+state in P has its timestamp populated, in route order; every state outside P
+has its timestamp NULL; the whole chain postdates `start_column`. State shares
+match `weights` exactly.
+
+A state reachable several ways splits its rows across every route, in exact
+counts. Each route's share is how often a walk that takes every transition out
+of a state equally often follows it: with `placed -> cancelled` and
+`placed -> shipped -> cancelled` both declared, two thirds of cancelled orders
+never shipped and one third did. Routes that timestamp the same states leave
+the same history, so they count as one.
 
 A returned order therefore carries the shipment and completion it necessarily
-passed through, which is the thing a per-pair rule cannot express.
+passed through, which is the thing a per-pair rule cannot express. The
+attestation checks the history row by row (`lifecycle_history`) and each
+state's count to within one row of its weight (`lifecycle_mix`).
 
 **Owns.** `state_column` and every declared state timestamp.
 
@@ -152,7 +161,7 @@ reaches. A `when_then` rule contradicting the machine.
 **Subsumes** `when_then` and status gating. Prefer a lifecycle when a status has
 more than one dependent column.
 
-### `when_then` — a status gates one column
+### `when_then`: a status gates one column
 
 ```python
 Constraint(type="when_then", when_column="status", when_op="in",
@@ -162,18 +171,18 @@ Constraint(type="when_then", when_column="status", when_op="in",
 `then` is `null`, `not_null` (filled from `then_value`, else by sampling the
 column's own non-null values), or `set`.
 
-### `lte_parent` / `sum_lte_parent` — child money bounded by its parent
+### `lte_parent` / `sum_lte_parent`: child money bounded by its parent
 
 Row-level clamp, and per-parent proportional rescale. The FK is resolved from the
 declared relationship, never guessed.
 
-### `min_children` — every parent covered
+### `min_children`: every parent covered
 
 `Relationship(..., min_children=1)`. An order with zero line items does not
 exist in real data, and a zero-item order poisons everything downstream of it.
 **Refuses** when the child table cannot cover the parents.
 
-### temporal FK eligibility — a parent that already existed
+### temporal FK eligibility: a parent that already existed
 
 ```python
 Relationship(parent_table="products", child_table="order_items",
@@ -204,7 +213,7 @@ mostly satisfiable and there is something to land on.
 cross-table causality pass, which shifts that date to postdate the parent.
 Declare it for the junction case, where the child has no date to shift.
 
-### `scd2` — versions tile a timeline
+### `scd2`: versions tile a timeline
 
 No gaps, no overlaps, exactly one current version per entity.
 
@@ -212,7 +221,7 @@ No gaps, no overlaps, exactly one current version per entity.
 
 ## Dynamics declarations
 
-### `retention` — a cohort curve that actually holds
+### `retention`: a cohort curve that actually holds
 
 ```python
 CohortRetention(
@@ -239,7 +248,7 @@ untouched.
 **Refuses.** When the curve needs more active entity-periods than the event
 table has rows, with the arithmetic and the row count you would need.
 
-### `missingness` — values absent for a reason (MNAR)
+### `missingness`: values absent for a reason (MNAR)
 
 ```python
 Missingness(table="customers", column="income", rate=0.40, else_rate=0.05,
@@ -255,7 +264,7 @@ never has. MNAR is what breaks models and pipelines in production.
 
 **Owns.** `column`'s null pattern. Runs last, so nothing refills what it emptied.
 
-### `late_arrivals` — some rows land in a later partition
+### `late_arrivals`: some rows land in a later partition
 
 ```python
 LateArrival(table="orders", event_time="order_date",
@@ -278,7 +287,7 @@ a parent came into existence.
 
 ---
 
-### `time_grids` — a declared clock
+### `time_grids`: a declared clock
 
 ```python
 TimeGrid(table="support_tickets", column="created_at",
@@ -309,7 +318,7 @@ is what you write when the grid matters and you want it proven.
 
 ---
 
-### `duplicates` — an exact number of copies
+### `duplicates`: an exact number of copies
 
 ```python
 Duplicates(table="support_tickets", fraction=0.03, keys=["ticket_id"])
@@ -332,7 +341,7 @@ means `subset` is not distinct enough to control.
 
 ---
 
-### `partition_by` — a key that stays inside its tenant
+### `partition_by`: a key that stays inside its tenant
 
 ```python
 Relationship(parent_table="projects", child_table="tasks",
@@ -363,7 +372,7 @@ fixture contained exactly one account.
 
 ---
 
-### self-referential keys — a forest, not a graph
+### self-referential keys: a forest, not a graph
 
 `Relationship(parent_table="orgs", child_table="orgs", parent_key="org_id",
 child_key="parent_org_id")`
@@ -381,7 +390,7 @@ reference is not a broken one.
 
 ---
 
-### `event_logs` — the log says what the state says
+### `event_logs`: the log says what the state says
 
 ```python
 EventLog(name="task_log", table="task_events", entity_table="tasks",
@@ -412,7 +421,7 @@ weights are declared.
 
 ---
 
-### `processes` — how a history unfolds
+### `processes`: how a history unfolds
 
 A semi-Markov chain per case: declared transition probabilities (loops
 allowed, bounded by `max_steps`) and per-state or per-transition dwell
@@ -428,7 +437,7 @@ it from the rows.
 **Does not guarantee.** Path shares and durations are drawn, not exact. No
 queues or resources.
 
-### `outliers` / `typos` — dirt with an answer key
+### `outliers` / `typos`: dirt with an answer key
 
 ```python
 Outliers(table="readings", column="value", count=30, sigma=6.0, direction="high")
@@ -454,7 +463,7 @@ column already contains more dirt than was declared.
 
 ---
 
-### `bitemporal` — two independent time axes
+### `bitemporal`: two independent time axes
 
 ```python
 Bitemporal(name="position_history", table="positions",
@@ -482,7 +491,7 @@ think this was?"
 
 ---
 
-### `dag_edges` / `closures` — a graph that stays a graph
+### `dag_edges` / `closures`: a graph that stays a graph
 
 ```python
 DagEdges(name="task_dag", table="dependencies", node_table="tasks",
@@ -548,8 +557,8 @@ schema it is not language; if the audit cannot check it, it is not a guarantee.
 
 ## Conformance
 
-`benchmarks/gauntlet.py` is the conformance suite: 11 tables, an M:N junction, a
-diamond dependency, and 126 SQL assertions executed by DuckDB, which shares no
+`benchmarks/gauntlet.py` is the conformance suite: 13 tables, an M:N junction, a
+diamond dependency, and 136 SQL assertions executed by DuckDB, which shares no
 code with the generator. It runs in CI on every push with a `KNOWN_RED` contract,
 so it cannot quietly shrink to fit the product.
 
@@ -570,8 +579,8 @@ declaration is verified individually and nothing checked that several compose,
 which is where four shipped defects came from. `misata lint` reports it.
 
 ```bash
-python -m benchmarks.gauntlet                        # 126/126
-python -m benchmarks.gauntlet_compare --tool faker   # 72/126
+python -m benchmarks.gauntlet                        # 136/136
+python -m benchmarks.gauntlet_compare --tool faker   # 78/136
 python -m benchmarks.warren                          # 110/110
 python -m benchmarks.ledger                          # 48/48
 python -m benchmarks.bench_dynamics --big            # what the passes cost

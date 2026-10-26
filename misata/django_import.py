@@ -31,10 +31,10 @@ Tables and columns use ``db_table`` and ``column``, the names in the database.
 """
 from __future__ import annotations
 
-import warnings
 from typing import Any, Dict, Iterable, List, Optional
 
 from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
+from misata.exceptions import ConformanceWarning, warn
 
 
 def _require_django():
@@ -80,6 +80,7 @@ def _column_for(field, rows: int) -> Optional[Column]:
                                            "max": max(rows, 1)})
     if isinstance(field, m.BooleanField):
         return Column(name=name, type="boolean", nullable=nullable)
+    params: Dict[str, Any]
     if isinstance(field, (m.IntegerField,)):
         params = _validator_bounds(field)
         if isinstance(field, (m.PositiveIntegerField, m.PositiveSmallIntegerField,
@@ -119,7 +120,7 @@ def _column_for(field, rows: int) -> Optional[Column]:
     elif isinstance(field, m.GenericIPAddressField):
         text_type = "ipv4"
     if isinstance(field, (m.CharField, m.TextField, m.UUIDField, m.GenericIPAddressField)):
-        params: Dict[str, Any] = {}
+        params = {}
         if text_type:
             params["text_type"] = text_type
         max_len = getattr(field, "max_length", None)
@@ -130,8 +131,9 @@ def _column_for(field, rows: int) -> Optional[Column]:
     if isinstance(field, (m.BinaryField, m.FileField)):
         return Column(name=name, type="text", nullable=nullable,
                       distribution_params={"max_length": getattr(field, "max_length", None) or 100})
-    warnings.warn(f"from_django: {field.model.__name__}.{field.name} "
-                  f"({type(field).__name__}) has no mapping and was skipped")
+    warn(f"from_django: {field.model.__name__}.{field.name} "
+                  f"({type(field).__name__}) has no mapping and was skipped",
+    ConformanceWarning,)
     return None
 
 
@@ -187,9 +189,10 @@ def from_django(models: Optional[Iterable[Any]] = None, *,
                 target = field.related_model._meta
                 parent_key = field.target_field.column
                 if target.db_table not in names:
-                    warnings.warn(f"from_django: {meta.label}.{field.name} references "
+                    warn(f"from_django: {meta.label}.{field.name} references "
                                   f"{target.label}, which is not included; it is generated "
-                                  f"as a plain value")
+                                  f"as a plain value",
+                    ConformanceWarning,)
                     cols.append(Column(name=field.column, type="int", nullable=field.null))
                     continue
                 cols.append(Column(name=field.column, type="foreign_key", nullable=field.null,

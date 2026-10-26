@@ -10,14 +10,17 @@ The fix is not more rules. Enumerating ``when_then`` implications pair by pair
 grows quadratically and still cannot express ordering along a path. Declaring
 the machine once gives every implication for free:
 
-    for a row in state S, let P = path(initial → S). Then
+    for a row in state S, let P be one route from initial to S. Then
       * every state in P with a timestamp column has it populated,
       * those timestamps ascend in path order,
       * every state NOT in P has its timestamp NULL,
       * the whole chain postdates ``start_column``.
 
-That is the entire contract, and it is what :func:`apply_lifecycles` enforces
-and ``coherence_audit`` re-checks independently.
+A state reachable several ways splits its rows across those routes in exact
+counts (see :meth:`misata.schema.Lifecycle.routes_to`), so some cancelled
+orders shipped first and some did not. That is the entire contract, and it is
+what :func:`apply_lifecycles` enforces and ``coherence_audit`` re-checks
+independently.
 
 Why this runs during the owning table's generation rather than in the
 post-generation pass: rewriting ``status`` changes which parents are eligible
@@ -29,13 +32,27 @@ child is generated.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from misata.exceptions import ConformanceWarning, warn
+
 NS_PER_DAY = 86_400_000_000_000
+NS_PER_SECOND = 1_000_000_000
+
+
+def largest_remainder(n: int, shares: List[float]) -> List[int]:
+    """Split ``n`` into integer counts as close to ``n * share`` as integers
+    allow: each count is the floor of its exact value, and the largest
+    fractional parts take the rows left over, earlier entries winning ties."""
+    exact = [n * share for share in shares]
+    counts = [int(np.floor(v)) for v in exact]
+    order = sorted(range(len(exact)), key=lambda i: exact[i] - counts[i], reverse=True)
+    for i in order[: n - sum(counts)]:
+        counts[i] += 1
+    return counts
 
 
 def _allocate_states(
@@ -60,16 +77,12 @@ def _allocate_states(
         if total <= 0:
             raise ValueError("lifecycle weights must sum to a positive number")
         if abs(total - 1.0) > 0.01:
-            warnings.warn(
-                f"Lifecycle weights sum to {total:.4f}, normalising to 1.0."
+            warn(
+                f"Lifecycle weights sum to {total:.4f}, normalising to 1.0.",
+                ConformanceWarning,
             )
-        exact = {s: n * float(weights.get(s, 0.0)) / total for s in states}
-        counts = {s: int(np.floor(v)) for s, v in exact.items()}
-        remainder = n - sum(counts.values())
-        # Largest fractional part wins the leftover rows.
-        order = sorted(states, key=lambda s: exact[s] - np.floor(exact[s]), reverse=True)
-        for s in order[:remainder]:
-            counts[s] += 1
+        counts = dict(zip(states, largest_remainder(
+            n, [float(weights.get(s, 0.0)) / total for s in states]), strict=True))
 
     out = np.empty(n, dtype=object)
     i = 0
@@ -88,39 +101,48 @@ def apply_lifecycle(
     df: pd.DataFrame,
     spec: Any,
     rng: np.random.Generator,
+    date_columns: Iterable[str] = (),
 ) -> pd.DataFrame:
-    """Enforce one lifecycle on a materialised table. Mutates and returns ``df``."""
+    """Enforce one lifecycle on a materialised table. Mutates and returns ``df``.
+
+    Timestamps in ``date_columns`` are rounded up to whole days, and every
+    state stays at or after the state before it on its path.
+    """
+    days = set(date_columns)
     if df is None or df.empty:
         return df
     if spec.state_column not in df.columns:
-        warnings.warn(
+        warn(
             f"Lifecycle '{spec.name}': state column '{spec.state_column}' not "
-            f"in '{spec.table}'. Skipping."
+            f"in '{spec.table}'. Skipping.",
+            ConformanceWarning,
         )
         return df
 
     all_states = spec.state_names()
 
-    # Resolve every state's path up front so an unreachable state is reported
-    # once, loudly, rather than producing a row with no legal history.
-    paths: Dict[str, List[str]] = {}
+    # Resolve every state's routes up front so an unreachable state is
+    # reported once, loudly, rather than producing a row with no legal history.
+    paths: Dict[str, List[Tuple[List[str], float]]] = {}
     unreachable: List[str] = []
     for s in all_states:
-        p = spec.path_to(s)
-        if p is None:
-            unreachable.append(s)
+        routes = spec.routes_to(s)
+        if routes:
+            paths[s] = routes
         else:
-            paths[s] = p
+            unreachable.append(s)
     if unreachable:
-        warnings.warn(
+        warn(
             f"Lifecycle '{spec.name}': state(s) {unreachable} are not reachable "
             f"from '{spec.initial or all_states[0]}' via the declared "
-            f"transitions; no rows will be placed in them."
+            f"transitions; no rows will be placed in them.",
+            ConformanceWarning,
         )
     usable = [s for s in all_states if s in paths]
     if not usable:
-        warnings.warn(
-            f"Lifecycle '{spec.name}': no reachable states. Skipping."
+        warn(
+            f"Lifecycle '{spec.name}': no reachable states. Skipping.",
+            ConformanceWarning,
         )
         return df
 
@@ -128,9 +150,10 @@ def apply_lifecycle(
     if weights:
         dropped = {k: v for k, v in weights.items() if k not in paths and v}
         if dropped:
-            warnings.warn(
+            warn(
                 f"Lifecycle '{spec.name}': weights given for unreachable "
-                f"state(s) {sorted(dropped)}; those shares are redistributed."
+                f"state(s) {sorted(dropped)}; those shares are redistributed.",
+                ConformanceWarning,
             )
         weights = {k: v for k, v in weights.items() if k in paths}
 
@@ -143,9 +166,10 @@ def apply_lifecycle(
 
     missing = [c for c in ts_cols if c not in df.columns]
     if missing:
-        warnings.warn(
+        warn(
             f"Lifecycle '{spec.name}': timestamp column(s) {missing} are not in "
-            f"'{spec.table}'; declare them on the table to have them enforced."
+            f"'{spec.table}'; declare them on the table to have them enforced.",
+            ConformanceWarning,
         )
         ts_cols = [c for c in ts_cols if c in df.columns]
         if not ts_cols:
@@ -168,33 +192,67 @@ def apply_lifecycle(
     for c in ts_cols:
         df[c] = pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
 
-    max_gap_ns = max(int(spec.max_days_per_step), 1) * NS_PER_DAY
+    # Gaps are whole seconds, as a database would store them.
+    max_gap_s = max(int(spec.max_days_per_step), 1) * NS_PER_DAY // NS_PER_SECOND
     status = df[spec.state_column].to_numpy()
 
-    for state, path in paths.items():
-        mask = status == state
-        cnt = int(mask.sum())
-        if not cnt:
+    for state, routes in paths.items():
+        rows = np.flatnonzero(status == state)
+        if not len(rows):
             continue
-        # Gaps for this group's whole path in one draw, then a running sum so
-        # the timestamps ascend strictly in path order.
-        gaps = rng.integers(1, max_gap_ns, size=(cnt, len(path)))
-        gaps[:, 0] = 0                      # entering the initial state is the base instant
-        offsets = np.cumsum(gaps, axis=1)
-        for i, pstate in enumerate(path):
-            col = spec.timestamp_of(pstate)
-            if not col or col not in df.columns:
-                continue
-            vals = base_ns[mask] + offsets[:, i]
-            df.loc[mask, col] = pd.to_datetime(vals)
+        if len(routes) == 1:
+            groups = [(rows, routes[0][0])]
+        else:
+            # Exact route counts within the state, on rows chosen at random.
+            counts = largest_remainder(len(rows), [share for _, share in routes])
+            ends = np.cumsum(counts)[:-1]
+            groups = list(zip(np.split(rng.permutation(rows), ends),
+                              (path for path, _ in routes), strict=True))
+        for members, path in groups:
+            if len(members):
+                _stamp_route(df, spec, path, members, base_ns, max_gap_s, days, rng)
 
     return df
+
+
+def _stamp_route(
+    df: pd.DataFrame,
+    spec: Any,
+    path: List[str],
+    rows: np.ndarray,
+    base_ns: np.ndarray,
+    max_gap_s: int,
+    days: set,
+    rng: np.random.Generator,
+) -> None:
+    """Write the timestamps of ``path`` on ``rows``, ascending from each
+    row's base instant, with whole-second gaps of at most ``max_gap_s``."""
+    mask = np.zeros(len(df), dtype=bool)
+    mask[rows] = True
+    # Gaps for this group's whole path in one draw, then a running sum so
+    # the timestamps ascend strictly in path order.
+    gaps = rng.integers(1, max_gap_s, size=(len(rows), len(path))) * NS_PER_SECOND
+    gaps[:, 0] = 0                      # entering the initial state is the base instant
+    offsets = np.cumsum(gaps, axis=1)
+    previous = None
+    for i, pstate in enumerate(path):
+        col = spec.timestamp_of(pstate)
+        if not col or col not in df.columns:
+            continue
+        vals = base_ns[mask] + offsets[:, i]
+        if col in days:
+            vals = -(-vals // NS_PER_DAY) * NS_PER_DAY
+        if previous is not None:
+            vals = np.maximum(vals, previous)
+        previous = vals
+        df.loc[mask, col] = pd.to_datetime(vals)
 
 
 def apply_lifecycles(
     tables: Dict[str, pd.DataFrame],
     config: Any,
     rng: np.random.Generator,
+    date_columns: Iterable[str] = (),
 ) -> Dict[str, pd.DataFrame]:
     """Apply every declared lifecycle whose table is present."""
     for spec in (getattr(config, "lifecycles", None) or []):
@@ -202,11 +260,12 @@ def apply_lifecycles(
         if df is None:
             continue
         try:
-            tables[spec.table] = apply_lifecycle(df, spec, rng)
-        except Exception as e:   # never let a lifecycle corrupt an otherwise-valid run
-            warnings.warn(
+            tables[spec.table] = apply_lifecycle(df, spec, rng, date_columns)
+        except Exception as e:  # noqa: BLE001 - a failed lifecycle warns and leaves the table as generated
+            warn(
                 f"Lifecycle '{spec.name}' could not be applied ({e}); "
-                f"'{spec.table}' is left as generated."
+                f"'{spec.table}' is left as generated.",
+                ConformanceWarning,
             )
     return tables
 

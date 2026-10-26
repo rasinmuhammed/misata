@@ -1,7 +1,6 @@
 import streamlit as st
 from misata.studio.state.store import StudioStore
 from misata.schema import Column
-import random
 
 def render_table_inspector():
     """Render the detailed inspector panel for the selected table."""
@@ -41,7 +40,7 @@ def render_table_inspector():
                 c_name, c_type, c_del = st.columns([3, 2, 1])
                 
                 with c_name:
-                    new_col_name = st.text_input(f"Name", col.name, key=f"cn_{table.name}_{i}", label_visibility="collapsed")
+                    new_col_name = st.text_input("Name", col.name, key=f"cn_{table.name}_{i}", label_visibility="collapsed")
                     col.name = new_col_name
                     
                 with c_type:

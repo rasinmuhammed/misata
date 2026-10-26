@@ -6,7 +6,7 @@ including parent ID tracking for foreign keys and cross-table references.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import numpy as np
 import pandas as pd
@@ -64,7 +64,7 @@ class GenerationContext:
     def __init__(self):
         self._tables: Dict[str, TableContext] = {}
         self._generation_order: List[str] = []
-        self._progress_callbacks: List[callable] = []
+        self._progress_callbacks: List[Callable[..., Any]] = []
         self._current_table: Optional[str] = None
         self._current_progress: float = 0.0
     
@@ -217,7 +217,7 @@ class GenerationContext:
     
     # ============ Progress Tracking ============
     
-    def add_progress_callback(self, callback: callable) -> None:
+    def add_progress_callback(self, callback: Callable[..., Any]) -> None:
         """Add a progress callback function.
         
         Callback signature: callback(table_name: str, progress: float, message: str)
@@ -239,8 +239,8 @@ class GenerationContext:
         for callback in self._progress_callbacks:
             try:
                 callback(self._current_table, progress, message)
-            except Exception:
-                pass  # Don't let callback errors break generation
+            except Exception:  # noqa: BLE001 - a progress callback must never break generation
+                pass
     
     # ============ Statistics ============
     

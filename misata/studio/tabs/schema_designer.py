@@ -60,7 +60,7 @@ def render_schema_tab():
                         StudioStore.set('selected_table', None) # Reset selection
                         st.success("Schema generated!")
                         st.rerun()
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - any failure is shown in the UI
                         st.error(f"Generation failed: {str(e)}")
 
     with col_viz:

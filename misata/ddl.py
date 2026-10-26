@@ -8,10 +8,10 @@ Supported SQL dialects: PostgreSQL, MySQL, SQLite, generic ANSI SQL.
 """
 
 import re
-import warnings
 from typing import Dict, List, Optional, Tuple
 
 from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
+from misata.exceptions import ConformanceWarning, warn
 
 
 def _parent_key_for(parent: str, columns_map: Dict[str, List[Column]], fallback: str) -> str:
@@ -68,6 +68,24 @@ _US_STATES = ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA", "NC", "MI", "NJ", 
 _LEN_RE = re.compile(
     r"(?:var)?char(?:acter)?(?:\s+varying)?\s*\(\s*(\d+)\s*\)|varchar2\s*\(\s*(\d+)", re.I)
 _FIXED_CHAR_RE = re.compile(r"^(?:char|character|nchar)\s*\(", re.I)
+
+
+#: An identifier column named *_code, excluding codes with their own generators.
+_CODE_COLUMN = re.compile(
+    r"^(?!.*(post|zip|country|currency|lang|locale|state|phone|area|color|colour))"
+    r"(\w+_)?code$", re.I)
+
+
+def _code_prefix(col_name: str) -> str:
+    """Letters a code column's values share, from its name: drug_code gives DRG.
+
+    A fixed prefix reads like a real identifier scheme, where random letters
+    would sometimes spell a word.
+    """
+    stem = re.sub(r"_?code$", "", col_name.lower()).replace("_", "")
+    if not stem:
+        return "C"
+    return (stem[0] + re.sub(r"[aeiou]", "", stem[1:]))[:3].upper()
 
 
 def _length_of(sql_type: str) -> Optional[int]:
@@ -140,18 +158,42 @@ def _parse_check(body: str) -> Dict[str, Dict]:
         put(m.group(1), "max", float(m.group(3)))
     stripped = re.sub(r"\bBETWEEN\s+\S+\s+AND\s+\S+", " ", body, flags=re.I)
     for part in re.split(r"\bAND\b", stripped, flags=re.I):
-        m = re.match(r"\s*(?:char_)?length\s*\(\s*\"?(\w+)\"?\s*\)\s*(<=|<)\s*(\d+)\s*$",
-                     part, re.I)
-        if m:
-            n = int(m.group(3)) - (1 if m.group(2) == "<" else 0)
-            put(m.group(1), "max_length", n)
+        length = re.match(r"\s*(?:char_)?length\s*\(\s*\"?(\w+)\"?\s*\)\s*(<=|<)\s*(\d+)\s*$",
+                          part, re.I)
+        if length:
+            n = int(length.group(3)) - (1 if length.group(2) == "<" else 0)
+            put(length.group(1), "max_length", n)
             continue
-        m = re.match(r"\s*\"?(\w+)\"?\s*(>=|>|<=|<)\s*" + _NUM + r"\s*$", part)
-        if m:
-            col, op, v = m.group(1), m.group(2), float(m.group(3))
+        bound = re.match(r"\s*\"?(\w+)\"?\s*(>=|>|<=|<)\s*" + _NUM + r"\s*$", part)
+        if bound:
+            col, op, v = bound.group(1), bound.group(2), float(bound.group(3))
             put(col, "min" if op in (">=", ">") else "max", v)
             put(col, "_strict_" + ("min" if op in (">=", ">") else "max"), op in (">", "<"))
     return found
+
+
+_NULL_GUARD = re.compile(
+    r"^\s*\"?(\w+)\"?\s+IS\s+NULL\s+OR\s+(.+)$|^(.+?)\s+OR\s+\"?(\w+)\"?\s+IS\s+NULL\s*$",
+    re.I | re.S)
+
+
+def _without_null_guard(body: str) -> str:
+    """The rule inside ``col IS NULL OR <rule>``, which holds wherever col has a value.
+
+    That guard is how SQL writes a rule on an optional column, and generation
+    already leaves nulls alone, so the rule is what remains. Any other OR is
+    returned unchanged.
+    """
+    m = _NULL_GUARD.match(body.strip())
+    if not m:
+        return body
+    column = m.group(1) or m.group(4)
+    rule = (m.group(2) or m.group(3)).strip()
+    while rule.startswith("(") and _balanced(rule, 0) == rule[1:-1]:
+        rule = rule[1:-1].strip()
+    if re.search(r"\bOR\b", rule, re.I) or not re.search(rf"\b{re.escape(column)}\b", rule):
+        return body
+    return rule
 
 
 _PAIR = re.compile(r"^\s*\"?([A-Za-z_]\w*)\"?\s*(>=|>|<=|<)\s*\"?([A-Za-z_]\w*)\"?\s*$")
@@ -301,7 +343,7 @@ def from_ddl(
 
     # Match CREATE TABLE headers and then walk character-by-character to find the
     # matching closing paren, which handles nested parens like DECIMAL(10,2) and
-    # REFERENCES users(id) without the non-greedy .*? truncation bug.
+    # REFERENCES users(id), which a non-greedy .*? pattern would truncate.
     header_pattern = re.compile(
         r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
         r"(?:\"?[\w]+\"?\.)?"       # optional schema prefix
@@ -388,7 +430,7 @@ def from_ddl(
         for line in _split_column_defs(body):
             # CHECK constraints, inline or table-level: fold what generation
             # can honour into the column, count the rest.
-            for chk in _check_bodies(line):
+            for chk in map(_without_null_guard, _check_bodies(line)):
                 parsed = _parse_check(chk)
                 pairs = _column_pairs(chk)
                 pair_checks.extend(pairs)
@@ -468,6 +510,11 @@ def from_ddl(
                     if codes:
                         misata_type = "categorical"
                         distribution_params = {"choices": codes}
+                    elif length >= 4 and _CODE_COLUMN.search(col_name):
+                        # A short *_code column holds an identifier, not prose.
+                        prefix = _code_prefix(col_name)
+                        distribution_params["pattern"] = (
+                            prefix + "\\d{" + str(min(length - len(prefix), 6)) + "}")
 
             cols.append(Column(name=col_name, type=misata_type, nullable=nullable,
                                distribution_params=distribution_params))
@@ -498,12 +545,12 @@ def from_ddl(
             final_cols.append(col)
         cols = final_cols
         if unparsed_checks:
-            warnings.warn(
+            warn(
                 f"{table_name}: {unparsed_checks} CHECK constraint(s) are beyond what "
                 f"the importer can translate (OR, multi-column or function "
                 f"expressions); the database will still enforce them, so seeding may "
                 f"fail on rows that violate them.",
-                UserWarning, stacklevel=2,
+                ConformanceWarning,
             )
 
         # FK inference from _id suffix
@@ -620,11 +667,9 @@ def from_ddl(
     valid_rels = [r for r in relationships if r.parent_table in known]
     dropped = len(relationships) - len(valid_rels)
     if dropped:
-        warnings.warn(
+        warn(
             f"{dropped} inferred FK relationship(s) dropped because the referenced "
             "table was not found in the DDL. Pass infer_fks=False to suppress.",
-            UserWarning,
-            stacklevel=2,
         )
 
     # A column left typed foreign_key after its relationship was dropped is an

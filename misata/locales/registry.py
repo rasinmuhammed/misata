@@ -67,12 +67,12 @@ class LocaleRegistry:
             from misata.locales.gulf_names import has_gulf_names, install_gulf_names
             if has_gulf_names(locale):
                 install_gulf_names(f, locale)
-        except Exception:
+        except Exception:  # noqa: BLE001 - faker may reject any locale; en_US is the fallback
             # faker not installed or locale not supported — use plain en_US
             try:
                 from faker import Faker
                 f = Faker("en_US")
-            except Exception:
+            except ImportError:
                 f = None
 
         self._faker_cache[locale] = f

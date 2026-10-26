@@ -80,7 +80,7 @@ class CurveFitter:
                 # Mean Squared Error
                 mse = np.mean((y_pred - y_targets) ** 2)
                 return mse
-            except Exception:
+            except Exception:  # noqa: BLE001 - any numeric failure scores as the worst fit
                 return 1e9
 
         # Initial guesses

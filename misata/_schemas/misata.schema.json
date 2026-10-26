@@ -1596,6 +1596,13 @@
         },
         "events": {
           "$ref": "#/properties/events"
+        },
+        "constraints": {
+          "type": "array",
+          "description": "Business-rule constraints on this table.",
+          "items": {
+            "$ref": "#/$defs/constraint"
+          }
         }
       }
     },
@@ -1728,10 +1735,12 @@
         },
         "sampling": {
           "type": "string",
-          "description": "Sampling strategy when probabilities are not given.",
+          "description": "How values or parents are drawn when no probabilities are given. auto: skewed popularity; uniform: even; zipf: by listed order; pareto (foreign keys): heavy-tailed fan-out set by alpha.",
           "enum": [
+            "auto",
             "uniform",
-            "zipf"
+            "zipf",
+            "pareto"
           ]
         },
         "text_type": {
@@ -1904,10 +1913,6 @@
         },
         {
           "type": "object",
-          "required": [
-            "parent",
-            "child"
-          ],
           "additionalProperties": false,
           "properties": {
             "parent": {
@@ -1927,8 +1932,84 @@
             "temporal": {
               "type": "boolean",
               "description": "Force child events after parent events."
+            },
+            "parent_table": {
+              "type": "string"
+            },
+            "child_table": {
+              "type": "string"
+            },
+            "parent_key": {
+              "type": "string",
+              "description": "Defaults to 'id'."
+            },
+            "child_key": {
+              "type": "string",
+              "description": "Defaults to '<parent>_id'."
+            },
+            "temporal_constraint": {
+              "type": "boolean",
+              "description": "Force child events after parent events."
+            },
+            "filters": {
+              "type": "object",
+              "description": "Only parents matching these column values receive children."
+            },
+            "parent_time": {
+              "type": "string",
+              "description": "Parent timestamp the child time must follow."
+            },
+            "child_time": {
+              "type": "string",
+              "description": "Child timestamp kept after the parent's."
+            },
+            "child_time_table": {
+              "type": "string",
+              "description": "Table holding child_time when it is not the child table."
+            },
+            "partition_by": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Columns a child must share with its parent."
+            },
+            "min_children": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Every parent receives at least this many children."
             }
-          }
+          },
+          "allOf": [
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "parent"
+                  ]
+                },
+                {
+                  "required": [
+                    "parent_table"
+                  ]
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "child"
+                  ]
+                },
+                {
+                  "required": [
+                    "child_table"
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -1950,7 +2031,11 @@
             "sum_limit",
             "unique_combination",
             "inequality",
-            "col_range"
+            "col_range",
+            "balanced_ledger",
+            "when_then",
+            "lte_parent",
+            "sum_lte_parent"
           ]
         },
         "group_by": {
@@ -1999,8 +2084,71 @@
         "high_column": {
           "type": "string",
           "description": "Upper bound for col_range constraints."
+        },
+        "table": {
+          "type": "string",
+          "description": "Table the rule applies to. Required at the top level; implied inside a table block."
+        },
+        "debit_column": {
+          "type": "string",
+          "description": "Debit side of a balanced_ledger: debits equal credits per group."
+        },
+        "credit_column": {
+          "type": "string",
+          "description": "Credit side of a balanced_ledger."
+        },
+        "decimals": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2,
+          "description": "Rounding a balanced_ledger balances to."
+        },
+        "when_column": {
+          "type": "string",
+          "description": "Condition column for when_then."
+        },
+        "when_op": {
+          "type": "string",
+          "enum": [
+            "==",
+            "!=",
+            "in",
+            "not_in",
+            ">",
+            ">=",
+            "<",
+            "<="
+          ],
+          "default": "=="
+        },
+        "when_value": {
+          "description": "Value the condition compares with; a list for in and not_in."
+        },
+        "then_column": {
+          "type": "string",
+          "description": "Column the when_then consequence sets."
+        },
+        "then": {
+          "type": "string",
+          "enum": [
+            "null",
+            "not_null",
+            "set"
+          ]
+        },
+        "then_value": {
+          "description": "Value written when then is set."
+        },
+        "parent_table": {
+          "type": "string",
+          "description": "Parent table for lte_parent and sum_lte_parent."
+        },
+        "parent_column": {
+          "type": "string",
+          "description": "Parent column the child value (or the sum of children) may not exceed."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "event": {
       "type": "object",
@@ -2098,8 +2246,10 @@
           "enum": [
             "auto",
             "relative",
-            "absolute"
-          ]
+            "absolute",
+            "count"
+          ],
+          "description": "absolute: each point is the period's exact total; count: the period's exact row count; relative: a multiplier shaping the curve; auto: decided from the points."
         },
         "intra_period_pattern": {
           "type": "string",
@@ -2136,20 +2286,74 @@
           "minItems": 2,
           "items": {
             "type": "object",
-            "required": [
-              "period",
-              "value"
-            ],
+            "description": "One period. Name it by month (counted from the curve's start), date or period label; give its value as target_value (or value, target, amount), or relative_value in relative mode.",
             "properties": {
-              "period": {
+              "month": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Month counted from the curve's start: 1 is the first month."
+              },
+              "date": {
                 "type": "string",
-                "description": "Period label (e.g. '2024-01' for monthly buckets)."
+                "description": "Start of the period, e.g. '2025-03-01'."
+              },
+              "period": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "description": "Period label such as '2025-03'."
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Zero-based period position."
+              },
+              "target_value": {
+                "type": "number",
+                "description": "Exact total (absolute) or row count (count) for the period."
               },
               "value": {
+                "type": "number"
+              },
+              "target": {
+                "type": "number"
+              },
+              "amount": {
+                "type": "number"
+              },
+              "relative_value": {
                 "type": "number",
-                "description": "Target value at this period (relative or absolute, see `value_mode`)."
+                "description": "Multiplier for the period in relative mode."
               }
-            }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "target_value"
+                ]
+              },
+              {
+                "required": [
+                  "value"
+                ]
+              },
+              {
+                "required": [
+                  "target"
+                ]
+              },
+              {
+                "required": [
+                  "amount"
+                ]
+              },
+              {
+                "required": [
+                  "relative_value"
+                ]
+              }
+            ]
           }
         }
       }
@@ -2356,6 +2560,10 @@
         },
         "asset_store_dir": {
           "type": "string"
+        },
+        "capsule_file": {
+          "type": "string",
+          "description": "Path to a realism capsule JSON file."
         }
       }
     }

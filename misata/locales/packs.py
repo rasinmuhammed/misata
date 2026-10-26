@@ -15,8 +15,9 @@ Each pack carries:
   - Postcode pattern (regex)
 """
 
+import math
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List
 
 
 @dataclass
@@ -99,14 +100,13 @@ class LocalePack:
 #   OM: National Centre for Statistics and Information, private-sector
 #       modal bracket for insured Omanis, OMR 325-400/mo (2025)
 
-import math
 
 def _lognorm(median: float) -> tuple:
     """Return (lognormal_mean, std=0.5) for a given median salary."""
     return math.log(median), 0.5
 
 
-LOCALE_PACKS: dict = {}
+LOCALE_PACKS: Dict[str, LocalePack] = {}
 
 def _reg(pack: LocalePack) -> None:
     LOCALE_PACKS[pack.locale_code] = pack
@@ -130,7 +130,7 @@ _reg(LocalePack(
     phone_prefix="+1",
     postcode_pattern=r"\d{5}",
     national_id_label="SSN",
-    national_id_pattern=r"\d{3}-\d{2}-\d{4}",
+    national_id_pattern=r"[1-8]\d{2}-[1-9]\d-[1-9]\d{3}",
     age_mean=38.5,
     age_std=15.0,
     top_cities=[

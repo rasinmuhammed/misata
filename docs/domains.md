@@ -1,6 +1,6 @@
 ---
-title: 18 Supported Domains, Misata Synthetic Data Generator
-description: Misata generates realistic multi-table synthetic data for 18 business domains, SaaS, fintech, ecommerce, healthcare, HR, logistics, social, real estate, pharma, food delivery, edtech, gaming, CRM, crypto, insurance, travel, and streaming.
+title: "Synthetic Data by Industry: 18 Story Domains"
+description: "The 18 business domains Misata detects from a sentence, from SaaS and fintech to healthcare, logistics and streaming, with the tables and relationships each one generates."
 ---
 
 # Supported Domains
@@ -35,7 +35,7 @@ tables = misata.generate("A SaaS company with 5k users and 20% monthly churn")
 
 # With narrative curve
 tables = misata.generate(
-    "SaaS startup — MRR from $50k in Jan to $200k in Dec, Q3 slump, doubled by year end",
+    "SaaS startup: MRR from $50k in Jan to $200k in Dec, Q3 slump, doubled by year end",
     rows=5000, seed=42
 )
 print(tables["subscriptions"][["mrr", "start_date"]].head())
@@ -62,7 +62,7 @@ print(tables["subscriptions"][["mrr", "start_date"]].head())
 
 ```python
 tables = misata.generate(
-    "Ecommerce store with 10k customers — Black Friday spike, Christmas peak, Q1 slump",
+    "Ecommerce store with 10k customers: Black Friday spike, Christmas peak, Q1 slump",
     rows=10_000, seed=42
 )
 ```
@@ -178,7 +178,7 @@ tables = misata.generate(
     "A tech company with 1000 employees, monthly payroll, and 4 departments",
     rows=1000, seed=42
 )
-# tenure_years derived from hire_date — no employees have negative tenure
+# tenure_years derived from hire_date: no employees have negative tenure
 print(tables["employees"][["role", "salary", "tenure_years"]].describe())
 ```
 
@@ -288,7 +288,7 @@ tables = misata.generate(
 
 ```python
 tables = misata.generate(
-    "An edtech platform with 5k students, 200 courses — back to school surge, New Year spike"
+    "An edtech platform with 5k students, 200 courses: back to school surge, New Year spike"
 )
 ```
 
@@ -444,12 +444,12 @@ If no domain keyword is detected, Misata emits a warning and generates a single 
 
 ```python
 report = misata.preview("quarterly sales data by region")
-# ⚠ No domain detected — domain_confidence: "none"
+# ⚠ No domain detected, domain_confidence: "none"
 # warnings: ["No domain detected. Falling back to a generic single-table schema..."]
 ```
 
 **Fix options:**
-1. Add a domain keyword: `"quarterly sales data by region — fintech"` or `"ecommerce quarterly sales by region"`
+1. Add a domain keyword: `"quarterly sales data by region, fintech"` or `"ecommerce quarterly sales by region"`
 2. Use `LLMSchemaGenerator` for fully open-ended stories
 3. Author a `misata.yaml` directly for complete control
 
@@ -474,7 +474,7 @@ Every domain supports outcome curves on its primary metric column:
 ```python
 # SaaS with a full growth narrative
 tables = misata.generate(
-    "SaaS company with 5k users — MRR from $50k in Jan, strong Q4, doubled by December",
+    "SaaS company with 5k users: MRR from $50k in Jan, strong Q4, doubled by December",
     rows=5000, seed=42
 )
 ```

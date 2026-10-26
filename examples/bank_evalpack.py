@@ -26,12 +26,8 @@ from typing import Any, Callable, Dict, List
 
 import pandas as pd
 
-from misata.evalpack import (
-    EvalQuestion,
-    _jsonable,
-    _require_duckdb,
-    _verify_questions,
-)
+from misata.evalpack import EvalQuestion, verify_questions
+from misata.sqlutil import quote_ident, quote_literal
 
 
 def _fraud_questions(answer_key: pd.DataFrame, next_id: Callable[[], str]) -> List[EvalQuestion]:
@@ -125,7 +121,8 @@ def build_bank_evalpack(
     certificate. Every shipped question's gold SQL was executed against the
     CSVs on disk and matched its declared answer.
     """
-    duckdb = _require_duckdb()
+    import duckdb
+
     out = Path(output_dir)
     tables_dir = out / "tables"
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -142,9 +139,9 @@ def build_bank_evalpack(
 
     con = duckdb.connect()
     for name in tables:
-        csv_path = str((tables_dir / f"{name}.csv").resolve()).replace("'", "''")
-        con.execute(f"CREATE VIEW {name} AS SELECT * FROM read_csv_auto('{csv_path}')")
-    shipped, dropped, entries = _verify_questions(con, candidates)
+        csv_path = quote_literal(str((tables_dir / f"{name}.csv").resolve()))
+        con.execute(f"CREATE VIEW {quote_ident(name)} AS SELECT * FROM read_csv_auto({csv_path})")
+    shipped, dropped, entries = verify_questions(con, candidates)
 
     certificate = {
         "questions_shipped": len(shipped),
@@ -159,7 +156,7 @@ def build_bank_evalpack(
     }
     (out / "questions.json").write_text(json.dumps([q.to_dict() for q in shipped], indent=2))
     (out / "certificate.json").write_text(json.dumps(certificate, indent=2))
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=_jsonable))
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
 
     return {"shipped": shipped, "dropped": dropped, "certificate": certificate, "output_dir": out}
 

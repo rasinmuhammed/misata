@@ -1,36 +1,36 @@
 {
-  "misata": "0.9.7.2",
+  "misata": "0.9.8",
   "cases": {
     "dict_ecommerce_seed1": {
-      "customers": "23f9e219e64189d4",
-      "orders": "221d8a60312526b2",
+      "customers": "9f9efac6220a35c1",
+      "orders": "776e5a38b623ef6b",
       "products": "9cb4ec92118eda84",
       "reviews": "f60f5b0feb6d4559",
-      "__all__": "e39d5cb3f9915148"
+      "__all__": "e8a3210b85921025"
     },
     "dict_ecommerce_seed2": {
-      "customers": "e583396d693194b6",
-      "orders": "4346df1b66fa688b",
+      "customers": "da3f721dcdfdca03",
+      "orders": "15f997268a09f8c7",
       "products": "33ad498a03f9f5d4",
       "reviews": "e712980212720039",
-      "__all__": "fbfc2f9160c3beb1"
+      "__all__": "e0df6dedd308890d"
     },
     "ddl_saas_seed7": {
-      "accounts": "d0be890e448d2c84",
-      "invoices": "a8e64cb5bfcf71eb",
+      "accounts": "1841d5997b9309a3",
+      "invoices": "e324c6c3a2b5d94b",
       "users": "6f878eb1e895e3c7",
-      "__all__": "580ebd4c75f3631d"
+      "__all__": "1a74e9a6fe0428c8"
     },
     "story_saas_seed3": {
-      "subscriptions": "1c43f1161c324cd4",
-      "users": "962e5e7afdda9b39",
-      "__all__": "e1f53010e5145920"
+      "subscriptions": "0f2d5c7341434af7",
+      "users": "5d28c7eee9590cf5",
+      "__all__": "2b4cd9d953a6ef55"
     },
     "story_shop_seed4": {
-      "customers": "055f133c0b724485",
-      "orders": "ca8deef36d1a0630",
+      "customers": "9e4984a1838e97eb",
+      "orders": "02c982a9ab2c93ef",
       "products": "9096e3e47d100277",
-      "__all__": "24bc934f97f24e87"
+      "__all__": "d59354910e7fa857"
     }
   }
 }

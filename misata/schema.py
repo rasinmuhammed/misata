@@ -5,10 +5,35 @@ These models define the blueprint for synthetic data generation,
 including tables, columns, relationships, and scenario events.
 """
 
-import warnings
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+import re
+from collections import deque
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from misata.exceptions import warn
+
+def _check_nested_types(name: str, col_type: str, params: Dict[str, Any]) -> None:
+    """Resolve every field and item type under a json or array column.
+
+    Raises ValueError naming the field, so a misspelt nested type is refused
+    with the schema instead of partway through generation.
+    """
+    from misata.compat import resolve_column_type
+
+    if col_type == "json":
+        specs = list((params.get("fields") or {}).items())
+    else:
+        specs = [("items", params["items"])] if "items" in params else []
+    for field, spec in specs:
+        raw = spec if isinstance(spec, str) else (spec or {}).get("type", "text")
+        resolved = resolve_column_type(str(raw), where=f"{name}.{field}")
+        if resolved in ("json", "array") and isinstance(spec, dict):
+            _check_nested_types(f"{name}.{field}", resolved, spec)
+
+
+#: Column names that hold a date of birth.
+_BIRTH_DATE = re.compile(r"(^|_)(dob|birth_?date|birthday|date_of_birth|born_on)($|_)", re.I)
 
 
 class Column(BaseModel):
@@ -50,16 +75,18 @@ class Column(BaseModel):
         if col_type == "categorical":
             choices = normalized.get("choices")
             if not choices:
-                warnings.warn(
+                warn(
                     "Categorical column missing 'choices'; using ['Unknown'] as a safe fallback.",
-                    UserWarning,
-                    stacklevel=3,
                 )
                 normalized["choices"] = ["Unknown"]
                 normalized.setdefault("probabilities", [1.0])
 
         if col_type == "date" and "relative_to" not in normalized:
-            # Fixed defaults guarantee reproducible generation regardless of run date.
+            # Fixed defaults guarantee reproducible generation regardless of run
+            # date. A birth date spans living adults rather than recent years.
+            if column_name and _BIRTH_DATE.search(column_name):
+                normalized.setdefault("start", "1940-01-01")
+                normalized.setdefault("end", "2007-12-31")
             normalized.setdefault("start", "2020-01-01")
             normalized.setdefault("end", "2024-12-31")
 
@@ -68,8 +95,8 @@ class Column(BaseModel):
             normalized["_distribution_is_default"] = True  # sentinel: not user-set
 
         if col_type in ["int", "float"]:
-            # Unknown names and misspelled parameters used to fall through to
-            # uniform(0, 1000); they are errors now (see misata.param_check).
+            # Unknown distribution names and misspelled parameters are errors,
+            # never a silent fallback (see misata.param_check).
             from misata.param_check import check_distribution_params
             normalized = check_distribution_params(col_type, normalized, column_name)
 
@@ -81,6 +108,13 @@ class Column(BaseModel):
         """Validate distribution parameters based on column type."""
         col_type = info.data.get("type")
         return cls._normalize_distribution_params(col_type, v or {}, info.data.get("name"))
+
+    @model_validator(mode="after")
+    def _nested_types_resolve(self) -> "Column":
+        """A json or array column's field and item types are checked when declared."""
+        if self.type in ("json", "array"):
+            _check_nested_types(self.name, self.type, self.distribution_params)
+        return self
 
     def validate_generation_ready(self) -> None:
         """Raise if the column still lacks required information for generation."""
@@ -188,7 +222,7 @@ class Relationship(BaseModel):
     # (`partition_by=["tenant_id"]`), and it is the same idea as the `partition
     # by` a window function needs: a value that crosses the boundary is not
     # merely unrealistic, it is a leak. Named after the SQL clause on purpose,
-    # because the bug this prevents is the one a missing `partition by` causes.
+    # because it prevents the same mistake a missing `partition by` causes.
     # The columns must exist on BOTH tables, and the child's copy must be
     # generated before this key, which column order already guarantees.
     partition_by: List[str] = Field(default_factory=list)
@@ -373,7 +407,8 @@ class OutcomeCurve(BaseModel):
     time_unit: Literal["day", "week", "month"] = "month"
     pattern_type: str = "seasonal"
     intra_period_pattern: Literal["uniform", "weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy"] = "uniform"
-    value_mode: Literal["auto", "relative", "absolute"] = "auto"
+    # "count": each point is how many rows the period has, exactly (orders a month), and no column's values are set
+    value_mode: Literal["auto", "relative", "absolute", "count"] = "auto"
     description: Optional[str] = None
     avg_transaction_value: Optional[float] = None
     min_transactions_per_period: int = 1
@@ -433,11 +468,10 @@ class CohortRetention(BaseModel):
     """Declare a retention curve, and have the cohort table actually show it.
 
     "Of the customers who signed up in month M, 55% place an order in M+1 and
-    40% in M+2" is the most-quoted invariant in SaaS and ecommerce analytics,
-    and until now it was inexpressible here: you could control how many events
-    existed and what they summed to, but not *which* entities produced them
-    over time. So the cohort query every analyst runs first returned a shape
-    nobody chose.
+    40% in M+2" is the most-quoted invariant in SaaS and ecommerce analytics.
+    Event counts and totals alone do not fix *which* entities produced the
+    events over time, so without this the cohort query every analyst runs first
+    would return a shape nobody chose.
 
     Declaring it makes the cohort table exact. For every cohort period and
     every declared offset k, exactly ``round(fraction × cohort_size)`` distinct
@@ -628,12 +662,13 @@ class Lifecycle(BaseModel):
     Those are all the same defect — a row whose columns describe a history
     that could not have happened.
 
-    Declaring the machine makes the whole class impossible. For a row in state
-    S, the engine derives the path from ``initial`` to S and guarantees:
+    Declaring the machine makes the whole class impossible. Each row in state
+    S takes one route from ``initial`` to S (see :meth:`routes_to`), and the
+    engine guarantees:
 
     1. ``state_column`` only ever holds a declared state name.
-    2. Every state on the path has its timestamp populated, in path order.
-    3. Every state off the path has its timestamp NULL.
+    2. Every state on the route has its timestamp populated, in route order.
+    3. Every state off the route has its timestamp NULL.
     4. The whole chain postdates ``start_column`` when one is given.
 
     This subsumes hand-written ``when_then`` rules and status gating: instead
@@ -716,10 +751,9 @@ class Lifecycle(BaseModel):
     def path_to(self, target: str) -> Optional[List[str]]:
         """Shortest legal path from ``initial`` to ``target``.
 
-        Returns None when the target is unreachable, which the caller reports
-        rather than silently generating an impossible row. Breadth-first, so
-        the path chosen is the shortest one; a state reachable two ways gets
-        the direct route.
+        Returns None when the target is unreachable. Breadth-first, so of
+        several routes the one returned is the shortest; :meth:`routes_to`
+        gives them all.
         """
         start = self.initial or (self.states[0].name if self.states else None)
         if start is None:
@@ -741,6 +775,66 @@ class Lifecycle(BaseModel):
                 seen.add(nxt)
                 queue.append(path + [nxt])
         return None
+
+    def routes_to(self, target: str, limit: int = 64) -> List[Tuple[List[str], float]]:
+        """Every distinct route from ``initial`` to ``target``, with its share.
+
+        A cancelled order may have been cancelled before or after it shipped,
+        and the two leave different histories. Routes are the simple paths to
+        ``target``, shortest first; two routes that timestamp the same states
+        cannot be told apart in a row, so only the shorter is kept. Each
+        route's share is the probability that a walk taking every transition
+        out of a state equally often follows it, normalised over the routes
+        to ``target``. Empty when ``target`` is unreachable.
+        """
+        start = self.initial or (self.states[0].name if self.states else None)
+        if start is None or target not in self.state_names():
+            return []
+        adjacency: Dict[str, List[str]] = {}
+        for a, b in self.transitions:
+            if b not in adjacency.setdefault(a, []):
+                adjacency[a].append(b)
+        routes: List[Tuple[List[str], float]] = []
+        signatures = set()
+        queue: deque = deque([([start], 1.0)])
+        while queue and len(routes) < limit:
+            path, p = queue.popleft()
+            if path[-1] == target:
+                signature = self.signature(path)
+                if signature not in signatures:
+                    signatures.add(signature)
+                    routes.append((path, p))
+                continue
+            nexts = adjacency.get(path[-1], [])
+            for nxt in nexts:
+                if nxt not in path:
+                    queue.append((path + [nxt], p / len(nexts)))
+        total = sum(p for _, p in routes)
+        return [(path, p / total) for path, p in routes]
+
+    def signature(self, route: List[str]) -> frozenset:
+        """The states on ``route`` whose entry a row records."""
+        return frozenset(s for s in route if self.timestamp_of(s))
+
+    def route_taken(self, state: str, stamped: Iterable[str],
+                    columns: Optional[Iterable[str]] = None) -> Optional[List[str]]:
+        """The route a row in ``state`` took, from the states it timestamps.
+
+        ``columns`` restricts the comparison to the timestamp columns a table
+        actually holds; a route whose signature matches nothing falls back to
+        the shortest, so a caller always gets a legal history to work from.
+        """
+        routes = [path for path, _ in self.routes_to(state)]
+        if not routes:
+            return None
+        held = None if columns is None else set(columns)
+
+        def seen(states: Iterable[str]) -> frozenset:
+            return frozenset(s for s in states if held is None
+                             or self.timestamp_of(s) in held)
+
+        observed = seen(stamped)
+        return next((r for r in routes if seen(self.signature(r)) == observed), routes[0])
 
 
 class EventLog(BaseModel):
@@ -932,9 +1026,8 @@ class Degradation(BaseModel):
 
     # ── Maintenance ──────────────────────────────────────────────────────
     #
-    # Absent entirely before this. A fleet that only ever runs to failure,
-    # never repaired, has no maintenance history to speak of -- and every
-    # real fleet is repaired. `maintenance_policy` makes an intervention
+    # A fleet that only ever runs to failure, never repaired, has no
+    # maintenance history to speak of, and every real fleet is repaired. `maintenance_policy` makes an intervention
     # possible mid-life, which both extends the trajectory and produces a
     # second table: the log of when it happened and how much it helped.
     #
@@ -1108,17 +1201,19 @@ class NoiseConfig(BaseModel):
 class TimeGrid(BaseModel):
     """A timestamp column lands on a declared grid, in declared hours.
 
-    Misata has shaped timestamps by name-guess since early on: a column called
-    ``appointment_time`` was snapped to quarter hours inside business hours
-    because that is what appointments do. The guess is usually right and it is
-    the single biggest tell that separates plausible timestamps from
-    ``2022-08-29 06:36:12.995319155``. But a guess is not a guarantee: it was
-    never declarable, never overridable, and never checked.
+    Misata shapes timestamps by name: a column called ``appointment_time`` is
+    snapped to quarter hours inside business hours because that is what
+    appointments do. The guess is usually right and it is the single biggest
+    tell that separates plausible timestamps from
+    ``2022-08-29 06:36:12.995319155``. But a guess is not a guarantee: it is
+    not declarable, not overridable, and not checked.
 
     ``TimeGrid`` is the declared form. The inference stays as a default; this
-    is what you write when the grid matters and you want it proven. Only the
-    time of day is touched, never the date, so no causal ordering between
-    tables can be disturbed by asking for tidier clocks.
+    is what you write when the grid matters and you want it proven. A value
+    only ever moves forward, to its next slot, so no causal ordering between
+    tables can be disturbed by asking for tidier clocks. A value past the
+    day's last slot moves to the next day's first slot, which is why a grid
+    on a curve's time column is refused unless that column is a ``date``.
 
     Attributes:
         minute_grid: every value falls on a multiple of this many minutes.
@@ -1269,7 +1364,7 @@ MOTIF_KINDS = ("cycle", "fan_out", "fan_in", "scatter_gather", "chain")
 class DagEdges(BaseModel):
     """An edge table that is a directed acyclic graph.
 
-    The forest rule added in 0.9.2 keeps a self-referential *column* acyclic. It
+    The forest rule keeps a self-referential *column* acyclic. It
     says nothing about a join table, where the same guarantee needs a different
     construction: edges are drawn between nodes ordered by a topological rank, so
     an edge always points from lower rank to higher and a cycle cannot close.
@@ -1717,6 +1812,23 @@ class SchemaConfig(BaseModel):
                 raise ValueError(f"Child table '{rel.child_table}' not found in schema")
 
         return v
+
+    @model_validator(mode="after")
+    def _child_keys_are_foreign_keys(self) -> "SchemaConfig":
+        """A relationship's child column holds its parent's keys.
+
+        Declared as a plain ``int`` or ``text`` column, it would otherwise be
+        generated from that type's own distribution and point at no parent,
+        so the relationship would be ignored without a word.
+        """
+        for rel in self.relationships:
+            columns = self.columns.get(rel.child_table) or []
+            for i, col in enumerate(columns):
+                if col.name == rel.child_key and col.type in ("int", "text"):
+                    columns[i] = Column(name=col.name, type="foreign_key",
+                                        nullable=col.nullable, unique=col.unique,
+                                        semantic=col.semantic, description=col.description)
+        return self
 
     def get_table(self, name: str) -> Optional[Table]:
         """Get a table by name."""

@@ -20,7 +20,7 @@ Algorithm:
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
@@ -252,7 +252,7 @@ def create_curve_from_preset(
     preset_name: str,
     metric_name: str = "revenue",
     time_unit: str = "month",
-    start_date: datetime = None,
+    start_date: Optional[datetime] = None,
     scale: float = 1000  # Multiply preset values by this
 ) -> OutcomeCurve:
     """Create an OutcomeCurve from a preset shape."""

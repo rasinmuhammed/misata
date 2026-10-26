@@ -10,7 +10,7 @@ This module generates realistic domain-specific values by:
 import json
 import os
 import hashlib
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional, cast
 from pathlib import Path
 
 
@@ -575,7 +575,7 @@ class SmartValueGenerator:
     def _get_cache_key(self, domain: str, context: str, size: int) -> str:
         """Generate a cache key for a pool request."""
         content = f"{domain}:{context}:{size}"
-        return hashlib.md5(content.encode()).hexdigest()[:12]
+        return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:12]
     
     def _load_cached_pool(self, cache_key: str) -> Optional[List[str]]:
         """Load a pool from disk cache."""
@@ -583,8 +583,8 @@ class SmartValueGenerator:
         if cache_file.exists():
             try:
                 with open(cache_file, 'r') as f:
-                    return json.load(f)
-            except Exception:
+                    return cast(List[str], json.load(f))
+            except (OSError, ValueError):
                 pass
         return None
     
@@ -594,7 +594,7 @@ class SmartValueGenerator:
         try:
             with open(cache_file, 'w') as f:
                 json.dump(pool, f)
-        except Exception:
+        except (OSError, TypeError, ValueError):
             pass
     
     def generate_pool_with_llm(
@@ -670,7 +670,7 @@ Return ONLY a JSON array of strings, no explanation. Example:
             else:
                 return self.FALLBACK_POOLS.get(domain, [])[:size]
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any provider or parse failure falls back to the built-in pool
             print(f"LLM generation failed: {e}")
             return self.FALLBACK_POOLS.get(domain, [])[:size]
     
@@ -815,7 +815,7 @@ Return ONLY a JSON array of strings, no explanation. Example:
         import random
         
         # Domain-specific templates
-        templates = {
+        templates: Dict[str, Dict[str, Any]] = {
             "address": {
                 "template": "{number} {street_name} {street_type}, {city}, {state}",
                 "components": {

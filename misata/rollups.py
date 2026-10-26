@@ -30,9 +30,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
+import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 
 _VALID_AGGS = {"sum", "count", "mean", "max", "min"}
@@ -305,7 +308,6 @@ def apply_rollups(
     relationships: Optional[List[Any]] = None,
 ) -> Dict[str, pd.DataFrame]:
     """Write each roll-up's aggregate into the parent column. Mutates and returns ``tables``."""
-    import warnings as _warnings
     for spec in specs:
         parent = tables.get(spec.parent_table)
         child = tables.get(spec.from_table)
@@ -315,10 +317,11 @@ def apply_rollups(
             resolved = (resolve_via_frame(spec, tables, relationships)
                         if relationships else None)
             if resolved is None or spec.fk not in resolved.columns:
-                _warnings.warn(
+                warn(
                     f"Roll-up '{spec.parent_table}.{spec.target_column}': the via chain "
                     f"{spec.via} could not be resolved from the declared relationships; "
-                    f"the column keeps its generated values and will NOT reconcile."
+                    f"the column keeps its generated values and will NOT reconcile.",
+                    ConformanceWarning,
                 )
                 continue
             child = resolved
@@ -368,7 +371,7 @@ def _primary_key_of(config: Any, table_name: str) -> str:
     """Best-effort primary key: a unique int column, else <table_singular>_id, else 'id'."""
     for col in config.columns.get(table_name, []):
         if col.unique and col.type in ("int",):
-            return col.name
+            return cast(str, col.name)
     singular = table_name[:-1] if table_name.endswith("s") else table_name
     names = {c.name for c in config.columns.get(table_name, [])}
     for cand in (f"{singular}_id", f"{table_name}_id", "id"):
@@ -421,7 +424,7 @@ def _pick_numeric_child_column(config: Any, child_table: str, noun: Optional[str
     """Pick the child column to aggregate: a noun-name match first, else the obvious money/qty
     column, else the single numeric non-key column."""
     cols = config.columns.get(child_table, [])
-    numeric = [c for c in cols
+    numeric: List[Any] = [c for c in cols
                if c.type in ("int", "float") and not c.unique
                and c.type != "foreign_key" and not c.name.endswith("_id")]
     if not numeric:
@@ -429,13 +432,13 @@ def _pick_numeric_child_column(config: Any, child_table: str, noun: Optional[str
     if noun:
         for c in numeric:
             if c.name.lower() == noun or noun in c.name.lower():
-                return c.name
+                return cast(str, c.name)
     for pref in ("amount", "total", "price", "value", "revenue", "cost", "quantity", "qty"):
         for c in numeric:
             if pref in c.name.lower():
-                return c.name
+                return cast(str, c.name)
     if len(numeric) == 1:
-        return numeric[0].name
+        return cast(str, numeric[0].name)
     return None
 
 
@@ -453,6 +456,111 @@ def is_streamable(spec: RollupSpec) -> bool:
     return not spec.via and spec.agg in STREAMABLE_AGGS
 
 
+class _Partials:
+    """One roll-up's per-parent row count and running aggregate.
+
+    Each parent owns one slot in dense arrays, assigned when it first appears,
+    so a batch costs time in its own size and never in the number of parents
+    seen so far. The aggregate keeps the child column's dtype: integer sums
+    stay exact and datetimes compare as datetimes. A mean divides by the
+    non-null values, as ``groupby().mean()`` does over the whole table.
+    """
+
+    def __init__(self, agg: str) -> None:
+        self.agg = agg
+        self.slots: Dict[Any, int] = {}
+        self.keys: List[Any] = []
+        self.count = np.zeros(0, dtype=np.int64)
+        self.nonnull = np.zeros(0, dtype=np.int64)
+        self.value: Optional[np.ndarray] = None
+        self.seen = np.zeros(0, dtype=bool)
+        self.dtype: Any = None
+
+    def add(self, groups: Any, column: Optional[str]) -> None:
+        sizes = groups.size()
+        slots = self._slots_for(sizes.index)
+        self.count[slots] += sizes.to_numpy(dtype=np.int64)
+        if self.agg == "count" or column is None:
+            return
+        target = "sum" if self.agg in ("sum", "mean") else self.agg
+        partial = getattr(groups[column], target)()
+        values, valid = self._values(partial)
+        acc = self._accumulator(values.dtype)
+        if target == "sum":
+            acc[slots] += values
+            self.seen[slots] = True
+            if self.agg == "mean":
+                self.nonnull[slots] += groups[column].count().to_numpy(dtype=np.int64)
+            return
+        had = self.seen[slots]
+        both = valid & had
+        better = np.zeros(len(slots), dtype=bool)
+        if both.any():
+            current = acc[slots[both]]
+            better[both] = values[both] < current if target == "min" else values[both] > current
+        take = valid & (~had | better)
+        acc[slots[take]] = values[take]
+        self.seen[slots[take]] = True
+
+    def series(self) -> pd.Series:
+        """The finished aggregate per parent, omitting parents it never reached."""
+        n = len(self.keys)
+        index = pd.Index(self.keys)
+        if self.agg == "count":
+            return pd.Series(self.count[:n], index=index)
+        if self.value is None:
+            return pd.Series(dtype=float)
+        if self.agg == "mean":
+            with np.errstate(divide="ignore", invalid="ignore"):
+                mean = np.where(self.nonnull[:n] > 0, self.value[:n] / self.nonnull[:n], np.nan)
+            return pd.Series(mean, index=index)[self.seen[:n]]
+        values = self.value[:n]
+        if self.dtype is not None:
+            values = values.view(self.dtype)
+        return pd.Series(values, index=index)[self.seen[:n]]
+
+    def _values(self, partial: pd.Series) -> Any:
+        dtype = partial.dtype
+        if isinstance(dtype, np.dtype) and dtype.kind == "M":
+            if self.dtype is None:
+                self.dtype = dtype
+            values = partial.to_numpy(dtype=self.dtype).view(np.int64)
+            return values, ~partial.isna().to_numpy()
+        if isinstance(dtype, np.dtype) and dtype.kind in "iub":
+            return partial.to_numpy(dtype=np.int64), np.ones(len(partial), dtype=bool)
+        if pd.api.types.is_numeric_dtype(dtype):
+            values = partial.to_numpy(dtype=float, na_value=np.nan)
+            return values, ~np.isnan(values)
+        return partial.to_numpy(dtype=object), partial.notna().to_numpy()
+
+    def _accumulator(self, dtype: np.dtype) -> np.ndarray:
+        size = len(self.count)
+        if self.value is None:
+            self.value = np.zeros(size, dtype=dtype)
+        elif self.value.dtype != dtype:
+            either_object = np.dtype(object) in (self.value.dtype, dtype)
+            wider = np.dtype(object) if either_object else np.result_type(self.value.dtype, dtype)
+            self.value = self.value.astype(wider)
+        return self.value
+
+    def _slots_for(self, keys: Any) -> np.ndarray:
+        slots = np.empty(len(keys), dtype=np.int64)
+        for i, key in enumerate(keys):
+            slot = self.slots.get(key)
+            if slot is None:
+                slot = self.slots[key] = len(self.keys)
+                self.keys.append(key)
+            slots[i] = slot
+        if len(self.keys) > len(self.count):
+            grow = max(len(self.keys), 2 * len(self.count), 1024) - len(self.count)
+            self.count = np.concatenate([self.count, np.zeros(grow, dtype=np.int64)])
+            self.nonnull = np.concatenate([self.nonnull, np.zeros(grow, dtype=np.int64)])
+            self.seen = np.concatenate([self.seen, np.zeros(grow, dtype=bool)])
+            if self.value is not None:
+                self.value = np.concatenate([self.value, np.zeros(grow, dtype=self.value.dtype)])
+        return slots
+
+
 class RollupAccumulator:
     """Per-parent partial aggregates for streamable roll-ups.
 
@@ -462,13 +570,13 @@ class RollupAccumulator:
 
     def __init__(self, specs: List[RollupSpec]):
         self.specs = list(specs)
-        self.parts: List[Dict[str, pd.Series]] = [{} for _ in self.specs]
+        self.parts: List[_Partials] = [_Partials(s.agg) for s in self.specs]
 
     def tables(self) -> set:
         return {s.from_table for s in self.specs}
 
     def update(self, table_name: str, batch: pd.DataFrame) -> None:
-        for i, spec in enumerate(self.specs):
+        for spec, part in zip(self.specs, self.parts, strict=True):
             if spec.from_table != table_name or spec.fk not in batch.columns:
                 continue
             child = batch
@@ -482,35 +590,15 @@ class RollupAccumulator:
                 child = child[mask]
             if spec.agg != "count" and (spec.column is None or spec.column not in child.columns):
                 continue
-            g = child.groupby(spec.fk)
-            part = self.parts[i]
-            new = {"count": g.size()}
-            if spec.agg != "count":
-                col = g[spec.column]
-                new.update(sum=col.sum(), min=col.min(), max=col.max())
-            for k, v in new.items():
-                if k not in part:
-                    part[k] = v
-                elif k in ("count", "sum"):
-                    part[k] = part[k].add(v, fill_value=0)
-                elif k == "min":
-                    part[k] = pd.concat([part[k], v], axis=1).min(axis=1)
-                else:
-                    part[k] = pd.concat([part[k], v], axis=1).max(axis=1)
+            part.add(child.groupby(spec.fk), spec.column)
 
     def apply(self, tables: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """Write each accumulated aggregate into its (buffered) parent."""
-        for spec, part in zip(self.specs, self.parts):
+        for spec, part in zip(self.specs, self.parts, strict=True):
             parent = tables.get(spec.parent_table)
             if parent is None or spec.parent_key not in parent.columns:
                 continue
-            if spec.agg == "count":
-                grouped = part.get("count", pd.Series(dtype=float))
-            elif spec.agg == "mean":
-                grouped = part["sum"] / part["count"] if "sum" in part else pd.Series(dtype=float)
-            else:
-                grouped = part.get(spec.agg, pd.Series(dtype=float))
-            mapped = parent[spec.parent_key].map(grouped)
+            mapped = parent[spec.parent_key].map(part.series())
             mapped = mapped.fillna(0 if spec.agg == "count" else spec.fillna)
             if spec.agg == "count" or (spec.target_column in parent.columns
                                        and pd.api.types.is_integer_dtype(parent[spec.target_column])):

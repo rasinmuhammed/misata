@@ -1,0 +1,53 @@
+# misata.yaml
+name: retail_answer_key
+seed: 42
+tables:
+  stores:
+    rows: 40
+    columns:
+      store_id: {type: int, unique: true, min: 1, max: 40}
+      region: {type: categorical, choices: [north, south, east, west]}
+      opened_on: {type: date, start: "2018-01-01", end: "2023-12-31"}
+  customers:
+    rows: 3000
+    columns:
+      customer_id: {type: int, unique: true, min: 1, max: 3000}
+      loyalty_tier: {type: categorical, choices: [none, silver, gold], probabilities: [0.6, 0.3, 0.1]}
+  sales:
+    rows: 40000
+    columns:
+      sale_id: {type: int, unique: true, min: 1, max: 10000000}
+      store_id: {type: foreign_key}
+      customer_id: {type: foreign_key}
+      category: {type: categorical, choices: [grocery, apparel, electronics, home]}
+      amount: {type: float, min: 2, max: 1500}
+      is_return: {type: boolean}
+      sold_at: {type: date, start: "2025-01-01", end: "2025-06-30"}
+relationships:
+  - stores.store_id -> sales.store_id
+  - customers.customer_id -> sales.customer_id
+outcome_curves:
+  - table: sales
+    column: amount
+    time_column: sold_at
+    value_mode: absolute
+    start_date: "2025-01-01"
+    curve_points:
+      - {month: 1, target_value: 410000.37}
+      - {month: 2, target_value: 385112.84}
+      - {month: 3, target_value: 432519.06}
+      - {month: 4, target_value: 451002.91}
+      - {month: 5, target_value: 478236.45}
+      - {month: 6, target_value: 502081.18}
+group_shares:
+  - table: sales
+    measure: amount
+    group_column: category
+    shares: {grocery: 0.4, apparel: 0.25, electronics: 0.2, home: 0.15}
+rate_curves:
+  - table: sales
+    column: is_return
+    time_column: sold_at
+    rate_points:
+      - {period: "2025-01", rate: 0.06}
+      - {period: "2025-06", rate: 0.04}

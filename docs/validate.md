@@ -1,6 +1,6 @@
 ---
-title: Validate & Preview, Data Quality Profiling and Story Inspection with Misata
-description: Profile CSV files for quality issues, inspect story detection results before generating, and validate misata.yaml schemas against the built-in JSON Schema. All three are zero-generation operations.
+title: "Validate a CSV and Preview a Story Before Generating"
+description: "Profile CSV files for quality issues, see what a story will generate before any rows exist, and check a misata.yaml schema against its JSON Schema."
 ---
 
 # Validate & Preview
@@ -71,10 +71,10 @@ print(report.summary())
 ```python
 report = misata.preview("A platform with crypto wallets and subscription payments")
 
-print(report.domain_confidence)  # "low" — ambiguous
+print(report.domain_confidence)  # "low", ambiguous
 print(report.near_misses)        # {"crypto": ["crypto", "wallet"], "saas": ["subscription"]}
 print(report.warnings)
-# ["Domain 'fintech' matched on 1 keyword — consider naming the domain explicitly"]
+# ["Domain 'fintech' matched on 1 keyword - consider naming the domain explicitly"]
 
 # Fix: name the domain so it earns the +5 literal bonus
 report2 = misata.preview("A fintech platform with crypto wallets and subscription payments")
@@ -95,17 +95,17 @@ import misata
 
 story = "A fintech with 5k customers, Black Friday spike"
 
-# Step 1 — inspect for free
+# Step 1: inspect for free
 report = misata.preview(story, rows=5000)
 if report.domain_confidence == "none":
     print("No domain detected:", report.warnings)
     exit()
 
-# Step 2 — optional: inspect full schema (tables, columns, FK relationships)
+# Step 2, optional: inspect full schema (tables, columns, FK relationships)
 schema = misata.parse(story, rows=5000)
 print(schema.summary())
 
-# Step 3 — generate
+# Step 3: generate
 tables = misata.generate_from_schema(schema, seed=42)
 ```
 
@@ -124,7 +124,7 @@ Profile any CSV file for null rates, type inference, range statistics, and uniqu
 ### CLI
 
 ```bash
-# Profile a CSV — type inference, null rates, range stats
+# Profile a CSV: type inference, null rates, range stats
 misata validate customers.csv
 
 # Check against a YAML schema
@@ -167,7 +167,7 @@ print(report.score)         # 0–100
 print(report.issues)        # list of strings
 print(report)               # formatted table
 
-# With a YAML schema — checks types, required columns, value constraints
+# With a YAML schema, checks types, required columns, value constraints
 schema = misata.load_yaml_schema("misata.yaml")
 report = misata.validate_csv("customers.csv", schema=schema, table_name="customers")
 

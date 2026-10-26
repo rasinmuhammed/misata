@@ -1,3 +1,8 @@
+---
+title: "Lexicons, Graph Motifs and Joint Distributions in Synthetic Data"
+description: "Declare a column's vocabulary so text never repeats, plant graph motifs such as fraud rings on purpose, and hold several categorical margins at once, exactly."
+---
+
 # Lexicons, motifs and joint margins
 
 Three declarations added in 0.9.6.46 through 0.9.6.50. Each one closes a gap
@@ -147,3 +152,6 @@ dimensions has no such guarantee.
 
 Pass `emphasis` to bias the interior of the table towards a known
 association, or `forbidden` to zero out combinations that cannot occur.
+
+See [Fraud and AML data with labelled truth](../usecases/fraud-aml.md) for
+`graph_motifs` on an acyclic transfer network, with every count attested.

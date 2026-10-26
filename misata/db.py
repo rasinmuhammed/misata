@@ -10,13 +10,15 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from io import StringIO
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Collection, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
 import pandas as pd
 
+from misata.exceptions import ConfigurationError
 from misata.schema import SchemaConfig
 from misata.simulator import DataSimulator
+from misata.sqlutil import quote_ident, quote_qualified
 
 
 @dataclass
@@ -54,15 +56,18 @@ def seed_database(
         use_llm: Use LLM-backed pools when smart_mode is True
         append: Leave already-populated tables untouched and generate only the
             empty ones, drawing their foreign keys from the existing rows.
+
+    Raises:
+        ConfigurationError: A table already has rows and neither ``truncate``
+            nor ``append`` says what to do with them. Nothing is written.
     """
     start_time = time.time()
     dialect, conn = _connect(db_url)
 
     # One transaction for the whole seed: create, truncate and every insert
-    # commit together or not at all. Committing per batch meant a constraint
-    # failure in table five left tables one to four filled, and the next run
-    # with --truncate had to clean up a half-seeded database. SQLite and
-    # Postgres both roll back DDL, so a failed run leaves nothing behind.
+    # commit together or not at all, so a constraint failure in any table
+    # leaves no half-seeded database behind. SQLite and Postgres both roll
+    # back DDL, so a failed run leaves nothing behind.
     if dialect == "sqlite":
         conn.isolation_level = None   # manage the transaction explicitly
         conn.execute("BEGIN")
@@ -90,6 +95,16 @@ def seed_database(
             preloaded_context = {**(preloaded_context or {}), **ext_context}
             skip_tables = (skip_tables or set()) | ext_skip
 
+        if not (truncate or append):
+            populated = [t.name for t in config.tables
+                         if t.name not in (skip_tables or set())
+                         and _row_count_or_zero(conn, dialect, t.name)]
+            if populated:
+                raise ConfigurationError(
+                    f"{len(populated)} table(s) already have rows ({', '.join(populated)}). "
+                    f"Pass truncate=True to replace them, or append=True to keep them "
+                    f"and seed only the empty tables.")
+
         simulator = DataSimulator(
             config,
             batch_size=batch_size,
@@ -102,13 +117,18 @@ def seed_database(
         total_rows = 0
         table_rows: Dict[str, int] = {}
         validated_tables = set()
+        date_columns = {
+            table.name: frozenset(c.name for c in config.get_columns(table.name) if c.type == "date")
+            for table in config.tables
+        }
 
         for table_name, batch_df in simulator.generate_all():
             if table_name not in validated_tables:
                 _validate_table_schema(conn, dialect, table_name, list(batch_df.columns), create)
                 validated_tables.add(table_name)
 
-            rows_inserted = _insert_batch(conn, dialect, table_name, batch_df, commit=False)
+            rows_inserted = _insert_batch(conn, dialect, table_name, batch_df, commit=False,
+                                          date_columns=date_columns.get(table_name, ()))
             table_rows[table_name] = table_rows.get(table_name, 0) + rows_inserted
             total_rows += rows_inserted
 
@@ -140,7 +160,7 @@ def seed_database(
                     conn.execute("ROLLBACK")
             else:
                 conn.rollback()
-        except Exception:
+        except Exception:  # noqa: BLE001 - cleanup must not mask the original error
             pass
         raise
     finally:
@@ -199,9 +219,9 @@ def _load_external_context(conn, dialect: str, config: SchemaConfig):
 
     preloaded: Dict[str, pd.DataFrame] = {}
     for table in external:
-        qualified = f'"{table.external_schema}"."{table.name}"'
+        qualified = quote_qualified(table.external_schema, table.name)
         cols = sorted(keys_needed.get(table.name, {"id"}))
-        col_list = ", ".join(f'"{c}"' for c in cols)
+        col_list = ", ".join(quote_ident(c) for c in cols)
         df = pd.read_sql_query(f"SELECT {col_list} FROM {qualified}", conn)
         if df.empty:
             raise ValueError(
@@ -235,31 +255,46 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
         name = table.name
         try:
             with _Savepoint(conn, dialect):
-                if dialect == "postgres":
-                    with conn.cursor() as cur:
-                        cur.execute(f'SELECT COUNT(*) FROM "{name}"')
-                        count = int(cur.fetchone()[0])
-                else:
-                    count = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
-        except Exception:
+                count = _count_rows(conn, dialect, name)
+        except Exception:  # noqa: BLE001 - a table the driver cannot count is treated as empty
             count = 0
         if count == 0:
             continue
         skip.add(name)
         cols = set(keys_needed.get(name, set()))
         cols.add("id")  # FK sampling fast-path uses "id"
-        col_list = ", ".join(f'"{c}"' for c in sorted(cols))
+        col_list = ", ".join(quote_ident(c) for c in sorted(cols))
         try:
             with _Savepoint(conn, dialect):
-                preloaded[name] = pd.read_sql_query(f'SELECT {col_list} FROM "{name}"', conn)
-        except Exception:
-            # A key column that doesn't exist (composite/renamed PK) — load all.
+                query = f"SELECT {col_list} FROM {quote_ident(name)}"
+                preloaded[name] = pd.read_sql_query(query, conn)
+        except Exception:  # noqa: BLE001 - any driver error falls back to loading every column
+            # A key column that doesn't exist (composite/renamed PK): load all.
             try:
                 with _Savepoint(conn, dialect):
-                    preloaded[name] = pd.read_sql_query(f'SELECT * FROM "{name}"', conn)
-            except Exception:
+                    preloaded[name] = pd.read_sql_query(f"SELECT * FROM {quote_ident(name)}", conn)
+            except Exception:  # noqa: BLE001 - an unreadable table is generated normally
                 skip.discard(name)  # can't load it; let normal path handle
     return preloaded, skip
+
+
+def _row_count_or_zero(conn, dialect: str, table: str) -> int:
+    """Rows in ``table``, or 0 when it does not exist yet."""
+    try:
+        with _Savepoint(conn, dialect):
+            return _count_rows(conn, dialect, table)
+    except Exception:  # noqa: BLE001 - a table the driver cannot count is treated as empty
+        return 0
+
+
+def _count_rows(conn, dialect: str, table: str) -> int:
+    """Number of rows in ``table`` on an open SQLite or Postgres connection."""
+    sql = f"SELECT COUNT(*) FROM {quote_ident(table)}"
+    if dialect == "postgres":
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return int(cur.fetchone()[0])
+    return int(conn.execute(sql).fetchone()[0])
 
 
 def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
@@ -284,10 +319,10 @@ def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
                 for col in cols:
                     cur.execute(
                         "SELECT setval(pg_get_serial_sequence(%s, %s), "
-                        f'COALESCE((SELECT MAX("{col}") FROM "{name}"), 1))',
+                        f"COALESCE((SELECT MAX({quote_ident(col)}) FROM {quote_ident(name)}), 1))",
                         (name, col),
                     )
-        except Exception:
+        except Exception:  # noqa: BLE001 - realignment is best-effort
             # Sequence realignment is best-effort; never fail the seed over it.
             pass
 
@@ -368,11 +403,11 @@ def truncate_tables(config: SchemaConfig, conn, dialect: str, commit: bool = Tru
              if not _is_external(config, t)]
     if dialect == "postgres":
         if order:
-            names = ", ".join(f'"{t}"' for t in order)
+            names = ", ".join(quote_ident(t) for t in order)
             _execute(conn, dialect, f"TRUNCATE TABLE {names}", commit=commit)
         return order
     for table_name in order:
-        _execute(conn, dialect, f'DELETE FROM "{table_name}"', commit=commit)
+        _execute(conn, dialect, f"DELETE FROM {quote_ident(table_name)}", commit=commit)
     return order
 
 
@@ -380,7 +415,7 @@ def _is_external(config: SchemaConfig, table_name: str) -> bool:
     return any(t.name == table_name and t.external_schema for t in config.tables)
 
 
-def _connect(db_url: str) -> Tuple[str, object]:
+def _connect(db_url: str) -> Tuple[str, Any]:
     parsed = urlparse(db_url)
     scheme = parsed.scheme.lower()
 
@@ -389,8 +424,7 @@ def _connect(db_url: str) -> Tuple[str, object]:
             raise ValueError("SQLite URL must include a file path, e.g. sqlite:///path/to.db")
         # SQLAlchemy's convention: three slashes then a relative path
         # (sqlite:///dev.db is ./dev.db), four for an absolute one
-        # (sqlite:////var/data/dev.db). Using the URL path as-is opened
-        # sqlite:///dev.db at the filesystem root.
+        # (sqlite:////var/data/dev.db).
         path = parsed.path[1:] if not parsed.netloc else parsed.path
         if path == ":memory:" or path.startswith("file:"):
             pass
@@ -403,7 +437,7 @@ def _connect(db_url: str) -> Tuple[str, object]:
     if scheme in ("postgres", "postgresql"):
         try:
             import psycopg  # type: ignore
-        except Exception as exc:
+        except ImportError as exc:
             raise ImportError("Postgres driver missing. Install misata[db] (psycopg).") from exc
         conn = psycopg.connect(db_url)
         return "postgres", conn
@@ -424,46 +458,53 @@ def _execute(conn, dialect: str, sql: str, params: Optional[Sequence] = None,
 
 
 def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
-                  commit: bool = True) -> int:
+                  commit: bool = True, date_columns: Collection[str] = ()) -> int:
     if df.empty:
         return 0
 
     columns = list(df.columns)
-    placeholders = ", ".join(["?"] * len(columns)) if dialect == "sqlite" else ", ".join(["%s"] * len(columns))
-    col_list = ", ".join([f'"{c}"' for c in columns])
-    sql = f'INSERT INTO "{table_name}" ({col_list}) VALUES ({placeholders})'
+    marker = "?" if dialect == "sqlite" else "%s"
+    placeholders = ", ".join([marker] * len(columns))
+    col_list = ", ".join(quote_ident(c) for c in columns)
+    sql = f"INSERT INTO {quote_ident(table_name)} ({col_list}) VALUES ({placeholders})"
 
     clean_df = df.where(pd.notnull(df), None)
 
-    # Convert datetime/Timestamp columns to ISO strings for SQLite
+    # Timestamps are written as text in the form the CSV and Parquet exports
+    # use: a declared date as YYYY-MM-DD, anything else as
+    # YYYY-MM-DD HH:MM:SS. In SQLite, where dates are compared as text, this
+    # is also the form its own date functions return, so a filter such as
+    # `day <= '2025-04-30'` includes the last day.
     for col in clean_df.columns:
         if pd.api.types.is_datetime64_any_dtype(clean_df[col]):
-            clean_df[col] = clean_df[col].apply(
-                lambda x: x.isoformat() if pd.notnull(x) else None
-            )
+            if col in date_columns:
+                clean_df[col] = clean_df[col].apply(
+                    lambda x: x.strftime("%Y-%m-%d") if pd.notnull(x) else None
+                )
+            else:
+                clean_df[col] = clean_df[col].apply(
+                    lambda x: x.isoformat(sep=" ") if pd.notnull(x) else None
+                )
 
     rows = list(clean_df.itertuples(index=False, name=None))
 
     if dialect == "postgres":
         # COPY for speed, executemany as the fallback.
         #
-        # `cur.copy(sql, buf)` looks like it streams `buf`, and does not:
-        # psycopg3's second positional argument is query *parameters*, and the
-        # return value is a context manager that has to be entered before a
-        # single byte moves. Called this way it wrote nothing, raised nothing,
-        # so the fallback never fired and the caller was told every row landed.
-        # `misata seed` reported success against Postgres while leaving the
-        # tables empty. Enter the context manager and write into it.
+        # psycopg3's `cur.copy()` takes query parameters as its second
+        # argument and returns a context manager that moves no data until it
+        # is entered, so the CSV is written into the entered context.
         # A savepoint, not a rollback: rolling back the failed COPY must not
         # also discard every batch already inserted in this transaction.
         try:
             csv_buf = StringIO()
             clean_df.to_csv(csv_buf, index=False, header=False)
             with _Savepoint(conn, dialect, "misata_copy"), conn.cursor() as cur:
-                copy_sql = f'COPY "{table_name}" ({col_list}) FROM STDIN WITH (FORMAT CSV)'
+                copy_sql = (f"COPY {quote_ident(table_name)} ({col_list}) "
+                            "FROM STDIN WITH (FORMAT CSV)")
                 with cur.copy(copy_sql) as copy:
                     copy.write(csv_buf.getvalue())
-        except Exception:
+        except Exception:  # noqa: BLE001 - any COPY failure falls back to executemany
             with conn.cursor() as cur:
                 cur.executemany(sql, rows)
         if commit:
@@ -506,9 +547,15 @@ def load_tables_from_db(
 
         result: Dict[str, pd.DataFrame] = {}
         for table in tables:
-            limit_sql = f" LIMIT {limit}" if limit is not None else ""
-            query = f'SELECT * FROM "{table}"{limit_sql}'
-            result[table] = pd.read_sql_query(query, conn)
+            limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
+            query = f"SELECT * FROM {quote_ident(table)}{limit_sql}"
+            if dialect == "sqlite":
+                result[table] = pd.read_sql_query(query, conn)
+                continue
+            with conn.cursor() as cur:
+                cur.execute(query)
+                columns = [d[0] for d in cur.description or []]
+                result[table] = pd.DataFrame(cur.fetchall(), columns=columns)
         return result
     finally:
         conn.close()
@@ -546,7 +593,7 @@ def _validate_table_schema(
 
 def _get_table_columns(conn, dialect: str, table_name: str) -> List[str]:
     if dialect == "sqlite":
-        cur = conn.execute(f'PRAGMA table_info("{table_name}")')
+        cur = conn.execute(f"PRAGMA table_info({quote_ident(table_name)})")
         return [row[1] for row in cur.fetchall()]
 
     sql = """
@@ -567,7 +614,7 @@ def _build_create_table_sql(config: SchemaConfig, table_name: str, dialect: str)
     col_defs = []
     for col in columns:
         col_type = _map_type(col.type, dialect)
-        col_def = f'"{col.name}" {col_type}'
+        col_def = f"{quote_ident(col.name)} {col_type}"
 
         if col.name == "id":
             col_def += " PRIMARY KEY"
@@ -582,12 +629,13 @@ def _build_create_table_sql(config: SchemaConfig, table_name: str, dialect: str)
     fk_defs = []
     for rel in relationships:
         fk_defs.append(
-            f'FOREIGN KEY ("{rel.child_key}") REFERENCES "{rel.parent_table}"("{rel.parent_key}")'
+            f"FOREIGN KEY ({quote_ident(rel.child_key)}) "
+            f"REFERENCES {quote_ident(rel.parent_table)}({quote_ident(rel.parent_key)})"
         )
 
     all_defs = col_defs + fk_defs
     defs_sql = ", ".join(all_defs)
-    return f'CREATE TABLE IF NOT EXISTS "{table_name}" ({defs_sql})'
+    return f"CREATE TABLE IF NOT EXISTS {quote_ident(table_name)} ({defs_sql})"
 
 
 def _map_type(col_type: str, dialect: str) -> str:
@@ -637,8 +685,7 @@ class IntegrityReport:
 
     @property
     def verified(self) -> bool:
-        # `all([])` is True, which is how this reported "every foreign key
-        # resolves" after checking none of them. An empty result means the
+        # `all([])` is True, so an empty result is handled first: it means the
         # verifier did not run, not that the data is clean.
         if not self.relationships:
             return False
@@ -663,21 +710,20 @@ def verify_referential_integrity(config: SchemaConfig, db_url: str) -> Integrity
     """
     dialect, conn = _connect(db_url)
     report = IntegrityReport()
-    # A parent living in another schema has to be named with it, or the query
-    # looks in `public`, finds nothing, and errors. That error then aborted the
-    # Postgres transaction, so every remaining check failed too and the report
-    # came back empty while the CLI printed that every foreign key resolved.
+    # A parent living in another schema is named with it; otherwise the query
+    # looks in `public` and errors, and on Postgres that error aborts the
+    # transaction for every remaining check.
     schema_of = {t.name: t.external_schema for t in config.tables if t.external_schema}
     try:
         for rel in config.relationships:
             parent = rel.parent_table
-            qualified = (f'"{schema_of[parent]}"."{parent}"'
-                         if parent in schema_of else f'"{parent}"')
+            qualified = quote_qualified(schema_of.get(parent), parent)
+            child_key = quote_ident(rel.child_key)
             sql = (
-                f'SELECT COUNT(*) FROM "{rel.child_table}" c '
-                f'WHERE c."{rel.child_key}" IS NOT NULL '
-                f'AND NOT EXISTS (SELECT 1 FROM {qualified} p '
-                f'WHERE p."{rel.parent_key}" = c."{rel.child_key}")'
+                f"SELECT COUNT(*) FROM {quote_ident(rel.child_table)} c "
+                f"WHERE c.{child_key} IS NOT NULL "
+                f"AND NOT EXISTS (SELECT 1 FROM {qualified} p "
+                f"WHERE p.{quote_ident(rel.parent_key)} = c.{child_key})"
             )
             try:
                 if dialect == "postgres":
@@ -686,15 +732,15 @@ def verify_referential_integrity(config: SchemaConfig, db_url: str) -> Integrity
                         orphans = int(cur.fetchone()[0])
                 else:
                     orphans = int(conn.execute(sql).fetchone()[0])
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - an uncheckable relationship is reported as skipped
                 # A relationship we cannot check (a view, a table we lack rights
                 # to) is recorded as skipped, never as a pass. Roll back first:
-                # in Postgres a failed statement poisons the transaction, and
-                # without this every later check failed for the wrong reason.
+                # in Postgres a failed statement poisons the transaction for
+                # every later check.
                 if dialect == "postgres":
                     try:
                         conn.rollback()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - the skip is recorded either way
                         pass
                 report.skipped.append(
                     f"{rel.child_table}.{rel.child_key} -> {parent}.{rel.parent_key}: "
@@ -722,13 +768,8 @@ def table_row_counts(db_url: str, tables: Sequence[str]) -> Dict[str, int]:
     try:
         for name in tables:
             try:
-                if dialect == "postgres":
-                    with conn.cursor() as cur:
-                        cur.execute(f'SELECT COUNT(*) FROM "{name}"')
-                        counts[name] = int(cur.fetchone()[0])
-                else:
-                    counts[name] = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
-            except Exception:
+                counts[name] = _count_rows(conn, dialect, name)
+            except Exception:  # noqa: BLE001 - a missing table reports as 0
                 counts[name] = 0
         return counts
     finally:
@@ -745,7 +786,7 @@ def mask_db_url(db_url: str) -> str:
             if parsed.port:
                 netloc += f":{parsed.port}"
             return parsed._replace(netloc=netloc).geturl()
-    except Exception:
+    except (ValueError, TypeError):
         pass
     return db_url
 
@@ -766,7 +807,7 @@ def find_database_url() -> Optional[Tuple[str, str]]:
         env_path = dotenv.find_dotenv(usecwd=True)
         if env_path:
             dotenv.load_dotenv(env_path)
-    except Exception:
+    except Exception:  # noqa: BLE001 - .env loading is optional and never blocks detection
         pass
 
     # 2. Check standard environment variables
@@ -793,7 +834,7 @@ def find_database_url() -> Optional[Tuple[str, str]]:
                             return f"sqlite:///{sqlite_path}", f"sqlite datasource in {p}"
                         elif direct_val.startswith("postgres://") or direct_val.startswith("postgresql://"):
                             return direct_val, f"datasource in {p}"
-            except Exception:
+            except (OSError, RuntimeError, ValueError):
                 pass
 
     # 4. Check for local SQLite database files in common project locations

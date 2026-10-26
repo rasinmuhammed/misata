@@ -1,15 +1,23 @@
 """Gate R3 (studio realism program): a million rows across fourteen related tables, timed, with every foreign key checked.
 
     python benchmarks/bench_r3_volume.py [--scale 1.0] [--seed 7]
+    python benchmarks/bench_r3_volume.py --scale 10 --stream /tmp/r3   # 10M rows to Parquet
 
 Keys are named after their table (order_id, not id), and order lines must cover every order, because those were the two
 paths that broke past one batch and past the context cap (tests/test_order_items_at_scale.py). The time is
 generate_from_schema end to end; the checks run after the clock stops.
+
+With --stream, the tables are generated batch by batch into Parquet files (the path `misata generate --format
+parquet` takes), peak memory is recorded, and the same checks run as DuckDB SQL over the files, so the checker
+shares no code with the generator.
 """
 from __future__ import annotations
 
 import argparse
+import resource
+import sys
 import time
+from pathlib import Path
 
 import misata
 from misata.schema import Column, Relationship, SchemaConfig, Table
@@ -79,12 +87,57 @@ def check(sc: SchemaConfig, tables: dict) -> dict:
             "totals_match": float(((o.set_index("order_id").amount.reindex(sums.index) - sums).abs() < 0.05).mean())}
 
 
+def stream(sc: SchemaConfig, out: Path) -> dict:
+    """Generate into Parquet batch by batch; return seconds and peak resident memory."""
+    from misata.simulator import DataSimulator
+    from misata.sinks import open_sink
+
+    t0 = time.perf_counter()
+    with open_sink("parquet", out, sc) as sink:
+        for table, batch in DataSimulator(sc).generate_all(bounded_memory=True):
+            sink.write(table, batch)
+    secs = time.perf_counter() - t0
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_mb = peak / 1e6 if sys.platform == "darwin" else peak / 1e3  # bytes on macOS, KiB on Linux
+    return {"seconds": round(secs, 1), "peak_rss_mb": round(peak_mb)}
+
+
+def check_files(sc: SchemaConfig, out: Path) -> dict:
+    """The checks of `check`, as DuckDB SQL over the written Parquet files."""
+    import duckdb
+
+    con = duckdb.connect()
+    for t in sc.tables:
+        con.execute(f'CREATE VIEW "{t.name}" AS SELECT * FROM read_parquet(\'{out / (t.name + ".parquet")}\')')
+    count = {t.name: con.execute(f'SELECT COUNT(*) FROM "{t.name}"').fetchone()[0] for t in sc.tables}
+    missing = [t.name for t in sc.tables if count[t.name] != t.row_count]
+    bad = {}
+    for r in sc.relationships:
+        orphans = con.execute(
+            f'SELECT COUNT(*) FROM "{r.child_table}" c LEFT JOIN "{r.parent_table}" p '
+            f'ON c."{r.child_key}" = p."{r.parent_key}" WHERE p."{r.parent_key}" IS NULL').fetchone()[0]
+        if orphans:
+            bad[f"{r.child_table}.{r.child_key}"] = orphans / count[r.child_table]
+    lineless = con.execute('SELECT AVG(CASE WHEN l.order_id IS NULL THEN 1.0 ELSE 0 END) FROM orders o '
+                           'LEFT JOIN (SELECT DISTINCT order_id FROM order_items) l USING (order_id)').fetchone()[0]
+    totals = con.execute('SELECT AVG(CASE WHEN ABS(o.amount - s.total) < 0.05 THEN 1.0 ELSE 0 END) FROM orders o '
+                         'JOIN (SELECT order_id, SUM(line_total) AS total FROM order_items GROUP BY 1) s '
+                         'USING (order_id)').fetchone()[0]
+    return {"tables": len(count), "rows": sum(count.values()), "short_or_missing": missing, "fk_failures": bad,
+            "orders_without_lines": float(lineless), "totals_match": float(totals)}
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--scale", type=float, default=1.0)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--stream", type=Path, default=None,
+                    help="generate into Parquet files in this folder and check them with DuckDB")
     args = ap.parse_args()
     sc = schema(args.scale, args.seed)
+    if args.stream is not None:
+        print({**stream(sc, args.stream), **check_files(sc, args.stream)})
+        raise SystemExit(0)
     t0 = time.perf_counter()
     out = misata.generate_from_schema(sc)
     secs = time.perf_counter() - t0

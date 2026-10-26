@@ -1,5 +1,5 @@
 ---
-title: Generate HR & Workforce Synthetic Data in Python | Misata
+title: "Generate HR & Workforce Synthetic Data in Python"
 description: Generate realistic HR synthetic datasets in Python, employees, departments, payroll, salary distributions, and tenure coherence. No real employee data required or used.
 ---
 
@@ -48,7 +48,7 @@ tables = misata.generate(
     seed=42,
 )
 
-# Verify age coherence — no employees hired before age 18
+# Verify age coherence: no employees hired before age 18
 import pandas as pd
 employees = tables["employees"].copy()
 employees["hire_date"] = pd.to_datetime(employees["hire_date"])
@@ -75,7 +75,7 @@ Model headcount evolution over time, hiring sprees, layoffs, and department rest
 
 ```python
 tables = misata.generate(
-    "Tech company with 1000 employees — engineering headcount doubled in 2022, "
+    "Tech company with 1000 employees: engineering headcount doubled in 2022, "
     "layoffs in Q1 2023, rehiring from Q3 2023",
     rows=1000,
     seed=42,
@@ -85,13 +85,13 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Indian IT company — Indian names, INR salaries, PAN/Aadhaar references
+# Indian IT company: Indian names, INR salaries, PAN/Aadhaar references
 tables = misata.generate("Indian IT services company with 500 employees", rows=500)
 
-# German company — German names, EUR salaries, German tax brackets
+# German company: German names, EUR salaries, German tax brackets
 tables = misata.generate("German manufacturing company with 800 employees, EUR payroll", rows=800)
 
-# UK workforce — GBP salaries, PAYE tax structure
+# UK workforce: GBP salaries, PAYE tax structure
 tables = misata.generate("UK technology company with 300 employees, GBP payroll", rows=300)
 ```
 

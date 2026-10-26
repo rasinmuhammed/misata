@@ -1,5 +1,5 @@
 ---
-title: Generate Social Media Synthetic Data in Python | Misata
+title: "Generate Social Media Synthetic Data in Python"
 description: Generate realistic social media synthetic datasets in Python, users, posts, follows, reactions, and comments with Pareto follower distributions, realistic captions, and engagement rate distributions. No real user data required.
 ---
 
@@ -45,7 +45,7 @@ import numpy as np
 
 tables = misata.generate("A social media app with 5k users and influencer content", rows=5000, seed=42)
 
-# Pareto distribution check — top 5% of accounts
+# Pareto distribution check: top 5% of accounts
 followers = tables["users"]["follower_count"].sort_values(ascending=False)
 top5 = followers.head(len(followers) // 20).sum() / followers.sum()
 print(f"Top 5% accounts hold {top5:.0%} of all followers")
@@ -79,10 +79,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Indian social platform — Hindi/English usernames, Indian cultural context
+# Indian social platform: Hindi/English usernames, Indian cultural context
 tables = misata.generate("Indian social media platform with 5k users", rows=5000)
 
-# Latin American creator economy — Spanish captions, regional trends
+# Latin American creator economy: Spanish captions, regional trends
 tables = misata.generate("Latin American creator platform with 3k influencers", rows=3000)
 ```
 

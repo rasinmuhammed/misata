@@ -8,7 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 try:
     import diskcache
@@ -59,6 +59,7 @@ class LLMCache:
         
         self.cache_dir = Path(cache_dir)
         
+        self._cache: Any
         if HAS_DISKCACHE:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             self._cache = diskcache.Cache(
@@ -67,7 +68,7 @@ class LLMCache:
             )
         else:
             # Fallback to in-memory cache
-            self._cache: Dict[str, Any] = {}
+            self._cache = {}
             self._memory_mode = True
     
     def make_key(
@@ -136,7 +137,8 @@ class LLMCache:
             True if deleted, False if not found
         """
         if HAS_DISKCACHE:
-            return self._cache.delete(key)
+            deleted: bool = self._cache.delete(key)
+            return deleted
         else:
             if key in self._cache:
                 del self._cache[key]

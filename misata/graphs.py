@@ -14,11 +14,12 @@ and the only way to be sure it agrees is to derive it.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 
 def apply_dag_edges(
@@ -35,9 +36,10 @@ def apply_dag_edges(
                           (spec.to_column, edges, spec.table),
                           (spec.node_key, nodes, spec.node_table)):
         if col not in df.columns:
-            warnings.warn(
+            warn(
                 f"DagEdges '{spec.name}': column '{col}' missing from '{name}'. "
-                f"Skipping.")
+                f"Skipping.",
+                ConformanceWarning,)
             return tables
 
     ids = nodes[spec.node_key].dropna().to_numpy()
@@ -52,10 +54,11 @@ def apply_dag_edges(
     max_pairs = n_nodes * (n_nodes - 1) // 2
     want = len(edges)
     if want > max_pairs:
-        warnings.warn(
+        warn(
             f"DagEdges '{spec.name}': {want} distinct edges declared but "
             f"{n_nodes} nodes admit only {max_pairs} acyclic pairs. Raise "
-            f"{spec.node_table}.row_count, or lower {spec.table}.row_count.")
+            f"{spec.node_table}.row_count, or lower {spec.table}.row_count.",
+            ConformanceWarning,)
         want = max_pairs
 
     # Sample distinct (i < j) pairs without materialising all of them: draw an
@@ -69,17 +72,18 @@ def apply_dag_edges(
         i = rng.integers(0, n_nodes - 1, size=need)
         j = i + 1 + (rng.random(need) * (n_nodes - 1 - i)).astype("int64")
         j = np.minimum(j, n_nodes - 1)
-        chosen.update(zip(i.tolist(), j.tolist()))
+        chosen.update(zip(i.tolist(), j.tolist(), strict=True))
         attempts += need
     pairs = sorted(chosen)[:want]
     if len(pairs) < len(edges):
         # Not enough distinct pairs: keep the table's declared length by
         # trimming rather than by repeating an edge, since duplicate pairs are
         # exactly what this declaration promises not to emit.
-        warnings.warn(
+        warn(
             f"DagEdges '{spec.name}': emitting {len(pairs)} distinct edges "
             f"instead of the declared {len(edges)}; the graph cannot hold more "
-            f"without repeating a pair.")
+            f"without repeating a pair.",
+            ConformanceWarning,)
 
     out = edges.iloc[: len(pairs)].copy()
     out[spec.from_column] = [ranked[i] for i, _ in pairs]
@@ -97,12 +101,12 @@ def _closure_of(
     O(depth x edges) rather than a recursive walk per node.
     """
     seen: Dict[Tuple[Any, Any], int] = {}
-    frontier = list(zip(frm.tolist(), to.tolist()))
+    frontier = list(zip(frm.tolist(), to.tolist(), strict=True))
     for a, d in frontier:
         seen.setdefault((a, d), 1)
 
     adjacency: Dict[Any, List[Any]] = {}
-    for a, d in zip(frm.tolist(), to.tolist()):
+    for a, d in zip(frm.tolist(), to.tolist(), strict=True):
         adjacency.setdefault(a, []).append(d)
 
     depth = 1
@@ -149,9 +153,10 @@ def apply_closure(
                           (spec.ancestor_column, closure, spec.table),
                           (spec.descendant_column, closure, spec.table)):
         if col not in df.columns:
-            warnings.warn(
+            warn(
                 f"TransitiveClosure '{spec.name}': column '{col}' missing from "
-                f"'{name}'. Skipping.")
+                f"'{name}'. Skipping.",
+                ConformanceWarning,)
             return tables
 
     anc, des, dep = _closure_of(edges[spec.edge_from].to_numpy(),
@@ -211,6 +216,24 @@ def _split_exactly(total: int, shares: Dict[str, float]) -> Dict[str, int]:
     for i in range(total - sum(base.values())):
         base[order[i % len(order)]] += 1
     return base
+
+
+def planned_motif_edges(spec: Any, n_edges: int) -> Dict[Tuple[str, bool], int]:
+    """Edges each motif kind receives, keyed by ``(kind, flagged)``.
+
+    Pure arithmetic on the declaration, so a checker can know the counts
+    before any row exists: each budget is the rate times the edge count,
+    split across kinds by largest remainder, and a kind whose share is
+    smaller than its smallest case gets no edges.
+    """
+    planned: Dict[Tuple[str, bool], int] = {}
+    for shares, rate, flagged in ((spec.shares, spec.rate, True),
+                                  (spec.benign_shares, spec.benign_rate, False)):
+        if not shares or rate <= 0:
+            continue
+        for kind, target in _split_exactly(int(round(rate * n_edges)), shares).items():
+            planned[(kind, flagged)] = target if target >= min(_MOTIF_SIZES[kind]) else 0
+    return planned
 
 
 def _case_sizes(target: int, sizes: Tuple[int, ...],
@@ -278,19 +301,21 @@ def apply_graph_motifs(
                           (spec.to_column, edges, spec.table),
                           (spec.node_key, nodes, spec.node_table)):
         if col not in df.columns:
-            warnings.warn(
+            warn(
                 f"GraphMotifs '{spec.name}': column '{col}' missing from "
-                f"'{name}'. Skipping.")
+                f"'{name}'. Skipping.",
+                ConformanceWarning,)
             return tables
 
     ids = nodes[spec.node_key].dropna().to_numpy()
     n_edges = len(edges)
     pool_n = max(int(len(ids) * spec.node_pool_fraction), min(8, len(ids)))
     if pool_n < 3:
-        warnings.warn(
+        warn(
             f"GraphMotifs '{spec.name}': node pool of {pool_n} is too small to "
             f"carry a motif. Raise node_pool_fraction or {spec.node_table}."
-            f"row_count.")
+            f"row_count.",
+            ConformanceWarning,)
         return tables
     pool = rng.choice(ids, size=pool_n, replace=False)
 
@@ -315,10 +340,11 @@ def apply_graph_motifs(
     if not rows:
         return tables
     if len(rows) > n_edges:
-        warnings.warn(
+        warn(
             f"GraphMotifs '{spec.name}': declared motifs need {len(rows)} edges "
             f"but '{spec.table}' holds {n_edges}. Raise {spec.table}.row_count "
-            f"or lower the rate.")
+            f"or lower the rate.",
+            ConformanceWarning,)
         rows, plan = rows[:n_edges], plan[:n_edges]
 
     out = edges.copy()
@@ -360,21 +386,24 @@ def apply_graphs(
     for spec in (getattr(config, "dag_edges", None) or []):
         try:
             apply_dag_edges(tables, spec, rng)
-        except Exception as e:
-            warnings.warn(f"DagEdges '{spec.name}' failed ({e}); table left as "
-                          f"generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"DagEdges '{spec.name}' failed ({e}); table left as "
+                          f"generated.",
+            ConformanceWarning,)
     for spec in (getattr(config, "graph_motifs", None) or []):
         try:
             apply_graph_motifs(tables, spec, rng)
-        except Exception as e:
-            warnings.warn(f"GraphMotifs '{spec.name}' failed ({e}); table left "
-                          f"as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"GraphMotifs '{spec.name}' failed ({e}); table left "
+                          f"as generated.",
+            ConformanceWarning,)
     for spec in (getattr(config, "closures", None) or []):
         try:
             apply_closure(tables, spec, rng, config)
-        except Exception as e:
-            warnings.warn(f"TransitiveClosure '{spec.name}' failed ({e}); table "
-                          f"left as generated.")
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+            warn(f"TransitiveClosure '{spec.name}' failed ({e}); table "
+                          f"left as generated.",
+            ConformanceWarning,)
     return tables
 
 

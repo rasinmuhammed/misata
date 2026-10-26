@@ -43,7 +43,7 @@ import duckdb
 import misata
 from misata.schema import (SchemaConfig, Table, Column, Relationship, Constraint,
                           Lifecycle, LifecycleState, CohortRetention, Missingness,
-                          LateArrival, TimeGrid, Duplicates)
+                          LateArrival, TimeGrid, Duplicates, OutcomeCurve, GroupShares)
 
 SEED = 7
 
@@ -63,6 +63,12 @@ US_STATES = (
     "'Wisconsin','Wyoming','District of Columbia'"
 )
 
+LOYALTY_STATES = ["CA", "NY", "TX"]
+
+# Monthly ad spend for 2024 and each channel's share of every month.
+AD_SPEND_TARGETS = [50_000.0, 52_000.0, 55_000.0, 54_000.0, 58_000.0, 62_000.0,
+                    60_000.0, 64_000.0, 68_000.0, 72_000.0, 85_000.0, 90_000.0]
+AD_CHANNEL_SHARES = {"search": 0.45, "social": 0.30, "display": 0.15, "video": 0.10}
 ORDER_STATUSES = ["placed", "shipped", "completed", "return_pending", "returned", "cancelled"]
 SUB_STATUSES = ["active", "past_due", "cancelled"]
 TICKET_STATUSES = ["open", "pending", "resolved", "closed"]
@@ -80,7 +86,8 @@ KNOWN_RED: dict = {}
 
 
 # --------------------------------------------------------------------------- #
-# The schema: 11 tables, M:N junction, diamond dependency, multi-hop rollup
+# The schema: 13 tables, M:N junction, diamond dependency, multi-hop rollup,
+# a one-to-one child, a declared geography and a curve split by shares
 # --------------------------------------------------------------------------- #
 
 def build_schema() -> SchemaConfig:
@@ -128,6 +135,10 @@ def build_schema() -> SchemaConfig:
                            when_value=["open", "pending"],
                            then_column="resolved_at", then="null"),
             ]),
+            # One account per customer, homes in three declared states.
+            Table(name="loyalty_accounts", row_count=400),
+            # Row count comes from the curve; the declared one is a fallback.
+            Table(name="ad_spend", row_count=3000),
         ],
         columns={
             "categories": [
@@ -321,6 +332,25 @@ def build_schema() -> SchemaConfig:
                        distribution_params={"start": "2022-07-02", "end": "2025-06-30",
                                             "null_probability": 0.35}),
             ],
+            "loyalty_accounts": [
+                Column(name="account_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 400}),
+                Column(name="customer_id", type="foreign_key", unique=True,
+                       distribution_params={"references": "customers.customer_id"}),
+                Column(name="home_state", type="categorical",
+                       distribution_params={"choices": LOYALTY_STATES}),
+                Column(name="home_city", type="text", distribution_params={"subtype": "city"}),
+                Column(name="home_zip", type="text", distribution_params={"subtype": "zipcode"}),
+            ],
+            "ad_spend": [
+                Column(name="spend_id", type="int", unique=True,
+                       distribution_params={"min": 1, "max": 1_000_000}),
+                Column(name="spend_date", type="date",
+                       distribution_params={"start": "2024-01-01", "end": "2024-12-31"}),
+                Column(name="channel", type="categorical",
+                       distribution_params={"choices": list(AD_CHANNEL_SHARES)}),
+                Column(name="amount", type="float", distribution_params={"min": 0.0}),
+            ],
         },
         relationships=[
             Relationship(parent_table="categories", child_table="products",
@@ -355,6 +385,8 @@ def build_schema() -> SchemaConfig:
                          parent_key="order_id", child_key="order_id",
                          filters={"status": ["returned", "return_pending"]}),
             Relationship(parent_table="customers", child_table="support_tickets",
+                         parent_key="customer_id", child_key="customer_id"),
+            Relationship(parent_table="customers", child_table="loyalty_accounts",
                          parent_key="customer_id", child_key="customer_id"),
         ],
         missingness=[
@@ -420,6 +452,19 @@ def build_schema() -> SchemaConfig:
                          "cancelled": 0.05},
             ),
         ],
+        outcome_curves=[
+            OutcomeCurve(
+                table="ad_spend", column="amount", time_column="spend_date",
+                time_unit="month", value_mode="absolute", start_date="2024-01-01",
+                avg_transaction_value=250.0,
+                curve_points=[{"month": m, "target_value": v}
+                              for m, v in enumerate(AD_SPEND_TARGETS, start=1)],
+            ),
+        ],
+        group_shares=[
+            GroupShares(table="ad_spend", measure="amount", group_column="channel",
+                        shares=AD_CHANNEL_SHARES),
+        ],
     )
 
 
@@ -453,7 +498,7 @@ def build_assertions() -> List[Tuple[str, str, str]]:
                  ("subscriptions", "subscription_id"), ("orders", "order_id"),
                  ("order_items", "item_id"), ("payments", "payment_id"),
                  ("shipments", "shipment_id"), ("returns", "return_id"),
-                 ("support_tickets", "ticket_id")]:
+                 ("support_tickets", "ticket_id"), ("loyalty_accounts", "account_id")]:
         a += _pk(t, c)
     a += _fk("products", "category_id", "categories", "category_id")
     a += _fk("addresses", "customer_id", "customers", "customer_id")
@@ -465,6 +510,11 @@ def build_assertions() -> List[Tuple[str, str, str]]:
     a += _fk("shipments", "order_id", "orders", "order_id")
     a += _fk("returns", "order_id", "orders", "order_id")
     a += _fk("support_tickets", "customer_id", "customers", "customer_id")
+    a += _fk("loyalty_accounts", "customer_id", "customers", "customer_id")
+    a += [
+        ("A", "loyalty_accounts: one account per customer",
+         "SELECT count(*) - count(DISTINCT customer_id) FROM loyalty_accounts"),
+    ]
 
     # ---- B. domain ---------------------------------------------------------
     a += [
@@ -645,6 +695,39 @@ def build_assertions() -> List[Tuple[str, str, str]]:
          "INTERSECT SELECT city, s2.state FROM addresses a "
          "JOIN (SELECT city c2, state FROM customers) s2 ON a.city = s2.c2 "
          "WHERE a.state != s2.state)"),
+        ("G", "loyalty_accounts: home_state holds only its declared codes",
+         "SELECT count(*) FROM loyalty_accounts WHERE home_state IS NULL OR home_state NOT IN ("
+         + ", ".join(f"'{s}'" for s in LOYALTY_STATES) + ")"),
+        ("G", "loyalty_accounts: one state per home city",
+         "SELECT count(*) FROM (SELECT home_city FROM loyalty_accounts "
+         "GROUP BY home_city HAVING count(DISTINCT home_state) > 1)"),
+        ("G", "loyalty_accounts: one city per home zip",
+         "SELECT count(*) FROM (SELECT home_zip FROM loyalty_accounts "
+         "GROUP BY home_zip HAVING count(DISTINCT home_city) > 1)"),
+    ]
+
+    # ---- E. declared curve split by declared shares ------------------------
+    months = ", ".join(f"('2024-{m:02d}', {v:.2f})"
+                       for m, v in enumerate(AD_SPEND_TARGETS, start=1))
+    shares = ", ".join(f"('{c}', {s})" for c, s in AD_CHANNEL_SHARES.items())
+    grand = sum(AD_SPEND_TARGETS)
+    month_of = "strftime(CAST(spend_date AS DATE), '%Y-%m')"
+    a += [
+        ("E", "ad_spend: every month totals its declared target, to the cent",
+         f"SELECT (SELECT count(*) FROM (VALUES {months}) t(m, target) "
+         f"LEFT JOIN (SELECT {month_of} m, sum(amount) s FROM ad_spend GROUP BY 1) a "
+         f"USING (m) WHERE a.s IS NULL OR abs(a.s - t.target) > 0.005) "
+         f"+ (SELECT count(*) FROM ad_spend WHERE {month_of} NOT LIKE '2024-%')"),
+        ("E", "ad_spend: each channel holds its share of every month, to the cent",
+         f"SELECT count(*) FROM (VALUES {months}) t(m, target) "
+         f"CROSS JOIN (VALUES {shares}) s(channel, share) "
+         f"LEFT JOIN (SELECT {month_of} m, channel, sum(amount) v FROM ad_spend "
+         f"GROUP BY 1, 2) a USING (m, channel) "
+         f"WHERE abs(coalesce(a.v, 0) - t.target * s.share) > 0.01"),
+        ("E", "ad_spend: each channel holds its share of the grand total, within a cent",
+         f"SELECT count(*) FROM (VALUES {shares}) s(channel, share) "
+         f"LEFT JOIN (SELECT channel, sum(amount) v FROM ad_spend GROUP BY 1) a "
+         f"USING (channel) WHERE abs(coalesce(a.v, 0) - s.share * {grand:.2f}) > 0.01"),
     ]
 
     # ---- H. derived arithmetic ---------------------------------------------
@@ -823,7 +906,7 @@ def run(json_path: str | None = None) -> int:
     results: List[Dict[str, Any]] = []
     for cat, name, sql in assertions:
         try:
-            violations = int(con.sql(sql).fetchone()[0] or 0)
+            violations = int(con.execute(sql).fetchone()[0] or 0)
             error = None
         except Exception as e:  # a failing query is a failing assertion
             violations, error = -1, str(e).split("\n")[0]
@@ -843,7 +926,7 @@ def run(json_path: str | None = None) -> int:
     unexpected = [r for r in results if r["violations"] != 0 and not r["known_red"]]
     promotable = [r for r in results if r["violations"] == 0 and r["known_red"]]
 
-    print(f"\nTHE GAUNTLET  --  11 tables, {sum(len(t) for t in tables.values()):,} rows, "
+    print(f"\nTHE GAUNTLET  --  {len(tables)} tables, {sum(len(t) for t in tables.values()):,} rows, "
           f"{total} assertions, generated in {gen_secs:.1f}s\n")
     for cat in cats:
         rs = [r for r in results if r["category"] == cat]

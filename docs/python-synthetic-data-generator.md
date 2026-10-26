@@ -1,6 +1,6 @@
 ---
-title: Python Synthetic Data Generator, Misata
-description: Misata is an open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, no training data, no config. The best Faker alternative for developers.
+title: "Python Synthetic Data Generator With Foreign Keys and Exact Totals"
+description: "Misata is an open-source Python synthetic data generator for related tables: a Faker alternative that keeps foreign keys and CHECK rules intact, from a sentence, YAML or SQL DDL."
 ---
 
 # Python Synthetic Data Generator
@@ -20,7 +20,7 @@ pip install misata
 ```python
 import misata
 
-# One line — story → dict of DataFrames
+# One line: story → dict of DataFrames
 tables = misata.generate("A SaaS company with 5000 users and monthly subscriptions.", seed=42)
 
 print(tables["users"].head())
@@ -60,7 +60,7 @@ customers    = tables["customers"]     # 2,000 rows
 accounts     = tables["accounts"]      # ~4,000 rows
 transactions = tables["transactions"]  # ~20,000 rows
 
-# No orphan rows — FK integrity is automatic
+# No orphan rows: FK integrity is automatic
 orphans = (~transactions["account_id"].isin(accounts["account_id"])).sum()
 assert orphans == 0  # always passes
 ```
@@ -95,7 +95,7 @@ schema = misata.parse(
 )
 tables = misata.generate_from_schema(schema)
 
-# All 12 monthly MRR targets hit exactly — to the cent
+# All 12 monthly MRR targets hit exactly, to the cent
 ```
 
 ## Domain-realistic distributions
@@ -127,9 +127,10 @@ Requires `GROQ_API_KEY` or `OPENAI_API_KEY`. Retries automatically on rate limit
 ```python
 from misata import seed_database
 
-tables = misata.generate("A SaaS company with 1000 users.", seed=42)
-report = seed_database(tables, "postgresql://user:pass@localhost/mydb", create=True)
-print(report.total_rows)  # 6,000+
+schema = misata.parse("A SaaS company with 1000 users.", rows=1000)
+schema.seed = 42
+report = seed_database(schema, "postgresql://user:pass@localhost/mydb", create=True)
+print(report.total_rows)  # 2200
 ```
 
 ## Why Misata instead of Faker or SDV

@@ -25,7 +25,7 @@ import json
 import time
 import urllib.parse
 import urllib.request
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 from misata.domain_capsule import AssetProvenance, DomainCapsule, VocabularyAsset
 from misata.vocab_validator import validate_vocabulary
@@ -39,12 +39,19 @@ _DEFAULT_TIMEOUT = 45
 
 
 def _http_json(url: str, timeout: int = _DEFAULT_TIMEOUT) -> dict:
-    req = urllib.request.Request(url, headers={
+    """GET a JSON document from a Wikimedia endpoint.
+
+    Only ``https`` URLs are fetched: ``urlopen`` would otherwise also follow
+    ``file:`` and other schemes, which a capsule builder has no reason to read.
+    """
+    if urllib.parse.urlsplit(url).scheme != "https":
+        raise ValueError(f"refusing to fetch a non-https URL: {url!r}")
+    req = urllib.request.Request(url, headers={  # noqa: S310 - https enforced above
         "User-Agent": USER_AGENT,
         "Accept": "application/sparql-results+json, application/json",
     })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        return cast(dict, json.loads(resp.read().decode("utf-8")))
 
 
 def run_sparql(query: str, timeout: int = _DEFAULT_TIMEOUT) -> List[dict]:
@@ -53,7 +60,7 @@ def run_sparql(query: str, timeout: int = _DEFAULT_TIMEOUT) -> List[dict]:
         "query": query, "format": "json",
     })
     data = _http_json(url, timeout=timeout)
-    return data.get("results", {}).get("bindings", [])
+    return cast(List[dict], data.get("results", {}).get("bindings", []))
 
 
 def search_class(term: str, language: str = "en") -> Optional[Tuple[str, str]]:

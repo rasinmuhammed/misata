@@ -1,5 +1,5 @@
 ---
-title: Generate Travel Synthetic Data in Python | Misata
+title: "Generate Travel Synthetic Data in Python"
 description: Generate realistic travel synthetic datasets in Python, users, hotels, flights, bookings, and reviews with temporal coherence, conditional cancellation reasons, and loyalty tier distributions. No real booking data required.
 ---
 
@@ -86,7 +86,7 @@ print(merged.groupby("loyalty_tier")["rating"].mean())
 
 ```python
 tables = misata.generate(
-    "European travel platform — summer beach holiday peak in July-August, "
+    "European travel platform: summer beach holiday peak in July-August, "
     "winter ski bookings in December-January, autumn shoulder season",
     rows=5000,
     seed=42,
@@ -96,10 +96,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Southeast Asian travel platform — SEA destinations, regional airlines
+# Southeast Asian travel platform: SEA destinations, regional airlines
 tables = misata.generate("Southeast Asian travel platform with flights to Bangkok and Bali", rows=2000)
 
-# European OTA — European cities, EU airlines, EUR pricing
+# European OTA: European cities, EU airlines, EUR pricing
 tables = misata.generate("European travel agency with flights and hotels across EU cities", rows=3000)
 ```
 

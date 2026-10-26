@@ -286,4 +286,32 @@ class TestProvenanceCLI:
             capture_output=True, text=True)
         assert r.returncode == 0
         flat = " ".join(r.stdout.split())
-        assert "No real data" in flat and "t.csv" in flat and "2" in flat
+        assert "reads no rows" in flat and "t.csv" in flat and "2" in flat
+        assert "fitted to real rows" not in flat
+
+    def test_a_folder_mimic_wrote_is_reported_as_fitted(self, tmp_path):
+        import json, subprocess, sys
+        (tmp_path / "t.csv").write_text("a,b\n1,2\n")
+        (tmp_path / "fitted.json").write_text("{}")
+        r = subprocess.run(
+            [sys.executable, "-m", "misata.cli", "provenance", "--json", str(tmp_path)],
+            capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
+        record = json.loads(r.stdout)["data"]["provenance"]
+        assert record["fitted"] is True
+        assert record["files"] == [{"path": "t.csv", "sha256": record["files"][0]["sha256"],
+                                    "rows": 1}]
+
+    def test_the_attested_inputs_are_reported(self, tmp_path):
+        import json, subprocess, sys
+        import misata
+        schema = misata.from_dict_schema(
+            {"t": {"__rows__": 20, "id": {"type": "integer", "unique": True}}}, seed=11)
+        misata.generate_from_schema(schema)["t"].to_csv(tmp_path / "t.csv", index=False)
+        misata.attest(tmp_path, schema)
+        r = subprocess.run(
+            [sys.executable, "-m", "misata.cli", "provenance", "--json", str(tmp_path)],
+            capture_output=True, text=True)
+        attested = json.loads(r.stdout)["data"]["provenance"]["attestation"]
+        assert attested["seed"] == 11 and attested["result"] == "PASSED"
+        assert attested["producer"] == f"pkg:pypi/misata@{misata.__version__}"

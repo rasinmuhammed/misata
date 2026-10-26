@@ -1,46 +1,37 @@
-"""MkDocs SEO hook: cross-domain canonicalization to Misata Studio.
+"""MkDocs SEO hook: canonical URLs on misata.studio.
 
-Several guide/reference pages exist on BOTH this docs site
-(rasinmuhammed.github.io/misata) and the product site
-(misata.studio/docs/<slug>). Duplicate content across two domains splits link
-equity and suppresses both. misata.studio is the primary brand domain, so for
-every page whose basename matches a Studio doc slug we point the canonical URL
-at the Studio copy. Google then consolidates ranking signals onto one URL.
-
-Pages with no Studio equivalent keep their own github.io canonical untouched.
+Every page of this docs site is also served at https://www.misata.studio/docs
+under the same path (``guides/attest.md`` at ``/docs/guides/attest``). Two
+copies of a page on two domains split ranking signals, so each page here names
+the misata.studio copy as its canonical URL and search engines consolidate
+onto one address.
 """
 from __future__ import annotations
 
-# Doc slugs that also live at https://misata.studio/docs/<slug>. Keep in sync
-# with apps/web/content/docs/*.md in the misata-studio repo.
-_STUDIO_DOC_SLUGS = {
-    "cli",
-    "constraints",
-    "database-seeding-python",
-    "domains",
-    "export",
-    "faker-vs-sdv-vs-misata",
-    "localisation",
-    "multi-table-synthetic-data",
-    "python-synthetic-data-generator",
-    "quickstart",
-    "synthetic-data-for-bi-demos",
-    "timeseries",
-    "validate",
+_STUDIO_DOCS_BASE = "https://www.misata.studio/docs"
+
+# Older top-level copies of pages whose maintained version lives under guides/.
+# misata.studio redirects these paths, so the canonical names the destination.
+_MOVED = {
+    "database-seeding-python": "guides/database-seeding-python",
+    "faker-vs-sdv-vs-misata": "guides/faker-vs-sdv-vs-misata",
+    "multi-table-synthetic-data": "guides/multi-table-synthetic-data",
+    "synthetic-data-for-bi-demos": "guides/synthetic-data-for-bi-demos",
 }
 
-_STUDIO_DOCS_BASE = "https://misata.studio/docs"
 
-
-def _basename(src_uri: str) -> str:
-    """`guides/faker-vs-sdv-vs-misata.md` -> `faker-vs-sdv-vs-misata`."""
-    leaf = src_uri.rsplit("/", 1)[-1]
-    return leaf[:-3] if leaf.endswith(".md") else leaf
+def studio_path(src_uri: str) -> str:
+    """`guides/attest.md` -> `guides/attest`; `usecases/index.md` -> `usecases`; `index.md` -> ``."""
+    path = src_uri[:-3] if src_uri.endswith(".md") else src_uri
+    if path == "index":
+        return ""
+    if path.endswith("/index"):
+        path = path[: -len("/index")]
+    return _MOVED.get(path, path)
 
 
 def on_page_context(context, page, config, nav):
     """Override canonical_url before the template renders it."""
-    slug = _basename(page.file.src_uri)
-    if slug in _STUDIO_DOC_SLUGS:
-        page.canonical_url = f"{_STUDIO_DOCS_BASE}/{slug}"
+    path = studio_path(page.file.src_uri)
+    page.canonical_url = f"{_STUDIO_DOCS_BASE}/{path}" if path else _STUDIO_DOCS_BASE
     return context
