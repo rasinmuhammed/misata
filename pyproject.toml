@@ -118,6 +118,10 @@ bedrock = [
     # not just IAM access keys. Converse API (Claude), server-funded LLM path.
     "boto3>=1.39.0",
 ]
+hf = [
+    "huggingface_hub>=0.25.0",  # misata publish --hf
+    "duckdb>=0.9.0",            # re-verifies the dataset before upload
+]
 formulas = [
     "simpleeval>=0.9.0",
 ]
@@ -172,7 +176,7 @@ duckdb = [
     "pyarrow>=14.0.0",
 ]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity,evalpack,parquet,duckdb,polars,django]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity,evalpack,parquet,duckdb,polars,django,hf]",
 ]
 
 [project.scripts]

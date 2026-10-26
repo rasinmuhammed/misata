@@ -150,6 +150,26 @@ and 2 when the folder cannot be attested.
 
 ---
 
+## `misata publish`
+
+Upload an attested dataset or an evalpack to the Hugging Face Hub with its
+spec, attestation, `verify.py` and a generated dataset card. Every digest
+and invariant is re-checked first. See
+[Publish to Hugging Face](guides/publish.md).
+
+```bash
+misata publish out --hf acme/shop --schema misata.yaml --dry-run   # writes DATASET_CARD.md
+misata publish out --hf acme/shop --schema misata.yaml --private
+misata publish pack --hf acme/retail-answer-key --license cc-by-4.0
+```
+
+Needs `pip install "misata[hf]"` and `hf auth login` or `HF_TOKEN`. Exits 0
+when published, 1 when the data does not verify or the Hub refuses, and 2
+when the attestation or spec is missing or the folder holds `misata mimic`
+output without `--allow-fitted`.
+
+---
+
 ## `misata evalpack`
 
 Build a text-to-SQL evaluation pack whose answers come from the schema's

@@ -184,6 +184,8 @@ class Runner:
             return "skip", "needs a database, a key, or a placeholder"
         if head != "misata":
             return "skip", "not a misata command"
+        if "publish" in tokens[1:2] and "--dry-run" not in tokens:
+            return "skip", "uploads to the Hugging Face Hub"
         # An example that reads a file the docs never ship is documentation, not
         # a broken command.
         for tok in tokens[1:]:

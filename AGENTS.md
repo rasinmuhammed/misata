@@ -64,6 +64,10 @@ fp = misata.fingerprint(tables)            # canonical hash per table and overal
   standalone `verify.py`. Report its `result`: `PASSED` means every
   declaration holds on disk. The MCP tool is `attest_dataset`.
 - `misata audit ./data` checks any CSV folder for reader-visible contradictions.
+- `misata publish out --hf owner/name --dry-run` re-verifies the folder and
+  writes the Hugging Face dataset card it would upload. Publishing is
+  outward-facing: show the user the card and upload only with their
+  explicit consent.
 - `python -m benchmarks.validity_bench` regenerates five DDL schemas and
   counts violations with a checker that shares no code with Misata.
 - Put `misata.fingerprint(tables)["__all__"]` in fixtures you commit: the

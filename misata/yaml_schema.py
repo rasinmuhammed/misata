@@ -30,7 +30,7 @@ Python API::
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 
 import yaml
@@ -224,12 +224,8 @@ def _parse_relationship(raw: Union[str, Dict[str, Any]]) -> Relationship:
             child_table=c_table.strip(),
             child_key=c_col.strip(),
         )
-    # Dict form, in either spelling. The short one (`parent`/`child_col`) is
-    # this loader's own dialect; the long one (`parent_table`/`child_key`) is
-    # what every other surface uses -- the Python API, the JSON Schema, the dict
-    # path, and every example in LANGUAGE.md. Accepting only the short form
-    # meant the names people would naturally reach for died on a bare
-    # `KeyError: 'parent'` with nothing explaining why.
+    # Dict form, in either spelling: the short `parent`/`child_col` names or
+    # the model's own `parent_table`/`child_key`.
     parent = raw.get("parent") or raw.get("parent_table")
     child = raw.get("child") or raw.get("child_table")
     if not parent or not child:
@@ -239,20 +235,21 @@ def _parse_relationship(raw: Union[str, Dict[str, Any]]) -> Relationship:
             "parent_key: order_id, child_key: order_id}; got: "
             f"{sorted(raw)}"
         )
-    return Relationship(
+    aliases = {"parent", "child", "parent_col", "child_col", "temporal"}
+    fields = {k: v for k, v in raw.items()
+              if k in Relationship.model_fields and v is not None}
+    unknown = sorted(set(raw) - set(Relationship.model_fields) - aliases)
+    if unknown:
+        raise ValueError(f"relationship {parent} -> {child} has unknown field(s) {unknown}")
+    fields.update(
         parent_table=parent,
         parent_key=raw.get("parent_col") or raw.get("parent_key") or "id",
         child_table=child,
-        child_key=(raw.get("child_col") or raw.get("child_key")
-                   or f"{parent}_id"),
-        temporal_constraint=bool(raw.get("temporal", False)),
-        # Attributes only the long form can carry; ignored when absent.
-        partition_by=list(raw.get("partition_by") or []),
-        min_children=int(raw.get("min_children") or 0),
-        parent_time=raw.get("parent_time"),
-        child_time=raw.get("child_time"),
-        child_time_table=raw.get("child_time_table"),
+        child_key=raw.get("child_col") or raw.get("child_key") or f"{parent}_id",
     )
+    if "temporal" in raw:
+        fields["temporal_constraint"] = bool(raw["temporal"])
+    return Relationship(**fields)
 
 
 def _parse_column(col_name: str, col_def: Dict[str, Any],
@@ -268,14 +265,12 @@ def _parse_column(col_name: str, col_def: Dict[str, Any],
         # so the key is drawn without replacement and the database's own unique
         # index accepts the insert. `references` and `nullable` carry through
         # the same way.
-        params: Dict[str, Any] = {}
-        for k in ("references", "sampling", "filters", "null_rate"):
-            if col_def.get(k) is not None:
-                params[k] = col_def[k]
+        fk_params = {k: v for k, v in col_def.items()
+                     if k not in _STRUCTURAL_COLUMN_KEYS and v is not None}
         return Column(
             name=col_name,
             type="foreign_key",
-            distribution_params=params,
+            distribution_params=fk_params,
             nullable=bool(col_def.get("nullable", True)),
             unique=bool(col_def.get("unique", False)),
             description=col_def.get("description") or None,
@@ -363,19 +358,11 @@ def _parse_column(col_name: str, col_def: Dict[str, Any],
 
 
 def _parse_constraint(raw: Dict[str, Any]) -> Constraint:
-    """Carry every field of a constraint, whatever its type.
+    """A constraint with every field its model defines.
 
-    This listed the fields of four constraint types and silently dropped the
-    rest, so a `when_then` written in YAML loaded with `when_column`,
-    `when_op`, `when_value`, `then_column` and `then` all None. The constraint
-    was present, named, and did nothing: the engine happily produced grabs whose
-    status was `imported` next to a populated `last_error`, which is precisely
-    the class of contradiction the declaration exists to prevent. Ledger and
-    parent-comparison constraints were losing their columns the same way.
-
-    Enumerating fields is what caused this, so stop enumerating: take every key
-    the model actually defines. An unknown key still raises, which is the point
-    of writing the schema down.
+    ``table`` is accepted as routing for top-level constraints. Any other key
+    the model does not define is refused, so a misspelt field fails loudly
+    instead of loading as None.
     """
     known = set(Constraint.model_fields)
     # `table` is routing, consumed by the caller to decide which table the
@@ -395,45 +382,35 @@ def _parse_constraint(raw: Dict[str, Any]) -> Constraint:
     return Constraint(**fields)
 
 
+_Model = TypeVar("_Model")
+
+
+def _model_from(model: Type[_Model], raw: Dict[str, Any], what: str) -> _Model:
+    """``model(**raw)``, refusing keys the model does not define.
+
+    Every field the model has is read, so a declaration written to YAML loads
+    back whole; an unknown key is a typo the author needs to hear about.
+    """
+    fields = set(getattr(model, "model_fields"))
+    unknown = sorted(set(raw) - fields)
+    if unknown:
+        raise ValueError(f"{what} has unknown field(s) {unknown}. "
+                         f"Valid fields: {sorted(fields)}")
+    return model(**raw)
+
+
 def _parse_event(raw: Dict[str, Any]) -> ScenarioEvent:
-    return ScenarioEvent(
-        name=raw["name"],
-        table=raw["table"],
-        column=raw["column"],
-        condition=raw["condition"],
-        modifier_type=raw["modifier_type"],
-        modifier_value=raw["modifier_value"],
-        description=raw.get("description"),
-    )
+    return _model_from(ScenarioEvent, raw, f"event {raw.get('name', '<unnamed>')!r}")
 
 
 def _parse_curve(raw: Dict[str, Any]) -> OutcomeCurve:
-    return OutcomeCurve(
-        table=raw["table"],
-        column=raw["column"],
-        time_column=raw.get("time_column", "date"),
-        time_unit=raw.get("time_unit", "month"),
-        pattern_type=raw.get("pattern_type", "seasonal"),
-        intra_period_pattern=raw.get("intra_period_pattern", "uniform"),
-        avg_transaction_value=raw.get("avg_transaction_value"),
-        concentration=float(raw.get("concentration", 2.0)),
-        start_date=raw.get("start_date"),
-        description=raw.get("description"),
-        curve_points=list(raw.get("curve_points", [])),
-    )
+    return _model_from(OutcomeCurve, raw,
+                       f"outcome curve on {raw.get('table')}.{raw.get('column')}")
 
 
 def _parse_rate_curve(raw: Dict[str, Any]) -> RateCurve:
-    return RateCurve(
-        table=raw["table"],
-        column=raw["column"],
-        time_column=raw.get("time_column", "date"),
-        time_unit=raw.get("time_unit", "month"),
-        true_value=raw.get("true_value", True),
-        interpolate=bool(raw.get("interpolate", True)),
-        description=raw.get("description"),
-        rate_points=list(raw.get("rate_points", [])),
-    )
+    return _model_from(RateCurve, raw,
+                       f"rate curve on {raw.get('table')}.{raw.get('column')}")
 
 
 # ---------------------------------------------------------------------------
@@ -500,10 +477,8 @@ def load_yaml_schema(
     relationships = [
         _parse_relationship(r) for r in (raw.get("relationships") or [])
     ]
-    # A foreign key that says what it references is a relationship. The key
-    # was carried onto the column and then ignored, so a YAML file written the
-    # way DDL reads (`references: customers.customer_id`) failed validation for
-    # a missing relationship it had just declared.
+    # A foreign key column that names what it references
+    # (`references: customers.customer_id`) declares its relationship.
     declared = {(r.child_table, r.child_key) for r in relationships}
     for t_name, cols in columns_map.items():
         for col in cols:
@@ -561,7 +536,8 @@ def load_yaml_schema(
     # `compat.from_dict_schema`, so both must read every declaration. One table,
     # so the next declaration is one line rather than another branch.
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
-                               Duplicates, EventLog, LateArrival, Lifecycle,
+                               Duplicates, EventLog, GraphMotifs,
+                               JointDistribution, LateArrival, Lifecycle,
                                Missingness, Outliers, Process, TimeGrid,
                                TransitiveClosure, Typos)
     _declared: Dict[str, List[Any]] = {}
@@ -577,7 +553,9 @@ def load_yaml_schema(
                        ("bitemporal", Bitemporal),
                        ("dag_edges", DagEdges),
                        ("closures", TransitiveClosure),
-                       ("processes", Process)):
+                       ("processes", Process),
+                       ("graph_motifs", GraphMotifs),
+                       ("joint_distributions", JointDistribution)):
         parsed: List[Any] = []
         for i, item in enumerate(raw.get(key) or []):
             try:
@@ -606,6 +584,7 @@ def load_yaml_schema(
 
     return SchemaConfig(
         name=name,
+        description=raw.get("description"),
         domain=domain,
         generation_mode=generation_mode,
         tables=tables,
@@ -631,6 +610,8 @@ def load_yaml_schema(
         dag_edges=_declared["dag_edges"],
         closures=_declared["closures"],
         processes=_declared["processes"],
+        graph_motifs=_declared["graph_motifs"],
+        joint_distributions=_declared["joint_distributions"],
         preset=raw.get("preset"),
         noise_config=noise_config,
         vocabularies=vocabularies,
@@ -703,6 +684,8 @@ def save_yaml_schema(
     path = Path(path).expanduser()
 
     doc: Dict[str, Any] = {"name": schema.name}
+    if getattr(schema, "description", None):
+        doc["description"] = schema.description
     if schema.domain:
         doc["domain"] = schema.domain
     if schema.seed is not None:
@@ -722,134 +705,36 @@ def save_yaml_schema(
         entry: Dict[str, Any] = {"rows": table.row_count, "columns": col_doc}
         if table.description:
             entry["description"] = table.description
-        if getattr(table, "scd2", None) is not None:
+        if table.scd2 is not None:
             entry["scd2"] = table.scd2.model_dump(exclude_none=True)
+        if table.constraints:
+            entry["constraints"] = [_dump(c) for c in table.constraints]
         tables_doc[table.name] = entry
     doc["tables"] = tables_doc
 
-    # Relationships — string shorthand
     if schema.relationships:
-        doc["relationships"] = [
-            f"{r.parent_table}.{r.parent_key} \u2192 {r.child_table}.{r.child_key}"
-            for r in schema.relationships
-        ]
+        doc["relationships"] = [_relationship_to_yaml(r) for r in schema.relationships]
 
-    # Constraints — collect from all tables
-    all_constraints: List[Dict[str, Any]] = []
-    for table in schema.tables:
-        for c in (table.constraints or []):
-            all_constraints.append(_constraint_to_dict(c))
-    if all_constraints:
-        doc["constraints"] = all_constraints
+    # Every other declaration is written through its own model, so a field the
+    # model gains is written and read back without this function changing.
+    for key in _DECLARATION_KEYS:
+        items = getattr(schema, key, None) or []
+        if items:
+            doc[key] = [_dump(item) for item in items]
 
-    # Events
-    if schema.events:
-        doc["events"] = [
-            {
-                "name": e.name,
-                "table": e.table,
-                "column": e.column,
-                "condition": e.condition,
-                "modifier_type": e.modifier_type,
-                "modifier_value": e.modifier_value,
-            }
-            for e in schema.events
-        ]
-
-    # Outcome curves
-    if schema.outcome_curves:
-        doc["outcome_curves"] = [
-            {
-                "table": c.table,
-                "column": c.column,
-                "time_column": c.time_column,
-                "time_unit": c.time_unit,
-                "pattern_type": c.pattern_type,
-                **({"avg_transaction_value": c.avg_transaction_value}
-                   if c.avg_transaction_value is not None else {}),
-                **({"concentration": c.concentration}
-                   if c.concentration != 2.0 else {}),
-                **({"start_date": c.start_date}
-                   if c.start_date is not None else {}),
-                **({"intra_period_pattern": c.intra_period_pattern}
-                   if c.intra_period_pattern not in (None, "uniform") else {}),
-                "curve_points": c.curve_points,
-            }
-            for c in schema.outcome_curves
-        ]
-
-    # Rate curves
-    if getattr(schema, "rate_curves", None):
-        doc["rate_curves"] = [
-            {
-                "table": rc.table,
-                "column": rc.column,
-                "time_column": rc.time_column,
-                "time_unit": rc.time_unit,
-                **({"true_value": rc.true_value}
-                   if rc.true_value is not True else {}),
-                **({"interpolate": rc.interpolate}
-                   if not rc.interpolate else {}),
-                "rate_points": rc.rate_points,
-            }
-            for rc in schema.rate_curves
-        ]
-
-    # Exact group shares
-    if getattr(schema, "group_shares", None):
-        doc["group_shares"] = [
-            {
-                "table": g.table,
-                "measure": g.measure,
-                "group_column": g.group_column,
-                "shares": g.shares,
-                **({"description": g.description} if g.description else {}),
-            }
-            for g in schema.group_shares
-        ]
-
-    # Waterfall identities
-    if getattr(schema, "waterfalls", None):
-        doc["waterfalls"] = [
-            {
-                "table": w.table,
-                **({"period_column": w.period_column}
-                   if w.period_column != "period" else {}),
-                **({"type_column": w.type_column}
-                   if w.type_column != "movement_type" else {}),
-                **({"amount_column": w.amount_column}
-                   if w.amount_column != "amount" else {}),
-                **({"segment_column": w.segment_column}
-                   if w.segment_column else {}),
-                **({"segment_value": w.segment_value}
-                   if w.segment_value is not None else {}),
-                "starting_value": w.starting_value,
-                "points": w.points,
-                "inflow_shares": w.inflow_shares,
-                "outflow_shares": w.outflow_shares,
-                **({"outflow_rate": w.outflow_rate}
-                   if w.outflow_rate != 0.03 else {}),
-                **({"description": w.description} if w.description else {}),
-            }
-            for w in schema.waterfalls
-        ]
-
-    # Stock-flow identities
-    if getattr(schema, "stock_flows", None):
-        doc["stock_flows"] = [
-            s.model_dump(exclude_none=True) for s in schema.stock_flows
-        ]
+    if schema.preset:
+        doc["preset"] = schema.preset
 
     # Declared data-quality defects
-    if getattr(schema, "noise_config", None):
+    if schema.noise_config is not None:
         doc["noise"] = schema.noise_config.model_dump(exclude_none=True)
 
     # Schema-embedded vocabularies
-    if getattr(schema, "vocabularies", None):
+    if schema.vocabularies:
         doc["vocabularies"] = schema.vocabularies
 
     # Realism settings
-    if getattr(schema, "realism", None):
+    if schema.realism is not None:
         realism_doc = schema.realism.model_dump(exclude_none=True)
         if realism_doc:
             doc["realism"] = realism_doc
@@ -869,56 +754,50 @@ def save_yaml_schema(
     return path
 
 
+#: Schema-level declarations, each a list of models under its own YAML key.
+_DECLARATION_KEYS = (
+    "events", "outcome_curves", "rate_curves", "group_shares", "waterfalls",
+    "stock_flows", "degradations", "lifecycles", "retention", "missingness",
+    "late_arrivals", "time_grids", "duplicates", "event_logs", "outliers", "typos",
+    "bitemporal", "dag_edges", "closures", "processes", "graph_motifs",
+    "joint_distributions",
+)
+
+#: The four fields the ``parent.key -> child.key`` shorthand carries.
+_SHORTHAND_FIELDS = {"parent_table", "parent_key", "child_table", "child_key"}
+
+
+def _dump(model: Any) -> Dict[str, Any]:
+    """A declaration as YAML-ready data, leaving out every field at its default."""
+    return dict(model.model_dump(mode="json", exclude_defaults=True))
+
+
+def _relationship_to_yaml(r: Relationship) -> Union[str, Dict[str, Any]]:
+    """The arrow shorthand, or the full form when the relationship says more."""
+    fields = _dump(r)
+    if set(fields) <= _SHORTHAND_FIELDS:
+        return f"{r.parent_table}.{r.parent_key} \u2192 {r.child_table}.{r.child_key}"
+    return {"parent_table": r.parent_table, "parent_key": r.parent_key,
+            "child_table": r.child_table, "child_key": r.child_key, **fields}
+
+
 def _column_to_dict(col: Column) -> Dict[str, Any]:
-    """Serialize a Column to YAML-schema dict (omit defaults to keep it clean)."""
-    # Reverse-map Misata type to YAML type
-    _REVERSE_TYPE = {
-        "int": "int", "float": "float", "text": "text",
-        "date": "date", "datetime": "datetime", "boolean": "boolean",
-        "categorical": "categorical", "foreign_key": "foreign_key",
-    }
-    d: Dict[str, Any] = {"type": _REVERSE_TYPE.get(col.type, col.type)}
+    """A column as ``misata.yaml`` writes it: its type, flags and every parameter.
+
+    A distribution the column never declared is left out, so the loader
+    defaults it again instead of recording the default as a choice.
+    """
+    d: Dict[str, Any] = {"type": col.type}
     if col.unique:
         d["unique"] = True
     if not col.nullable:
         d["nullable"] = False
     if col.description:
         d["description"] = col.description
-
-    p = col.distribution_params or {}
-    for k in ("min", "max", "decimals", "distribution", "text_type", "start", "end",
-              # generation features must survive the YAML round-trip
-              "rollup", "zero_inflate", "depends_on", "mapping", "formula",
-              "inherits_curve_from", "quantize"):
-        if k in p:
-            d[k] = p[k]
-    if "choices" in p:
-        d["choices"] = p["choices"]
-    if "probabilities" in p:
-        d["probabilities"] = p["probabilities"]
-    return d
-
-
-def _constraint_to_dict(c: Constraint) -> Dict[str, Any]:
-    d: Dict[str, Any] = {"name": c.name, "type": c.type}
-    if c.group_by:
-        d["group_by"] = c.group_by
-    if c.column:
-        d["column"] = c.column
-    if c.value is not None:
-        d["value"] = c.value
-    if c.action and c.action != "cap":
-        d["action"] = c.action
-    if c.column_a:
-        d["column_a"] = c.column_a
-    if c.operator:
-        d["operator"] = c.operator
-    if c.column_b:
-        d["column_b"] = c.column_b
-    if c.low_column:
-        d["low_column"] = c.low_column
-    if c.high_column:
-        d["high_column"] = c.high_column
+    params = dict(col.distribution_params or {})
+    if params.pop("_distribution_is_default", False):
+        params.pop("distribution", None)
+    d.update(params)
     return d
 
 
@@ -953,14 +832,14 @@ def json_schema() -> Dict[str, Any]:
         with resources.files("misata._schemas").joinpath(
             "misata.schema.json"
         ).open("r", encoding="utf-8") as fh:
-            return _json.load(fh)
+            return dict(_json.load(fh))
     except Exception:
         pass
 
     # Fall back to the repo copy for editable installs
     repo_path = Path(__file__).parent.parent / "schema" / "misata.schema.json"
     if repo_path.exists():
-        return _json.loads(repo_path.read_text(encoding="utf-8"))
+        return dict(_json.loads(repo_path.read_text(encoding="utf-8")))
 
     raise FileNotFoundError(
         "misata.schema.json not found. Reinstall misata or fetch it from "

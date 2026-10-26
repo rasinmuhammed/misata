@@ -5,7 +5,7 @@
   "core_dependencies": 10,
   "hand_quoted_sql_identifiers": 0,
   "lint": 54,
-  "mypy_errors": 276,
+  "mypy_errors": 270,
   "raise_without_from": 0,
   "security": 0,
   "silenced_exceptions": 61,

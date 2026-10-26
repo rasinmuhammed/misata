@@ -177,6 +177,7 @@ examples/bank_evalpack_out/
 !tests/test_gulf_names.py
 !tests/test_timeseries.py
 !tests/test_solve.py
+!tests/test_publish.py
 !tests/test_sinks.py
 !tests/test_mcp_workspace.py
 !tests/test_formulas.py

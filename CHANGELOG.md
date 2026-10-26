@@ -91,6 +91,24 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   (`misata.yaml`, a `SchemaConfig` dump, the dict form), as the CLI does.
 - New guide, `docs/guides/solve.md`.
 
+### Publish
+
+- `misata publish DIR --hf owner/name`, `misata.prepare_hub_release()` and
+  `misata.publish_to_hub()` upload an attested dataset or an evalpack to the
+  Hugging Face Hub in one commit: the tables (one viewer config per table,
+  one split per rotation for a rotated pack), the spec, the attestation,
+  `verify.py` and a dataset card generated from them. Every digest and
+  invariant is re-checked first, and nothing is uploaded unless all hold.
+- `--dry-run` writes `DATASET_CARD.md` and lists the files instead. The card
+  carries the licence (`--license`, default `cc-by-4.0`), the tags `misata`,
+  `synthetic` and `verified-synthetic`, the invariant table with expected
+  and observed values, and how to re-verify and regenerate.
+- `misata mimic` writes `fitted.json` beside its output, and a folder that
+  holds it publishes only with `--allow-fitted`; the card then says the data
+  was fitted to real rows and is not anonymous.
+- The token comes from `HF_TOKEN` or `hf auth login`, never an option. New
+  extra: `misata[hf]`. New guide, `docs/guides/publish.md`.
+
 ### Scale
 
 - `misata generate --format csv|jsonl|parquet|duckdb` writes rows as they
@@ -198,6 +216,18 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- `save_yaml_schema` writes every declaration, per-table constraints, the
+  full form of relationships that carry more than their keys, every column
+  parameter, the preset and the description, and `load_yaml_schema` reads
+  them all back. The Gauntlet and Warren schemas round-trip with equal
+  models and equal fingerprints; a test holds them there.
+- The published JSON Schema accepts what Misata writes: per-table
+  `constraints`, every constraint type (`balanced_ledger`, `when_then`,
+  `lte_parent`, `sum_lte_parent`), the relationship fields `min_children`,
+  `filters`, `partition_by` and the time pairs, curve points named by
+  `month`, `date` or `period` with `target_value` or `relative_value`,
+  `value_mode: count`, and `sampling: auto` and `pareto`. A test fails when
+  a model gains a field the schema lacks.
 - `misata sandbox` no longer needs the `mcp` extra.
 - `tools/quality.py` measures lint, complexity, security findings, mypy
   errors, import cost and dependency count against a baseline that may only

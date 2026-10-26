@@ -114,6 +114,7 @@ nav:
   - Attest a Dataset: guides/attest.md
   - Build an Evalpack: guides/evalpack.md
   - Solve for a Pipeline's Output: guides/solve.md
+  - Publish to Hugging Face: guides/publish.md
   - Certificate Predicate v1: attestation/certificate-v1.md
   - Realism Report: realism.md
   - Realism Benchmark: realism-benchmark.md

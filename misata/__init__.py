@@ -33,6 +33,7 @@ from typing import Any, Dict, Optional, Union
 from misata.attestation import Attestation, AttestationError, attest
 from misata.explain import Explanation, explain
 from misata.solve import DbtDuckDBRunner, PythonRunner, SolveResult, SQLRunner, Target, solve
+from misata.publish import HubRelease, prepare_hub_release, publish_to_hub
 
 
 # ---------------------------------------------------------------------------
@@ -979,6 +980,9 @@ __all__ = [
     "explain",
     "Explanation",
     "solve",
+    "HubRelease",
+    "prepare_hub_release",
+    "publish_to_hub",
     "SolveResult",
     "Target",
     "SQLRunner",

@@ -1249,6 +1249,9 @@ def mimic(source: str, rows: Optional[int], output: str, seed: Optional[int]) ->
         tdf.to_csv(out_path, index=False)
         console.print(f"   [green]✓[/green] {name}: {len(tdf):,} rows → {out_path}")
 
+    from misata.publish import write_fitted_marker
+
+    write_fitted_marker(out_dir, source, {name: len(tdf) for name, tdf in tables.items()})
     console.print(f"\n[green]Done.[/green] Synthetic data written to [cyan]{output}[/cyan]")
 
 
@@ -3317,6 +3320,67 @@ def solve_cmd(config_path: str, output_dir: Optional[str], output_format: str,
         fail(result.message, EXIT_FAILED)
     if attestation is not None and not attestation.passed:
         fail("the solved dataset did not attest; see data.solve.attestation", EXIT_FAILED)
+
+
+@main.command("publish")
+@click.argument("data_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("--hf", "repo_id", required=True, metavar="OWNER/NAME",
+              help="The Hugging Face dataset to create or update.")
+@click.option("--schema", "-s", "schema_path", type=click.Path(exists=True, dir_okay=False),
+              default=None, help="The spec the attestation pins, when it is not in DATA_DIR.")
+@click.option("--license", "license_id", default="cc-by-4.0", show_default=True,
+              help="Hub licence identifier for the dataset card.")
+@click.option("--private", is_flag=True, help="Create the dataset as private.")
+@click.option("--allow-fitted", is_flag=True,
+              help="Publish `misata mimic` output; the card says it is not anonymous.")
+@click.option("--dry-run", is_flag=True,
+              help="Verify and write DATASET_CARD.md locally; upload nothing.")
+def publish_cmd(data_dir: str, repo_id: str, schema_path: Optional[str], license_id: str,
+                private: bool, allow_fitted: bool, dry_run: bool) -> None:
+    """Publish a verified dataset or evalpack to the Hugging Face Hub.
+
+    Re-checks every file's SHA-256 and every attested invariant first, and
+    uploads nothing unless all of them hold. The upload carries the tables
+    (one viewer config per table), the spec, the attestation, verify.py and a
+    dataset card generated from them. The token comes from HF_TOKEN or
+    `hf auth login`; it is never an option.
+
+    Exits 0 when published (or, with --dry-run, ready), 1 when the data does
+    not hold what its attestation says or the Hub refuses, and 2 when
+    something is missing.
+
+    Examples:
+
+        misata publish out --hf acme/shop-orders --schema misata.yaml --dry-run
+
+        misata publish pack --hf acme/retail-answer-key --private
+    """
+    from misata.publish import PublishRefused, prepare_hub_release, publish_to_hub
+
+    try:
+        release = prepare_hub_release(data_dir, repo_id, license_id=license_id,
+                                      schema_path=schema_path, allow_fitted=allow_fitted)
+    except PublishRefused as exc:
+        fail(str(exc), EXIT_FAILED if exc.verification_failed else EXIT_USAGE)
+    held, total = release.invariants
+    console.print(f"verified {release.kind}: {sum(release.rows.values()):,} rows in "
+                  f"{len(release.rows)} table(s), {held} of {total} invariants hold",
+                  markup=False, highlight=False)
+    data = release.to_dict()
+    if dry_run:
+        card = release.write_card()
+        console.print(f"dry run: wrote {card}; would upload {len(data['files'])} file(s) "
+                      f"to {repo_id}", markup=False, highlight=False)
+        emit(publish={**data, "card": str(card), "dry_run": True})
+        return
+    try:
+        url = publish_to_hub(release, private=private)
+    except ImportError as exc:
+        fail(str(exc), EXIT_USAGE)
+    except PublishRefused as exc:
+        fail(str(exc), EXIT_FAILED)
+    console.print(f"published {url}", markup=False, highlight=False)
+    emit(publish={**data, "url": url, "dry_run": False})
 
 
 @main.command("provenance")

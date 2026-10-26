@@ -57,6 +57,7 @@ __all__ = [
     "Invariant",
     "attest",
     "derive_invariants",
+    "spec_reference",
     "to_odcs",
     "to_openlineage",
 ]
@@ -294,7 +295,8 @@ def _table_sources(directory: Path, tables: List[str]) -> List[Tuple[Path, List[
     return sorted(sources, key=lambda source: source[0].relative_to(directory).as_posix())
 
 
-def _spec(schema: "SchemaConfig", spec_path: Optional[PathLike]) -> Dict[str, Any]:
+def spec_reference(schema: "SchemaConfig", spec_path: Optional[PathLike]) -> Dict[str, Any]:
+    """The Statement's ``spec``: the spec file's digest, or the schema's canonical JSON digest."""
     if spec_path is not None:
         path = Path(spec_path)
         return {"name": path.name, "digest": {"sha256": attestation_verify.sha256_file(path)}}
@@ -380,7 +382,7 @@ def attest(
         "predicateType": PREDICATE_TYPE,
         "predicate": {
             "result": "PASSED" if all(c["passed"] for c in checked) else "FAILED",
-            "spec": _spec(schema, spec_path),
+            "spec": spec_reference(schema, spec_path),
             "producer": {"name": "misata", "uri": f"pkg:pypi/misata@{misata.__version__}"},
             "seed": schema.seed,
             "verifiedAt": _now(),
