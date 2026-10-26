@@ -13,11 +13,12 @@ three can never disagree about what a share is worth.
 
 from __future__ import annotations
 
-import warnings
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 
 def split_total_by_shares(
@@ -32,9 +33,9 @@ def split_total_by_shares(
     if not shares:
         return {}
     labels = list(shares.keys())
-    fracs = np.array([float(shares[l]) for l in labels], dtype=float)
-    targets = {l: round(float(f) * float(total), decimals)
-               for l, f in zip(labels, fracs)}
+    fracs = np.array([float(shares[label]) for label in labels], dtype=float)
+    targets = {label: round(float(f) * float(total), decimals)
+               for label, f in zip(labels, fracs, strict=True)}
     residual = round(round(float(total), decimals) - sum(targets.values()), decimals)
     if residual:
         biggest = labels[int(np.argmax(fracs))]
@@ -49,9 +50,10 @@ def normalized_shares(spec: Any) -> Dict[str, float]:
     if not shares or s <= 0:
         return {}
     if abs(s - 1.0) > 0.005:
-        warnings.warn(
+        warn(
             f"group_shares on {spec.table}.{spec.measure}: shares sum to "
-            f"{s:.3f}, normalising to 1"
+            f"{s:.3f}, normalising to 1",
+            ConformanceWarning,
         )
     return {k: v / s for k, v in shares.items()}
 
@@ -88,7 +90,7 @@ def declared_group_targets(
     if not shares:
         return None
     out = []
-    for bucket, target in zip(resolved.buckets, resolved.targets):
+    for bucket, target in zip(resolved.buckets, resolved.targets, strict=True):
         out.append((bucket.start, bucket.end,
                     split_total_by_shares(shares, float(target))))
     return out
@@ -194,7 +196,7 @@ def apply_group_shares(
         return df
 
     labels = list(shares.keys())
-    fracs = np.array([shares[l] for l in labels])
+    fracs = np.array([shares[label] for label in labels])
 
     curve, resolved = _curve_for(spec, schema)
     if resolved is not None:
@@ -204,7 +206,7 @@ def apply_group_shares(
         times = pd.to_datetime(df[time_col], errors="coerce")
         buckets = [
             (np.where((times >= b.start) & (times < b.end))[0], float(t))
-            for b, t in zip(resolved.buckets, resolved.targets)
+            for b, t in zip(resolved.buckets, resolved.targets, strict=True)
         ]
     else:
         buckets = [(np.arange(len(df)), float(pd.to_numeric(
@@ -222,9 +224,10 @@ def apply_group_shares(
         if n == 0:
             continue
         if n < len(labels):
-            warnings.warn(
+            warn(
                 f"group_shares on {spec.table}: bucket with {n} rows cannot "
-                f"host {len(labels)} groups; skipping (infeasible)"
+                f"host {len(labels)} groups; skipping (infeasible)",
+                ConformanceWarning,
             )
             continue
         # Largest-remainder row allocation, minimum one row per group.
@@ -256,13 +259,14 @@ def apply_group_shares(
                     continue
                 if not warned_bounds:
                     warned_bounds = True
-                    warnings.warn(
+                    warn(
                         f"group_shares on {spec.table}.{spec.measure}: a "
                         f"declared share cannot hold inside the column's "
                         f"declared bounds (min={lo}, max={hi}) for {rows.size} "
                         f"rows and a target of {t:,.2f}. The exact share takes "
                         f"precedence, so per-row values will leave the bounds. "
-                        f"Widen the bounds or change the share."
+                        f"Widen the bounds or change the share.",
+                        ConformanceWarning,
                     )
             cur = measure[rows].sum()
             if cur > 0:

@@ -37,7 +37,7 @@ morphemes. Where scale is needed, the pools come from real sources.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator

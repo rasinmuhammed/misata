@@ -9,7 +9,8 @@ supporting expressions like:
 """
 
 import re
-from typing import Dict, List, Optional
+import weakref
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -82,6 +83,68 @@ def _require_simpleeval() -> None:
             "Formula support requires simpleeval. "
             "Install with: pip install 'misata[formulas]'"
         )
+
+#: Parent key column -> position index, per parent table. Building the hash
+#: table is the expensive part of a lookup and the parent is the same for every
+#: child batch, so it is built once, checked against the key column on every
+#: use, and dropped when its table is.
+_KEY_INDEXES: Dict[Tuple[int, str], Tuple[Any, pd.Index]] = {}
+
+
+def _key_index(table: pd.DataFrame, key: str) -> Optional[pd.Index]:
+    """``table[key]`` as a unique Index, or ``None`` when its keys repeat."""
+    keys = table[key].to_numpy()
+    slot = (id(table), key)
+    cached = _KEY_INDEXES.get(slot)
+    if cached is not None and cached[0]() is table and np.array_equal(cached[1].to_numpy(), keys):
+        return cached[1]
+    index = pd.Index(keys.copy())
+    if not index.is_unique:
+        return None
+    _KEY_INDEXES[slot] = (weakref.ref(table), index)
+    weakref.finalize(table, _KEY_INDEXES.pop, slot, None)
+    return index
+
+
+def _contiguous_positions(keys: np.ndarray, foreign: pd.Series) -> Optional[np.ndarray]:
+    """Positions by arithmetic when the keys are a run of consecutive integers.
+
+    Generated primary keys usually are, and then a key's position is its
+    offset from the first one: no index to build or hold. Only numeric
+    foreign keys qualify, because a dict lookup never matches ``"1"`` to
+    ``1`` and neither may this.
+    """
+    n = len(keys)
+    if n == 0 or keys.dtype.kind not in "iu" or foreign.dtype.kind not in "iuf":
+        return None
+    start = int(keys[0])
+    if int(keys[-1]) - start != n - 1 or not bool((np.diff(keys) == 1).all()):
+        return None
+    offset = foreign.to_numpy(dtype=float, na_value=np.nan) - start
+    with np.errstate(invalid="ignore"):
+        valid = (offset >= 0) & (offset < n) & (offset == np.floor(offset))
+    return np.where(valid, offset, -1).astype(np.int64)
+
+
+def _lookup(table: pd.DataFrame, key: str, column: str, foreign: pd.Series) -> np.ndarray:
+    """``table[column]`` for each row's foreign key, 0 where no parent matches.
+
+    The same values and dtype as mapping the foreign key through a
+    ``{key: value}`` dict, at a cost in the batch's size rather than the
+    parent table's.
+    """
+    if table.empty:
+        return np.zeros(len(foreign))
+    positions = _contiguous_positions(table[key].to_numpy(), foreign)
+    if positions is None:
+        index = _key_index(table, key)
+        if index is None:
+            mapping = table.set_index(key)[column].to_dict()
+            return np.asarray(foreign.map(mapping).fillna(0).values)
+        positions = index.get_indexer(foreign)
+    values = pd.api.extensions.take(table[column].to_numpy(), positions, allow_fill=True)
+    return np.asarray(pd.Series(values).fillna(0).values)
+
 
 class FormulaEngine:
     """
@@ -192,9 +255,8 @@ class FormulaEngine:
                     f"(looked for {singular}_id, {table_name}_id)"
                 )
 
-            lookup_map = ref_table.set_index(parent_key)[col_name].to_dict()
             var_name = f'_ref_{i}'
-            lookup_names[var_name] = df[fk_col].map(lookup_map).fillna(0).values
+            lookup_names[var_name] = _lookup(ref_table, parent_key, col_name, df[fk_col])
             result = result.replace(f'@{table_name}.{col_name}', var_name)
 
         return result, lookup_names
@@ -270,7 +332,7 @@ class FormulaEngine:
                 operators=SAFE_OPERATORS
             ))
         except Exception as e:
-            raise ValueError(f"Failed to evaluate formula '{formula}': {e}")
+            raise ValueError(f"Failed to evaluate formula '{formula}': {e}") from e
 
 
 class FormulaColumn:

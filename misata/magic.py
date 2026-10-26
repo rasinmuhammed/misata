@@ -27,7 +27,6 @@ def _misata_cell(line: str, cell: str) -> None:  # type: ignore[type-arg]
     """%%misata [rows=N] [seed=N] — generate synthetic data from a story."""
     try:
         from IPython import get_ipython
-        import pandas as pd
         from misata import generate
         from IPython.display import display, HTML
     except ImportError as exc:

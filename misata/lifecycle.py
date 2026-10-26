@@ -29,11 +29,12 @@ child is generated.
 
 from __future__ import annotations
 
-import warnings
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 NS_PER_DAY = 86_400_000_000_000
 
@@ -60,8 +61,9 @@ def _allocate_states(
         if total <= 0:
             raise ValueError("lifecycle weights must sum to a positive number")
         if abs(total - 1.0) > 0.01:
-            warnings.warn(
-                f"Lifecycle weights sum to {total:.4f}, normalising to 1.0."
+            warn(
+                f"Lifecycle weights sum to {total:.4f}, normalising to 1.0.",
+                ConformanceWarning,
             )
         exact = {s: n * float(weights.get(s, 0.0)) / total for s in states}
         counts = {s: int(np.floor(v)) for s, v in exact.items()}
@@ -93,9 +95,10 @@ def apply_lifecycle(
     if df is None or df.empty:
         return df
     if spec.state_column not in df.columns:
-        warnings.warn(
+        warn(
             f"Lifecycle '{spec.name}': state column '{spec.state_column}' not "
-            f"in '{spec.table}'. Skipping."
+            f"in '{spec.table}'. Skipping.",
+            ConformanceWarning,
         )
         return df
 
@@ -112,15 +115,17 @@ def apply_lifecycle(
         else:
             paths[s] = p
     if unreachable:
-        warnings.warn(
+        warn(
             f"Lifecycle '{spec.name}': state(s) {unreachable} are not reachable "
             f"from '{spec.initial or all_states[0]}' via the declared "
-            f"transitions; no rows will be placed in them."
+            f"transitions; no rows will be placed in them.",
+            ConformanceWarning,
         )
     usable = [s for s in all_states if s in paths]
     if not usable:
-        warnings.warn(
-            f"Lifecycle '{spec.name}': no reachable states. Skipping."
+        warn(
+            f"Lifecycle '{spec.name}': no reachable states. Skipping.",
+            ConformanceWarning,
         )
         return df
 
@@ -128,9 +133,10 @@ def apply_lifecycle(
     if weights:
         dropped = {k: v for k, v in weights.items() if k not in paths and v}
         if dropped:
-            warnings.warn(
+            warn(
                 f"Lifecycle '{spec.name}': weights given for unreachable "
-                f"state(s) {sorted(dropped)}; those shares are redistributed."
+                f"state(s) {sorted(dropped)}; those shares are redistributed.",
+                ConformanceWarning,
             )
         weights = {k: v for k, v in weights.items() if k in paths}
 
@@ -143,9 +149,10 @@ def apply_lifecycle(
 
     missing = [c for c in ts_cols if c not in df.columns]
     if missing:
-        warnings.warn(
+        warn(
             f"Lifecycle '{spec.name}': timestamp column(s) {missing} are not in "
-            f"'{spec.table}'; declare them on the table to have them enforced."
+            f"'{spec.table}'; declare them on the table to have them enforced.",
+            ConformanceWarning,
         )
         ts_cols = [c for c in ts_cols if c in df.columns]
         if not ts_cols:
@@ -204,9 +211,10 @@ def apply_lifecycles(
         try:
             tables[spec.table] = apply_lifecycle(df, spec, rng)
         except Exception as e:   # never let a lifecycle corrupt an otherwise-valid run
-            warnings.warn(
+            warn(
                 f"Lifecycle '{spec.name}' could not be applied ({e}); "
-                f"'{spec.table}' is left as generated."
+                f"'{spec.table}' is left as generated.",
+                ConformanceWarning,
             )
     return tables
 

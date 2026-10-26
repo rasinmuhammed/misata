@@ -10,7 +10,7 @@ This module generates realistic domain-specific values by:
 import json
 import os
 import hashlib
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from pathlib import Path
 
 
@@ -575,7 +575,7 @@ class SmartValueGenerator:
     def _get_cache_key(self, domain: str, context: str, size: int) -> str:
         """Generate a cache key for a pool request."""
         content = f"{domain}:{context}:{size}"
-        return hashlib.md5(content.encode()).hexdigest()[:12]
+        return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:12]
     
     def _load_cached_pool(self, cache_key: str) -> Optional[List[str]]:
         """Load a pool from disk cache."""

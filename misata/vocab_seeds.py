@@ -713,7 +713,7 @@ FEATURE_NAMES: List[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Media, food, and creative-work vocabularies (0.8.1.15)
+# Media, food, and creative-work vocabularies
 # ---------------------------------------------------------------------------
 
 FILM_GENRES = [
@@ -818,7 +818,7 @@ PLOT_STAKES = [
 ]
 
 # ---------------------------------------------------------------------------
-# Reference-table label pools (0.8.1.16)
+# Reference-table label pools
 # A `<head>_types` / `<head>_statuses` lookup table's label column should hold
 # labels for THAT head noun, not generic tier words.
 # ---------------------------------------------------------------------------
@@ -1063,8 +1063,8 @@ def sample_conditional(
 
 
 # ---------------------------------------------------------------------------
-# Medical vocabularies (0.8.1.18) — clinical columns must never fall through
-# to business filler (hospital field report: blood_type held sentences).
+# Medical vocabularies: clinical columns must never fall through to business
+# filler (a blood_type column must hold blood types, not sentences).
 # ---------------------------------------------------------------------------
 
 MEDICAL_DEPARTMENTS = [

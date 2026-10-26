@@ -5,7 +5,7 @@ Provides constraint classes for applying business rules to generated data.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -370,7 +370,7 @@ class ConstraintEngine:
                 raise ConstraintError(
                     f"Failed to apply constraint: {e}",
                     constraint_type=type(constraint).__name__
-                )
+                ) from e
         return df
     
     def validate_all(self, df: pd.DataFrame) -> Dict[str, bool]:

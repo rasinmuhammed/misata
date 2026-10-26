@@ -165,7 +165,6 @@ async def simple_generate(request: SimpleGenerateRequest):
     }
     ```
     """
-    import misata as _misata
     from misata.story_parser import StoryParser
 
     parser = StoryParser()
@@ -221,9 +220,9 @@ async def generate_schema_from_story(request: StoryRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Schema generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Schema generation failed: {str(e)}") from e
 
 
 @app.post("/api/generate-from-graph", response_model=SchemaResponse)
@@ -244,9 +243,9 @@ async def generate_schema_from_graph(request: GraphRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Graph schema generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Graph schema generation failed: {str(e)}") from e
 
 
 @app.post("/api/enhance-schema", response_model=SchemaResponse)
@@ -266,7 +265,7 @@ async def enhance_schema(request: EnhanceRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Schema enhancement failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Schema enhancement failed: {str(e)}") from e
 
 
 @app.post("/api/industry-suggestions")
@@ -282,7 +281,7 @@ async def get_industry_suggestions(request: IndustrySuggestionsRequest):
         return suggestions
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}") from e
 
 
 # ============================================================================
@@ -361,7 +360,7 @@ async def generate_data(request: GenerateRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Data generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Data generation failed: {str(e)}") from e
 
 
 @app.get("/api/download/{download_id}")
@@ -522,7 +521,7 @@ async def preview_distribution(
         unique, counts = np.unique(values, return_counts=True)
 
         return {
-            "distribution": {choice: int(count) for choice, count in zip(unique, counts)},
+            "distribution": {choice: int(count) for choice, count in zip(unique, counts, strict=True)},
             "sample": values[:20].tolist()
         }
 
@@ -536,4 +535,4 @@ async def preview_distribution(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

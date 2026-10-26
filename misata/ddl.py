@@ -8,10 +8,10 @@ Supported SQL dialects: PostgreSQL, MySQL, SQLite, generic ANSI SQL.
 """
 
 import re
-import warnings
 from typing import Dict, List, Optional, Tuple
 
 from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
+from misata.exceptions import ConformanceWarning, warn
 
 
 def _parent_key_for(parent: str, columns_map: Dict[str, List[Column]], fallback: str) -> str:
@@ -301,7 +301,7 @@ def from_ddl(
 
     # Match CREATE TABLE headers and then walk character-by-character to find the
     # matching closing paren, which handles nested parens like DECIMAL(10,2) and
-    # REFERENCES users(id) without the non-greedy .*? truncation bug.
+    # REFERENCES users(id), which a non-greedy .*? pattern would truncate.
     header_pattern = re.compile(
         r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
         r"(?:\"?[\w]+\"?\.)?"       # optional schema prefix
@@ -498,12 +498,12 @@ def from_ddl(
             final_cols.append(col)
         cols = final_cols
         if unparsed_checks:
-            warnings.warn(
+            warn(
                 f"{table_name}: {unparsed_checks} CHECK constraint(s) are beyond what "
                 f"the importer can translate (OR, multi-column or function "
                 f"expressions); the database will still enforce them, so seeding may "
                 f"fail on rows that violate them.",
-                UserWarning, stacklevel=2,
+                ConformanceWarning,
             )
 
         # FK inference from _id suffix
@@ -620,11 +620,9 @@ def from_ddl(
     valid_rels = [r for r in relationships if r.parent_table in known]
     dropped = len(relationships) - len(valid_rels)
     if dropped:
-        warnings.warn(
+        warn(
             f"{dropped} inferred FK relationship(s) dropped because the referenced "
             "table was not found in the DDL. Pass infer_fks=False to suppress.",
-            UserWarning,
-            stacklevel=2,
         )
 
     # A column left typed foreign_key after its relationship was dropped is an

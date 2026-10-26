@@ -369,7 +369,6 @@ def privacy_report(
     exact = real[shared].merge(synthetic[shared], how="inner")
     exact_rate = min(1.0, len(exact) / max(1, len(synthetic)))
 
-    rng = np.random.default_rng(seed)
     real_s = real[shared].sample(min(sample_size, len(real)), random_state=seed)
     syn_s = synthetic[shared].sample(min(sample_size, len(synthetic)), random_state=seed)
 

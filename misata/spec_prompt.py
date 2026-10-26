@@ -14,9 +14,15 @@ warnings, never guessed at.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from misata.schema import SchemaConfig
+
+_log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +96,15 @@ class SpecReport:
                 self.untranslated[:6]
             )
         return line
+
+    def emit(self) -> None:
+        """Report the parse: a warning when a rule was left out, a log line otherwise."""
+        if self.untranslated:
+            from misata.exceptions import ConformanceWarning, warn
+
+            warn(self.summary(), ConformanceWarning)
+        else:
+            _log.info(self.summary())
 
 
 @dataclass

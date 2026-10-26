@@ -18,11 +18,12 @@ log says the same thing, exactly.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 
 def _lifecycle_for(config: Any, table: str) -> Optional[Any]:
@@ -52,10 +53,11 @@ def apply_event_log(
 
     lc = _lifecycle_for(config, spec.entity_table)
     if lc is None:
-        warnings.warn(
+        warn(
             f"EventLog '{spec.name}': no lifecycle declared on "
             f"'{spec.entity_table}', so there is no path to project onto the "
-            f"log. Declare one, or drop this event_log."
+            f"log. Declare one, or drop this event_log.",
+            ConformanceWarning,
         )
         return tables
 
@@ -64,9 +66,10 @@ def apply_event_log(
                           (spec.table, events, spec.event_time_column),
                           (spec.entity_table, entities, lc.state_column)):
         if col not in df.columns:
-            warnings.warn(
+            warn(
                 f"EventLog '{spec.name}': column '{col}' missing from "
-                f"'{name}'. Skipping.")
+                f"'{name}'. Skipping.",
+                ConformanceWarning,)
             return tables
 
     entity_pk = None
@@ -79,9 +82,10 @@ def apply_event_log(
                               if c in events.columns and c in entities.columns]
             break
     if entity_pk is None or entity_pk not in entities.columns:
-        warnings.warn(
+        warn(
             f"EventLog '{spec.name}': no declared relationship links "
-            f"{spec.table}.{spec.entity_key} to {spec.entity_table}. Skipping.")
+            f"{spec.table}.{spec.entity_key} to {spec.entity_table}. Skipping.",
+            ConformanceWarning,)
         return tables
 
     # For each state, the ordered (event_type, timestamp_column) its path
@@ -108,25 +112,26 @@ def apply_event_log(
     total_need = int(sum(need))
     n = len(events)
     if total_need > n:
-        warnings.warn(
+        warn(
             f"EventLog '{spec.name}': the declared states need {total_need} "
             f"events but '{spec.table}' has only {n} rows. Raise "
             f"{spec.table}.row_count to at least {total_need}; the log cannot "
-            f"be complete as declared."
+            f"be complete as declared.",
+            ConformanceWarning,
         )
         return tables
 
     owner = np.empty(n, dtype=object)
     slot = np.zeros(n, dtype="int64")     # which step of the plan this row is
     at = 0
-    for k, cnt in zip(keys, need):
+    for k, cnt in zip(keys, need, strict=True):
         for i in range(cnt):
             owner[at] = k
             slot[at] = i
             at += 1
     # Surplus rows become filler, spread over the entities that can hold it.
     if at < n:
-        extra_keys = [k for k, c in zip(keys, need) if c > 0]
+        extra_keys = [k for k, c in zip(keys, need, strict=True) if c > 0]
         if not extra_keys:
             extra_keys = keys
         idx = rng.integers(0, len(extra_keys), size=n - at)
@@ -171,9 +176,8 @@ def apply_event_log(
                         else prev + hour)
             filled.append(prev)
         times_cache[k] = filled
-        # Filler may ONLY use declared filler events. Letting it reuse the
-        # state events meant a 'completed' filler could land before the task
-        # started, which is the same defect wearing a different hat.
+        # Filler may ONLY use declared filler events. Reusing the state events
+        # would let a 'completed' filler land before the task started.
         filler_cache[k] = list(spec.filler_events or [])
 
     for i in range(n):
@@ -211,9 +215,9 @@ def apply_event_log(
         out[c] = pd.Series(owner).map(ent[c]).to_numpy()
 
     # Moving a row into another partition invalidates every OTHER partitioned
-    # reference it carries: an event reassigned to a task in tenant 3 was still
-    # pointing at an actor in tenant 5, which is the leak `partition_by` exists
-    # to prevent, re-opened by the pass that fixed the log. Any pass that can
+    # reference it carries: an event reassigned to a task in tenant 3 would
+    # still point at an actor in tenant 5, which is the leak `partition_by`
+    # exists to prevent. Any pass that can
     # change a row's partition owes the row's other keys a redraw.
     if partition_cols:
         _redraw_sibling_keys(out, tables, config, spec, partition_cols, rng)
@@ -290,11 +294,12 @@ def _redraw_sibling_keys(
                 draw = np.minimum(draw, pool.size - 1)
             values[rows] = pool[draw]
         if stranded:
-            warnings.warn(
+            warn(
                 f"EventLog '{spec.name}': {stranded} event(s) happen before any "
                 f"{rel.parent_table} row in their partition existed, so "
                 f"{rel.child_key} cannot both stay in the partition and "
-                f"postdate its parent. Start {rel.parent_table}.{ptime} earlier."
+                f"postdate its parent. Start {rel.parent_table}.{ptime} earlier.",
+                ConformanceWarning,
             )
         out[rel.child_key] = values
 
@@ -308,8 +313,9 @@ def apply_event_logs(
         try:
             apply_event_log(tables, spec, config, rng)
         except Exception as e:
-            warnings.warn(f"EventLog '{spec.name}' failed ({e}); "
-                          f"table left as generated.")
+            warn(f"EventLog '{spec.name}' failed ({e}); "
+                          f"table left as generated.",
+            ConformanceWarning,)
     return tables
 
 

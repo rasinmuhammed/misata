@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
+from misata.sqlutil import quote_ident, quote_qualified
 
 
 def schema_from_db(
@@ -104,7 +105,6 @@ def assign_proportional_row_counts(
         parent_to_children.setdefault(rel.parent_table, []).append(rel.child_table)
         child_to_parents.setdefault(rel.child_table, []).append(rel.parent_table)
 
-    table_names = {t.name for t in config.tables}
 
     # ─── Classify each table into a tier ───
     # Reference tables: have children but no parents, and match reference-like names
@@ -221,7 +221,6 @@ def enrich_introspected_schema(config: SchemaConfig) -> None:
     unrealistic FK values, etc.
     """
     # Collect all table names for FK range inference
-    table_names = {t.name for t in config.tables}
 
     for table in config.tables:
         table_lower = table.name.lower()
@@ -489,7 +488,7 @@ def schema_from_sqlalchemy(
     default_rows: int = 1000,
 ) -> SchemaConfig:
     try:
-        from sqlalchemy import MetaData  # type: ignore
+        pass  # type: ignore
     except Exception as exc:
         raise ImportError("SQLAlchemy is required. Install misata[orm].") from exc
 
@@ -588,11 +587,11 @@ def _sqlite_introspect(conn, tables: List[str]):
         # because a unique index over (a, b) constrains the pair.
         unique_cols: set = set()
         composite: list = []
-        for idx in conn.execute(f'PRAGMA index_list("{table}")').fetchall():
+        for idx in conn.execute(f"PRAGMA index_list({quote_ident(table)})").fetchall():
             idx_name, is_unique = idx[1], idx[2]
             if not is_unique:
                 continue
-            members = conn.execute(f'PRAGMA index_info("{idx_name}")').fetchall()
+            members = conn.execute(f"PRAGMA index_info({quote_ident(idx_name)})").fetchall()
             if len(members) == 1:
                 unique_cols.add(members[0][2])
             elif len(members) > 1:
@@ -619,7 +618,7 @@ def _sqlite_introspect(conn, tables: List[str]):
         except Exception:
             pass
 
-        cur = conn.execute(f'PRAGMA table_info("{table}")')
+        cur = conn.execute(f"PRAGMA table_info({quote_ident(table)})")
         cols: List[Column] = []
         for row in cur.fetchall():
             name = row[1]
@@ -654,7 +653,7 @@ def _sqlite_introspect(conn, tables: List[str]):
                 name=f"{table}_unique_{'_'.join(combo)}",
                 type="unique_combination", group_by=list(combo), action="drop"))
 
-        fk_cur = conn.execute(f'PRAGMA foreign_key_list("{table}")')
+        fk_cur = conn.execute(f"PRAGMA foreign_key_list({quote_ident(table)})")
         for fk in fk_cur.fetchall():
             _mark_fk_column(columns_map[table], fk[3])
             relationships.append(
@@ -716,11 +715,11 @@ def _postgres_introspect(conn, tables: List[str]):
           AND tc.table_name = %s
           AND tc.constraint_type = 'PRIMARY KEY'
     """
-    # A UNIQUE constraint is not a PRIMARY KEY, and only primary keys were read.
-    # So `tags.name varchar UNIQUE` came back as an ordinary column, the
-    # generator drew it from a finite pool, and Postgres rejected the insert on
-    # `tags_name_key`. Every Rails, Laravel and Django schema is full of these
-    # (email, slug, name), which made seeding fail on most real applications.
+    # A UNIQUE constraint is not a PRIMARY KEY, so it is read separately.
+    # Without it `tags.name varchar UNIQUE` would be an ordinary column drawn
+    # from a finite pool, and Postgres would reject the insert on
+    # `tags_name_key`. Rails, Laravel and Django schemas are full of these
+    # (email, slug, name).
     #
     # Single-column constraints only: a UNIQUE over (a, b) constrains the pair,
     # and marking a and b individually unique would be a stricter schema than
@@ -831,8 +830,8 @@ def _postgres_introspect(conn, tables: List[str]):
                     # ceiling on any child keyed one-to-one off this table.
                     if parent_table not in external:
                         with conn.cursor() as ccur:
-                            ccur.execute(
-                                f'SELECT COUNT(*) FROM "{parent_schema}"."{parent_table}"')
+                            ccur.execute("SELECT COUNT(*) FROM "
+                                         + quote_qualified(parent_schema, parent_table))
                             n = int(ccur.fetchone()[0])
                         external[parent_table] = (parent_schema, parent_col, n)
                 relationships.append(

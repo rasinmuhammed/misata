@@ -64,14 +64,18 @@ bug worth reporting.
   the docs), interpolated months usually cannot.
 - **Aggregate targets take precedence over declared per-row bounds.** A period
   target that is infeasible under the column's min/max (`min * rows > target`)
-  is met by violating the bound, with a warning before generation. The
-  conformance preview surfaces these conflicts; ignoring the warning means
-  accepting the violation.
-- **Row-count clamps distort marginals silently.** When a period target needs
-  more rows than `max_transactions_per_period` allows, per-row values inflate
-  to preserve the sum. Every aggregate check still passes while the row-level
-  distribution shifts. The builder warns on saturation; the warning is the
-  only signal.
+  is met by violating the bound, by design: the total is the declaration a
+  dashboard checks. Generation emits a `ConformanceWarning` naming the period,
+  the bound and the total it would need, and the conformance preview shows the
+  same conflict before anything is generated.
+- **Row-count clamps change the row size, not the totals.** When a period
+  target needs more rows than `max_transactions_per_period` allows (or fewer
+  than the minimum), the row count is held to the bound and each row grows or
+  shrinks to keep the total exact. Every aggregate check still passes while
+  the per-row mean leaves `avg_transaction_value`. Generation emits a
+  `ConformanceWarning` naming the periods and the mean they ended up with.
+  `warnings.simplefilter("error", misata.MisataWarning)` turns this and every
+  other Misata warning into an error, which is the setting to use in CI.
 - **Group shares need enough rows per bucket.** A `group_shares` declaration
   places at least one row in every positive-share group, so a curve period
   with fewer rows than groups cannot host the split. Such a bucket is skipped

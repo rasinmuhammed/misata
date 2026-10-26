@@ -39,11 +39,18 @@ _DEFAULT_TIMEOUT = 45
 
 
 def _http_json(url: str, timeout: int = _DEFAULT_TIMEOUT) -> dict:
-    req = urllib.request.Request(url, headers={
+    """GET a JSON document from a Wikimedia endpoint.
+
+    Only ``https`` URLs are fetched: ``urlopen`` would otherwise also follow
+    ``file:`` and other schemes, which a capsule builder has no reason to read.
+    """
+    if urllib.parse.urlsplit(url).scheme != "https":
+        raise ValueError(f"refusing to fetch a non-https URL: {url!r}")
+    req = urllib.request.Request(url, headers={  # noqa: S310 - https enforced above
         "User-Agent": USER_AGENT,
         "Accept": "application/sparql-results+json, application/json",
     })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
         return json.loads(resp.read().decode("utf-8"))
 
 

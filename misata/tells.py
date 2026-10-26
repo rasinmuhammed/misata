@@ -552,7 +552,7 @@ def _check_text_diversity(table: str, col: str, s: pd.Series) -> Optional[TellCh
     cr = len(raw) / max(len(gzip.compress(raw, 9)), 1)
     tri, total = set(), 0
     for t in toks:
-        g = list(zip(t, t[1:], t[2:]))
+        g = list(zip(t, t[1:], t[2:], strict=False))
         total += len(g)
         tri.update(g)
     d3 = len(tri) / max(total, 1)
@@ -636,7 +636,7 @@ def _check_text_context(table: str, df: pd.DataFrame) -> List[TellCheck]:
         tb = [_content_words(x) for x in sub.iloc[:, 1]]
 
         def overlap(xs, ys):
-            return float(np.mean([len(x & y) / max(len(x), 1) for x, y in zip(xs, ys)]))
+            return float(np.mean([len(x & y) / max(len(x), 1) for x, y in zip(xs, ys, strict=True)]))
         paired = overlap(ta, tb)
         perm = np.random.default_rng(0).permutation(len(tb))
         shuffled = overlap(ta, [tb[i] for i in perm])
@@ -688,7 +688,7 @@ def _check_name_email(table: str, df: pd.DataFrame) -> Optional[TellCheck]:
     local = sub[email].astype(str).str.split("@").str[0].map(_ascii)
     tokens = sub[names].astype(str).agg(" ".join, axis=1).map(
         lambda s: [t for t in re.split(r"[^a-z]+", _ascii(s)) if len(t) >= 3])
-    match = np.fromiter((any(t in loc for t in toks) for loc, toks in zip(local, tokens)),
+    match = np.fromiter((any(t in loc for t in toks) for loc, toks in zip(local, tokens, strict=True)),
                         dtype=bool, count=len(sub))
     share = float(match.mean())
     ev = {"n": int(len(sub)), "email_column": email, "name_columns": names,
@@ -738,8 +738,8 @@ def _check_fanout(parent: str, pkey: str, child: str, ckey: str,
     refs = cdf[ckey].dropna()
     # About one child per parent (most buyers on a marketplace buy once) has
     # no fan-out shape to judge: the counts are necessarily even. Calibrated
-    # on Olist's real orders, where 30,000 orders over 29,651 customers gave
-    # Gini 0.01 and this check used to call real data fake.
+    # on Olist's real orders, where 30,000 orders over 29,651 customers give
+    # Gini 0.01, which is real data and must not be called fake.
     if len(keys) < 20 or len(refs) < 200 or len(refs) < 2 * len(keys):
         return None
     per_parent = refs.value_counts().reindex(keys.unique(), fill_value=0).to_numpy()

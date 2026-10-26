@@ -265,7 +265,7 @@ It handles what it knows well and returns nothing for the rest.
 - **An entity you named may produce no table.** `"800 customers, 1200
   subscriptions and 5000 invoices"` builds customers and subscriptions only. The
   SaaS template has no invoices table, so the count is dropped. It is *not*
-  silent: the parser raises `UserWarning: This parser could not turn '5000
+  silent: the parser raises `ConformanceWarning: This parser could not turn '5000
   invoices' into a declaration`, so do not run it with warnings suppressed.
 - **A count is sized for you when you did not state one.** If your sentence
   declares a revenue curve but no count for the table that carries it, the

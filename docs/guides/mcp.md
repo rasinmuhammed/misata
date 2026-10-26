@@ -106,6 +106,9 @@ The server exposes eleven tools:
 | `preview_story` | Detect domain, scale, locale, and table layout: zero rows generated |
 | `inspect_schema` | Return the full schema (tables, columns, FK relationships) as structured JSON |
 | `audit_dataset` | Run the coherence audit on any folder of CSVs: backwards timestamps, totals that don't reconcile, near-constant columns, scored 0-100 |
+| `explain_schema` | What `generate_from_schema` would do with a schema, without generating: planned rows, which declaration writes which column, curve plans, and every conflict with its remedy |
+| `solve_outcome` | Find outcome-curve values that make SQL metrics over the generated tables hit per-period targets (net revenue after refunds, revenue after a fee) |
+| `attest_dataset` | Prove a folder of CSV or Parquet files holds every invariant its schema declared, as an in-toto Statement with a standalone `verify.py` |
 | `validate_domain` | Flag physiologically or financially impossible values in a folder of CSVs (`clinical`, `financial`) |
 | `validate_yaml` | Two-layer validation (structural JSON Schema + semantic coherence checks) of a `misata.yaml` |
 | `seed_database` | Insert generated rows into a real Postgres or SQLite database. Plans by default; writes only on `apply=true` |
@@ -192,7 +195,7 @@ rather than accepting the first pass.
 | one sentence, common domain | `generate_dataset` |
 | specific tables, columns, or declared outcomes | `generate_from_schema` |
 | "will this schema even work?" before a big run | `validate_yaml` |
-| checking data that already exists | `audit_dataset`, `validate_domain` |
+| checking data that already exists | `audit_dataset`, `attest_dataset`, `validate_domain` |
 | loading a real dev database | `seed_database` (plan first) |
 
 **Set a seed if you want the run to be repeatable.** The same schema and seed
@@ -458,6 +461,110 @@ postcode / country), near-constant columns, filler text, out-of-scale numerics.
 
 ---
 
+### `explain_schema`
+
+Reports what `generate_from_schema` would do with a schema, without
+generating a row. Call it on a schema the agent designed, before the run:
+conflicts that would refuse generation come back with the arithmetic and a
+remedy, and `writers` shows which declaration owns each column.
+
+**Input:**
+```json
+{ "schema": { "...": "the generate_from_schema schema" }, "seed": 42 }
+```
+
+**Output (abridged):**
+```json
+{
+  "ok": true,
+  "will_generate": true,
+  "total_rows": 6000,
+  "estimated_bytes": 820000,
+  "tables": [{"name": "orders", "rows": 5000, "rows_from": "row_count", "columns": 5}],
+  "declarations": [{"key": "outcome_curves", "count": 1, "summary": "..."}],
+  "writers": {"orders.amount": ["outcome_curve"]},
+  "conflicts": [],
+  "invariants_total": 4
+}
+```
+
+---
+
+### `solve_outcome`
+
+Finds the outcome-curve values that make a metric computed from the data hit
+its targets. Use it when the number that matters is not a column but a
+query: net revenue after refunds, revenue after a fee. Each query runs in a
+sandboxed DuckDB over the generated tables and returns one (period, value)
+row per period. Nothing is written; put the returned `levers` into the
+schema's curves and generate as usual.
+
+**Input:**
+```json
+{
+  "schema": { "...": "a schema with an exact outcome curve on orders.amount" },
+  "queries": {"net": "SELECT date_trunc('month', ordered_at), SUM(amount) * 0.97 FROM orders GROUP BY 1"},
+  "targets": [{"metric": "net", "lever": "orders.amount",
+               "values": {"2025-01": 70000, "2025-02": 65000}}],
+  "tolerance": "0.5%"
+}
+```
+
+**Output (abridged):**
+```json
+{
+  "ok": true,
+  "converged": true,
+  "reason": "converged",
+  "iterations": 4,
+  "levers": {"orders.amount": [{"date": "2025-01-01", "target_value": 72078.0},
+                               {"date": "2025-02-01", "target_value": 66954.03}]}
+}
+```
+
+---
+
+### `attest_dataset`
+
+Proves a folder of files holds every invariant its schema declared. Each
+invariant is derived from the schema before a row is read (curve totals, rate
+anchors, group shares, ledger identities, foreign keys, unique columns), then
+DuckDB runs it against the files. Use it after `generate_from_schema`, with
+the same schema dict and seed.
+
+**Input:**
+```json
+{ "dataset_dir": "/tmp/misata_out", "schema": { "...": "the generate_from_schema schema" }, "seed": 42 }
+```
+
+**Output:**
+```json
+{
+  "ok": true,
+  "result": "PASSED",
+  "invariants_held": 41,
+  "invariants_total": 41,
+  "failures": [],
+  "subjects": [{"name": "orders.csv", "digest": {"sha256": "9e07..."}}],
+  "files": {
+    "statement": "/tmp/misata_out/attestation.intoto.json",
+    "envelope": "/tmp/misata_out/attestation.dsse.json",
+    "verifier": "/tmp/misata_out/verify.py"
+  },
+  "invariants": [
+    {"id": "orders.amount.month:3.outcome_curve_period", "expected": "31000.00",
+     "observed": "31000.00", "passed": true}
+  ],
+  "invariants_truncated": 0
+}
+```
+
+The Statement is an [in-toto v1 Statement](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md)
+that cosign and GitHub's `actions/attest` sign as is. Anyone with the folder
+reruns the proof with `python verify.py`. See [Attest a dataset](attest.md).
+
+---
+
 ### `validate_domain`
 
 Checks a folder of CSVs for values that are physiologically or financially
@@ -605,6 +712,9 @@ generate_dataset       →  misata.generate() + coherence_audit() + to_csv()
 generate_from_schema   →  misata.from_dict_schema() + generate_from_schema()
                           + verify_integrity() + coherence_audit()
 audit_dataset          →  misata.coherence_audit()
+explain_schema         →  misata.explain()
+solve_outcome          →  misata.solve() with SQLRunner
+attest_dataset         →  misata.attest()
 validate_domain        →  misata.validate_domain()
 validate_yaml          →  json_schema() + validate_schema() + check_feasibility()
 seed_database          →  misata.introspect + misata.db.seed_database()
@@ -645,7 +755,8 @@ Misata is listed on [Smithery.ai](https://smithery.ai), the MCP server discovery
 default they use a system temp directory that only the current user can read;
 if you pass a custom `output_dir` the agent writes only inside that directory.
 `audit_dataset` and `validate_domain` read the CSVs in a directory and write
-nothing.
+nothing. `attest_dataset` reads the files in a directory and writes three files
+beside them: the Statement, its DSSE envelope and `verify.py`.
 
 `seed_database` is the only tool that writes to a database. It plans by
 default and inserts nothing until a second call with `apply=true`, and it will

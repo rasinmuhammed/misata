@@ -30,6 +30,24 @@ from typing import Dict, List, Optional, Sequence, Union
 
 import numpy as np
 
+from misata.vocab_seeds import (
+    AUDIT_REASONS,
+    CHIEF_COMPLAINTS,
+    CHURN_REASONS,
+    CLINICAL_NOTES,
+    CUSTOMER_FEEDBACK,
+    DELIVERY_INSTRUCTIONS,
+    DISCHARGE_INSTRUCTIONS,
+    PRODUCT_DESCRIPTIONS_BY_CATEGORY,
+    RESOLUTION_NOTES,
+    RETURN_REASONS,
+    SECONDARY_UNITS,
+    STREET_NAMES,
+    SYSTEM_ERROR_MESSAGES,
+    TICKET_SUBJECTS,
+    TRANSACTION_MEMOS,
+)
+
 
 _SENTENCE_START = re.compile(r"(^|[.!?]\s+)([a-z])")
 
@@ -796,23 +814,6 @@ _TITLE_RULES: Dict[str, List[Rule]] = {
     "bang": [(6, ""), (3, "!"), (1, "!!"), (1, "!!!")],
 }
 
-from misata.vocab_seeds import (
-    AUDIT_REASONS,
-    CHIEF_COMPLAINTS,
-    CHURN_REASONS,
-    CLINICAL_NOTES,
-    CUSTOMER_FEEDBACK,
-    DELIVERY_INSTRUCTIONS,
-    DISCHARGE_INSTRUCTIONS,
-    PRODUCT_DESCRIPTIONS_BY_CATEGORY,
-    RESOLUTION_NOTES,
-    RETURN_REASONS,
-    SECONDARY_UNITS,
-    STREET_NAMES,
-    SYSTEM_ERROR_MESSAGES,
-    TICKET_SUBJECTS,
-    TRANSACTION_MEMOS,
-)
 
 # ---------------------------------------------------------------------------
 # Generic business note grammar — replaces the lorem ipsum fallback
@@ -1186,7 +1187,7 @@ class MicrotextGenerator:
         has_secondary = self.rng.random(size) < 0.32
         secondaries = self.rng.choice(SECONDARY_UNITS, size=size)
         out = []
-        for n, st, sfx, sec_flag, sec in zip(numbers, streets, suffixes, has_secondary, secondaries):
+        for n, st, sfx, sec_flag, sec in zip(numbers, streets, suffixes, has_secondary, secondaries, strict=True):
             base = f"{n} {st} {sfx}"
             if sec_flag:
                 base += f", {sec}"

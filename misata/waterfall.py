@@ -18,14 +18,14 @@ technique, the same primitives behind exact group shares.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 
 from misata.schema import WaterfallIdentity
 from misata.shares import split_total_by_shares
+from misata.exceptions import ConformanceWarning, warn
 
 
 def _normalized(shares: Dict[str, float], label: str, spec_table: str) -> Dict[str, float]:
@@ -34,9 +34,10 @@ def _normalized(shares: Dict[str, float], label: str, spec_table: str) -> Dict[s
     if not out or s <= 0:
         return {}
     if abs(s - 1.0) > 0.005:
-        warnings.warn(
+        warn(
             f"waterfall on {spec_table}: {label} shares sum to {s:.3f}, "
-            f"normalising to 1")
+            f"normalising to 1",
+            ConformanceWarning,)
     return {k: v / s for k, v in out.items()}
 
 
@@ -108,16 +109,18 @@ def apply_waterfalls(
     seg_vals = [s.segment_value for s in specs]
     if (None in seg_cols or len(seg_cols) != 1
             or None in seg_vals or len(set(seg_vals)) != len(seg_vals)):
-        warnings.warn(
+        warn(
             f"waterfalls on {specs[0].table}: multiple specs must share one "
             f"segment_column and carry distinct segment_values; skipping all "
-            f"(ambiguous)")
+            f"(ambiguous)",
+            ConformanceWarning,)
         return df
     seg_col = specs[0].segment_column
     if seg_col not in df.columns:
-        warnings.warn(
+        warn(
             f"waterfalls on {specs[0].table}: segment column '{seg_col}' "
-            f"does not exist; skipping")
+            f"does not exist; skipping",
+            ConformanceWarning,)
         return df
 
     # Partition rows across specs by declared gross movement, min one row
@@ -137,7 +140,7 @@ def apply_waterfalls(
     idx = rng.permutation(n)
     pos = 0
     segments = df[seg_col].astype(object).to_numpy(copy=True)
-    for spec, count in zip(specs, counts):
+    for spec, count in zip(specs, counts, strict=True):
         rows = idx[pos: pos + count]
         pos += count
         slice_df = df.iloc[rows].copy()
@@ -174,9 +177,10 @@ def apply_waterfall(
                 cells.append((period, label, total))
     n = len(df)
     if n < len(cells):
-        warnings.warn(
+        warn(
             f"waterfall on {spec.table}: {n} rows cannot host {len(cells)} "
-            f"period-type movements; skipping (infeasible)")
+            f"period-type movements; skipping (infeasible)",
+            ConformanceWarning,)
         return df
     if not cells:
         return df
@@ -197,7 +201,7 @@ def apply_waterfall(
     amounts = np.empty(n, dtype=float)
     idx = rng.permutation(n)
     pos = 0
-    for (period, label, total), count in zip(cells, counts):
+    for (period, label, total), count in zip(cells, counts, strict=True):
         rows = idx[pos: pos + count]
         pos += count
         periods[rows] = period

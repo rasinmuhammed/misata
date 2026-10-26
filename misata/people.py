@@ -24,7 +24,7 @@ disturbing the declared gender distribution.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -341,7 +341,7 @@ class PersonSampler:
                 last[s_mask] = self.rng.choice(pools["last"], size=n)
 
         gender = np.where(is_female, "Female", "Male").astype(object)
-        full = np.array([f"{f} {l}" for f, l in zip(first, last)], dtype=object)
+        full = np.array([f"{f} {surname}" for f, surname in zip(first, last, strict=True)], dtype=object)
         return {
             "first": first,
             "last": last,

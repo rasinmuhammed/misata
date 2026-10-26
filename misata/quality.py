@@ -8,9 +8,8 @@ This module validates generated synthetic data for:
 - Domain-specific rules
 """
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
-import warnings
 import numpy as np
 import pandas as pd # type: ignore
 

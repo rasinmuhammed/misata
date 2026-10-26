@@ -36,8 +36,7 @@ Example::
 from __future__ import annotations
 
 import re
-import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from misata.schema import (
     Degradation,
@@ -55,6 +54,7 @@ from misata.schema import (
     SchemaConfig,
     Table,
 )
+from misata.exceptions import ConformanceWarning, warn
 
 
 # Envelope keys hoisted into their dunder form by ``_normalise_envelope``.
@@ -105,11 +105,10 @@ HANDLED_TOP_LEVEL_KEYS = frozenset(
 )
 
 #: Declarations this parse could not build, collected rather than only warned
-#: about. A malformed directive used to be skipped with a warning and nothing
-#: else: generation ran, produced data, and the property the user declared was
-#: simply absent. That is the failure mode this engine exists to prevent, and it
-#: was happening at the front door. Feasibility turns each of these into a
-#: refusal, so a declaration is honoured or refused and never merely ignored.
+#: about. A malformed directive that is merely skipped lets generation run and
+#: produce data in which the declared property is simply absent. Feasibility
+#: turns each of these into a refusal, so a declaration is honoured or refused
+#: and never merely ignored.
 #:
 #: A list rather than a raise, because from_dict_schema reports every problem at
 #: once and fixing them one run at a time is miserable.
@@ -176,12 +175,11 @@ _NATIVE_TYPES = frozenset({
 def resolve_column_type(raw_type: str, *, where: str = "") -> str:
     """Translate a declared type, and refuse one nobody recognises.
 
-    This used to be ``_TYPE_MAP.get(raw_type, "text")``. An unrecognised type
-    became text, and semantic inference then filled the column from its name, so
-    a column declared ``{"type": "category", "categories": ["US","UK","DE"]}``
-    came back holding Australia, Brazil and Japan. The API answered `ok: true`
-    with `integrity.verified: true`, and the values were plausible enough that
-    nobody would look twice at country names in a country column.
+    Falling back to text for an unrecognised type would let semantic inference
+    fill the column from its name, so a column declared
+    ``{"type": "category", "categories": ["US","UK","DE"]}`` could hold
+    Australia, Brazil and Japan: plausible enough that nobody would look twice,
+    and not what was declared.
 
     Substituting for a declaration is the worst of the three options. Honouring
     it is best, refusing it is honest, and quietly generating something else
@@ -427,11 +425,9 @@ def _col_from_dict(
 
     # Primary keys → a surrogate key, bounded by how many rows there are.
     #
-    # This drew uniformly from 1 to 2,000,000 whatever the table's size, so a
-    # twenty row dimension came back with department_key 1,660,996. Real
-    # surrogate keys run 1..N, and on a star schema page that difference is the
-    # whole difference between a warehouse and a pile of random integers. With
-    # `unique` set and a range of exactly N, every value is used.
+    # Real surrogate keys run 1..N, so a twenty row dimension has keys 1 to 20,
+    # not values scattered up to two million. With `unique` set and a range of
+    # exactly N, every value is used.
     if col_def.get("primary_key") and col_name == primary_key_col:
         upper = int(row_count) if isinstance(row_count, int) and row_count > 0 else 2_000_000
         return Column(
@@ -445,7 +441,13 @@ def _col_from_dict(
     # FK declared inline as a nested dict
     fk_ref = col_def.get("foreign_key")
     if fk_ref or raw_type == "foreign_key":
-        return Column(name=col_name, type="foreign_key", distribution_params={})
+        return Column(
+            name=col_name,
+            type="foreign_key",
+            distribution_params={},
+            unique=bool(col_def.get("unique", False)),
+            nullable=bool(col_def.get("nullable", False)),
+        )
 
     misata_type = resolve_column_type(raw_type, where=f"column {col_name!r}")
 
@@ -474,9 +476,8 @@ def _col_from_dict(
     elif misata_type == "text":
         # Token-aware inference: exact name, id-suffix, whole-word compound key,
         # then guarded head tokens — never a raw substring scan.
-        # Only guess when the caller said nothing. Inference used to overwrite
-        # an explicit `text_type` (or `subtype`) from the dict schema, so a
-        # column the user had already described was renamed by a heuristic.
+        # Only guess when the caller said nothing: an explicit `text_type` (or
+        # `subtype`) from the dict schema is never overridden by a heuristic.
         _stated = col_def.get("text_type") or col_def.get("subtype")
         if _stated:
             params["text_type"] = _stated
@@ -496,8 +497,11 @@ def _col_from_dict(
             params.pop("_text_type_is_default", None)
 
     elif misata_type in ("date", "datetime"):
-        params["start"] = col_def.get("min_date", col_def.get("start", "2020-01-01"))
-        params["end"] = col_def.get("max_date", col_def.get("end", "2024-12-31"))
+        # "min"/"max" are what the MCP tool documents for date bounds ("Numeric or date bounds"), and what agents write;
+        # only "min_date"/"start" were read, so a declared window was dropped without a word and every date fell in
+        # the 2020-2024 default (a SaaS story set in 2025-26 had every account created before it began).
+        params["start"] = col_def.get("min_date", col_def.get("start", col_def.get("min", "2020-01-01")))
+        params["end"] = col_def.get("max_date", col_def.get("end", col_def.get("max", "2024-12-31")))
 
     elif misata_type == "boolean":
         if col_def.get("probability") is not None:
@@ -518,13 +522,11 @@ def _col_from_dict(
             params["probability"] = 1.0 if bool(col_def["enum"][0]) else 0.0
 
     # ── Everything else reaches the engine ───────────────────────────────────
-    # This was an enumerated allowlist of about thirty keys, and it dropped any
-    # declaration nobody had remembered to add. `template` and `variables` were
-    # missing, so a declared template silently produced generic sentence filler
-    # instead. The YAML loader had exactly this bug, three times, and fixed it
-    # by inverting: name the keys consumed above, and pass the rest through.
+    # Name the keys consumed above and pass the rest through. An allowlist
+    # drops any declaration nobody remembered to add (a declared `template`
+    # would produce generic filler instead).
     #
-    # Inverting is also the safer direction. An unknown key carried into
+    # Passing through is also the safer direction. An unknown key carried into
     # distribution_params is ignored by the engine, while a known key dropped
     # here is a declaration that does nothing while the schema still reads as
     # though it means something.
@@ -634,9 +636,8 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
 
     ``{"name": ..., "seed": ..., "tables": {...}, "relationships": [...]}``
     is what ``misata.yaml`` and several README examples use; callers frequently
-    hand the same shape to :func:`from_dict_schema`. Without this unwrap the
-    parser used to treat ``tables`` as a table named "tables" and silently
-    generate garbage.
+    hand the same shape to :func:`from_dict_schema`. Unwrapping it keeps
+    ``tables`` from being read as a table named "tables".
     """
     raw_tables = schemas.get("tables")
     if not isinstance(raw_tables, dict) or not raw_tables:
@@ -664,9 +665,8 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
     # `locale` is published at the top level by our own JSON Schema, which
     # SchemaStore ships to every editor, so that is the spelling people are
     # autocompleted into. It lives on RealismConfig internally. Accept the
-    # documented spelling and fold it in rather than ignoring it silently,
-    # which is what happened before: the declaration was accepted, no error was
-    # raised, and the data came back in the default locale.
+    # documented spelling and fold it in, so the declared locale is the one
+    # the data uses.
     if schemas.get("locale"):
         realism_block = dict(flat.get("__realism__") or {})
         realism_block.setdefault("locale", schemas["locale"])
@@ -692,12 +692,10 @@ def _unwrap_envelope(schemas: Dict[str, Any]) -> Dict[str, Any]:
 # "table" field ({"table": "sales", "measure": "revenue", ...}) -- unlike
 # __correlations__ and __constraints__, which are read only from inside a
 # table's own dict, every one of these is read only from the schema's TOP
-# level. That split is not documented anywhere a reader would see it before
-# getting it wrong: nesting __group_shares__ inside its table (the pattern
-# __correlations__ actually uses) does not raise, does not warn, and
-# silently generates a completely different, wrong distribution -- found by
-# checking the measured shares against docs/reference/declarations.md's own
-# example, which is exactly the failure mode this file exists to not have.
+# level. Nesting __group_shares__ inside its table (the pattern
+# __correlations__ uses) is a natural mistake, so these keys are hoisted from a
+# table's dict to the top level rather than ignored, and the declared shares
+# hold wherever they were written.
 _TABLE_HOISTABLE_ENVELOPE_KEYS: Tuple[str, ...] = tuple(
     dunder for _attr, dunder in _ENVELOPE_KEYS
     if dunder not in ("__realism__", "__vocabulary__")
@@ -868,9 +866,8 @@ def from_dict_schema(
 
     # Envelope metadata hoisted by _unwrap_envelope.
     # Both spellings. `__name__` is this path's own dialect; `name` is what the
-    # published JSON Schema documents and what the YAML loader honours, and it
-    # was being dropped here, so the same document produced a named dataset
-    # through one entry point and "Imported schema" through the other.
+    # published JSON Schema documents and what the YAML loader honours, so the
+    # same document gets the same name through either entry point.
     # Only when it is metadata. A schema may contain a table literally called
     # `name`, in which case the value is a mapping of columns and taking it as
     # the dataset's title fails validation.
@@ -888,7 +885,7 @@ def from_dict_schema(
         if rel is not None:
             relationships.append(rel)
         else:
-            warnings.warn(f"Skipping unparseable relationships[{i}]: {rel_def!r}")
+            warn(f"Skipping unparseable relationships[{i}]: {rel_def!r}", ConformanceWarning)
 
     # Top-level directives (not tables): declared outcome curves and rate
     # curves, the schema-level half of the engine contract. A single malformed
@@ -901,32 +898,38 @@ def from_dict_schema(
         try:
             outcome_curves.append(OutcomeCurve(**curve_def))
         except Exception as e:
-            warnings.warn(f"Skipping invalid __outcome_curves__[{i}]: {e}")
+            warn(f"Skipping invalid __outcome_curves__[{i}]: {e}", ConformanceWarning)
             _DROPPED.append(("outcome_curves", i, str(e)))
     rate_curves: List[RateCurve] = []
     for i, rate_def in enumerate(schemas.get("__rate_curves__") or []):
         try:
+            if isinstance(rate_def, dict) and not rate_def.get("rate_points"):
+                # "curve_points" is the outcome curves' key and agents carry it over; it was ignored, so the curve held nothing
+                rate_def = {**{k: v for k, v in rate_def.items() if k not in ("curve_points", "points")},
+                            "rate_points": rate_def.get("curve_points") or rate_def.get("points") or []}
+                if not rate_def["rate_points"]:
+                    raise ValueError("no rate_points: give [{'period': 'YYYY-MM', 'rate': 0.03}, ...]")
             rate_curves.append(RateCurve(**rate_def))
         except Exception as e:
-            warnings.warn(f"Skipping invalid __rate_curves__[{i}]: {e}")
+            warn(f"Skipping invalid __rate_curves__[{i}]: {e}", ConformanceWarning)
             _DROPPED.append(("rate_curves", i, str(e)))
     group_shares: List[GroupShares] = []
     for i, share_def in enumerate(schemas.get("__group_shares__") or []):
         try:
             group_shares.append(GroupShares(**share_def))
         except Exception as e:
-            warnings.warn(f"Skipping invalid __group_shares__[{i}]: {e}")
+            warn(f"Skipping invalid __group_shares__[{i}]: {e}", ConformanceWarning)
             _DROPPED.append(("group_shares", i, str(e)))
     waterfalls: List[WaterfallIdentity] = []
     for i, wf_def in enumerate(schemas.get("__waterfalls__") or []):
         try:
             waterfalls.append(WaterfallIdentity(**wf_def))
         except Exception as e:
-            warnings.warn(f"Skipping invalid __waterfalls__[{i}]: {e}")
+            warn(f"Skipping invalid __waterfalls__[{i}]: {e}", ConformanceWarning)
             _DROPPED.append(("waterfalls", i, str(e)))
     # Units that wear out. Registering the envelope key is not the same as
-    # building the object: the key was accepted and nothing was constructed,
-    # which is the same silence three other declarations shipped with.
+    # building the object, so each entry is constructed here or recorded as
+    # dropped.
     degradations: List["Degradation"] = []
     for i, d_def in enumerate(schemas.get("__degradations__") or []):
         try:
@@ -936,7 +939,7 @@ def from_dict_schema(
             ]
             degradations.append(Degradation(**d_def))
         except Exception as e:
-            warnings.warn(f"Skipping invalid __degradations__[{i}]: {e}")
+            warn(f"Skipping invalid __degradations__[{i}]: {e}", ConformanceWarning)
             _DROPPED.append(("degradations", i, str(e)))
 
     stock_flows: List[StockFlowIdentity] = []
@@ -944,12 +947,12 @@ def from_dict_schema(
         try:
             stock_flows.append(StockFlowIdentity(**sf_def))
         except Exception as e:
-            warnings.warn(f"Skipping invalid __stock_flows__[{i}]: {e}")
+            warn(f"Skipping invalid __stock_flows__[{i}]: {e}", ConformanceWarning)
             _DROPPED.append(("stock_flows", i, str(e)))
 
-    # Every declaration added since 0.8.9.4 was reachable from SchemaConfig but
-    # not from YAML, so `misata lint` rejected the very files the docs showed.
-    # One table, so the next declaration is one line rather than a new branch.
+    # Every SchemaConfig declaration is reachable from the dict and YAML forms,
+    # so `misata lint` accepts the files the docs show. One table, so the next
+    # declaration is one line rather than a new branch.
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
                                Duplicates, EventLog, GraphMotifs,
                                JointDistribution, LateArrival, Lifecycle,
@@ -977,7 +980,7 @@ def from_dict_schema(
             try:
                 out.append(model(**raw))
             except Exception as e:
-                warnings.warn(f"Skipping invalid __{key}__[{i}]: {e}")
+                warn(f"Skipping invalid __{key}__[{i}]: {e}", ConformanceWarning)
                 _DROPPED.append((key, i, str(e)))
         declared[key] = out
 
@@ -1047,9 +1050,7 @@ def from_dict_schema(
             continue  # flat-form directive, read below
         if not isinstance(table_def, dict):
             # A recognised top-level key carrying metadata is not a malformed
-            # table. Passing the documented `name` and `seed` used to warn
-            # "Skipping non-dict entry for table 'name'", which reads as the
-            # caller's mistake when they did exactly what the docs say.
+            # table: the documented `name` and `seed` pass without a warning.
             #
             # The test is the VALUE, not the key: `name: "sales"` is metadata,
             # while `name: {...columns...}` is a table that happens to be
@@ -1057,10 +1058,11 @@ def from_dict_schema(
             if (table_name in HANDLED_TOP_LEVEL_KEYS
                     or table_name in UNHANDLED_TOP_LEVEL_KEYS):
                 continue
-            warnings.warn(
+            warn(
                 f"Skipping {table_name!r}: a table must be a mapping of column "
                 f"names to definitions, and this is a "
-                f"{type(table_def).__name__}.")
+                f"{type(table_def).__name__}.",
+                ConformanceWarning,)
             continue
 
         # Support both __table_description__ and __description__ as table-level metadata
@@ -1109,7 +1111,7 @@ def from_dict_schema(
             try:
                 table_constraints.append(Constraint(**c_def))
             except Exception as e:
-                warnings.warn(f"Table '{table_name}' __constraints__[{i}] is invalid and was skipped: {e}")
+                warn(f"Table '{table_name}' __constraints__[{i}] is invalid and was skipped: {e}", ConformanceWarning)
 
         # Per-table Pearson correlations between numeric columns (applied post-generation).
         # Supports two formats:
@@ -1153,24 +1155,16 @@ def from_dict_schema(
             # ``references: "parent_table.parent_key"`` string form.
             fk_ref = col_def.get("foreign_key")
             if fk_ref and isinstance(fk_ref, dict):
-                # ``{"table": "parent"}`` with no explicit ``column`` used to
-                # default straight to the literal string "id" -- correct for
-                # a schema built around an "id" convention, silently wrong
-                # for one that isn't. A parent table whose real primary key
-                # is named something else (explicit ``primary_key: true`` on
-                # a differently-named column, or no "id" column at all) got
-                # a Relationship pointing at a column that doesn't exist,
-                # and every downstream `.set_index(rel.parent_key)` in the
-                # engine raised `KeyError: "None of ['id'] are in the
-                # columns"` the first time it tried to resolve that FK.
-                # Found live, 2026-09-04: a wave of these on the public
-                # /engine/try-generate taster, arriving with a traffic spike
-                # from a shared link, one bad FK away from a first
-                # impression. Resolve the parent's ACTUAL primary key the
-                # same way _detect_pk already does everywhere else in this
-                # file, and only fall back to "id" when the parent table
-                # itself can't be found (or hasn't been declared yet in this
-                # dict) to resolve against.
+                # ``{"table": "parent"}`` with no explicit ``column`` points at
+                # the parent's actual primary key, not the literal "id". A
+                # parent whose key is named something else (explicit
+                # ``primary_key: true`` on another column, or no "id" column
+                # at all) would otherwise get a Relationship to a column that
+                # does not exist, and the engine's `.set_index(rel.parent_key)`
+                # would raise KeyError. Resolve it the way _detect_pk does
+                # elsewhere in this file, and fall back to "id" only when the
+                # parent table cannot be found (or is not declared yet in this
+                # dict).
                 _parent_def = schemas.get(fk_ref["table"])
                 _resolved_pk = (
                     _detect_pk(_column_defs_of(_parent_def)) if _parent_def is not None else None
@@ -1180,6 +1174,10 @@ def from_dict_schema(
                     child_table=table_name,
                     parent_key=fk_ref.get("column") or _resolved_pk or "id",
                     child_key=col_name,
+                    # every parent with at least this many children (an order with a line): only the explicit
+                    # __relationships__ form carried it, which the MCP tool never mentions, so 40-59% of orders came
+                    # back with no lines and a total of 0
+                    **({"min_children": int(fk_ref["min_children"])} if fk_ref.get("min_children") else {}),
                 ))
             elif isinstance(fk_ref, str) and "." in fk_ref:
                 # The shorthand a hand-written or LLM-written schema reaches
@@ -1285,9 +1283,8 @@ def from_dict_schema(
         realism=realism_config,
         # An explicit argument wins; otherwise honour the `seed` written in the
         # document, which the JSON Schema publishes and the YAML loader reads.
-        # Without this a declared seed was silently ignored on this path and the
-        # same document produced different bytes through the two loaders,
-        # which is the one thing a seed exists to prevent.
+        # The same document must produce the same bytes through both loaders,
+        # which is the one thing a seed exists to guarantee.
         seed=(seed if seed is not _SEED_UNSET
               else (schemas["seed"] if isinstance(schemas.get("seed"), int)
                     else 42)),

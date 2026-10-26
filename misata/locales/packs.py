@@ -15,8 +15,9 @@ Each pack carries:
   - Postcode pattern (regex)
 """
 
+import math
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
 
 @dataclass
@@ -99,7 +100,6 @@ class LocalePack:
 #   OM: National Centre for Statistics and Information, private-sector
 #       modal bracket for insured Omanis, OMR 325-400/mo (2025)
 
-import math
 
 def _lognorm(median: float) -> tuple:
     """Return (lognormal_mean, std=0.5) for a given median salary."""

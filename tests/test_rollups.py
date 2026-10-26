@@ -13,7 +13,7 @@ import pytest
 
 import misata
 from misata.schema import SchemaConfig, Table, Column, Relationship
-from misata.rollups import infer_rollups, collect_declared_rollups
+from misata.rollups import infer_rollups
 
 warnings.filterwarnings("ignore")
 
@@ -209,3 +209,58 @@ class TestYamlRoundTrip:
         real = t["orders"].groupby("customer_id")["amount"].sum()
         m = t["customers"].set_index("customer_id")
         assert (m["total_spent"] - real.reindex(m.index).fillna(0)).abs().max() < 1e-6
+
+
+class TestStreamedRollups:
+    """Batch partials give the same parent values as one groupby over all rows."""
+
+    @staticmethod
+    def _child(n=20_000):
+        import numpy as np
+
+        rng = np.random.default_rng(0)
+        child = pd.DataFrame({
+            "pid": rng.integers(1, 1_500, n),
+            "amount": rng.lognormal(3, 1, n).round(2),
+            "qty": rng.integers(1, 9, n),
+            "at": pd.Timestamp("2024-01-01") + pd.to_timedelta(rng.integers(0, 10**7, n), unit="s"),
+            "status": rng.choice(["paid", "void"], n),
+        })
+        child.loc[rng.random(n) < 0.05, "amount"] = np.nan
+        return child
+
+    @pytest.mark.parametrize("agg,column,target,where", [
+        ("count", None, "n", None),
+        ("sum", "amount", "x", None),
+        ("mean", "amount", "x", None),
+        ("min", "amount", "x", None),
+        ("max", "amount", "x", None),
+        ("sum", "qty", "n", None),
+        ("max", "qty", "n", None),
+        ("min", "at", "x", None),
+        ("max", "at", "x", None),
+        ("sum", "amount", "x", {"status": "paid"}),
+    ])
+    def test_streamed_equals_one_pass(self, agg, column, target, where):
+        from misata.rollups import RollupAccumulator, RollupSpec
+
+        child = self._child()
+        parent = pd.DataFrame({"id": range(1, 1_600), "x": 0.0, "n": 0})
+        spec = RollupSpec(parent_table="p", target_column=target, from_table="c", fk="pid",
+                          parent_key="id", agg=agg, column=column, where=where)
+        acc = RollupAccumulator([spec])
+        for start in range(0, len(child), 3_000):
+            acc.update("c", child.iloc[start:start + 3_000])
+        got = acc.apply({"p": parent.copy()})["p"][target]
+
+        rows = child[child["status"] == "paid"] if where else child
+        groups = rows.groupby("pid")
+        whole = groups.size() if agg == "count" else groups[column].agg(agg)
+        want = parent["id"].map(whole).fillna(0 if agg == "count" else spec.fillna)
+        if pd.api.types.is_integer_dtype(parent[target]):
+            want = want.round().astype("int64")
+        if agg in ("sum", "mean"):
+            pd.testing.assert_series_equal(got.astype(float), want.astype(float),
+                                           check_names=False, rtol=1e-12)
+        else:
+            pd.testing.assert_series_equal(got, want, check_names=False)

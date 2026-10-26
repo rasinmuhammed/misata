@@ -19,12 +19,16 @@ Usage from Python::
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import yaml
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from misata.schema import SchemaConfig
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +205,6 @@ def generate_dbt_schema_yml(
     Returns:
         A YAML string suitable for writing to ``_misata_seeds.yml``.
     """
-    from misata.schema import SchemaConfig  # noqa: F811 — deferred import
 
     doc: Dict[str, Any] = {"version": 2}
     resource_list: List[Dict[str, Any]] = []
@@ -296,7 +299,6 @@ def generate_dbt_fixtures(
     Returns:
         A :class:`DbtFixtureResult` with paths to all generated files.
     """
-    import pandas as pd
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -385,19 +387,19 @@ def generate_unit_test_yml(
         lines.append(f"  - name: {test_name}")
         lines.append(f"    description: \"Validates {table_name} transformation with Misata-generated fixture data\"")
         lines.append(f"    model: stg_{table_name}  # ← replace with your actual model name")
-        lines.append(f"    given:")
+        lines.append("    given:")
         lines.append(f"      - input: ref('{table_name}')")
-        lines.append(f"        format: csv")
+        lines.append("        format: csv")
         lines.append(f"        fixture: {fixture_name}")
 
         for parent_table, fk_col in parent_tables:
             parent_fixture = fixture_names.get(parent_table, f"{parent_table}_fixture")
             lines.append(f"      - input: ref('{parent_table}')")
-            lines.append(f"        format: csv")
+            lines.append("        format: csv")
             lines.append(f"        fixture: {parent_fixture}")
 
-        lines.append(f"    expect:")
-        lines.append(f"      format: csv")
+        lines.append("    expect:")
+        lines.append("      format: csv")
         lines.append(f"      fixture: {table_name}_expected  # ← create this with your expected output")
         lines.append("")
 

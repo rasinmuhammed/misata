@@ -370,7 +370,7 @@ class AuditLogger:
         conn.close()
 
         if format == "json":
-            records = [dict(zip(columns, row)) for row in rows]
+            records = [dict(zip(columns, row, strict=True)) for row in rows]
             return json.dumps({
                 "report_type": "Misata Compliance Audit",
                 "generated_at": datetime.now().isoformat(),

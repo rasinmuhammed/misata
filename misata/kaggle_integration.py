@@ -41,11 +41,9 @@ Credentials must be configured — one of:
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -56,7 +54,7 @@ from misata.assets import (
     LicensePolicy,
     KaggleIngestionResult,
 )
-from misata.domain_capsule import AssetProvenance, VocabularyAsset
+from misata.exceptions import warn
 
 
 # ---------------------------------------------------------------------------
@@ -292,11 +290,8 @@ def _get_kaggle_api() -> Optional[Any]:
         api.authenticate()
         return api
     except ImportError:
-        import warnings
-        warnings.warn(
+        warn(
             "Kaggle API not installed. Run: pip install \"misata[kaggle]\"",
-            UserWarning,
-            stacklevel=3,
         )
         return None
     except Exception:

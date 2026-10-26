@@ -21,7 +21,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from misata.schema import SchemaConfig
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +213,7 @@ def build_schema_from_prisma(
             if f.relation and not f.is_list:
                 flds, refs, target = f.relation
                 if target in model_names:
-                    for scalar, ref in zip(flds, refs):
+                    for scalar, ref in zip(flds, refs, strict=True):
                         fk_scalars[scalar] = (target, ref)
                 else:
                     report.warnings.append(

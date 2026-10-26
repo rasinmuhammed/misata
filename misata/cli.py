@@ -10,7 +10,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import click
 import numpy as np
@@ -22,6 +22,16 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table as RichTable
 
 from misata import DataSimulator, SchemaConfig, __version__
+from misata.cli_output import (
+    EXIT_FAILED,
+    EXIT_OK,
+    EXIT_REFUSED,
+    EXIT_USAGE,
+    MisataGroup,
+    emit,
+    fail,
+    json_mode,
+)
 from misata.audit import AuditLogger
 from misata.yaml_schema import MISATA_YAML_TEMPLATE, load_yaml_schema, save_yaml_schema
 from misata.codegen import ScriptGenerator
@@ -32,6 +42,9 @@ from misata.reporting import build_oracle_report
 from misata.schema import ScenarioEvent
 from misata.story_parser import StoryParser
 from misata.validation import validate_data
+
+if TYPE_CHECKING:
+    from misata.sinks import Sink
 
 console = Console()
 
@@ -69,6 +82,14 @@ def _load_yaml_or_json(path: str) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"Expected a mapping in {path}")
     return data
+
+
+def _load_schema(path: str, seed: Optional[int] = None,
+                 rows: Optional[int] = None) -> SchemaConfig:
+    """A schema from misata.yaml, a SchemaConfig dump, or the dict schema form."""
+    from misata.yaml_schema import load_schema_file
+
+    return load_schema_file(path, seed=seed, rows=rows)
 
 
 def _write_json(path: Path, payload: Dict[str, Any]) -> None:
@@ -125,14 +146,23 @@ def _serialize_validation_report(report: Any) -> Dict[str, Any]:
     }
 
 
-def _generate_tables_to_csv(
+def _generate_tables(
     schema_config: SchemaConfig,
     output_dir: str,
     *,
     smart: bool,
     smart_no_llm: bool,
     batch_size: int,
-) -> Dict[str, int]:
+    fmt: str = "csv",
+    partition_by: Optional[str] = None,
+) -> "Sink":
+    """Generate every table into ``output_dir``, batch by batch; return the closed sink."""
+    from misata.sinks import SinkError, open_sink
+
+    try:
+        sink = open_sink(fmt, output_dir, schema_config, partition_by=partition_by)
+    except (SinkError, ImportError) as exc:
+        fail(str(exc), EXIT_USAGE)
     console.print("\n⚙️  Initializing simulator...")
     simulator = DataSimulator(
         schema_config,
@@ -143,11 +173,7 @@ def _generate_tables_to_csv(
 
     console.print(f"\n🔧 Generating {len(schema_config.tables)} table(s)...\n")
 
-    os.makedirs(output_dir, exist_ok=True)
-    files_created = set()
-    table_rows: Dict[str, int] = {}
-
-    with Progress(
+    with sink, Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         TextColumn("{task.completed:,} rows"),
@@ -155,22 +181,20 @@ def _generate_tables_to_csv(
     ) as progress:
         task = progress.add_task("Generating data...", total=None)
 
-        for table_name, batch_df in simulator.generate_all():
-            output_path = os.path.join(output_dir, f"{table_name}.csv")
-            mode = "a" if table_name in files_created else "w"
-            header = table_name not in files_created
-
-            batch_df.to_csv(output_path, mode=mode, header=header, index=False)
-            files_created.add(table_name)
-
-            generated_rows = len(batch_df)
-            table_rows[table_name] = table_rows.get(table_name, 0) + generated_rows
-            progress.update(task, advance=generated_rows, description=f"Generating {table_name}...")
+        for table_name, batch_df in simulator.generate_all(bounded_memory=True):
+            try:
+                sink.write(table_name, batch_df)
+            except SinkError as exc:
+                fail(str(exc), EXIT_USAGE)
+            progress.update(task, advance=len(batch_df), description=f"Generating {table_name}...")
 
     console.print("\n" + "=" * 70)
     console.print(simulator.get_summary())
     console.print("=" * 70)
-    return table_rows
+    emit(output_dir=str(Path(output_dir).resolve()), format=fmt,
+         tables={name: {"rows": rows, "files": [str(f.resolve()) for f in sink.files(name)]}
+                 for name, rows in sink.rows.items()})
+    return sink
 
 
 def _resolve_recipe_schema(recipe: RecipeSpec, rows: int) -> SchemaConfig:
@@ -192,7 +216,7 @@ def print_banner():
     ))
 
 
-@click.group()
+@click.group(cls=MisataGroup)
 @click.version_option(version=__version__)
 @click.option("--plugin", "plugins", multiple=True, envvar="MISATA_PLUGINS",
               help="Python module that registers custom generators "
@@ -240,8 +264,7 @@ def init(db: Optional[str], story: Optional[str], output: str,
     """
     out_path = Path(output)
     if out_path.exists() and not force:
-        console.print(f"[yellow]{output} already exists. Use --force to overwrite.[/yellow]")
-        sys.exit(1)
+        fail(f"{output} already exists. Use --force to overwrite.", EXIT_USAGE)
 
     if db:
         try:
@@ -251,18 +274,16 @@ def init(db: Optional[str], story: Optional[str], output: str,
             schema.seed = seed
             save_yaml_schema(schema, out_path)
             console.print(f"[green]Detected {len(schema.tables)} table(s) → {output}[/green]")
-        except Exception as exc:
-            console.print(f"[red]DB introspection failed: {exc}[/red]")
-            sys.exit(1)
+        except Exception as exc:  # noqa: BLE001 - any driver error ends the command
+            fail(f"DB introspection failed: {exc}", EXIT_FAILED)
     elif story:
         try:
             schema = StoryParser().parse(story, default_rows=rows)
             schema.seed = seed
             save_yaml_schema(schema, out_path)
             console.print(f"[green]Parsed {len(schema.tables)} table(s) → {output}[/green]")
-        except Exception as exc:
-            console.print(f"[red]Story parsing failed: {exc}[/red]")
-            sys.exit(1)
+        except Exception as exc:  # noqa: BLE001 - any parser error ends the command
+            fail(f"Story parsing failed: {exc}", EXIT_USAGE)
     else:
         out_path.write_text(MISATA_YAML_TEMPLATE, encoding="utf-8")
         console.print(f"[green]Template written → {output}[/green]")
@@ -390,6 +411,31 @@ def init(db: Optional[str], story: Optional[str], output: str,
     help="Write a proof-oriented oracle_report.json with validation, quality, locale, privacy, and fidelity checks.",
 )
 @click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["csv", "jsonl", "parquet", "duckdb"]),
+    default="csv",
+    show_default=True,
+    help="csv, jsonl and parquet write one file per table; duckdb writes every table "
+         "into OUTPUT_DIR/data.duckdb. Rows are written as they are generated.",
+)
+@click.option(
+    "--partition-by",
+    "partition_by",
+    type=str,
+    default=None,
+    help="With --format parquet, write each table that has this column Hive-style: "
+         "TABLE/COLUMN=VALUE/part-00000.parquet.",
+)
+@click.option(
+    "--attest",
+    "attest_output",
+    is_flag=True,
+    default=False,
+    help="Attest the written files against the schema: writes attestation.intoto.json, "
+         "attestation.dsse.json and verify.py, and exits 1 if a declaration does not hold.",
+)
+@click.option(
     "--capsule",
     type=click.Path(exists=True),
     default=None,
@@ -424,6 +470,9 @@ def generate(
     oracle: bool,
     capsule: Optional[str],
     preset: Optional[str] = None,
+    output_format: str = "csv",
+    partition_by: Optional[str] = None,
+    attest_output: bool = False,
 ) -> None:
     """
     Generate synthetic data from a story or configuration file.
@@ -447,9 +496,8 @@ def generate(
             config = "misata.yaml"
             console.print("[dim]Auto-detected misata.yaml in current directory.[/dim]")
         else:
-            console.print("[red]Error: Must provide --story, --config, --sqlalchemy, or --db-url[/red]")
-            console.print("[dim]Tip: run `misata init` to scaffold a misata.yaml file.[/dim]")
-            sys.exit(1)
+            fail("Provide --story, --config, --sqlalchemy or --db-url, or run "
+                 "`misata init` to scaffold a misata.yaml file.", EXIT_USAGE)
 
     if sum(1 for x in [story, config, sqlalchemy] if x) > 1:
         console.print("[yellow]Warning: Multiple schema sources provided. Using priority: config > sqlalchemy > story.[/yellow]")
@@ -495,18 +543,11 @@ def generate(
 
                 console.print("✅ [green]LLM schema generated successfully![/green]")
             except ImportError as e:
-                console.print(f"\n[red]❌ {e}[/red]")
-                console.print("   Install LLM support with: [cyan]pip install \"misata[llm]\"[/cyan]")
-                sys.exit(1)
+                fail(f"{e}. Install LLM support with: pip install \"misata[llm]\"", EXIT_FAILED)
             except ValueError as e:
-                error_msg = str(e)
-                if "API key required" in error_msg:
-                    console.print(f"\n[red]❌ {error_msg}[/red]")
-                    console.print("\n   Options:")
-                    console.print("   • [yellow]export GROQ_API_KEY=xxx[/yellow] (free: https://console.groq.com)")
-                    console.print("   • [yellow]export OPENAI_API_KEY=xxx[/yellow]")
-                    console.print("   • [yellow]--provider ollama[/yellow] (local, no key needed)")
-                    sys.exit(1)
+                if "API key required" in str(e):
+                    fail(f"{e}. Set GROQ_API_KEY or OPENAI_API_KEY, or use --provider ollama "
+                         "(local, no key needed).", EXIT_FAILED)
                 raise
         else:
             # Rule-based parsing (original)
@@ -538,24 +579,17 @@ def generate(
             # Count enrichments
             ref_count = sum(1 for t in schema_config.tables if t.is_reference and t.inline_data)
             constraint_count = sum(len(t.constraints) for t in schema_config.tables)
-            console.print(f"✅ [green]Schema enriched![/green]")
+            console.print("✅ [green]Schema enriched![/green]")
             if ref_count:
                 console.print(f"   📚 Reference tables with real data: {ref_count}")
             if constraint_count:
                 console.print(f"   📏 Business rules inferred: {constraint_count}")
         except ImportError as e:
-            console.print(f"\n[red]❌ {e}[/red]")
-            console.print("   Install LLM support with: [cyan]pip install \"misata[llm]\"[/cyan]")
-            sys.exit(1)
+            fail(f"{e}. Install LLM support with: pip install \"misata[llm]\"", EXIT_FAILED)
         except ValueError as e:
-            error_msg = str(e)
-            if "API key required" in error_msg:
-                console.print(f"\n[red]❌ {error_msg}[/red]")
-                console.print("\n   Options:")
-                console.print("   • [yellow]export GROQ_API_KEY=xxx[/yellow] (free: https://console.groq.com)")
-                console.print("   • [yellow]export OPENAI_API_KEY=xxx[/yellow]")
-                console.print("   • [yellow]--provider ollama[/yellow] (local, no key needed)")
-                sys.exit(1)
+            if "API key required" in str(e):
+                fail(f"{e}. Set GROQ_API_KEY or OPENAI_API_KEY, or use --provider ollama "
+                     "(local, no key needed).", EXIT_FAILED)
             raise
 
     # Apply scenario file if provided
@@ -643,13 +677,16 @@ def generate(
     # Generate data
     batch_size = db_batch_size if db_batch_size is not None else 10_000
     start_time = time.time()
-    table_rows = _generate_tables_to_csv(
+    sink = _generate_tables(
         schema_config,
         output_dir,
         smart=smart,
         smart_no_llm=smart_no_llm,
         batch_size=batch_size,
+        fmt=output_format,
+        partition_by=partition_by,
     )
+    table_rows = sink.rows
 
     elapsed = time.time() - start_time
 
@@ -665,10 +702,7 @@ def generate(
 
     if oracle:
         output_path = Path(output_dir)
-        tables = {
-            table_name: pd.read_csv(output_path / f"{table_name}.csv")
-            for table_name in table_rows
-        }
+        tables = {table_name: sink.read(table_name) for table_name in table_rows}
         oracle_payload = build_oracle_report(
             tables,
             schema_config,
@@ -678,9 +712,35 @@ def generate(
         oracle_path = output_path / "oracle_report.json"
         _write_json(oracle_path, oracle_payload)
         console.print(f"🔮 Oracle report: [cyan]{oracle_path}[/cyan]")
+        emit(oracle_report=str(oracle_path.resolve()))
+
+    if attest_output:
+        from misata.attestation import AttestationError, attest
+
+        try:
+            attestation = attest(output_dir, schema_config, spec_path=config)
+        except AttestationError as exc:
+            fail(f"Attestation: {exc}", EXIT_USAGE)
+        style = "green" if attestation.passed else "red"
+        console.print(f"[{style}]{attestation.summary()}[/{style}]")
+        emit(attestation=_attestation_data(attestation))
+        if not attestation.passed:
+            sys.exit(1)
 
     console.print("\n[bold green]✓ Done![/bold green]")
     _studio_hint(console)
+
+
+def _attestation_data(attestation: Any) -> Dict[str, Any]:
+    """The parts of an attestation an agent acts on."""
+    invariants = attestation.invariants
+    return {
+        "result": attestation.statement["predicate"]["result"],
+        "invariants_held": len(invariants) - len(attestation.failures),
+        "invariants_total": len(invariants),
+        "failures": attestation.failures,
+        "files": {name: str(path) for name, path in attestation.files.items()},
+    }
 
 
 def _studio_hint(console) -> None:
@@ -696,7 +756,7 @@ def _studio_hint(console) -> None:
     thing we would like to sell. Never fails: a hint that breaks a run is
     infinitely worse than a hint nobody sees.
     """
-    if os.environ.get("MISATA_NO_HINTS"):
+    if os.environ.get("MISATA_NO_HINTS") or json_mode():
         return
     try:
         marker = Path.home() / ".misata" / ".studio-hint"
@@ -890,17 +950,15 @@ def recipe_run(
             if audit_logger is not None:
                 audit_logger.log_data_generation(table_rows, report.total_rows, int(report.duration_seconds * 1000))
         else:
-            table_rows = _generate_tables_to_csv(
+            sink = _generate_tables(
                 schema_config,
                 str(output_dir),
                 smart=smart,
                 smart_no_llm=smart_no_llm,
                 batch_size=db_batch_size,
             )
-            tables = {
-                table_name: pd.read_csv(output_dir / f"{table_name}.csv")
-                for table_name in table_rows
-            }
+            table_rows = sink.rows
+            tables = {table_name: sink.read(table_name) for table_name in table_rows}
             if audit_logger is not None:
                 audit_logger.log_data_generation(table_rows, sum(table_rows.values()), int((time.time() - started) * 1000))
 
@@ -1039,10 +1097,8 @@ def graph(description: str, output_dir: str) -> None:
 
     except ValueError as e:
         if "GROQ_API_KEY" in str(e):
-            console.print("\n[red]❌ Groq API key required for graph mode.[/red]")
-            console.print("   Set your API key: [yellow]export GROQ_API_KEY=your_key[/yellow]")
-            console.print("   Get a free key: [cyan]https://console.groq.com[/cyan]")
-            sys.exit(1)
+            fail("Graph mode needs a Groq API key: export GROQ_API_KEY=... "
+                 "(free at https://console.groq.com).", EXIT_FAILED)
         raise
 
 
@@ -1123,9 +1179,10 @@ def parse(story: str, rows: int, output: str, use_llm: bool) -> None:
     console.print(f"    [cyan]misata generate --config {output}[/cyan]")
 
 
-@main.command()
+@main.command(json_output=False)
 @click.option("--port", "-p", type=int, default=8000, help="Port to run the API server")
-@click.option("--host", "-h", type=str, default="0.0.0.0", help="Host to bind to")
+@click.option("--host", "-h", type=str, default="127.0.0.1",
+              help="Interface to bind to; pass 0.0.0.0 to accept remote connections")
 def serve(port: int, host: str) -> None:
     """
     Start the Misata API server for the web UI.
@@ -1146,9 +1203,7 @@ def serve(port: int, host: str) -> None:
         import uvicorn
         from misata.api import app
     except ImportError as e:
-        console.print(f"[red]❌ {e}[/red]")
-        console.print("Install API support with: [cyan]pip install \"misata[api]\"[/cyan]")
-        sys.exit(1)
+        fail(f"{e}. Install API support with: pip install \"misata[api]\"", EXIT_FAILED)
     uvicorn.run(app, host=host, port=port)
 
 
@@ -1585,7 +1640,7 @@ def templates_list() -> None:
     console.print("\\nUsage: [cyan]misata template <name> [OPTIONS][/cyan]")
 
 
-@main.command()
+@main.command(json_output=False)
 @click.option("--port", "-p", type=int, default=8501, help="Port to run Studio on")
 @click.option("--host", "-h", type=str, default="localhost", help="Host to bind to")
 @click.option("--no-browser", is_flag=True, help="Don't open browser automatically")
@@ -1636,7 +1691,6 @@ def validate_cmd(csv_file: str, schema: Optional[str], story: Optional[str], tab
         misata validate orders.csv --story "A SaaS company with orders table"
     """
     print_banner()
-    from pathlib import Path
     from misata.validation import validate_csv
 
     console.print(f"[bold]Validating:[/bold] [cyan]{csv_file}[/cyan]")
@@ -1792,7 +1846,7 @@ def dbt_seed_cmd(
             )
         except (FileNotFoundError, ValueError) as exc:
             console.print(f"[red]Error:[/red] {exc}")
-            raise SystemExit(1)
+            raise SystemExit(1) from None
         console.print(
             f"[dim]Schema built from the dbt project's own contract:[/dim]\n"
             f"[dim]{import_report.summary()}[/dim]"
@@ -1962,7 +2016,7 @@ def synth_import_cmd(
         schema, report = build_schema_from_synth(ns, scale=scale)
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     schema.seed = seed
 
@@ -2035,7 +2089,7 @@ def prisma_seed_cmd(
         )
     except ValueError as exc:
         console.print(f"[red]Error:[/red] {exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     console.print(f"[dim]{report.summary()}[/dim]")
     for w in report.warnings:
@@ -2058,8 +2112,8 @@ def prisma_seed_cmd(
         console.print(f"  [yellow]⚠[/yellow] [bold]{table_name}[/bold] — "
                       f"skipped (file exists, use --force)")
     if written:
-        console.print(f"\n[bold green]✓ Done.[/bold green] Load the CSVs in your "
-                      f"seed script, or import them with your database tool.")
+        console.print("\n[bold green]✓ Done.[/bold green] Load the CSVs in your "
+                      "seed script, or import them with your database tool.")
 
 
 def _prune_config_for_skip(config, skip: set):
@@ -2178,10 +2232,10 @@ def seed_cmd(
         config = schema_from_db(db_url, default_rows=rows, include_tables=include)
     except ImportError as exc:
         console.print(f"[red]Error:[/red] {exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     except Exception as exc:
         console.print(f"[red]Could not read the database schema:[/red] {exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     if not config.tables:
         console.print("[yellow]No tables found to seed.[/yellow]")
@@ -2307,7 +2361,7 @@ def seed_cmd(
         )
     except Exception as exc:
         console.print(f"[red]Seeding failed:[/red] {exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     for name in order:
         if append and name in nonempty:
@@ -2419,7 +2473,7 @@ def dbt_unit_test_cmd(
         catalog = load_catalog(manifest_path)
     except ManifestError as exc:
         console.print(f"[red]Error:[/red] {exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     root = manifest_path.parent.parent
     console.print(f"[dim]📁 Manifest:[/dim] [cyan]{manifest_path}[/cyan]")
@@ -2465,7 +2519,7 @@ def dbt_unit_test_cmd(
         plan = build_plan(manifest, model_name, rows=rows, catalog=catalog)
     except ManifestError as exc:
         console.print(f"[red]Error:[/red] {exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     for warning in plan.warnings:
         console.print(f"  [yellow]⚠[/yellow] {warning}")
@@ -2732,8 +2786,7 @@ def capsule_create(domain: str, csv_path: str, vocab_names: tuple,
     capsule = DomainCapsule(domain=domain)
     if wikidata_topic or wikidata_qid:
         if not wikidata_column:
-            console.print("[red]--from-wikidata needs --column (the schema column it feeds).[/red]")
-            sys.exit(1)
+            fail("--from-wikidata needs --column (the schema column it feeds).", EXIT_USAGE)
         from misata.wikidata import capsule_from_wikidata
         wd = capsule_from_wikidata(
             domain=domain,
@@ -2753,8 +2806,7 @@ def capsule_create(domain: str, csv_path: str, vocab_names: tuple,
     if vocab_names:
         capsule = merge_into(capsule, capsule_from_llm(domain, list(vocab_names)))
     if not capsule.vocabularies:
-        console.print("[red]No vocabularies produced — pass --from-csv and/or --vocab.[/red]")
-        sys.exit(1)
+        fail("No vocabularies produced; pass --from-csv and/or --vocab.", EXIT_USAGE)
 
     out = Path(output) if output else Path(f"{domain}.capsule.json")
     save_capsule(capsule, out)
@@ -2802,8 +2854,7 @@ def capsule_install(name: str) -> None:
     try:
         dest = install_capsule(name)
     except KeyError:
-        console.print(f"[red]Unknown capsule {name!r}. Available: {', '.join(registry_names())}[/red]")
-        sys.exit(1)
+        fail(f"Unknown capsule {name!r}. Available: {', '.join(registry_names())}", EXIT_USAGE)
     console.print(f"[green]✓[/green] Installed to [cyan]{dest}[/cyan]")
     console.print(f"Use it with: [bold]misata generate --story ... --capsule {dest}[/bold]")
 
@@ -2816,7 +2867,11 @@ def capsule_install(name: str) -> None:
               help="Directory to write the pack to (default: ./evalpack)")
 @click.option("--seed", type=int, default=None,
               help="Generation seed (recorded in the manifest for reproducibility)")
-def evalpack_cmd(config: str, output_dir: str, seed: Optional[int]) -> None:
+@click.option("--rotations", type=click.IntRange(min=1, max=100), default=1, show_default=True,
+              help="Databases in the pack, from seeds SEED to SEED+N-1. They share every "
+                   "declared answer and differ in every row; a query is scored correct "
+                   "only when it matches on all of them.")
+def evalpack_cmd(config: str, output_dir: str, seed: Optional[int], rotations: int) -> None:
     """Build a verified evaluation pack: database + question/answer pairs.
 
     Every expected answer derives from the declared spec (outcome-curve
@@ -2827,27 +2882,24 @@ def evalpack_cmd(config: str, output_dir: str, seed: Optional[int]) -> None:
 
     Example:
 
-        misata evalpack --config misata.yaml -o ./my_pack --seed 42
+        misata evalpack --config misata.yaml -o ./my_pack --seed 42 --rotations 3
     """
     print_banner()
     from misata.evalpack import build_evalpack
 
-    config_dict = _load_yaml_or_json(config)
-    if isinstance(config_dict.get("tables"), dict):
-        schema_config = load_yaml_schema(config, seed=seed)
-    else:
-        schema_config = SchemaConfig(**config_dict)
-    if seed is not None:
-        schema_config.seed = seed
-
+    schema_config = _load_schema(config, seed=seed)
     console.print(f"Building evalpack from [cyan]{config}[/cyan] …")
-    result = build_evalpack(schema_config, output_dir)
+    result = build_evalpack(schema_config, output_dir, rotations=rotations)
 
     console.print(result.summary())
+    emit(output_dir=str(Path(output_dir).resolve()), seeds=result.seeds,
+         questions_shipped=len(result.questions), questions_dropped=len(result.dropped),
+         all_verified=result.all_verified,
+         conformance_warnings=result.conformance_warnings)
     if result.dropped:
         console.print(
             f"[yellow]{len(result.dropped)} candidate(s) failed exact verification "
-            f"and were dropped — see manifest.json → dropped_questions.[/yellow]"
+            f"and were dropped; see manifest.json → dropped_questions.[/yellow]"
         )
     if result.all_verified:
         console.print(
@@ -2855,10 +2907,11 @@ def evalpack_cmd(config: str, output_dir: str, seed: Optional[int]) -> None:
             f"independently with DuckDB.[/green]"
         )
         console.print(f"Re-verify any time with: [bold]python {output_dir}/verify.py[/bold]")
+        console.print(f"Score a model's SQL with: [bold]python {output_dir}/verify.py "
+                      f"--candidates answers.jsonl[/bold]")
     else:
-        console.print("[red]✗ Pack has no verified questions — check that the schema "
-                      "declares outcome curves, rate curves, or relationships.[/red]")
-        sys.exit(1)
+        fail("Pack has no verified questions; check that the schema declares "
+             "outcome curves, rate curves, or relationships.", EXIT_FAILED)
 
 
 @main.command("audit")
@@ -2896,8 +2949,7 @@ def audit_cmd(data_dir: str, schema: Optional[str], strict: bool) -> None:
     print_banner()
     csvs = sorted(_Path(data_dir).glob("*.csv"))
     if not csvs:
-        console.print(f"[red]No CSV files found in {data_dir}[/red]")
-        sys.exit(2)
+        fail(f"No CSV files found in {data_dir}", EXIT_USAGE)
 
     tables = {}
     for p in csvs:
@@ -2908,20 +2960,15 @@ def audit_cmd(data_dir: str, schema: Optional[str], strict: bool) -> None:
     console.print(f"Auditing [cyan]{len(tables)}[/cyan] table(s): "
                   + ", ".join(f"{k} ({len(v)} rows)" for k, v in tables.items()))
 
-    schema_config = None
-    if schema:
-        config_dict = _load_yaml_or_json(schema)
-        if isinstance(config_dict.get("tables"), dict):
-            schema_config = load_yaml_schema(schema)
-        else:
-            schema_config = SchemaConfig(**config_dict)
+    schema_config = _load_schema(schema) if schema else None
 
     report = (story_audit(tables, schema_config) if schema_config is not None
               else coherence_audit(tables))
+    emit(audit=report.to_dict())
 
     if report.clean:
         console.print(f"\n[green]✓ {report.summary()}[/green]")
-        sys.exit(0)
+        sys.exit(EXIT_OK)
 
     tbl = RichTable(show_header=True, header_style="bold cyan", box=None, padding=(0, 1))
     tbl.add_column("Severity", style="bold")
@@ -2943,7 +2990,65 @@ def audit_cmd(data_dir: str, schema: Optional[str], strict: bool) -> None:
 
     has_high = any(f.severity == "high" and not f.repaired for f in report.findings)
     if strict or has_high:
-        sys.exit(1)
+        sys.exit(EXIT_FAILED)
+
+
+@main.command("attest")
+@click.argument("data_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("--schema", "-s", "schema_path", type=click.Path(exists=True, dir_okay=False),
+              required=True, help="The schema that generated the data (misata.yaml or "
+                                  "SchemaConfig JSON/YAML).")
+@click.option("--export", "exports", multiple=True, type=click.Choice(["odcs", "openlineage"]),
+              help="Also write the invariants as an ODCS data contract "
+                   "(datacontract.odcs.yaml, for `datacontract test`) or an OpenLineage "
+                   "RunEvent (openlineage.json). Repeatable.")
+def attest_cmd(data_dir: str, schema_path: str, exports: tuple) -> None:
+    """Attest that a written dataset holds what its schema declared.
+
+    Recomputes every declared invariant (curve totals, rates, shares, ledger
+    identities, foreign keys, unique columns) with DuckDB against the files in
+    DATA_DIR and pins each file by SHA-256. Writes attestation.intoto.json (an
+    in-toto Statement), attestation.dsse.json (unsigned DSSE envelope) and
+    verify.py (re-checks everything with only duckdb installed).
+
+    Exit status is 0 when every invariant holds, 1 when one does not, and 2
+    when the dataset cannot be attested. With --json the envelope's data
+    carries the summary and the full Statement.
+
+    Examples:
+
+        misata attest ./out --schema misata.yaml
+
+        cosign attest-blob --statement ./out/attestation.intoto.json \\
+            --bundle ./out/attestation.sigstore.json ./out/orders.parquet
+    """
+    from misata.attestation import AttestationError, attest, to_odcs, to_openlineage
+
+    schema_config = _load_schema(schema_path)
+    try:
+        result = attest(data_dir, schema_config, spec_path=schema_path)
+    except AttestationError as exc:
+        fail(str(exc), EXIT_USAGE)
+
+    directory = Path(data_dir)
+    if "odcs" in exports:
+        contract = directory / "datacontract.odcs.yaml"
+        contract.write_text(yaml.safe_dump(to_odcs(result, schema_config), sort_keys=False),
+                            encoding="utf-8")
+        result.files["odcs"] = contract
+    if "openlineage" in exports:
+        event = directory / "openlineage.json"
+        event.write_text(json.dumps(to_openlineage(result), indent=2) + "\n", encoding="utf-8")
+        result.files["openlineage"] = event
+
+    style = "green" if result.passed else "red"
+    console.print(f"[{style}]{result.summary()}[/{style}]")
+    for label in ("odcs", "openlineage"):
+        if label in result.files:
+            console.print(f"  {label}: [cyan]{result.files[label]}[/cyan]")
+    console.print(f"Re-verify with: [bold]python {directory / 'verify.py'}[/bold]")
+    emit(attestation=_attestation_data(result), statement=result.statement)
+    sys.exit(EXIT_OK if result.passed else EXIT_FAILED)
 
 
 @main.command("realism")
@@ -2952,12 +3057,9 @@ def audit_cmd(data_dir: str, schema: Optional[str], strict: bool) -> None:
               help="Optional schema; its relationships drive the fan-out check.")
 @click.option("--skip", multiple=True,
               help="Check to leave out (repeatable), e.g. --skip too_clean.")
-@click.option("--json", "as_json", is_flag=True, default=False,
-              help="Print the full report as JSON.")
 @click.option("--strict", is_flag=True, default=False,
               help="Exit nonzero on any warning too (default: only on failures).")
-def realism_cmd(data_dir: str, schema: Optional[str], skip: tuple, as_json: bool,
-                strict: bool) -> None:
+def realism_cmd(data_dir: str, schema: Optional[str], skip: tuple, strict: bool) -> None:
     """Scan a folder of CSVs for the statistical tells of generated data.
 
     Where `misata audit` catches contradictions, this catches shapes real data
@@ -2979,8 +3081,7 @@ def realism_cmd(data_dir: str, schema: Optional[str], skip: tuple, as_json: bool
 
     csvs = sorted(_Path(data_dir).glob("*.csv"))
     if not csvs:
-        console.print(f"[red]No CSV files found in {data_dir}[/red]")
-        sys.exit(2)
+        fail(f"No CSV files found in {data_dir}", EXIT_USAGE)
     tables = {p.stem: pd.read_csv(p) for p in csvs}
 
     schema_config = None
@@ -2990,34 +3091,31 @@ def realism_cmd(data_dir: str, schema: Optional[str], skip: tuple, as_json: bool
                          else SchemaConfig(**config_dict))
 
     try:
-        report = realism_report(tables, schema_config, skip=skip)
+        realism = realism_report(tables, schema_config, skip=skip)
     except ValueError as e:
-        console.print(f"[red]{e}[/red]")
-        sys.exit(2)
+        fail(str(e), EXIT_USAGE)
 
-    if as_json:
-        click.echo(json.dumps(report.to_dict(), indent=2, default=str))
+    print_banner()
+    n = realism.counts()
+    console.print(f"Realism score [bold]{realism.score:.2f}[/bold] across "
+                  f"{len(realism.checks)} checks: [green]{n['pass']} pass[/green], "
+                  f"[yellow]{n['warn']} warn[/yellow], [red]{n['fail']} fail[/red]")
+    if realism.tells:
+        tbl = RichTable(show_header=True, header_style="bold cyan", box=None, padding=(0, 1))
+        for h in ("Status", "Check", "Where", "Finding"):
+            tbl.add_column(h)
+        style = {"fail": "red", "warn": "yellow"}
+        for c in realism.tells:
+            where = f"{c.table}.{c.column}" if c.column else c.table
+            tbl.add_row(f"[{style[c.status]}]{c.status}[/]", c.check, where, c.message)
+        console.print()
+        console.print(tbl)
     else:
-        print_banner()
-        n = report.counts()
-        console.print(f"Realism score [bold]{report.score:.2f}[/bold] across "
-                      f"{len(report.checks)} checks: [green]{n['pass']} pass[/green], "
-                      f"[yellow]{n['warn']} warn[/yellow], [red]{n['fail']} fail[/red]")
-        if report.tells:
-            tbl = RichTable(show_header=True, header_style="bold cyan", box=None, padding=(0, 1))
-            for h in ("Status", "Check", "Where", "Finding"):
-                tbl.add_column(h)
-            style = {"fail": "red", "warn": "yellow"}
-            for c in report.tells:
-                where = f"{c.table}.{c.column}" if c.column else c.table
-                tbl.add_row(f"[{style[c.status]}]{c.status}[/]", c.check, where, c.message)
-            console.print()
-            console.print(tbl)
-        else:
-            console.print("[green]No known synthetic tells found.[/green]")
+        console.print("[green]No known synthetic tells found.[/green]")
+    emit(realism=realism.to_dict())
 
-    if not report.passed or (strict and report.tells):
-        sys.exit(1)
+    if not realism.passed or (strict and realism.tells):
+        sys.exit(EXIT_FAILED)
 
 
 @main.command("lint")
@@ -3048,18 +3146,9 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
 
     print_banner()
     try:
-        config_dict = _load_yaml_or_json(schema_file)
-        tables_block = config_dict.get("tables")
-        if isinstance(tables_block, dict):
-            schema_config = load_yaml_schema(schema_file, rows=rows)
-        elif isinstance(tables_block, list):
-            schema_config = SchemaConfig(**config_dict)
-        else:
-            from misata.compat import from_dict_schema
-            schema_config = from_dict_schema(config_dict, row_count=rows)
-    except Exception as e:
-        console.print(f"[red]Schema could not be parsed: {e}[/red]")
-        sys.exit(2)
+        schema_config = _load_schema(schema_file, rows=rows)
+    except Exception as e:  # noqa: BLE001 - any loader error means the file is unusable
+        fail(f"Schema could not be parsed: {e}", EXIT_USAGE)
 
     # Lint's whole promise is "will this generate?", so it has to run the check
     # generation runs. It did not, and so it passed schemas `misata generate`
@@ -3075,7 +3164,9 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
                       f"generation:[/red]")
         for issue in exc.issues:
             console.print(f"  [red]•[/red] {issue}")
-        sys.exit(1)
+        emit(findings=[{"severity": "error", "where": "schema", "message": str(issue)}
+                       for issue in exc.issues])
+        sys.exit(EXIT_FAILED)
 
     findings = lint_schema(schema_config)
     n_tables = len(schema_config.tables)
@@ -3089,6 +3180,9 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
     from misata.composition import find_overlaps
     overlaps = [o for o in find_overlaps(schema_config)
                 if "may or may not be what was intended" not in o.note]
+    emit(findings=[f.to_dict() for f in findings],
+         overlaps=[{"table": o.table, "column": o.column, "earlier": o.earlier,
+                    "later": o.later, "note": o.note} for o in overlaps])
     if overlaps:
         console.print(f"\n[yellow]{len(overlaps)} column(s) are written by more "
                       f"than one declaration:[/yellow]")
@@ -3106,7 +3200,7 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
         else:
             console.print("\n[green]\u2713 Lint clean: every declaration is "
                           "feasible as written.[/green]")
-        sys.exit(0)
+        sys.exit(EXIT_OK)
 
     tbl = RichTable(show_header=True, header_style="bold cyan", box=None,
                     padding=(0, 1))
@@ -3126,7 +3220,103 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
 
     has_error = counts.get("error", 0) > 0
     if strict or has_error:
-        sys.exit(1)
+        sys.exit(EXIT_FAILED)
+
+
+@main.command("explain")
+@click.argument("schema_file", type=click.Path(exists=True, dir_okay=False))
+@click.option("--seed", type=int, default=None, help="Override the schema's seed.")
+def explain_cmd(schema_file: str, seed: Optional[int]) -> None:
+    """Show what a schema will generate, without generating it.
+
+    Lists each table with its planned row count and approximate memory, the
+    declarations and the columns each one writes, curve plans and their
+    warnings, and how many invariants an attestation of the output will
+    check. Exits 3 with every conflict named when generation would refuse.
+
+    Examples:
+
+        misata explain misata.yaml
+
+        misata explain misata.yaml --json
+    """
+    from misata.explain import explain
+    from misata.feasibility import InfeasibleSchema
+
+    try:
+        schema_config = _load_schema(schema_file, seed=seed)
+    except Exception as e:  # noqa: BLE001 - any loader error means the file is unusable
+        fail(f"Schema could not be parsed: {e}", EXIT_USAGE)
+    plan = explain(schema_config)
+    console.print(plan.summary(), markup=False, highlight=False)
+    emit(explanation=plan.to_dict())
+    if not plan.will_generate:
+        raise InfeasibleSchema(plan.conflicts)
+
+
+@main.command("solve")
+@click.option("--config", "-c", "config_path", required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help="The solve.yaml: schema, pipeline and targets.")
+@click.option("--output-dir", "-o", default=None, type=click.Path(file_okay=False),
+              help="Write the closest dataset, the solved spec, the trajectory and a "
+                   "certificate here.")
+@click.option("--format", "output_format", default="csv", show_default=True,
+              type=click.Choice(["csv", "jsonl", "parquet", "duckdb"]),
+              help="File format for the written tables.")
+@click.option("--max-iterations", type=click.IntRange(1, 1000), default=None,
+              help="Override the config's iteration budget.")
+def solve_cmd(config_path: str, output_dir: Optional[str], output_format: str,
+              max_iterations: Optional[int]) -> None:
+    """Move outcome curves until a pipeline's metrics hit their targets.
+
+    Generates from the schema, runs the pipeline (DuckDB SQL or a dbt
+    project), compares each metric with its target period by period, and
+    adjusts only the curves the targets name as levers. With --output-dir,
+    writes the closest dataset, schema.solved.json, solve.json and an
+    attestation whose solved periods verify with verify.py.
+
+    Exits 0 when every period is within tolerance, 1 when the run stops
+    short (the trajectory says how close it came), 2 for a config it cannot
+    use, and 3 when the schema cannot generate.
+
+    Examples:
+
+        misata solve -c solve.yaml
+
+        misata solve -c solve.yaml -o solved --format parquet --json
+    """
+    from misata.feasibility import InfeasibleSchema
+    from misata.solve import SolveError, load_config
+
+    try:
+        config = load_config(config_path)
+    except SolveError as exc:
+        fail(str(exc), EXIT_USAGE)
+    if max_iterations is not None:
+        config.max_iterations = max_iterations
+    try:
+        result = config.run()
+    except SolveError as exc:
+        fail(str(exc), EXIT_USAGE)
+    console.print(result.summary(), markup=False, highlight=False)
+    data = result.to_dict()
+    attestation = None
+    if output_dir is not None and result.tables is not None:
+        result.write(output_dir, fmt=output_format, source_yaml=config.schema_path)
+        attestation = result.attest(output_dir)
+        data["attestation"] = _attestation_data(attestation)
+        console.print(f"wrote {output_dir} ({attestation.statement['predicate']['result']})",
+                      markup=False, highlight=False)
+    emit(solve=data)
+    if result.reason == "infeasible":
+        if result.conflicts:
+            raise InfeasibleSchema(result.conflicts)
+        fail(result.message, EXIT_REFUSED)
+    if not result.converged:
+        fail(result.message, EXIT_FAILED)
+    if attestation is not None and not attestation.passed:
+        fail("the solved dataset did not attest; see data.solve.attestation", EXIT_FAILED)
 
 
 @main.command("provenance")
@@ -3203,8 +3393,8 @@ def provenance_cmd(data_dir: Optional[str]) -> None:
 @click.option("--target", type=str, default=None, help="dbt target to use.")
 @click.option("--rule", "rule_keys", type=str, default=None,
               help="Comma-separated rule keys to run. Default: all five.")
-@click.option("--json", "json_out", type=click.Path(), default=None,
-              help="Write the full report as JSON here.")
+@click.option("--report-json", "json_out", type=click.Path(), default=None,
+              help="Write the full report as JSON to this file.")
 @click.option("--fail-under", type=float, default=None,
               help="Exit non-zero when the score is below this percentage (for CI).")
 @click.option("--dbt-bin", type=str, default=None,
@@ -3237,7 +3427,7 @@ def dbt_mutate_cmd(
 
     \b
       misata dbt-mutate --select customers
-      misata dbt-mutate --json report.json --fail-under 60
+      misata dbt-mutate --report-json report.json --fail-under 60
     """
     from misata.dbt_unit import find_manifest, load_manifest, ManifestError
     from misata.mutate import (RULES, RULES_BY_KEY, DbtRunner, MutationReport,
@@ -3248,8 +3438,7 @@ def dbt_mutate_cmd(
         manifest_path = find_manifest(Path(project_dir) if project_dir else None)
         manifest = load_manifest(manifest_path)
     except ManifestError as exc:
-        console.print(f"[red]{exc}[/red]")
-        sys.exit(1)
+        fail(str(exc), EXIT_USAGE)
 
     root = manifest_path.parent.parent
     project = manifest.get("metadata", {}).get("project_name")
@@ -3271,17 +3460,15 @@ def dbt_mutate_cmd(
         selected = [(n["name"], n) for n in all_models
                     if n.get("package_name") == project]
     if not selected:
-        console.print("[red]No matching models in this project.[/red]")
-        sys.exit(1)
+        fail("No matching models in this project.", EXIT_USAGE)
 
     rules = RULES
     if rule_keys:
         keys = [k.strip() for k in rule_keys.split(",")]
         unknown = [k for k in keys if k not in RULES_BY_KEY]
         if unknown:
-            console.print(f"[red]Unknown rule(s): {', '.join(unknown)}. "
-                          f"Available: {', '.join(RULES_BY_KEY)}[/red]")
-            sys.exit(1)
+            fail(f"Unknown rule(s): {', '.join(unknown)}. "
+                 f"Available: {', '.join(RULES_BY_KEY)}", EXIT_USAGE)
         rules = [RULES_BY_KEY[k] for k in keys]
 
     runner = DbtRunner(
@@ -3317,7 +3504,8 @@ def dbt_mutate_cmd(
     console.print()
     if report.total == 0:
         console.print("[yellow]No mutations were applicable. Nothing measured.[/yellow]")
-        sys.exit(0)
+        emit(mutation=report.to_dict())
+        sys.exit(EXIT_OK)
 
     console.print(f"  [bold]Mutation coverage: {report.caught}/{report.total} "
                   f"({report.score:.0f}%)[/bold]")
@@ -3331,11 +3519,11 @@ def dbt_mutate_cmd(
     if json_out:
         Path(json_out).write_text(json.dumps(report.to_dict(), indent=2))
         console.print(f"  [dim]report written to {json_out}[/dim]")
+    emit(mutation=report.to_dict())
 
     if fail_under is not None and report.score < fail_under:
-        console.print(f"[red]Score {report.score:.0f}% is below "
-                      f"--fail-under {fail_under:.0f}%.[/red]")
-        sys.exit(1)
+        fail(f"Score {report.score:.0f}% is below --fail-under {fail_under:.0f}%.",
+             EXIT_FAILED)
 
 
 # ---------------------------------------------------------------------------
@@ -3374,51 +3562,65 @@ def sandbox_cmd(
         misata sandbox --domain fintech --sql "SELECT * FROM transactions LIMIT 5"
     """
     print_banner()
-    from misata.mcp.server import create_sandbox, query_sandbox
+    import shutil
+    import subprocess
+
+    from misata.sandbox import SandboxError, create_sandbox, query_sandbox
+    from misata.sqlutil import ReadOnlyViolation
 
     console.print(f"[dim]⚡ Spinning up sandbox database at [cyan]{db_path}[/cyan]...[/dim]")
-    res = create_sandbox(domain=domain, story=story, rows=rows, seed=seed_val, db_path=db_path)
-    if not res.get("ok"):
-        console.print(f"[red]Error creating sandbox:[/red] {res.get('message')}")
-        raise SystemExit(1)
+    try:
+        box = create_sandbox(domain=domain, story=story, rows=rows, seed=seed_val, path=db_path)
+    except SandboxError as exc:
+        console.print(f"[red]Error creating sandbox:[/red] {exc}")
+        raise SystemExit(1) from exc
 
     table_report = RichTable(show_header=True, header_style="bold", box=None)
     table_report.add_column("table", style="cyan")
     table_report.add_column("rows", justify="right")
     table_report.add_column("columns", style="dim")
-
-    for t_name, t_info in res["tables"].items():
-        cols_str = ", ".join(t_info["columns"][:5])
-        if len(t_info["columns"]) > 5:
-            cols_str += f" (+{len(t_info['columns']) - 5} more)"
-        table_report.add_row(t_name, f"{t_info['rows']:,}", cols_str)
+    for name, info in box.tables.items():
+        shown = ", ".join(info.columns[:5])
+        if len(info.columns) > 5:
+            shown += f" (+{len(info.columns) - 5} more)"
+        table_report.add_row(name, f"{info.rows:,}", shown)
 
     console.print()
     console.print(table_report)
+    integrity = (
+        f"Referential integrity verified: 0 orphans across {box.foreign_keys} foreign key(s)."
+        if box.integrity_verified else
+        "[yellow]Referential integrity could not be verified.[/yellow]"
+    )
     console.print(
         f"\n[bold green]✓ Sandbox Ready![/bold green] "
-        f"{res['total_rows']:,} rows across {len(res['tables'])} tables. "
-        f"[dim]Referential integrity verified: 0 orphans across {res['foreign_keys_count']} foreign key(s).[/dim]"
+        f"{box.total_rows:,} rows across {len(box.tables)} tables. [dim]{integrity}[/dim]"
     )
-    console.print(f"\n[dim]Connection URL:[/dim] [cyan]{res['db_url']}[/cyan]")
+    console.print(f"\n[dim]Connection URL:[/dim] [cyan]{box.db_url}[/cyan]")
 
     if query_sql:
         console.print(f"\n[dim]🔎 Running query:[/dim] [bold]{query_sql}[/bold]\n")
-        q_res = query_sandbox(query_sql, db_path=db_path)
-        if not q_res.get("ok"):
-            console.print(f"[red]Query error:[/red] {q_res.get('message')}")
+        try:
+            result = query_sandbox(query_sql, path=box.path)
+        except (ReadOnlyViolation, SandboxError) as exc:
+            console.print(f"[red]Query error:[/red] {exc}")
         else:
             q_table = RichTable(show_header=True, header_style="bold", box=None)
-            for col in q_res["columns"]:
+            for col in result.columns:
                 q_table.add_column(col)
-            for row in q_res["rows"]:
-                q_table.add_row(*[str(row.get(c, "")) for c in q_res["columns"]])
+            for row in result.rows:
+                q_table.add_row(*[str(row.get(c, "")) for c in result.columns])
             console.print(q_table)
-            console.print(f"\n[dim]{q_res['row_count']} row(s) returned.[/dim]")
+            more = " (truncated)" if result.truncated else ""
+            console.print(f"\n[dim]{result.row_count} row(s) returned{more}.[/dim]")
 
     if open_interactive:
-        import os
-        os.system(f"sqlite3 {db_path}")
+        sqlite_cli = shutil.which("sqlite3")
+        if sqlite_cli is None:
+            console.print("[yellow]sqlite3 is not on PATH; open the file with any SQLite "
+                          f"client:[/yellow] {box.path}")
+        else:
+            subprocess.run([sqlite_cli, str(box.path)], check=False)  # noqa: S603 - fixed binary, no shell
 
 
 @main.group("mcp")
@@ -3426,7 +3628,7 @@ def mcp_group() -> None:
     """Model Context Protocol (MCP) server for AI coding agents."""
 
 
-@mcp_group.command("run")
+@mcp_group.command("run", json_output=False)
 def mcp_run() -> None:
     """Run the Misata MCP server over stdio."""
     from misata.mcp.server import main as mcp_main

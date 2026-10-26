@@ -5,7 +5,12 @@ Provides a hierarchy of exception classes for better error handling
 and more informative error messages.
 """
 
-from typing import Any, Dict, List, Optional
+import os
+import sys
+import warnings
+from typing import Any, Dict, List, Optional, Type
+
+_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep
 
 
 class MisataError(Exception):
@@ -20,6 +25,45 @@ class MisataError(Exception):
         if self.details:
             return f"{self.message} | Details: {self.details}"
         return self.message
+
+
+class MisataWarning(UserWarning):
+    """Base category for every warning Misata emits.
+
+    On its own it marks advice that leaves every declaration intact: a
+    provider retry, an inferred relationship that was dropped, an optional
+    dependency that is missing. ``warnings.simplefilter("error",
+    misata.MisataWarning)`` turns all of them into exceptions.
+    """
+
+
+class ConformanceWarning(MisataWarning):
+    """Part of what was declared will not hold exactly as written.
+
+    The declaration was skipped, met only partly, or met at a cost to another
+    one: a period total that needs more rows than ``max_transactions_per_period``
+    allows keeps its total and changes the row size; a share that cannot fit a
+    column's bounds holds and pushes rows past them. The message names the
+    declaration and what happened to it.
+    ``warnings.simplefilter("error", misata.ConformanceWarning)`` is the
+    setting for CI that should only fail on these.
+    """
+
+
+def warn(message: str, category: Type[MisataWarning] = MisataWarning) -> None:
+    """Emit a Misata warning attributed to the first frame outside the package.
+
+    Generation runs several layers deep, so a fixed ``stacklevel`` would name
+    an engine module. Walking out of the package names the user's own call to
+    ``generate`` or ``generate_from_schema`` instead, which is the line a
+    warning filter or a traceback should point at.
+    """
+    level = 2
+    frame = sys._getframe(1)
+    while frame.f_back is not None and frame.f_code.co_filename.startswith(_PACKAGE_DIR):
+        frame = frame.f_back
+        level += 1
+    warnings.warn(message, category, stacklevel=level)
 
 
 # ============ Schema Errors ============

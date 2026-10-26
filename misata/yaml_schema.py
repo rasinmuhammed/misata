@@ -29,15 +29,13 @@ Python API::
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import warnings
 
 import yaml
 
-from misata.compat import _TYPE_MAP, resolve_column_type
+from misata.compat import resolve_column_type
 from misata.schema import (
     Column,
     Constraint,
@@ -56,6 +54,7 @@ from misata.schema import (
     Table,
     WaterfallIdentity,
 )
+from misata.exceptions import ConformanceWarning, warn
 
 
 # ---------------------------------------------------------------------------
@@ -264,13 +263,11 @@ def _parse_column(col_name: str, col_def: Dict[str, Any],
 
     # FK declared via relationships — column just needs type="foreign_key"
     if raw_type == "foreign_key" or misata_type == "foreign_key":
-        # This branch used to build the column from nothing but its name, which
-        # silently discarded everything else written next to it. `unique: true`
-        # on a foreign key is the one that bites: it says the relationship is
-        # one-to-one, and dropping it means the key is drawn with replacement
-        # and the database rejects the insert on its own unique index. Found on
-        # a real schema where `grabs.wanted_item_id` is UNIQUE, one grab per
-        # item. `references` and `nullable` were being lost the same way.
+        # Keep everything written next to the foreign key, not just its name.
+        # `unique: true` matters most: it says the relationship is one-to-one,
+        # so the key is drawn without replacement and the database's own unique
+        # index accepts the insert. `references` and `nullable` carry through
+        # the same way.
         params: Dict[str, Any] = {}
         for k in ("references", "sampling", "filters", "null_rate"):
             if col_def.get(k) is not None:
@@ -312,23 +309,15 @@ def _parse_column(col_name: str, col_def: Dict[str, Any],
         params["start"] = col_def.get("start", "2020-01-01")
         params["end"] = col_def.get("end", "2024-12-31")
 
-    # Generation features that may appear on any column type (0.8.0.2): pass them through
+    # Generation features that may appear on any column type: pass them through
     # so they survive load. These are validated at generation time, not here.
     #
-    # `null_rate` and `pattern` were missing from this list, which meant the
-    # documented YAML form accepted both and then discarded them: a declared
-    # null rate did nothing, and a declared pattern was ignored in favour of
-    # semantic text. Anything the engine reads from `distribution_params` has to
-    # be listed here or it does not survive the file it was written in.
-    # This was a list of sixteen names, and the engine reads more than fifty
-    # parameters. Everything absent was accepted by the file and then thrown
-    # away: `templates` and `variables` are the ones that hurt, because a
-    # declared release-name template silently became generic semantic text, but
-    # `null_when`, `exact_incidence`, `quantiles` and twenty-odd others went the
-    # same way. Three separate bugs this week were one enumerated list missing
-    # one key, so stop enumerating.
+    # The engine reads more than fifty parameters from `distribution_params`
+    # (`null_rate`, `pattern`, `templates`, `null_when`, `quantiles` and the
+    # rest), so this names the keys consumed above and passes everything else
+    # through rather than enumerating what to keep.
     #
-    # Inverting is also the safer direction. An unknown key carried into
+    # Passing through is also the safer direction. An unknown key carried into
     # distribution_params is ignored by the engine; a known key dropped here is
     # a declaration that does nothing while the file still looks authoritative.
     for k, v in col_def.items():
@@ -567,12 +556,10 @@ def load_yaml_schema(
     # Stock-flow identities
     stock_flows = [StockFlowIdentity(**s) for s in (raw.get("stock_flows") or [])]
 
-    # Every declaration added since 0.8.9.4. This loader handles the documented
-    # `tables: {name: {...}}` YAML form and is a SEPARATE path from
-    # `compat.from_dict_schema`, which was fixed in 0.9.1. Fixing one and not
-    # the other meant a lifecycle written in the documented format was parsed,
-    # validated, and then silently dropped on the floor. One table, so the next
-    # declaration is one line rather than another forgotten branch.
+    # The schema-level declarations. This loader handles the documented
+    # `tables: {name: {...}}` YAML form and is a separate path from
+    # `compat.from_dict_schema`, so both must read every declaration. One table,
+    # so the next declaration is one line rather than another branch.
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
                                Duplicates, EventLog, LateArrival, Lifecycle,
                                Missingness, Outliers, Process, TimeGrid,
@@ -596,7 +583,7 @@ def load_yaml_schema(
             try:
                 parsed.append(model(**item))
             except Exception as e:
-                warnings.warn(f"Skipping invalid {key}[{i}] in {path.name}: {e}")
+                warn(f"Skipping invalid {key}[{i}] in {path.name}: {e}", ConformanceWarning)
         _declared[key] = parsed
 
     # Declared data-quality defects
@@ -651,6 +638,45 @@ def load_yaml_schema(
         seed=file_seed,
     )
 
+
+
+def load_schema_file(
+    path: Union[str, Path],
+    *,
+    seed: Optional[int] = None,
+    rows: Optional[int] = None,
+) -> SchemaConfig:
+    """A schema from any file form Misata writes or reads.
+
+    Accepts ``misata.yaml`` (tables as a mapping), a ``SchemaConfig`` dump
+    such as ``schema.solved.json`` (tables as a list), and the dict schema
+    form. JSON is read as YAML, which it is a subset of.
+
+    Args:
+        path: The schema file.
+        seed: Overrides the file's seed.
+        rows: Row count for tables that do not state one.
+
+    Raises:
+        ValueError: the file does not hold a mapping.
+    """
+    path = Path(path).expanduser()
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"Expected a mapping in {path}")
+    tables = raw.get("tables")
+    if isinstance(tables, dict):
+        return load_yaml_schema(path, seed=seed) if rows is None else load_yaml_schema(
+            path, rows=rows, seed=seed)
+    if isinstance(tables, list):
+        schema = SchemaConfig(**raw)
+    else:
+        from misata.compat import from_dict_schema
+
+        schema = from_dict_schema(raw, row_count=rows)
+    if seed is not None:
+        schema.seed = seed
+    return schema
 
 
 def save_yaml_schema(
@@ -861,7 +887,7 @@ def _column_to_dict(col: Column) -> Dict[str, Any]:
 
     p = col.distribution_params or {}
     for k in ("min", "max", "decimals", "distribution", "text_type", "start", "end",
-              # 0.8.0.2 generation features must survive the YAML round-trip
+              # generation features must survive the YAML round-trip
               "rollup", "zero_inflate", "depends_on", "mapping", "formula",
               "inherits_curve_from", "quantize"):
         if k in p:

@@ -773,7 +773,7 @@ def vary_keeping(texts: Sequence[str], keep: Sequence, rng: np.random.Generator,
     """``vary`` that leaves each row's ``keep`` phrase or phrases (a product
     noun, a job title, a city) exactly as written, in whatever case."""
     held, found_all = [], []
-    for t, k in zip(texts, keep):
+    for t, k in zip(texts, keep, strict=True):
         ks = [x for x in ([k] if isinstance(k, str) else list(k or [])) if x]
         found = re.findall("|".join(re.escape(x) for x in sorted(ks, key=len, reverse=True)), t, re.I) if ks else []
         for j, f in enumerate(found[:8]):
@@ -781,7 +781,7 @@ def vary_keeping(texts: Sequence[str], keep: Sequence, rng: np.random.Generator,
         held.append(t)
         found_all.append(found[:8])
     out = []
-    for t, found in zip(vary(held, rng, register, **kwargs), found_all):
+    for t, found in zip(vary(held, rng, register, **kwargs), found_all, strict=True):
         for j, f in enumerate(found):
             t = t.replace(chr(j + 1), f, 1)
         out.append(t)

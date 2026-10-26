@@ -9,7 +9,6 @@ This module provides rule-based pattern matching to extract:
 """
 
 import re
-import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from misata.schema import Column, Constraint, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
+from misata.exceptions import ConformanceWarning, warn
 
 
 @dataclass
@@ -744,7 +744,7 @@ class StoryParser:
 
         curve_points = [
             {"month": int(m), "target_value": round(max(float(v), 0.0), 2)}
-            for m, v in zip(months, interpolated)
+            for m, v in zip(months, interpolated, strict=True)
         ]
 
         # Only pin an explicit start_date when the story actually named a year. Otherwise
@@ -1127,8 +1127,7 @@ class StoryParser:
         from misata.spec_prompt import looks_like_spec, parse_spec
         if looks_like_spec(story):
             schema, report = parse_spec(story, default_rows=default_rows)
-            import warnings as _warnings
-            _warnings.warn(report.summary())
+            report.emit()
             return schema
 
         # Extract information from story
@@ -1211,16 +1210,13 @@ class StoryParser:
             if composed is not None and len(composed.tables) >= 2:
                 schema = composed
                 self._composed_structurally = True
-                import warnings as _warnings
-                _warnings.warn(
+                warn(
                     "StoryParser could not match a built-in domain, so it composed a "
                     "structural schema from the story's entities: "
                     f"{', '.join(t.name for t in composed.tables)}. "
                     "Columns are structural (ids, names, dates, statuses, FKs), not "
                     "domain-specific. For domain-specific columns, pass a schema dict "
                     "to from_dict_schema or use LLMSchemaGenerator.",
-                    UserWarning,
-                    stacklevel=2,
                 )
             else:
                 self._composed_structurally = False
@@ -1255,8 +1251,8 @@ class StoryParser:
                 "name the desired domain literally (e.g. 'fintech') if you want a different one."
             )
 
-        # Gap A: extract RateCurve constraints from the story and attach them
-        # to the schema.  This runs AFTER the domain builder so it can resolve
+        # Extract RateCurve constraints from the story and attach them to the
+        # schema. This runs AFTER the domain builder so it can resolve
         # column names against the produced table definitions.
         detected_rate_curves = self._extract_rate_curves(story, schema)
         if detected_rate_curves:
@@ -1271,27 +1267,24 @@ class StoryParser:
         self._apply_explicit_counts(story, schema)
         self._timestamps_for_moments(schema)
 
-        # Say what could not be used. Silence here is how a story that asked
-        # for six thousand invoices, a plan split and an unpaid rate came back
-        # as two tables and looked like a success.
+        # Say what could not be used, so a story whose counts, splits or rates
+        # produced no declaration never looks like a complete success.
         self._unhandled = self.unhandled_claims(story, schema)
         self._unhandled += self._unsupported_declaration_mentions(story, schema)
         for claim in self._unhandled:
-            warnings.warn(
+            warn(
                 f"This parser could not turn {claim!r} into a declaration, so it "
                 f"had no effect. Set it on the schema directly, or use an LLM "
                 f"provider for a story this detailed.",
-                UserWarning,
-                stacklevel=2,
+                ConformanceWarning,
             )
 
         for entity in self._missing_entities(story, schema):
-            warnings.warn(
+            warn(
                 f"The story asks for {entity}, but this parser built no table for "
                 f"them ({', '.join(t.name for t in schema.tables)}). Add the table "
                 f"to the schema, or use an LLM provider for this story.",
-                UserWarning,
-                stacklevel=2,
+                ConformanceWarning,
             )
 
         # Cache the produced schema so detection_report() can preview tables
@@ -1311,15 +1304,13 @@ class StoryParser:
     def _missing_entities(self, story: str, schema: "SchemaConfig") -> List[str]:
         """Entities the story names that no table represents.
 
-        "...12000 orders and order items" used to return an orders table and
-        nothing else, silently. A named entity with no table is now reported.
-        Matching is by the table-name stem (``order_items`` covers "order
+        "...12000 orders and order items" names two entities; if only an orders
+        table was built, "order items" is reported. Matching is by the table-name stem (``order_items`` covers "order
         items", ``payments`` covers "payments") and ignores phrases already
         reported as unhandled counts.
         """
         low = (story or "").lower()
         names = [t.name.lower() for t in (schema.tables or [])]
-        cols = {c.name.lower() for cs in (schema.columns or {}).values() for c in cs}
         missing = []
         for phrase, stems in self._ENTITY_WORDS.items():
             if not re.search(rf"\b{re.escape(phrase)}\b", low):
@@ -1339,13 +1330,13 @@ class StoryParser:
     # ── What the story asked for that this parser did not deliver ──────────
     #
     # This is a recogniser, not a language model. It handles a fixed set of
-    # phrasings well and returns nothing at all for the rest, and until now it
-    # returned nothing *silently*: "8% of invoices unpaid" and "plans split 55%
-    # Starter" produced no declaration and no complaint, so a schema that had
-    # quietly dropped half the brief looked identical to one that honoured it.
+    # phrasings well and returns nothing at all for the rest. Without a report,
+    # "8% of invoices unpaid" and "plans split 55% Starter" would produce no
+    # declaration and no complaint, and a schema missing half the brief would
+    # look identical to one that honoured it.
     #
     # A declaration is honoured or refused, never ignored. When this parser
-    # cannot express something, it now says which words it could not use, so
+    # cannot express something, it says which words it could not use, so
     # the caller can set it on the canvas or hand the story to an LLM instead.
 
     _CLAIM_SPLIT = re.compile(r"[.;]|,(?=\s*(?:and\s+)?[a-z]{3,}\s)", re.IGNORECASE)
@@ -1394,10 +1385,8 @@ class StoryParser:
         """An explicit "N <things>" sets the row count of the table built for
         <things>.
 
-        Domain builders size tables from their own defaults, so "500
-        products" came back as 600 products with a warning that the count had
-        no effect, even though a products table was right there. The count is
-        the user's, so it wins. Unique integer key ranges sized for the old
+        Domain builders size tables from their own defaults, but "500
+        products" is the user's count, so it wins over the builder's. Unique integer key ranges sized for the old
         count are widened to fit the new one.
         """
         if not story or not schema.tables:
@@ -1439,8 +1428,8 @@ class StoryParser:
         if not story:
             return []
 
-        table_names = {t.name.lower() for t in (schema.tables or [])}
-        column_names = {c.name.lower()
+        {t.name.lower() for t in (schema.tables or [])}
+        {c.name.lower()
                         for cols in (schema.columns or {}).values() for c in cols}
         has_curve = bool(schema.outcome_curves)
         has_rates = bool(schema.rate_curves)
@@ -1464,13 +1453,11 @@ class StoryParser:
             pairs = re.findall(r"(\d[\d,]*)\s+([a-z_]{3,})", low)
 
             # A coverage signal excuses the fragment, not everything inside it.
-            # This check used to run first, so a single mention of the word
-            # "revenue" waved through every other count in the same sentence:
             # "800 customers and 5000 invoices where revenue grows from ..." is
-            # one fragment, and the 5,000 invoices that produced no table were
-            # never reported. Counts are now judged one at a time below, and
-            # the fragment-level excuse only applies when there are no counts
-            # to judge.
+            # one fragment, and the word "revenue" must not excuse 5,000
+            # invoices that produced no table. Counts are judged one at a time
+            # below, and the fragment-level excuse only applies when there are
+            # no counts to judge.
             covered_fragment = (
                 (has_curve and re.search(
                     r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|"
@@ -1560,7 +1547,6 @@ class StoryParser:
         Only fires on text columns without an existing text_type to avoid
         overriding intentional domain-specific text_types from templates."""
         from misata.compat import _TEXT_TYPE_HINTS
-        import re as _re
 
         _EXACT_MAP: Dict[str, str] = _TEXT_TYPE_HINTS  # type: ignore[assignment]
         changed = False
@@ -1765,9 +1751,8 @@ class StoryParser:
             ),
         ]
 
-        # Wire any declared churn RATE directly into the churned column's probability,
-        # so "20% churn" actually yields ~20% churned (previously the rate was only used
-        # in a description string while a date-condition event set ~55% churned).
+        # Wire any declared churn rate directly into the churned column's
+        # probability, so "20% churn" yields about 20% churned rows.
         churn_rate = next((v for et, v in self.temporal_events if et == "churn"), None)
         if churn_rate is not None:
             for col in columns.get("users", []):
@@ -3564,14 +3549,11 @@ class StoryParser:
         use more explicit keywords (e.g. "SaaS", "ecommerce") or switch to the
         LLM parser for open-ended stories.
         """
-        import warnings
-        warnings.warn(
+        warn(
             "StoryParser could not detect a domain from the story. "
             "Falling back to a single generic table. "
             "Add a domain keyword (saas, ecommerce, fintech, healthcare, marketplace, logistics) "
             "for a richer schema, or use LLMSchemaGenerator for open-ended stories.",
-            UserWarning,
-            stacklevel=3,
         )
         tables = [
             Table(name="main_table", row_count=default_rows),

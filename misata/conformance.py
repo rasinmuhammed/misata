@@ -218,7 +218,6 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
         # Render in the UI
         chart_data = preview.to_dict()
     """
-    import numpy as np
     from misata.engines import FactEngine
 
     engine = FactEngine()
@@ -313,7 +312,7 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
             )
 
         for bucket, target, est_rows in zip(
-            resolved.buckets, resolved.targets, row_counts
+            resolved.buckets, resolved.targets, row_counts, strict=True
         ):
             # Prop. 3 clamping check
             if resolved.avg_transaction_value and target > 0:

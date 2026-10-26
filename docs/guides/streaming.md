@@ -12,7 +12,7 @@ description: Generate 10M+ row synthetic datasets without loading everything int
 | | `misata.generate()` | `misata.generate_stream()` |
 |:--|:--|:--|
 | Return type | `dict[str, DataFrame]` | Generator of `(name, DataFrame)` |
-| Memory usage | Full dataset in RAM | One batch at a time |
+| Memory usage | Full dataset in RAM | One batch of each child table; parent tables whole |
 | Suitable for | < 1M rows, interactive use | 1M+ rows, pipelines, ETL |
 | Supports `min_quality_score` | ✓ | ✗ (retry requires full buffering) |
 
@@ -32,60 +32,48 @@ for table_name, batch in misata.generate_stream(
 
 ## Stream directly to Parquet
 
-```python
-import misata
-from pathlib import Path
-import pandas as pd
+From the command line, `--format` writes each batch as it is generated:
 
-output_dir = Path("./large_dataset/")
-output_dir.mkdir(exist_ok=True)
-writers: dict = {}
-
-for table_name, batch in misata.generate_stream(
-    "A SaaS company with 2M users",
-    rows=2_000_000,
-    seed=42,
-):
-    path = output_dir / f"{table_name}.parquet"
-    if table_name not in writers:
-        # First batch — write with schema
-        batch.to_parquet(path, index=False)
-    else:
-        # Append subsequent batches
-        existing = pd.read_parquet(path)
-        pd.concat([existing, batch], ignore_index=True).to_parquet(path, index=False)
-    writers[table_name] = True
-    print(f"  {table_name}: wrote {len(batch):,} rows")
+```bash
+misata generate -c misata.yaml -o large_dataset --format parquet   # pip install "misata[parquet]"
 ```
 
-For very large datasets, use PyArrow's `ParquetWriter` directly:
+From Python, a sink does the same: one Parquet writer per table, each batch
+appended as a row group, nothing read back.
 
 ```python
 import misata
-import pyarrow as pa
-import pyarrow.parquet as pq
-from pathlib import Path
+from misata.sinks import open_sink
 
-output_dir = Path("./output/")
-output_dir.mkdir(exist_ok=True)
-pq_writers: dict = {}
-
-for table_name, batch in misata.generate_stream(
-    "A fintech with 10M transactions",
-    rows=10_000_000,
-    seed=42,
-):
-    arrow_table = pa.Table.from_pandas(batch)
-    if table_name not in pq_writers:
-        pq_writers[table_name] = pq.ParquetWriter(
-            output_dir / f"{table_name}.parquet",
-            arrow_table.schema,
-        )
-    pq_writers[table_name].write_table(arrow_table)
-
-for writer in pq_writers.values():
-    writer.close()
+schema = misata.parse("A SaaS company with many users", rows=2_000_000)
+with open_sink("parquet", "large_dataset", schema) as sink:
+    for table_name, batch in misata.generate_stream(schema, seed=42):
+        sink.write(table_name, batch)
+print(sink.rows)
 ```
+
+`open_sink` also takes `"csv"`, `"jsonl"` and `"duckdb"`, and
+`partition_by="column"` for Hive-style Parquet folders.
+
+## How fast, and how much memory
+
+Measured on an Apple M1 with 8 GB, generating a fourteen-table retail
+schema to Parquet and then checking every key, every order's line items and
+every order total with DuckDB over the written files:
+
+| Rows | Seconds | Peak memory |
+|--:|--:|--:|
+| 1,000,000 | 2.1 | 0.5 GB |
+| 10,000,000 | 34 | 1.0 GB |
+
+```bash
+python benchmarks/bench_r3_volume.py --scale 10 --stream out/
+```
+
+Child rows are held one batch at a time. A table that children reference
+(customers for orders, orders for line items) is held whole until its
+children are done, so memory follows the size of the parent tables rather
+than the total row count.
 
 ## Stream into a database
 

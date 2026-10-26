@@ -464,7 +464,7 @@ class DataProfiler:
 
     def profile(self, df: pd.DataFrame, table_name: str = "table") -> "SchemaConfig":
         """Return a SchemaConfig that statistically mirrors *df*."""
-        from misata.schema import Column, Table, SchemaConfig
+        from misata.schema import Table, SchemaConfig
 
         columns: List[Column] = []
         by_name: Dict[str, Column] = {}

@@ -40,6 +40,15 @@ description: >
     audit_dataset         Run the coherence audit on any folder of CSVs:
                           backwards timestamps, totals that do not reconcile,
                           near-constant columns, scored 0-100.
+    explain_schema        What a schema will generate, without generating it:
+                          planned rows, which declaration writes which column,
+                          and every conflict with its remedy.
+    solve_outcome         Find outcome-curve values that make SQL metrics
+                          computed from the data (net revenue after refunds,
+                          revenue after a fee) hit per-period targets.
+    attest_dataset        Prove a folder of files holds every invariant its
+                          schema declared, pinned by SHA-256 in an in-toto
+                          Statement with a standalone verify.py.
     check_realism         Find the statistical tells of generated data in any
                           folder of CSVs: uniform money, even fan-out, flat
                           hour/weekday profiles, placeholder values.
@@ -72,8 +81,9 @@ startCommand:
     description: >
       Every field is optional. The three tools that read plain English
       (generate_dataset, preview_story, inspect_schema) need one provider key.
-      generate_from_schema, audit_dataset, check_realism, validate_domain, seed_database,
-      list_domains and validate_yaml never call a model and work with nothing
+      generate_from_schema, explain_schema, solve_outcome, audit_dataset, attest_dataset,
+      check_realism, validate_domain, seed_database, list_domains and
+      validate_yaml never call a model and work with nothing
       configured at all.
     properties:
       provider:

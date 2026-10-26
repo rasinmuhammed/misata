@@ -22,10 +22,11 @@ a constraint on an undeclared pair is a warning, never a guess.
 
 from __future__ import annotations
 
-import warnings
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 CROSS_TABLE_TYPES = ("lte_parent", "sum_lte_parent")
 
@@ -62,21 +63,24 @@ def apply_cross_table_constraints(
         col = getattr(c, "column", None)
         pcol = getattr(c, "parent_column", None)
         if child is None or parent is None:
-            warnings.warn(
+            warn(
                 f"Constraint '{c.name}': table '{child_name}' or its parent "
-                f"'{c.parent_table}' is not materialised. Skipping.")
+                f"'{c.parent_table}' is not materialised. Skipping.",
+                ConformanceWarning,)
             continue
         if not col or col not in child.columns or not pcol or pcol not in parent.columns:
-            warnings.warn(
+            warn(
                 f"Constraint '{c.name}': column '{col}' or parent column "
-                f"'{pcol}' not found. Skipping.")
+                f"'{pcol}' not found. Skipping.",
+                ConformanceWarning,)
             continue
         link = _find_fk(config, child_name, c.parent_table)
         if link is None:
-            warnings.warn(
+            warn(
                 f"Constraint '{c.name}': no declared relationship between "
                 f"'{child_name}' and '{c.parent_table}'. Declare one; the fk "
-                "is never guessed. Skipping.")
+                "is never guessed. Skipping.",
+                ConformanceWarning,)
             continue
         child_key, parent_key = link
         if child_key not in child.columns or parent_key not in parent.columns:

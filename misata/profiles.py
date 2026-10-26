@@ -5,7 +5,7 @@ Pre-configured distribution parameters that match real-world patterns
 for common data types like age, salary, prices, etc.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 import numpy as np
 
 

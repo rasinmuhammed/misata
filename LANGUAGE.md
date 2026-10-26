@@ -570,8 +570,8 @@ declaration is verified individually and nothing checked that several compose,
 which is where four shipped defects came from. `misata lint` reports it.
 
 ```bash
-python -m benchmarks.gauntlet                        # 126/126
-python -m benchmarks.gauntlet_compare --tool faker   # 72/126
+python -m benchmarks.gauntlet                        # 136/136
+python -m benchmarks.gauntlet_compare --tool faker   # 78/136
 python -m benchmarks.warren                          # 110/110
 python -m benchmarks.ledger                          # 48/48
 python -m benchmarks.bench_dynamics --big            # what the passes cost

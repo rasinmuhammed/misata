@@ -27,7 +27,12 @@ Quickstart::
 __version__ = "0.9.7.2"
 __author__ = "Muhammed Rasin"
 
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+from misata.attestation import Attestation, AttestationError, attest
+from misata.explain import Explanation, explain
+from misata.solve import DbtDuckDBRunner, PythonRunner, SolveResult, SQLRunner, Target, solve
 
 
 # ---------------------------------------------------------------------------
@@ -164,10 +169,11 @@ def _stream_schema(story: "Any", rows: int) -> "Any":
 def _run_simulation(
     schema: "SchemaConfig",
     custom_generators: "Optional[Dict[str, Dict[str, Any]]]" = None,
+    strict: bool = True,
 ) -> "Dict[str, Any]":
     from misata.simulator import DataSimulator
 
-    sim = DataSimulator(schema, custom_generators=custom_generators)
+    sim = DataSimulator(schema, custom_generators=custom_generators, strict=strict)
     return _collect_batches(sim.generate_all())
 
 
@@ -367,14 +373,6 @@ def generate_from_schema(
         from misata.presets import apply_preset
         schema = apply_preset(schema, preset or schema.preset)
 
-    # Refuse contradictory declarations before generating anything. A
-    # declarative engine owes the user a compiler error here, not a warning
-    # followed by a specification it substituted on their behalf. Set
-    # ``strict=False`` to fall back to the older warn-and-resolve behaviour.
-    if strict:
-        from misata.feasibility import check_feasibility
-        check_feasibility(schema)
-
     if smart_correlations:
         schema = copy.deepcopy(schema)
         _infer_correlations(schema)
@@ -384,20 +382,20 @@ def generate_from_schema(
 
     def _verified(tables: "Dict[str, Any]") -> "Dict[str, Any]":
         if verify:
-            import warnings as _warnings
             from misata.coherence import story_audit
+            from misata.exceptions import warn
             report = story_audit(tables, schema)
             for f in report.findings:
                 if not f.repaired:
-                    _warnings.warn(
+                    warn(
                         f"story_audit [{f.severity}] {f.table}"
                         f"{'.' + f.column if f.column else ''}: {f.message}",
-                        UserWarning, stacklevel=3,
+                        ConformanceWarning,
                     )
         return tables
 
     if min_quality_score is None:
-        return _verified(_run_simulation(schema, custom_generators=custom_generators))
+        return _verified(_run_simulation(schema, custom_generators=custom_generators, strict=strict))
 
     from misata.reporting import FidelityChecker
     best_tables: "Optional[Dict[str, Any]]" = None
@@ -407,7 +405,7 @@ def generate_from_schema(
     for attempt in range(max_retries + 1):
         if attempt > 0:
             schema.seed = base_seed + attempt
-        tables = _run_simulation(schema, custom_generators=custom_generators)
+        tables = _run_simulation(schema, custom_generators=custom_generators, strict=strict)
         report = FidelityChecker().check_against_schema(tables, schema)
         if report.overall_score > best_score:
             best_score = report.overall_score
@@ -604,7 +602,6 @@ def generate_diff(
         if not csv_path.exists():
             continue
         try:
-            existing_df = pd.read_csv(csv_path, nrows=0)
             # Look for integer PK-like columns
             full = pd.read_csv(csv_path, usecols=lambda c: c.lower() in (
                 "id", f"{t.name}_id", f"{t.name[:-1]}_id"  # naive PK heuristic
@@ -719,11 +716,13 @@ from misata.constraints import (
 )
 from misata.context import GenerationContext
 from misata.exceptions import (
-    MisataError,
     ColumnGenerationError,
-    LLMError,
     ConfigurationError,
+    ConformanceWarning,
     ExportError,
+    LLMError,
+    MisataError,
+    MisataWarning,
 )
 from misata.export import to_parquet, to_duckdb, to_jsonl, to_sql, to_arrow, to_seed_sql, to_polars, decode_json_columns
 from misata.compat import from_dict_schema, verify_integrity, IntegrityReport
@@ -913,6 +912,8 @@ __all__ = [
     "GenerationContext",
     # Exceptions
     "MisataError",
+    "MisataWarning",
+    "ConformanceWarning",
     "ColumnGenerationError",
     "LLMError",
     "ConfigurationError",
@@ -974,6 +975,17 @@ __all__ = [
     # Quality
     "DataQualityChecker",
     "check_quality",
+    "attest",
+    "explain",
+    "Explanation",
+    "solve",
+    "SolveResult",
+    "Target",
+    "SQLRunner",
+    "PythonRunner",
+    "DbtDuckDBRunner",
+    "Attestation",
+    "AttestationError",
     "coherence_audit",
     "story_audit",
     "CoherenceReport",
@@ -986,13 +998,18 @@ __all__ = [
     # Templates
     "load_template",
     "list_templates",
-    # DB seeding
     # Export
     "to_parquet",
     "to_duckdb",
     "to_jsonl",
     "to_polars",
+    "to_sql",
+    "to_seed_sql",
+    "to_arrow",
     "decode_json_columns",
+    # Domain validation
+    "validate_domain",
+    "ValidationReport",
     # Spark / Delta Lake
     "spark",
     # DB seeding

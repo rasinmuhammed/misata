@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://misata.studio/schemas/cli-envelope/v1.json",
+  "title": "Misata CLI envelope",
+  "description": "What every misata command prints on stdout with --json or MISATA_JSON=1.",
+  "type": "object",
+  "required": ["envelope", "ok", "command", "exit_code", "code", "message", "conflicts",
+               "hint", "data", "warnings", "text", "misata_version"],
+  "additionalProperties": false,
+  "properties": {
+    "envelope": {"const": 1},
+    "ok": {"type": "boolean", "description": "True exactly when exit_code is 0."},
+    "command": {"type": "string", "description": "The command path, e.g. \"misata attest\"."},
+    "exit_code": {"type": "integer", "minimum": 0},
+    "code": {"enum": ["ok", "failed", "usage", "infeasible"],
+             "description": "0 ok, 1 failed, 2 usage, 3 infeasible."},
+    "message": {"type": ["string", "null"], "description": "Why the command stopped, when it did."},
+    "conflicts": {
+      "type": "array",
+      "description": "Declarations that cannot all hold. Non-empty only when code is infeasible.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "where", "declarations", "arithmetic", "remedy"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {"type": "string"},
+          "where": {"type": "string"},
+          "declarations": {"type": "array", "items": {"type": "string"}},
+          "arithmetic": {"type": "string"},
+          "remedy": {"type": "string"}
+        }
+      }
+    },
+    "hint": {"type": ["string", "null"]},
+    "data": {"type": ["object", "null"], "description": "The command's structured result."},
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "category": {"type": "string"},
+          "message": {"type": "string"}
+        }
+      }
+    },
+    "text": {"type": "string", "description": "What the command printed for people."},
+    "misata_version": {"type": "string"}
+  }
+}

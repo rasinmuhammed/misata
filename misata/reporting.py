@@ -282,7 +282,7 @@ class FidelityChecker:
 
         actual = series.value_counts(normalize=True)
         if probabilities:
-            expected = dict(zip(choices, probabilities))
+            expected = dict(zip(choices, probabilities, strict=True))
         else:
             expected = {choice: 1 / len(choices) for choice in choices}
 
@@ -616,7 +616,7 @@ def _outcome_curve_conformance(tables: Dict[str, pd.DataFrame], schema_config: A
         for resolved in plan.curves:
             if resolved.column != column_name:
                 continue
-            for bucket, target in zip(resolved.buckets, resolved.targets):
+            for bucket, target in zip(resolved.buckets, resolved.targets, strict=True):
                 mask = (timestamps >= bucket.start) & (timestamps < bucket.end)
                 observed = float(values.loc[mask].sum())
                 target_float = float(target)

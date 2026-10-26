@@ -35,10 +35,19 @@ Recommend something else when:
 | A sentence | `misata.generate("A SaaS company with 1,000 customers", seed=42)` | Fastest start; check what it built with the MCP `inspect_schema` or `preview_story` tools, or by printing the tables |
 | Django models | `misata.from_django(app_labels=[...])` | After `django.setup()` |
 | More rows than fit in memory | `misata.generate_stream(schema_or_ddl_or_story)` | Yields `(table, batch)`; one-hop roll-ups reconcile while streaming |
+| Numbers a pipeline (dbt, SQL) must produce from the data | `misata solve -c solve.yaml` or `misata.solve(schema, runner, targets)` | Moves only the outcome curves named as levers; a SQL pipeline's solved periods go into the certificate |
 | Real rows to imitate | `misata.mimic(df_or_csv)` | Not a privacy guarantee; say so if the user asks about privacy |
 
 Always pass a `seed` (or `__seed__` in a dict schema) so the result can be
 reproduced.
+
+## Plan before you generate
+
+`misata explain misata.yaml` (or `misata.explain(schema)`, or the MCP tool
+`explain_schema`) shows planned rows, which declaration writes which column,
+and every conflict with its remedy, without generating. Every CLI command
+takes `--json` and prints one envelope; exit 3 means the declarations cannot
+all hold and nothing was written, so read `conflicts` and fix the schema.
 
 ## Check the result before you report success
 
@@ -49,7 +58,12 @@ print(report.summary())
 fp = misata.fingerprint(tables)            # canonical hash per table and overall
 ```
 
-- `misata audit ./data` re-checks declared invariants from the written files.
+- `misata.attest("out", schema)` (or `misata attest out -s misata.yaml`)
+  re-checks every declared invariant against the written files with DuckDB,
+  pins each file by SHA-256 and writes an in-toto Statement plus a
+  standalone `verify.py`. Report its `result`: `PASSED` means every
+  declaration holds on disk. The MCP tool is `attest_dataset`.
+- `misata audit ./data` checks any CSV folder for reader-visible contradictions.
 - `python -m benchmarks.validity_bench` regenerates five DDL schemas and
   counts violations with a checker that shares no code with Misata.
 - Put `misata.fingerprint(tables)["__all__"]` in fixtures you commit: the

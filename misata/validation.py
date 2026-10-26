@@ -15,6 +15,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+import pandas as pd
+
+from misata.engines import FactEngine
+
 
 # ---------------------------------------------------------------------------
 # Pre-generation schema validation
@@ -392,10 +397,6 @@ def validate_schema(schema: Any) -> None:
     if issues:
         raise SchemaValidationError(issues)
 
-import numpy as np
-import pandas as pd
-
-from misata.engines import FactEngine
 
 
 class Severity(Enum):
@@ -735,7 +736,7 @@ class DataValidator:
                 tolerance = 0.01 if self._column_decimals(table_name, curve.column) else 0.0
                 mismatches = [
                     (expected, actual)
-                    for expected, actual in zip(curve.targets, actual_values)
+                    for expected, actual in zip(curve.targets, actual_values, strict=True)
                     if abs(expected - actual) > tolerance
                 ]
                 if mismatches:
@@ -910,7 +911,7 @@ class CsvValidationReport:
                     issues.append(f"{col}: schema expects {expected!r} but found {sem!r}")
                     deductions += 8
                 else:
-                    notes.append(f"schema ✓")
+                    notes.append("schema ✓")
 
                 if sc.unique and n_unique < len(df):
                     dup = len(df) - n_unique
@@ -1246,7 +1247,7 @@ class StreamingDataValidator:
                 tolerance = 0.01 if self._column_decimals(table_name, curve.column) else 0.0
                 mismatches = [
                     (expected, actual)
-                    for expected, actual in zip(curve.targets, actual_values)
+                    for expected, actual in zip(curve.targets, actual_values, strict=True)
                     if abs(expected - actual) > tolerance
                 ]
                 if not mismatches:

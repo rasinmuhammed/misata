@@ -69,6 +69,18 @@
       "description": "Score a folder of CSVs for reader-visible contradictions: backwards timestamps, totals that don't reconcile, near-constant columns."
     },
     {
+      "name": "explain_schema",
+      "description": "Show what a schema will generate without generating it: planned rows, which declaration writes which column, curve plans, conflicts with remedies."
+    },
+    {
+      "name": "solve_outcome",
+      "description": "Find outcome-curve values that make SQL metrics over the generated tables hit per-period targets, such as net revenue after refunds."
+    },
+    {
+      "name": "attest_dataset",
+      "description": "Prove a written dataset holds every invariant its schema declared, as an in-toto Statement with a standalone verify.py."
+    },
+    {
       "name": "check_realism",
       "description": "Find the statistical tells of generated data (uniform money, even fan-out, flat time profiles, placeholder values) without real data to compare against."
     },

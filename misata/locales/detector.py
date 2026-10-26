@@ -9,7 +9,6 @@ Returns a BCP-47 locale code string (e.g. "de_DE") or None if uncertain.
 
 from __future__ import annotations
 
-import re
 from typing import Dict, List, Optional, Tuple
 
 
@@ -128,9 +127,9 @@ _LOCALE_SIGNALS: List[Tuple[str, int, List[str]]] = [
     ]),
 
     # ── Saudi Arabia ──────────────────────────────────────────────────────────
-    # "uae" / "dubai" / "abu dhabi" used to sit in this block, so a story
-    # mentioning Dubai detected as ar_SA and got Saudi Iqama-format IDs and
-    # SAR currency. Split into a real ar_AE block below.
+    # "uae", "dubai" and "abu dhabi" belong to the ar_AE block below, so a
+    # story mentioning Dubai gets Emirati IDs and AED, not Saudi Iqama-format
+    # IDs and SAR.
     ("ar_SA", 3, [
         "saudi arabia", "saudi company", "saudi startup",
         "sar", "riyal", "iqama", "vision 2030",
@@ -296,7 +295,7 @@ def detect_locale_from_story(story: str) -> Optional[str]:
     if not scores:
         return None
 
-    best_locale = max(scores, key=lambda l: scores[l])
+    best_locale = max(scores, key=lambda locale: scores[locale])
     if scores[best_locale] < 2:
         return None
 

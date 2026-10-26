@@ -17,13 +17,13 @@ drift.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from misata.schema import SCD2Config
+from misata.exceptions import ConformanceWarning, warn
 
 
 def _window(spec: SCD2Config, col_params: dict) -> tuple:
@@ -58,9 +58,10 @@ def apply_scd2(
         needed.add(spec.current_flag)
     missing = needed - set(df.columns)
     if missing:
-        warnings.warn(
+        warn(
             f"scd2 on {table_name or 'table'}: missing column(s) "
-            f"{sorted(missing)}; skipping")
+            f"{sorted(missing)}; skipping",
+            ConformanceWarning,)
         return df
     n = len(df)
     if n == 0:
@@ -79,10 +80,11 @@ def apply_scd2(
     if len(pool) < n_entities:
         # Not enough distinct values (tiny declared range): reuse with a
         # warning rather than inventing values of an unknown format.
-        warnings.warn(
+        warn(
             f"scd2 on {table_name or 'table'}: only {len(pool)} distinct "
             f"{spec.entity_column} values for {n_entities} entities; "
-            f"entity count reduced")
+            f"entity count reduced",
+            ConformanceWarning,)
         n_entities = max(1, len(pool))
         counts = np.ones(n_entities, dtype=int)
         if n > n_entities:
@@ -99,7 +101,7 @@ def apply_scd2(
     current = np.zeros(n, dtype=bool)
 
     pos = 0
-    for ent, k in zip(entity_ids, counts):
+    for ent, k in zip(entity_ids, counts, strict=True):
         k = int(k)
         # k distinct whole-second boundaries; the first is the entity's birth.
         secs = np.sort(rng.choice(total_secs, size=k, replace=False))

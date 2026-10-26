@@ -1,7 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 from misata.studio.state.store import StudioStore
-from misata.studio.outcome_curve import get_curve_presets, CurvePoint, OutcomeCurve
+from misata.studio.outcome_curve import get_curve_presets
 
 def render_outcome_tab():
     """Render the Outcome Constraint configuration tab."""

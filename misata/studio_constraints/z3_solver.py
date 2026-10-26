@@ -1,23 +1,19 @@
-"""
-Z3-based Constraint Solver for 100% Business Rule Compliance
+"""Row-level business rules for the studio: declare, validate, filter, repair.
 
-This is the key differentiator vs Gretel - guaranteed constraint satisfaction
-using industrial-strength SMT solving.
+A :class:`ConstraintEngine` holds named rules (column comparisons, ranges and
+custom predicates), reports which rows violate each one, and can drop or
+repair violating rows. Rules are checked row by row in Python; no SMT solver
+is involved. ``Z3_AVAILABLE`` reports whether the optional ``z3`` package is
+installed, for callers that offer solver-backed features.
 """
 
 from typing import Dict, List, Optional, Callable, Any
-import warnings
+import importlib.util
 import pandas as pd
-import numpy as np
 from dataclasses import dataclass
 
 # Z3 is optional - graceful fallback
-try:
-    from z3 import Solver, Int, Real, Bool, And, Or, Not, If, sat, unsat
-    Z3_AVAILABLE = True
-except ImportError:
-    Z3_AVAILABLE = False
-    warnings.warn("Z3 not installed. Install with: pip install 'misata[advanced]'")
+Z3_AVAILABLE = importlib.util.find_spec("z3") is not None
 
 
 @dataclass
@@ -223,7 +219,6 @@ def add_common_business_rules(engine: ConstraintEngine, schema: Dict) -> Constra
     
     for table_name, columns in schema.get("columns", {}).items():
         col_names = [c["name"].lower() for c in columns]
-        col_types = {c["name"].lower(): c["type"] for c in columns}
         
         # Date ordering rules
         if "start_date" in col_names and "end_date" in col_names:

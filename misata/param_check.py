@@ -2,10 +2,10 @@
 
 The numeric generator falls through to ``uniform(0, 1000)`` for any
 distribution name it does not recognise, and reads parameters with defaults,
-so ``distribution: "gumbel"`` or ``lamda: 3`` used to produce a column of
-plausible-looking numbers that matched nothing the schema said. A declaration
-language whose typos silently succeed cannot promise that what you declare
-holds. This module makes those cases errors, with a suggestion, at the moment
+so without these checks ``distribution: "gumbel"`` or ``lamda: 3`` would
+produce plausible-looking numbers that match nothing the schema says. A
+declaration language whose typos silently succeed cannot promise that what you
+declare holds. This module makes those cases errors, with a suggestion, at the moment
 the column is built:
 
 - an unknown distribution name raises, naming the closest supported one;
@@ -21,8 +21,9 @@ dozens more) that are not distribution parameters.
 from __future__ import annotations
 
 import difflib
-import warnings
 from typing import Any, Dict, Optional
+
+from misata.exceptions import ConformanceWarning, warn
 
 # The parameters each sampler reads (see DataSimulator.generate_column).
 DIST_PARAMS: Dict[str, frozenset] = {
@@ -166,8 +167,7 @@ def repair_distribution_params(col_type: str, params: Dict[str, Any],
     try:
         return check_distribution_params(col_type, params, column_name)
     except DistributionParamError as e:
-        warnings.warn(f"{e} Falling back to the column's default distribution.",
-                      UserWarning, stacklevel=2)
+        warn(f"{e} Falling back to the column's default distribution.", ConformanceWarning)
         keep = {k: v for k, v in params.items()
                 if k not in _ALL_DIST_KEYS - {"min", "max", "choices", "probabilities"}
                 and k != "distribution"}

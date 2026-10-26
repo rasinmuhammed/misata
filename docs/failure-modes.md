@@ -24,36 +24,65 @@ A period target T over n rows with per-row bounds [lo, hi] is feasible only when
 lo * n <= T <= hi * n
 ```
 
-When the declaration violates this, the aggregate target wins and rows leave their bounds, loudly:
+When no row count in `[min_transactions_per_period, max_transactions_per_period]` satisfies it, generation refuses before writing a row:
 
 ```
-UserWarning: Outcome curve on 'orders.amount' pushed values past the
-column's declared bounds: 92 row(s) above declared max=100. The curve takes
-precedence over the declared min/max. Widen the bounds or soften the curve
-to avoid this.
+SchemaValidationError: Outcome curve on 'orders.amount': target 50000 per period
+is unreachable with the column bounds (min=5, max=500) and 1-20 rows per period:
+no row count n satisfies 5·n ≤ 50000 ≤ 500·n.
+  Fix: widen the bounds, adjust the target, or change min/max_transactions_per_period
 ```
 
-The fix is in the message: widen the bounds or soften the curve. The conformance preview (`misata preview`) surfaces these conflicts before any rows are generated.
+When a row count would work but the one planned from `avg_transaction_value` does not, the aggregate target wins and rows leave their bounds, with a `ConformanceWarning` per period:
+
+```
+ConformanceWarning: Outcome curve on 'orders.amount', period 'month:1': exact target
+50,000.00 across 1000 rows is infeasible under the declared max=40 (the target would
+need to be at most 40,000.00). The aggregate target takes precedence: per-row values
+will violate the declared max bound. Widen the bound, adjust the target, or tune
+min/max_transactions_per_period.
+```
+
+The conformance preview (`misata preview`) shows these conflicts before any rows are generated.
 
 ## Row-count clamps (Prop. 3 saturation)
 
-When a period target needs more rows than `max_transactions_per_period` allows, the engine keeps the sum exact by inflating per-row values. Every aggregate check still passes while the row-level distribution shifts, so the warning is the only signal:
+When a period target needs more rows than `max_transactions_per_period` allows, or fewer than `min_transactions_per_period`, the row count is held to the bound and each row grows or shrinks to keep the total exact. Every aggregate check still passes while the per-row mean leaves `avg_transaction_value`, so generation says so:
 
 ```
-Period '2024-03': target=250,000.00 requires ≈2500 rows but
-max_transactions_per_period=1000 — per-row values will be inflated
-(Prop. 3 upper clamp). Raise max_transactions_per_period to avoid distortion.
+ConformanceWarning: amount: 3 of 3 periods (2024-01, 2024-02, 2024-03) need a row
+count outside min/max_transactions_per_period [1, 20] at avg_transaction_value=50.
+Their totals still hold, but rows in 2024-03 average 4,000.00 instead of 50. Widen
+the min/max transactions per period, or change avg_transaction_value.
 ```
 
-The mirror case (target too small for `min_transactions_per_period`) deflates per-row values with the matching "Prop. 3 lower clamp" message.
+## Making warnings fatal in CI
+
+Every warning Misata emits is a `misata.MisataWarning`, and every warning that means a declaration will not hold exactly as written is a `misata.ConformanceWarning`. Both subclass `UserWarning`, and each points at the line in your code that called Misata.
+
+```python
+import warnings
+import misata
+
+warnings.simplefilter("error", misata.ConformanceWarning)   # fail on any broken declaration
+tables = misata.generate_from_schema(schema)
+```
+
+With pytest, the same rule goes in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+filterwarnings = ["error::misata.ConformanceWarning"]
+```
 
 ## Evalpack question gates
 
-Every question in an evalpack is re-executed against the shipped CSV files with DuckDB before shipping. Anything inexact is dropped and logged, never shipped. The two drop reasons in `manifest.json`:
+Every question in an evalpack is re-executed against the shipped CSV files with DuckDB before shipping. Anything inexact is dropped and logged, never shipped. The drop reasons in `manifest.json`:
 
 ```
 "drop_reason": "verification_mismatch"   the answer did not reproduce exactly
 "drop_reason": "sql_error: ..."          the gold SQL failed to execute
+"drop_reason": "answer_depends_on_seed"  the rotations disagree on the declared answer
 ```
 
 A pack that ships 35 questions may have had 40 candidates. The dropped five are the honest ones.
@@ -63,14 +92,14 @@ A pack that ships 35 questions may have had 40 candidates. The dropped five are 
 A `group_shares` declaration places at least one row in every positive-share group, so a curve period with fewer rows than groups cannot host the split:
 
 ```
-UserWarning: group_shares on orders: bucket with 2 rows cannot host
+ConformanceWarning: group_shares on orders: bucket with 2 rows cannot host
 4 groups; skipping (infeasible)
 ```
 
 The bucket keeps its generated values: the period total still holds, the shares inside that one period do not. Shares that do not sum to 1 are normalised, with a warning:
 
 ```
-UserWarning: group_shares on orders.revenue: shares sum to 0.970,
+ConformanceWarning: group_shares on orders.revenue: shares sum to 0.970,
 normalising to 1
 ```
 
@@ -79,7 +108,7 @@ normalising to 1
 A single-date range (start equals end) means "within that day" and generates normally. A reversed range is swapped rather than crashed on, and tells you:
 
 ```
-UserWarning: date range start 2025-06-30 is after end 2025-01-01; swapping
+ConformanceWarning: date range start 2025-06-30 is after end 2025-01-01; swapping
 ```
 
 If you meant the reversed order, the warning is your cue that the schema says otherwise.
@@ -92,6 +121,17 @@ A capsule price band ("Laptops": 400 to 3500) draws every price inside the band 
 - Declared `min`/`max` intersect the band. When the intersection is empty (declared max 300 against a 400 to 3500 band), the declaration wins outright and the band does not apply.
 
 There is one loud backstop: `story_audit` re-checks the bands on the output, so a price outside its category's band always surfaces as a `price_band_violation` finding in the coherence report, whichever rule produced it.
+
+## Time grids on a curve's time column
+
+A time grid moves each timestamp forward to its next slot, and a value past the day's last slot moves to the next day. On the column an outcome or rate curve buckets its periods by, that would carry rows late on a period's last day into the next period, so the schema is refused before generation:
+
+```
+InfeasibleSchema: [orders.order_date] outcome_curve periods by orders.order_date vs time_grids on orders.order_date
+  → Suggestion: declare order_date as type date, which keeps every row in its period, or drop the time grid on orders.order_date
+```
+
+A `date` column holds midnight, where the grid only sets the time of day, so the two compose.
 
 ## The general principle
 

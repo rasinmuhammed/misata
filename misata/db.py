@@ -17,6 +17,7 @@ import pandas as pd
 
 from misata.schema import SchemaConfig
 from misata.simulator import DataSimulator
+from misata.sqlutil import quote_ident, quote_qualified
 
 
 @dataclass
@@ -199,9 +200,9 @@ def _load_external_context(conn, dialect: str, config: SchemaConfig):
 
     preloaded: Dict[str, pd.DataFrame] = {}
     for table in external:
-        qualified = f'"{table.external_schema}"."{table.name}"'
+        qualified = quote_qualified(table.external_schema, table.name)
         cols = sorted(keys_needed.get(table.name, {"id"}))
-        col_list = ", ".join(f'"{c}"' for c in cols)
+        col_list = ", ".join(quote_ident(c) for c in cols)
         df = pd.read_sql_query(f"SELECT {col_list} FROM {qualified}", conn)
         if df.empty:
             raise ValueError(
@@ -235,12 +236,7 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
         name = table.name
         try:
             with _Savepoint(conn, dialect):
-                if dialect == "postgres":
-                    with conn.cursor() as cur:
-                        cur.execute(f'SELECT COUNT(*) FROM "{name}"')
-                        count = int(cur.fetchone()[0])
-                else:
-                    count = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
+                count = _count_rows(conn, dialect, name)
         except Exception:
             count = 0
         if count == 0:
@@ -248,18 +244,29 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
         skip.add(name)
         cols = set(keys_needed.get(name, set()))
         cols.add("id")  # FK sampling fast-path uses "id"
-        col_list = ", ".join(f'"{c}"' for c in sorted(cols))
+        col_list = ", ".join(quote_ident(c) for c in sorted(cols))
         try:
             with _Savepoint(conn, dialect):
-                preloaded[name] = pd.read_sql_query(f'SELECT {col_list} FROM "{name}"', conn)
+                query = f"SELECT {col_list} FROM {quote_ident(name)}"
+                preloaded[name] = pd.read_sql_query(query, conn)
         except Exception:
             # A key column that doesn't exist (composite/renamed PK) — load all.
             try:
                 with _Savepoint(conn, dialect):
-                    preloaded[name] = pd.read_sql_query(f'SELECT * FROM "{name}"', conn)
+                    preloaded[name] = pd.read_sql_query(f"SELECT * FROM {quote_ident(name)}", conn)
             except Exception:
                 skip.discard(name)  # can't load it; let normal path handle
     return preloaded, skip
+
+
+def _count_rows(conn, dialect: str, table: str) -> int:
+    """Number of rows in ``table`` on an open SQLite or Postgres connection."""
+    sql = f"SELECT COUNT(*) FROM {quote_ident(table)}"
+    if dialect == "postgres":
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return int(cur.fetchone()[0])
+    return int(conn.execute(sql).fetchone()[0])
 
 
 def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
@@ -284,7 +291,7 @@ def _reset_postgres_sequences(conn, tables: Sequence[str]) -> None:
                 for col in cols:
                     cur.execute(
                         "SELECT setval(pg_get_serial_sequence(%s, %s), "
-                        f'COALESCE((SELECT MAX("{col}") FROM "{name}"), 1))',
+                        f"COALESCE((SELECT MAX({quote_ident(col)}) FROM {quote_ident(name)}), 1))",
                         (name, col),
                     )
         except Exception:
@@ -368,11 +375,11 @@ def truncate_tables(config: SchemaConfig, conn, dialect: str, commit: bool = Tru
              if not _is_external(config, t)]
     if dialect == "postgres":
         if order:
-            names = ", ".join(f'"{t}"' for t in order)
+            names = ", ".join(quote_ident(t) for t in order)
             _execute(conn, dialect, f"TRUNCATE TABLE {names}", commit=commit)
         return order
     for table_name in order:
-        _execute(conn, dialect, f'DELETE FROM "{table_name}"', commit=commit)
+        _execute(conn, dialect, f"DELETE FROM {quote_ident(table_name)}", commit=commit)
     return order
 
 
@@ -429,9 +436,10 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
         return 0
 
     columns = list(df.columns)
-    placeholders = ", ".join(["?"] * len(columns)) if dialect == "sqlite" else ", ".join(["%s"] * len(columns))
-    col_list = ", ".join([f'"{c}"' for c in columns])
-    sql = f'INSERT INTO "{table_name}" ({col_list}) VALUES ({placeholders})'
+    marker = "?" if dialect == "sqlite" else "%s"
+    placeholders = ", ".join([marker] * len(columns))
+    col_list = ", ".join(quote_ident(c) for c in columns)
+    sql = f"INSERT INTO {quote_ident(table_name)} ({col_list}) VALUES ({placeholders})"
 
     clean_df = df.where(pd.notnull(df), None)
 
@@ -460,7 +468,8 @@ def _insert_batch(conn, dialect: str, table_name: str, df: pd.DataFrame,
             csv_buf = StringIO()
             clean_df.to_csv(csv_buf, index=False, header=False)
             with _Savepoint(conn, dialect, "misata_copy"), conn.cursor() as cur:
-                copy_sql = f'COPY "{table_name}" ({col_list}) FROM STDIN WITH (FORMAT CSV)'
+                copy_sql = (f"COPY {quote_ident(table_name)} ({col_list}) "
+                            "FROM STDIN WITH (FORMAT CSV)")
                 with cur.copy(copy_sql) as copy:
                     copy.write(csv_buf.getvalue())
         except Exception:
@@ -506,8 +515,8 @@ def load_tables_from_db(
 
         result: Dict[str, pd.DataFrame] = {}
         for table in tables:
-            limit_sql = f" LIMIT {limit}" if limit is not None else ""
-            query = f'SELECT * FROM "{table}"{limit_sql}'
+            limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
+            query = f"SELECT * FROM {quote_ident(table)}{limit_sql}"
             result[table] = pd.read_sql_query(query, conn)
         return result
     finally:
@@ -546,7 +555,7 @@ def _validate_table_schema(
 
 def _get_table_columns(conn, dialect: str, table_name: str) -> List[str]:
     if dialect == "sqlite":
-        cur = conn.execute(f'PRAGMA table_info("{table_name}")')
+        cur = conn.execute(f"PRAGMA table_info({quote_ident(table_name)})")
         return [row[1] for row in cur.fetchall()]
 
     sql = """
@@ -567,7 +576,7 @@ def _build_create_table_sql(config: SchemaConfig, table_name: str, dialect: str)
     col_defs = []
     for col in columns:
         col_type = _map_type(col.type, dialect)
-        col_def = f'"{col.name}" {col_type}'
+        col_def = f"{quote_ident(col.name)} {col_type}"
 
         if col.name == "id":
             col_def += " PRIMARY KEY"
@@ -582,12 +591,13 @@ def _build_create_table_sql(config: SchemaConfig, table_name: str, dialect: str)
     fk_defs = []
     for rel in relationships:
         fk_defs.append(
-            f'FOREIGN KEY ("{rel.child_key}") REFERENCES "{rel.parent_table}"("{rel.parent_key}")'
+            f"FOREIGN KEY ({quote_ident(rel.child_key)}) "
+            f"REFERENCES {quote_ident(rel.parent_table)}({quote_ident(rel.parent_key)})"
         )
 
     all_defs = col_defs + fk_defs
     defs_sql = ", ".join(all_defs)
-    return f'CREATE TABLE IF NOT EXISTS "{table_name}" ({defs_sql})'
+    return f"CREATE TABLE IF NOT EXISTS {quote_ident(table_name)} ({defs_sql})"
 
 
 def _map_type(col_type: str, dialect: str) -> str:
@@ -664,20 +674,20 @@ def verify_referential_integrity(config: SchemaConfig, db_url: str) -> Integrity
     dialect, conn = _connect(db_url)
     report = IntegrityReport()
     # A parent living in another schema has to be named with it, or the query
-    # looks in `public`, finds nothing, and errors. That error then aborted the
-    # Postgres transaction, so every remaining check failed too and the report
-    # came back empty while the CLI printed that every foreign key resolved.
+    # looks in `public`, finds nothing, and errors. On Postgres that error
+    # aborts the transaction, so every remaining check would fail too and the
+    # report would be empty.
     schema_of = {t.name: t.external_schema for t in config.tables if t.external_schema}
     try:
         for rel in config.relationships:
             parent = rel.parent_table
-            qualified = (f'"{schema_of[parent]}"."{parent}"'
-                         if parent in schema_of else f'"{parent}"')
+            qualified = quote_qualified(schema_of.get(parent), parent)
+            child_key = quote_ident(rel.child_key)
             sql = (
-                f'SELECT COUNT(*) FROM "{rel.child_table}" c '
-                f'WHERE c."{rel.child_key}" IS NOT NULL '
-                f'AND NOT EXISTS (SELECT 1 FROM {qualified} p '
-                f'WHERE p."{rel.parent_key}" = c."{rel.child_key}")'
+                f"SELECT COUNT(*) FROM {quote_ident(rel.child_table)} c "
+                f"WHERE c.{child_key} IS NOT NULL "
+                f"AND NOT EXISTS (SELECT 1 FROM {qualified} p "
+                f"WHERE p.{quote_ident(rel.parent_key)} = c.{child_key})"
             )
             try:
                 if dialect == "postgres":
@@ -722,12 +732,7 @@ def table_row_counts(db_url: str, tables: Sequence[str]) -> Dict[str, int]:
     try:
         for name in tables:
             try:
-                if dialect == "postgres":
-                    with conn.cursor() as cur:
-                        cur.execute(f'SELECT COUNT(*) FROM "{name}"')
-                        counts[name] = int(cur.fetchone()[0])
-                else:
-                    counts[name] = int(conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0])
+                counts[name] = _count_rows(conn, dialect, name)
             except Exception:
                 counts[name] = 0
         return counts

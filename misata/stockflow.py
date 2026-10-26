@@ -13,13 +13,13 @@ audit recomputes them from the rows.
 
 from __future__ import annotations
 
-import warnings
 from typing import List
 
 import numpy as np
 import pandas as pd
 
 from misata.schema import StockFlowIdentity
+from misata.exceptions import ConformanceWarning, warn
 
 
 def apply_stock_flow(
@@ -39,9 +39,10 @@ def apply_stock_flow(
     if not periods or not needed.issubset(df.columns):
         missing = sorted(needed - set(df.columns))
         if missing:
-            warnings.warn(
+            warn(
                 f"stock_flow on {spec.table}: missing column(s) {missing}; "
-                f"skipping")
+                f"skipping",
+                ConformanceWarning,)
         return df
     n = len(df)
     P = len(periods)
@@ -50,17 +51,19 @@ def apply_stock_flow(
     n_full = n // P
     remainder = n - n_full * P
     if n_full == 0:
-        warnings.warn(
+        warn(
             f"stock_flow on {spec.table}: {n} rows cannot host even one "
-            f"full {P}-period history; the last SKU gets a partial history")
+            f"full {P}-period history; the last SKU gets a partial history",
+            ConformanceWarning,)
     histories: List[int] = [P] * n_full + ([remainder] if remainder else [])
 
     pool = pd.unique(df[spec.sku_column])
     if len(pool) < len(histories):
-        warnings.warn(
+        warn(
             f"stock_flow on {spec.table}: only {len(pool)} distinct "
             f"{spec.sku_column} values for {len(histories)} SKUs; reusing "
-            f"values with a suffix")
+            f"values with a suffix",
+            ConformanceWarning,)
         extra = [f"{pool[i % max(len(pool), 1)]}-{i}"
                  for i in range(len(histories) - len(pool))]
         pool = np.concatenate([pool.astype(object), np.array(extra, dtype=object)])

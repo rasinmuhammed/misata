@@ -7,17 +7,11 @@ for stateful, controllable AI pipelines.
 
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
-import warnings
 import pandas as pd
+import importlib.util
 import json
 
-# LangGraph imports (optional - handles graceful fallback)
-try:
-    from langgraph.graph import StateGraph, END
-    LANGGRAPH_AVAILABLE = True
-except ImportError:
-    LANGGRAPH_AVAILABLE = False
-    warnings.warn("LangGraph not installed. Install with: pip install 'misata[advanced]'")
+LANGGRAPH_AVAILABLE = importlib.util.find_spec("langgraph") is not None
 
 # Groq imports (already integrated in misata)
 try:
@@ -185,7 +179,6 @@ class ValidationAgent:
             
             for col in columns:
                 col_name = col["name"]
-                col_type = col["type"]
                 
                 if col_name not in df.columns:
                     results["errors"].append(f"Missing column: {table_name}.{col_name}")

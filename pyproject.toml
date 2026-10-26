@@ -89,13 +89,14 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-benchmark>=4.0.0",
     "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.5.0",
+    "ruff==0.14.8",         # pinned: tools/quality.py ratchets on its counts
+    "mypy==1.19.1",         # pinned for the same reason
     "simpleeval>=0.9.0",   # formula columns used in HR domain tests
     "jsonschema>=4.0.0",   # YAML validation tests
     "scikit-learn>=1.0.0", # ML-efficacy (TSTR) path in fidelity_report
     "hypothesis>=6.100",   # property-based fuzzing of the dict-schema contract
     "duckdb>=0.9.0",       # evalpack verification tests
+    "pyarrow>=14.0.0",     # Parquet sinks and partitioned attestation tests
     # Upper bound is deliberate: the MCP server targets FastMCP as it exists
     # in the 1.x line. mcp 2.0.0 removed `mcp.server.fastmcp`, which took CI
     # down on all four interpreters the day it shipped. Lift the bound when
@@ -163,8 +164,15 @@ spark = [
 evalpack = [
     "duckdb>=0.9.0",          # Independent SQL verification of evalpack answer keys
 ]
+parquet = [
+    "pyarrow>=14.0.0",        # --format parquet, partitioned output, to_parquet()
+]
+duckdb = [
+    "duckdb>=0.9.0",          # --format duckdb: every table in one file
+    "pyarrow>=14.0.0",
+]
 all = [
-    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity,evalpack,polars,django]",
+    "misata[dev,db,orm,llm,formulas,api,studio,advanced,documents,mcp,kaggle,spark,fidelity,evalpack,parquet,duckdb,polars,django]",
 ]
 
 [project.scripts]
@@ -203,6 +211,12 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+ignore_missing_imports = true
+
+# PyYAML ships no types; its stubs are a separate package mypy cannot see
+# under --no-site-packages, so the quality count would charge every import.
+[[tool.mypy.overrides]]
+module = ["yaml", "yaml.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

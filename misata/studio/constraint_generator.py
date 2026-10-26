@@ -21,15 +21,14 @@ Example:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
 from misata.schema import SchemaConfig
 from misata.reference_data import detect_domain, get_reference_data
 from misata.studio.outcome_curve import (
-    OutcomeCurve, CurvePoint,
-    generate_transactions_for_bucket
+    OutcomeCurve, generate_transactions_for_bucket
 )
 from misata.causal.graph import get_saas_template, CausalGraph
 from misata.causal.solver import CausalSolver
@@ -248,7 +247,7 @@ class ConstrainedWarehouseGenerator:
         if total_violations > 0:
             print(f"[CONSTRAINT] Total violations fixed: {total_violations} rows removed")
         else:
-            print(f"[CONSTRAINT] ✅ All tables 100% compliant!")
+            print("[CONSTRAINT] ✅ All tables 100% compliant!")
 
     def _generate_causal_flow(self):
         """
@@ -421,7 +420,6 @@ class ConstrainedWarehouseGenerator:
         
         # With constraint: use the outcome curve to generate rows
         curve = constraint.outcome_curve
-        n_periods = len(curve.points)
         
         # Determine bucket duration
         if curve.time_unit == "day":

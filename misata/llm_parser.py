@@ -12,7 +12,6 @@ import json
 import os
 import re
 import time
-import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -30,6 +29,7 @@ from misata.feedback import FeedbackDatabase
 from misata.param_check import repair_distribution_params
 from misata.schema import Column, OutcomeCurve, RateCurve, Relationship, ScenarioEvent, SchemaConfig, Table
 from misata.research import DeepResearchAgent
+from misata.exceptions import warn
 
 
 # Load .env file if it exists
@@ -100,7 +100,7 @@ def _sanitize_numeric_spread(
         center = float(lo)
         out["min"] = round(center * 0.75, 2)
         out["max"] = round(center * 1.25, 2)
-        warnings.warn(
+        warn(
             f"Column '{col_name}': LLM declared min == max == {center:g}; "
             f"widened to ±25% so the column is not constant."
         )
@@ -115,7 +115,7 @@ def _sanitize_numeric_spread(
         if degenerate:
             out["std"] = round(abs(float(mean)) * 0.25, 4)
             if std is not None:
-                warnings.warn(
+                warn(
                     f"Column '{col_name}': std {std:g} is <0.1% of mean "
                     f"{mean:g} (effectively constant); raised to 25% of mean."
                 )
@@ -323,7 +323,7 @@ def ground_schema_in_explicit_values(schema_dict: Dict[str, Any], story: str) ->
     if not enumerations:
         return schema_dict
     if not isinstance(schema_dict.get("tables"), list):
-        warnings.warn(
+        warn(
             f"ground_schema_in_explicit_values: found {enumerations!r} in the "
             f"story but schema_dict had no 'tables' list to search — nothing "
             f"was grounded."
@@ -353,7 +353,7 @@ def ground_schema_in_explicit_values(schema_dict: Dict[str, Any], story: str) ->
                 # Same row count: keep whatever other grounded columns the
                 # LLM supplied, just fix the label to the literal values.
                 new_rows = []
-                for i, (row, v) in enumerate(zip(existing, values)):
+                for i, (row, v) in enumerate(zip(existing, values, strict=True)):
                     row = dict(row) if isinstance(row, dict) else {}
                     row["id"] = i + 1
                     row[label_key] = v
@@ -371,10 +371,10 @@ def ground_schema_in_explicit_values(schema_dict: Dict[str, Any], story: str) ->
     matched_topics = {g.split(" <- ")[1].split(":")[0] for g in grounded}
     unmatched = {t: v for t, v in enumerations.items() if t not in matched_topics}
     if grounded:
-        warnings.warn(f"ground_schema_in_explicit_values: grounded {grounded}")
+        warn(f"ground_schema_in_explicit_values: grounded {grounded}")
     if unmatched:
         table_names = [t.get("name") for t in schema_dict["tables"] if isinstance(t, dict)]
-        warnings.warn(
+        warn(
             f"ground_schema_in_explicit_values: story named {unmatched!r} but "
             f"no table matched (tables present: {table_names}) — nothing "
             f"grounded for these."
@@ -1002,13 +1002,11 @@ class LLMSchemaGenerator:
         # outage rather than as a setting pointed at the wrong provider.
         allowed = config.get("models")
         if allowed and self.model not in allowed:
-            warnings.warn(
+            warn(
                 f"{provider} cannot serve model {self.model!r}; using "
                 f"{config['default_model']!r} instead. It serves: "
                 f"{', '.join(allowed)}. This usually means a model override is "
                 f"left over from a different provider.",
-                UserWarning,
-                stacklevel=2,
             )
             self.model = config["default_model"]
         if self.provider == "bedrock":
@@ -1052,22 +1050,22 @@ class LLMSchemaGenerator:
                 self._bedrock_bearer = None
                 try:
                     import boto3
-                except ImportError:
+                except ImportError as exc:
                     raise ImportError(
                         "boto3 required for the Bedrock provider when no bearer token is set. "
                         "Install with: pip install 'misata[bedrock]', or set AWS_BEARER_TOKEN_BEDROCK."
-                    )
+                    ) from exc
                 self.client = boto3.client("bedrock-runtime", region_name=self._bedrock_region)
 
         else:
             # OpenAI, Ollama, and Gemini all use the OpenAI-compatible interface
             try:
                 from openai import OpenAI
-            except ImportError:
+            except ImportError as exc:
                 raise ImportError(
                     f"openai package required for {self.provider}. "
                     "Install with: pip install openai"
-                )
+                ) from exc
 
             client_kwargs: Dict[str, str] = {}
             if self.api_key:
@@ -1171,8 +1169,7 @@ class LLMSchemaGenerator:
                 self._refine_spec_schema(schema, report, temperature)
             except Exception as exc:
                 report.untranslated.append(f"LLM refinement skipped: {exc}")
-            import warnings as _warnings
-            _warnings.warn(report.summary())
+            report.emit()
             return schema
 
         research_context = ""
@@ -1197,7 +1194,7 @@ class LLMSchemaGenerator:
                         "Use these names as examples in the 'inline_data' for reference tables if relevant."
                     )
             except Exception as exc:
-                warnings.warn(f"Research agent unavailable: {exc}")
+                warn(f"Research agent unavailable: {exc}")
 
         user_prompt = f"""Generate a complete synthetic data schema in JSON format for:
 
@@ -1319,7 +1316,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     prompt_tokens = max(0, requested - max_tokens)
                     fitted = limit - prompt_tokens - 200  # safety margin
                     if fitted >= 1200 and fitted < max_tokens:
-                        warnings.warn(
+                        warn(
                             f"LLM request exceeded the provider's token budget "
                             f"(limit {limit}, requested {requested}); retrying "
                             f"with max_tokens={fitted}."
@@ -1328,7 +1325,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                         continue
                 if any(s in exc_str for s in ("rate_limit", "429", "timeout", "502", "503", "504", "connection", "overloaded", "throttl")):
                     wait = 2 ** attempt
-                    warnings.warn(f"LLM API transient error (attempt {attempt + 1}/{max_retries}): {exc}. Retrying in {wait}s.")
+                    warn(f"LLM API transient error (attempt {attempt + 1}/{max_retries}): {exc}. Retrying in {wait}s.")
                     time.sleep(wait)
                     continue
                 break
@@ -1654,7 +1651,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 fitted_params = fitter.fit_distribution(points, dist_type)
                 normalized.update(fitted_params)
             except Exception as exc:
-                warnings.warn(f"Curve fitting failed for control_points: {exc}")
+                warn(f"Curve fitting failed for control_points: {exc}")
 
         return normalized
 
@@ -1668,7 +1665,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 continue
             table_name_raw = t.get("name")
             if not table_name_raw:
-                warnings.warn(f"Skipping table with missing 'name': {t!r}")
+                warn(f"Skipping table with missing 'name': {t!r}")
                 continue
             is_ref = t.get("is_reference", False)
             inline = t.get("inline_data", None)
@@ -1692,7 +1689,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 and state_machine.get("state_column")
                 and isinstance(state_machine.get("transitions"), dict)
             ):
-                warnings.warn(
+                warn(
                     f"Dropping malformed state_machine on table '{table_name_raw}' "
                     f"(needs state_column + transitions dict)"
                 )
@@ -1703,7 +1700,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 and cluster_effect.get("affects_table")
                 and isinstance(cluster_effect.get("affects_columns"), dict)
             ):
-                warnings.warn(
+                warn(
                     f"Dropping malformed cluster_effect on table '{table_name_raw}' "
                     f"(needs affects_table + affects_columns dict)"
                 )
@@ -1716,7 +1713,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     from misata.schema import Constraint
                     table_constraints.append(Constraint(**tc))
                 except Exception as exc:
-                    warnings.warn(
+                    warn(
                         f"Skipping malformed constraint on '{table_name_raw}': {exc}"
                     )
 
@@ -1799,7 +1796,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     "categorical", "foreign_key", "text", "boolean",
                 }
                 if col_type not in _VALID_TYPES:
-                    warnings.warn(
+                    warn(
                         f"Unknown column type {col_type!r} on {table_name}.{c['name']} — coercing to text"
                     )
                     col_type = "text"
@@ -1904,7 +1901,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 continue
             required = ("parent_table", "child_table", "parent_key", "child_key")
             if not all(r.get(k) for k in required):
-                warnings.warn(f"Skipping malformed relationship: {r!r}")
+                warn(f"Skipping malformed relationship: {r!r}")
                 continue
             relationships.append(Relationship(
                 parent_table=r["parent_table"],
@@ -1957,15 +1954,15 @@ Include reference tables with inline_data for lookup values and transactional ta
             if not isinstance(c, dict) or not all(key in c for key in ["table", "column"]):
                 continue
             if not _is_measure_column(c["table"], c["column"]):
-                warnings.warn(
+                warn(
                     f"Dropping outcome_curve on non-measure column "
                     f"{c.get('table')}.{c.get('column')} (id/key columns can't carry a curve)"
                 )
                 continue
             # Multiplier-shaped targets (all within ~[0.1, 10]) on an absolute
-            # curve are a unit confusion — the LLM emitted surge/demand FACTORS
-            # as dollar totals per period (ride-share field report: fare_amount
-            # targets of 0.92–1.15 with min fare 3.5 → 12 infeasibility errors).
+            # curve are a unit confusion: surge or demand factors emitted as
+            # dollar totals per period (fare_amount targets of 0.92 to 1.15
+            # against a minimum fare of 3.5 cannot be met).
             _targets = [
                 float(pt[k])
                 for pt in (c.get("curve_points") or []) if isinstance(pt, dict)
@@ -1986,7 +1983,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 and isinstance(_col_min, (int, float))
                 and float(_col_min) > max(_targets)
             ):
-                warnings.warn(
+                warn(
                     f"Dropping outcome_curve on {c.get('table')}.{c.get('column')}: "
                     f"targets {sorted(set(_targets))[:4]}… look like multipliers, "
                     f"not per-period totals (unit confusion)"
@@ -2010,7 +2007,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     curve_points=c.get("curve_points", [])
                 ))
             except Exception as exc:  # malformed curve — keep the schema, drop the curve
-                warnings.warn(f"Skipping malformed outcome_curve for {c.get('table')}.{c.get('column')}: {exc}")
+                warn(f"Skipping malformed outcome_curve for {c.get('table')}.{c.get('column')}: {exc}")
 
         # Repair common LLM quirks in an outcome curve's time_column so a well-formed curve
         # is not discarded over a malformed pointer. Two patterns recur across models: a
@@ -2050,7 +2047,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             # attaches the churn rate to "status_id"). _is_measure_column allows
             # bool/categorical and rejects key columns — exactly what we want.
             if not _is_measure_column(c["table"], c["column"]):
-                warnings.warn(
+                warn(
                     f"Dropping rate_curve on non-measure column "
                     f"{c.get('table')}.{c.get('column')} (id/key columns can't carry a rate)"
                 )
@@ -2069,7 +2066,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     rate_points=c.get("rate_points", c.get("curve_points", [])),
                 ))
             except Exception as exc:  # malformed — keep the schema, drop the curve
-                warnings.warn(f"Skipping malformed rate_curve for {c.get('table')}.{c.get('column')}: {exc}")
+                warn(f"Skipping malformed rate_curve for {c.get('table')}.{c.get('column')}: {exc}")
 
         # Repair a rate curve's time_column the same way as outcome curves: resolve
         # a dotted/leaf pointer to a real date column, or coerce one if absent.
@@ -2112,7 +2109,7 @@ Include reference tables with inline_data for lookup values and transactional ta
 
         # Cardinality realism (domain-agnostic): when the LLM gives every
         # non-reference table the SAME row count (10k drivers, 10k riders,
-        # 10k trips — ride-share field report), fact/event tables (2+ FKs
+        # 10k trips), fact/event tables (2+ FKs
         # into non-reference parents) must dwarf their parents. Structural
         # signal only, so it holds for unexpected domains too.
         _non_ref = [t for t in tables if not getattr(t, "is_reference", False)
@@ -2127,7 +2124,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 }
                 if len(_fk_parents) >= 2:
                     t.row_count = int(t.row_count * 10)
-                    warnings.warn(
+                    warn(
                         f"Table '{t.name}' looks like a fact/event table but had "
                         f"the same row count as its parents; scaled to "
                         f"{t.row_count} rows for realistic cardinality."
@@ -2178,7 +2175,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     parent.inline_data.append(row)
                     next_id += 1
                 parent.row_count = len(parent.inline_data)
-                warnings.warn(
+                warn(
                     f"Extended {parent.name} with state-machine states missing "
                     f"from its inline_data: {sorted(missing)}"
                 )
@@ -2220,7 +2217,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 if _p.get("choices") or _p.get("pattern") or _p.get("formula") \
                         or _p.get("depends_on") or _cl in vocabularies:
                     continue
-                warnings.warn(
+                warn(
                     f"Column '{_tname}.{_col.name}' looks like a label column but "
                     f"arrived without choices or vocabulary — the schema contract "
                     f"requires explicit values; falling back to structural labels."
@@ -2485,7 +2482,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 if rel.parent_table == rel.child_table:
                     continue  # never drop a self-referential FK
                 if rel.child_table in cycle_members and rel.parent_table in cycle_members:
-                    warnings.warn(
+                    warn(
                         f"Circular FK detected — dropping relationship "
                         f"{rel.parent_table}.{rel.parent_key} → "
                         f"{rel.child_table}.{rel.child_key} to break the cycle."
@@ -2551,7 +2548,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 table.row_count = len(matched_values)
             else:
                 # No vocab — demote to transactional so simulator generates it normally
-                warnings.warn(
+                warn(
                     f"Reference table '{table.name}' has no inline_data and no "
                     f"matching vocabulary — converting to a regular table."
                 )
@@ -2761,7 +2758,7 @@ Return valid JSON with enriched columns, reference_tables, and constraints. Be d
                             )
                             table.constraints.append(constraint)
                         except Exception as exc:
-                            warnings.warn(f"Skipping invalid constraint for table '{table_name}': {exc}")
+                            warn(f"Skipping invalid constraint for table '{table_name}': {exc}")
                     break
 
         return enriched

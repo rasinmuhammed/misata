@@ -2,9 +2,9 @@
 
 Faker has a native Arabic person provider for ``ar_SA`` only. ``ar_AE``,
 ``ar_BH``, ``ar_JO`` and ``ar_EG`` fall back to the English provider
-silently, so before this module a Qatari, Emirati, Kuwaiti, Bahraini or
-Omani customer table came back with names like "Gerald Holden" next to
-correctly localised cities and IDs.
+silently, which would put names like "Gerald Holden" in a Qatari, Emirati,
+Kuwaiti, Bahraini or Omani customer table next to correctly localised cities
+and IDs.
 
 The pools below are written in Arabic script, matching what ``ar_SA``
 already returns, and family names are chosen per country so an Omani

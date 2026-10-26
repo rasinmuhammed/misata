@@ -8,8 +8,7 @@ with* could reveal an error in it. This module answers the question directly:
     same output on your data?
 
 If yes, no amount of green tests can see that error class. That is not a
-hypothetical failure mode. Two real examples, both found by asking this
-question by hand and both now public:
+hypothetical failure mode. Two public examples:
 
 - ``dbt-labs/jaffle-shop``: changing ``left join`` to ``inner join`` in the
   customers mart leaves every data test green, because the warehouse happens to
@@ -65,6 +64,10 @@ from typing import Any, Dict, List, Optional, Tuple
 # --------------------------------------------------------------------------- #
 # Rules
 # --------------------------------------------------------------------------- #
+
+# A dbt node name as it may appear inside ref('...'); anything else could
+# close the string literal in the inline Jinja passed to `dbt show`.
+_DBT_NODE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @dataclass(frozen=True)
@@ -302,7 +305,7 @@ class DbtRunner:
         return re.sub(r"\x1b\[[0-9;]*m", "", lines[-1])[:200] if lines else "dbt failed"
 
     def run_model(self, model: str) -> Tuple[bool, str]:
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: S603 - argument list, no shell; dbt binary chosen by the user
             self._cmd("run", "--select", model, "--quiet"),
             capture_output=True, text=True,
         )
@@ -325,7 +328,9 @@ class DbtRunner:
         them, and :meth:`row_count` is checked separately so a change in size
         is never missed.
         """
-        proc = subprocess.run(
+        if not _DBT_NODE_NAME.match(model):
+            raise ValueError(f"{model!r} is not a dbt model name")
+        proc = subprocess.run(  # noqa: S603 - argument list, no shell; model name validated above
             self._cmd("show", "--inline", f"select * from {{{{ ref('{model}') }}}}",
                       "--limit", str(limit), "--output", "json", "--quiet"),
             capture_output=True, text=True,

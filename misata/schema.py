@@ -5,10 +5,11 @@ These models define the blueprint for synthetic data generation,
 including tables, columns, relationships, and scenario events.
 """
 
-import warnings
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from misata.exceptions import warn
 
 
 class Column(BaseModel):
@@ -50,10 +51,8 @@ class Column(BaseModel):
         if col_type == "categorical":
             choices = normalized.get("choices")
             if not choices:
-                warnings.warn(
+                warn(
                     "Categorical column missing 'choices'; using ['Unknown'] as a safe fallback.",
-                    UserWarning,
-                    stacklevel=3,
                 )
                 normalized["choices"] = ["Unknown"]
                 normalized.setdefault("probabilities", [1.0])
@@ -68,8 +67,8 @@ class Column(BaseModel):
             normalized["_distribution_is_default"] = True  # sentinel: not user-set
 
         if col_type in ["int", "float"]:
-            # Unknown names and misspelled parameters used to fall through to
-            # uniform(0, 1000); they are errors now (see misata.param_check).
+            # Unknown distribution names and misspelled parameters are errors,
+            # never a silent fallback (see misata.param_check).
             from misata.param_check import check_distribution_params
             normalized = check_distribution_params(col_type, normalized, column_name)
 
@@ -188,7 +187,7 @@ class Relationship(BaseModel):
     # (`partition_by=["tenant_id"]`), and it is the same idea as the `partition
     # by` a window function needs: a value that crosses the boundary is not
     # merely unrealistic, it is a leak. Named after the SQL clause on purpose,
-    # because the bug this prevents is the one a missing `partition by` causes.
+    # because it prevents the same mistake a missing `partition by` causes.
     # The columns must exist on BOTH tables, and the child's copy must be
     # generated before this key, which column order already guarantees.
     partition_by: List[str] = Field(default_factory=list)
@@ -373,7 +372,8 @@ class OutcomeCurve(BaseModel):
     time_unit: Literal["day", "week", "month"] = "month"
     pattern_type: str = "seasonal"
     intra_period_pattern: Literal["uniform", "weekday_heavy", "weekend_heavy", "start_heavy", "end_heavy"] = "uniform"
-    value_mode: Literal["auto", "relative", "absolute"] = "auto"
+    # "count": each point is how many rows the period has, exactly (orders a month), and no column's values are set
+    value_mode: Literal["auto", "relative", "absolute", "count"] = "auto"
     description: Optional[str] = None
     avg_transaction_value: Optional[float] = None
     min_transactions_per_period: int = 1
@@ -433,11 +433,10 @@ class CohortRetention(BaseModel):
     """Declare a retention curve, and have the cohort table actually show it.
 
     "Of the customers who signed up in month M, 55% place an order in M+1 and
-    40% in M+2" is the most-quoted invariant in SaaS and ecommerce analytics,
-    and until now it was inexpressible here: you could control how many events
-    existed and what they summed to, but not *which* entities produced them
-    over time. So the cohort query every analyst runs first returned a shape
-    nobody chose.
+    40% in M+2" is the most-quoted invariant in SaaS and ecommerce analytics.
+    Event counts and totals alone do not fix *which* entities produced the
+    events over time, so without this the cohort query every analyst runs first
+    would return a shape nobody chose.
 
     Declaring it makes the cohort table exact. For every cohort period and
     every declared offset k, exactly ``round(fraction × cohort_size)`` distinct
@@ -1116,9 +1115,11 @@ class TimeGrid(BaseModel):
     never declarable, never overridable, and never checked.
 
     ``TimeGrid`` is the declared form. The inference stays as a default; this
-    is what you write when the grid matters and you want it proven. Only the
-    time of day is touched, never the date, so no causal ordering between
-    tables can be disturbed by asking for tidier clocks.
+    is what you write when the grid matters and you want it proven. A value
+    only ever moves forward, to its next slot, so no causal ordering between
+    tables can be disturbed by asking for tidier clocks. A value past the
+    day's last slot moves to the next day's first slot, which is why a grid
+    on a curve's time column is refused unless that column is a ``date``.
 
     Attributes:
         minute_grid: every value falls on a multiple of this many minutes.
@@ -1269,7 +1270,7 @@ MOTIF_KINDS = ("cycle", "fan_out", "fan_in", "scatter_gather", "chain")
 class DagEdges(BaseModel):
     """An edge table that is a directed acyclic graph.
 
-    The forest rule added in 0.9.2 keeps a self-referential *column* acyclic. It
+    The forest rule keeps a self-referential *column* acyclic. It
     says nothing about a join table, where the same guarantee needs a different
     construction: edges are drawn between nodes ordered by a topological rank, so
     an edge always points from lower rank to higher and a cycle cannot close.

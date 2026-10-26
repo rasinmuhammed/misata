@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 import zlib
-from typing import Iterable, Optional
+from typing import AbstractSet, Dict, Iterable, List, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -487,11 +487,10 @@ class RealisticTextGenerator:
         semantic_declared: bool = False,
     ) -> np.ndarray:
         # A DECLARED semantic type outranks every heuristic below, including
-        # the reference-label shortcut. Without this, a column explicitly
-        # declared `vessel_name` was answered by the label heuristic purely
-        # because the name ends in `_name`, and came back "Plus" thirty
-        # thousand times. A declaration is honoured or refused, never quietly
-        # replaced by a guess.
+        # the reference-label shortcut, which would otherwise answer a column
+        # declared `vessel_name` with plan labels just because its name ends in
+        # `_name`. A declaration is honoured or refused, never quietly replaced
+        # by a guess.
         if semantic_declared and semantic_type:
             try:
                 from misata.lexicon import Lexicon, get_spec
@@ -517,12 +516,11 @@ class RealisticTextGenerator:
         # GENERIC semantic passed by the caller ("name"/"text"): the simulator's
         # fallback routing must not shadow clinical/reference columns.
         #
-        # But only when the caller was guessing. This could not previously tell
-        # `text_type: name` written by a user from the "name" the simulator
-        # passes as its own fallback, so an explicit declaration lost to column
-        # name inference: a column called `full_name` declared as a person's
-        # name came back "Premium", "Starter", "Scale". A declaration is
-        # honoured or refused, never quietly replaced, so an explicit one now
+        # But only when the caller was guessing. `semantic_declared` separates
+        # a `text_type: name` written by a user from the "name" the simulator
+        # passes as its own fallback, so a column called `full_name` declared
+        # as a person's name gets person names, not plan labels. A declaration
+        # is honoured or refused, never quietly replaced, so an explicit one
         # short-circuits inference entirely.
         if semantic_declared and semantic_type:
             semantic = semantic_type
@@ -565,13 +563,11 @@ class RealisticTextGenerator:
             # Column qualifiers or person-table context override this guard.
             #
             # So does an explicit declaration, and that exemption is the whole
-            # point. The guard exists to correct a GUESS. Applied to a column
-            # the user wrote `semantic: person_name` on, it overrules them, and
-            # it did: under en_US the lexicon above answered first and hid it,
-            # but under any other locale the lexicon steps aside for the locale
-            # machinery, execution reached here, and `people.name` in a table
-            # not named after people came back "Business" and "Growth" in
-            # ja_JP and de_DE while cities localised correctly.
+            # point. The guard exists to correct a GUESS, and must not overrule
+            # a column the user wrote `semantic: person_name` on. Under en_US the
+            # lexicon above answers first, but under other locales it steps
+            # aside for the locale machinery and execution reaches this guard,
+            # so a declared person name in ja_JP or de_DE depends on it.
             _BARE_NAME_COLS = {"name", "full_name", "display_name"}
             _tbl_pn = table_name.lower()
             if (
@@ -587,7 +583,7 @@ class RealisticTextGenerator:
             if _has_capsule_vocab("first_name"):
                 first = self.rng.choice(self._vocabulary("first_name", FIRST_NAMES), size=size)
                 last = self.rng.choice(self._vocabulary("last_name", LAST_NAMES), size=size)
-                return np.array([f"{f} {l}" for f, l in zip(first, last)])
+                return np.array([f"{f} {surname}" for f, surname in zip(first, last, strict=True)])
             return self._person_frame(table_name, size)["full"]
         if semantic == "name":
             # "name" is ambiguous — column qualifier + table name together decide.
@@ -658,10 +654,10 @@ class RealisticTextGenerator:
             pos = self.rng.integers(1, 40, size)
             if "seat" in n or "bed" in n or "berth" in n:
                 letters = np.array(list("ABCDEF"))
-                return np.array([f"{p}{letters[f % 6]}" for f, p in zip(floors, pos)])
+                return np.array([f"{p}{letters[f % 6]}" for f, p in zip(floors, pos, strict=True)])
             if "flat" in n or "apartment" in n or "suite" in n or "unit" in n:
-                return np.array([f"{f}{'ABCD'[p % 4]}" if p % 3 == 0 else f"{f}{p:02d}" for f, p in zip(floors, pos)])
-            return np.array([f"{f}{p:02d}" for f, p in zip(floors, pos)])
+                return np.array([f"{f}{'ABCD'[p % 4]}" if p % 3 == 0 else f"{f}{p:02d}" for f, p in zip(floors, pos, strict=True)])
+            return np.array([f"{f}{p:02d}" for f, p in zip(floors, pos, strict=True)])
         if semantic == "region":
             return self._labels("region", _REGION_LABELS, size)
         if semantic == "currency":
@@ -752,17 +748,17 @@ class RealisticTextGenerator:
             domains    = self.rng.choice(_PROVIDERS, size=size, p=_PWEIGHTS)
             patterns   = self.rng.integers(0, 4, size=size)
             result = []
-            for fn, ln, sep, dom, pat in zip(first, last, separators, domains, patterns):
+            for fn, ln, sep, dom, pat in zip(first, last, separators, domains, patterns, strict=True):
                 f = re.sub(r"[^a-z]", "", fn.lower())
-                l = re.sub(r"[^a-z]", "", ln.lower())
+                surname = re.sub(r"[^a-z]", "", ln.lower())
                 if pat == 0:
-                    local = f"{f}{sep}{l}" if l else f
+                    local = f"{f}{sep}{surname}" if surname else f
                 elif pat == 1:
-                    local = f"{f[0]}{l}" if l else f
+                    local = f"{f[0]}{surname}" if surname else f
                 elif pat == 2:
                     local = f"{f}{self.rng.integers(1, 999)}"
                 else:
-                    local = f"{f}{sep}{l[:3]}" if l else f
+                    local = f"{f}{sep}{surname[:3]}" if surname else f
                 result.append(f"{local or f or 'user'}@{dom}")
             return np.array(result)
         if semantic == "company_name":
@@ -858,11 +854,7 @@ class RealisticTextGenerator:
             # country (Philadelphia cannot sit in Canada). The locale pack
             # only decides for tables with no country context.
             if table_data is not None:
-                _country_col = next(
-                    (c for c in table_data.columns
-                     if c.lower() == "country" or c.lower().endswith("_country")),
-                    None,
-                )
+                _country_col = _geo_column(table_data, "country")
                 if _country_col is not None:
                     _row_countries = table_data[_country_col].astype(str).values
                     _known = [c for c in set(_row_countries) if c in COUNTRY_CITIES]
@@ -903,8 +895,8 @@ class RealisticTextGenerator:
             frame = self._person_frame(table_name, size)
             first, last = frame["first"], frame["last"]
             return np.array([
-                f"{re.sub(r'[^a-z]', '', f.lower())}{re.sub(r'[^a-z]', '', l.lower())}{int(self.rng.integers(1, 999)):03d}"
-                for f, l in zip(first, last)
+                f"{re.sub(r'[^a-z]', '', f.lower())}{re.sub(r'[^a-z]', '', surname.lower())}{int(self.rng.integers(1, 999)):03d}"
+                for f, surname in zip(first, last, strict=True)
             ])
         if semantic == "address":
             return self._generate_address(size=size, table_data=table_data)
@@ -924,7 +916,7 @@ class RealisticTextGenerator:
             majors = self.rng.integers(1, 6, size)
             minors = self.rng.integers(0, 13, size)
             patches = self.rng.integers(0, 10, size)
-            return np.array([f"{a}.{b}.{c}" for a, b, c in zip(majors, minors, patches)])
+            return np.array([f"{a}.{b}.{c}" for a, b, c in zip(majors, minors, patches, strict=True)])
         if semantic in {"product_name", "product_description"}:
             return self._generate_product_text(size=size, semantic=semantic, table_data=table_data,
                                                table_name=table_name)
@@ -941,7 +933,7 @@ class RealisticTextGenerator:
             return brands(self.rng, size, fams, key=f"{table_name}.{column_name}")
         if semantic == "product_category":
             from misata.scenarios import PRODUCT_FAMILIES, _DEFAULT_FAMILY_MIX
-            keys, w = zip(*_DEFAULT_FAMILY_MIX)
+            keys, w = zip(*_DEFAULT_FAMILY_MIX, strict=True)
             w = np.array(w) / sum(w)
             labels = np.array([PRODUCT_FAMILIES[k].label for k in keys], dtype=object)
             return labels[self.rng.choice(len(keys), size=size, p=w)]
@@ -1071,7 +1063,7 @@ class RealisticTextGenerator:
             for _ in range(size)
         ])
 
-    # ── Media / food / creative-work generators (0.8.1.15) ──────────────────
+    # ── Media / food / creative-work generators ─────────────────────────────
 
     _MUSIC_TABLE_HINTS = ("song", "track", "album", "artist", "band",
                           "playlist", "music", "record")
@@ -1380,9 +1372,8 @@ class RealisticTextGenerator:
         if name in ("name", "title") and (
             "product" in table or "item" in table or "listing" in table
         ):
-            # Only the name-ish columns of a product table are product names.
-            # A blanket table catchall here used to turn EVERY unmatched text
-            # column (category, version, pricing_tier) into a product name.
+            # Only the name-ish columns of a product table are product names;
+            # category, version and pricing_tier are not.
             return "product_name"
         if name in ("name", "label") and table in ("departments", "department", "wards"):
             return "department"
@@ -1610,7 +1601,7 @@ class RealisticTextGenerator:
         bodies    = self.rng.choice(_BODIES,    size=size)
         closings  = self.rng.choice(_CLOSINGS,  size=size)
         return np.array([
-            f"{g},\n\n{b}\n\n{c}" for g, b, c in zip(greetings, bodies, closings)
+            f"{g},\n\n{b}\n\n{c}" for g, b, c in zip(greetings, bodies, closings, strict=True)
         ])
 
     def _generate_restaurant_name(self, *, size: int) -> np.ndarray:
@@ -1707,32 +1698,29 @@ class RealisticTextGenerator:
         i = 0
         members: Optional[List[str]] = None
         while i < len(pattern):
-            token = pattern[i]
+            symbol = pattern[i]
             members = None
             if pattern.startswith(r"\d", i):
                 char_type = "digit"
                 i += 2
-            elif token == "#":
+            elif symbol == "#":
                 # Spreadsheet/Faker-style digit placeholder ("AB-####"), the
                 # syntax no-code and studio users reach for first.
                 char_type = "digit"
                 i += 1
-            elif token == "?" :
+            elif symbol == "?" :
                 # Faker-style uppercase-letter placeholder ("??-1234").
                 char_type = "letter"
                 i += 1
-            elif token == "[":
+            elif symbol == "[":
                 end = pattern.find("]", i)
                 body = pattern[i + 1:end] if end != -1 else "A-Z"
                 # Expand the body into its actual members: every `X-Y` range
                 # plus every literal character.
                 #
-                # This used to test the body for "A-Z", then "a-z", then "0-9"
-                # by substring, taking the first that matched and ignoring the
-                # rest. So `[0-9A-F]` contains neither the substring "A-Z" nor
-                # "a-z" but does contain "0-9", and produced digits only: a hex
-                # pattern such as an info hash or a colour never emitted a
-                # letter. `[A-Za-z0-9]` was uppercase-only for the same reason.
+                # Every range counts, not only the first recognised one, so
+                # `[0-9A-F]` emits hex digits and letters (an info hash, a
+                # colour) and `[A-Za-z0-9]` emits both cases and digits.
                 members = []
                 j = 0
                 while j < len(body):
@@ -1747,12 +1735,12 @@ class RealisticTextGenerator:
                     j += 1
                 char_type = "set" if members else "literal"
                 i = end + 1 if end != -1 else i + 1
-            elif token == "\\" and i + 1 < len(pattern):
+            elif symbol == "\\" and i + 1 < len(pattern):
                 output += pattern[i + 1]
                 i += 2
                 continue
             else:
-                output += token
+                output += symbol
                 i += 1
                 continue
 
@@ -1915,12 +1903,12 @@ class RealisticTextGenerator:
             from misata.scenarios import population_choice
             cs = population_choice(self.rng, list(US_CITY_GEO), size, "United States")
             out = []
-            for line, c in zip(lines, cs):
+            for line, c in zip(lines, cs, strict=True):
                 _state, code, z3 = US_CITY_GEO[c]
                 out.append(f"{line}, {c}, {code} {z3}{int(self.rng.integers(0, 100)):02d}")
             return np.array(out, dtype=object)
         cs = _cities_for_countries(self.rng, countries)
-        return np.array([f"{line}, {c}" for line, c in zip(lines, cs)], dtype=object)
+        return np.array([f"{line}, {c}" for line, c in zip(lines, cs, strict=True)], dtype=object)
 
     def _series_from_table(self, table_data: Optional[pd.DataFrame], column: str, size: int) -> np.ndarray:
         if table_data is not None and column in table_data.columns and len(table_data[column]) >= size:
@@ -2018,11 +2006,11 @@ class EntityCoherenceEngine:
 
         desired = np.array([
             f"{re.sub(r'[^a-z]', '', str(first).lower())}.{re.sub(r'[^a-z]', '', str(last).lower())}@gmail.com".replace("..", ".").replace(".@", "@")
-            for first, last in zip(firsts, lasts)
+            for first, last in zip(firsts, lasts, strict=True)
         ])
         current = df["email"].astype(str)
         mismatch = []
-        for email, first in zip(current, firsts.astype(str)):
+        for email, first in zip(current, firsts.astype(str), strict=True):
             normalized_first = re.sub(r"[^a-z]", "", first.lower())[:3]
             normalized_email = str(email).lower()
             mismatch.append("@" not in normalized_email or (normalized_first and normalized_first not in normalized_email))
@@ -2046,11 +2034,11 @@ class EntityCoherenceEngine:
 
         desired = np.array([
             f"{re.sub(r'[^a-z]', '', str(first).lower())}{re.sub(r'[^a-z]', '', str(last).lower())}"
-            for first, last in zip(firsts, lasts)
+            for first, last in zip(firsts, lasts, strict=True)
         ])
         current = df["username"].astype(str)
         mismatch = []
-        for username, first, last in zip(current, firsts.astype(str), lasts.astype(str)):
+        for username, first, last in zip(current, firsts.astype(str), lasts.astype(str), strict=True):
             normalized_username = re.sub(r"[^a-z]", "", str(username).lower())
             normalized_first = re.sub(r"[^a-z]", "", str(first).lower())[:3]
             normalized_last = re.sub(r"[^a-z]", "", str(last).lower())[:3]
@@ -2150,7 +2138,7 @@ class EntityCoherenceEngine:
         current_names = df["name"].astype(str)
         desired_names = []
         mismatches = []
-        for category, current_name in zip(categories, current_names):
+        for category, current_name in zip(categories, current_names, strict=True):
             key = next((pool for pool in PRODUCT_NAME_POOLS if pool in category), None)
             key = key or "electronics"
             desired_name = self.rng.choice(PRODUCT_NAME_POOLS[key])
@@ -2318,6 +2306,33 @@ def _fix_time_chains(df: pd.DataFrame, columns: set, rng: np.random.Generator) -
         df[col] = out.dt.strftime("%Y-%m-%d %H:%M:%S") if _is_text_dtype(df[col]) else out.values
 
 
+_GEO_EXACT = {
+    "city": ("city",),
+    "country": ("country",),
+    "state": ("state", "province", "region", "state_province"),
+    "postal": ("zip", "zip_code", "zipcode", "postal", "postal_code", "postcode"),
+}
+_GEO_SUFFIXES = {
+    "city": ("_city",),
+    "country": ("_country",),
+    "state": ("_state", "_province"),
+    "postal": ("_zip", "_zip_code", "_zipcode", "_postal_code", "_postcode"),
+}
+
+
+def _geo_column(df: pd.DataFrame, kind: str) -> Optional[str]:
+    """The first column of ``df`` that holds a ``kind`` of place.
+
+    ``kind`` is one of city, country, state or postal. A column matches by its
+    bare name (``city``) or a prefixed one (``billing_city``).
+    """
+    exact, suffixes = _GEO_EXACT[kind], _GEO_SUFFIXES[kind]
+    for column in df.columns:
+        if isinstance(column, str) and (column.lower() in exact or column.lower().endswith(suffixes)):
+            return column
+    return None
+
+
 def _cities_for_countries(rng: np.random.Generator, countries) -> np.ndarray:
     """A city for each row's country, population-weighted within the country
     (the per-country lists run largest first). Unknown countries get US cities."""
@@ -2328,28 +2343,23 @@ def _cities_for_countries(rng: np.random.Generator, countries) -> np.ndarray:
         idx = np.flatnonzero(countries == c)
         known = c in COUNTRY_CITIES
         pool = COUNTRY_CITIES.get(c, COUNTRY_CITIES["United States"])
-        out[idx] = population_choice(rng, pool, len(idx), c if known else "United States")
+        out[idx] = [str(v) for v in population_choice(rng, pool, len(idx),
+                                                      c if known else "United States")]
     return out
 
 
-def _fix_city_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+def _fix_city_country(df: pd.DataFrame, columns: set, rng: np.random.Generator,
+                      owned: AbstractSet[str] = frozenset()) -> None:
     """Re-map city values so each row's city belongs to its country.
 
     Fires when a table carries both a city-ish and a country-ish column and
     at least one row's pair is incoherent. Cities are resampled from the
-    row's country pool; unknown countries keep their original city.
+    row's country pool; unknown countries keep their original city. A city
+    column in ``owned`` is never rewritten.
     """
-    city_col = next(
-        (c for c in df.columns
-         if c.lower() == "city" or c.lower().endswith("_city")),
-        None,
-    )
-    country_col = next(
-        (c for c in df.columns
-         if c.lower() == "country" or c.lower().endswith("_country")),
-        None,
-    )
-    if city_col is None or country_col is None:
+    city_col = _geo_column(df, "city")
+    country_col = _geo_column(df, "country")
+    if city_col is None or country_col is None or city_col in owned:
         return
     countries = df[country_col].astype(str)
     known_mask = countries.isin(COUNTRY_CITIES.keys())
@@ -2412,38 +2422,36 @@ _COUNTRY_TO_CC = {
 }
 
 
-def _fix_postal_from_city(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+def _fix_postal_from_city(df: pd.DataFrame, columns: set, rng: np.random.Generator,
+                          owned: AbstractSet[str] = frozenset()) -> None:
     """Regenerate postal codes so they match the row's city (preferred) or
     country, in the correct national format. A US-style five-digit ZIP on a
     Tokyo row is an instant tell; this ties the code to real geography.
     """
-    postal_col = next(
-        (c for c in df.columns if c.lower() in
-         ("zip", "zip_code", "zipcode", "postal", "postal_code", "postcode")),
-        None,
-    )
-    if postal_col is None:
+    postal_col = _geo_column(df, "postal")
+    if postal_col is None or postal_col in owned:
         return
-    city_col = next((c for c in df.columns
-                     if c.lower() == "city" or c.lower().endswith("_city")), None)
-    country_col = next((c for c in df.columns
-                        if c.lower() == "country" or c.lower().endswith("_country")), None)
+    city_col = _geo_column(df, "city")
+    country_col = _geo_column(df, "country")
     if city_col is None and country_col is None:
         return
+
+    from misata.vocab_seeds import US_CITY_GEO
 
     geo = _city_geo_lookup()
     out = []
     for _, row in df.iterrows():
-        cc_prefix = None
-        if city_col is not None:
-            cc_prefix = geo.get(str(row[city_col]).lower())
+        city = str(row[city_col]) if city_col is not None else ""
+        cc_prefix = geo.get(city.lower()) if city else None
         if cc_prefix is None and country_col is not None:
             cc_prefix = _COUNTRY_TO_CC.get(str(row[country_col]))
         if cc_prefix is None:
             out.append(row[postal_col])          # unknown geography: leave as-is
-        else:
-            cc, prefix = cc_prefix
-            out.append(_postal_for(cc, prefix, rng))
+            continue
+        cc, prefix = cc_prefix
+        if cc == "US" and city in US_CITY_GEO:
+            prefix = US_CITY_GEO[city][2]        # the city's own ZIP3
+        out.append(_postal_for(cc, prefix, rng))
     df[postal_col] = out
 
 
@@ -2459,7 +2467,8 @@ _PHONE_TEMPLATES = {
 }
 
 
-def _fix_phone_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+def _fix_phone_country(df: pd.DataFrame, columns: set, rng: np.random.Generator,
+                       owned: AbstractSet[str] = frozenset()) -> None:
     """Re-map phone numbers so each row's number uses its country's calling
     code and format. A +1 US number on a Tokyo row is an obvious tell."""
     phone_col = next(
@@ -2468,15 +2477,14 @@ def _fix_phone_country(df: pd.DataFrame, columns: set, rng: np.random.Generator)
          or {"tel", "telephone"} & set(c.lower().split("_"))),
         None,
     )
-    country_col = next((c for c in df.columns
-                        if c.lower() == "country" or c.lower().endswith("_country")), None)
-    if phone_col is None or country_col is None:
+    country_col = _geo_column(df, "country")
+    if phone_col is None or country_col is None or phone_col in owned:
         return
     countries = df[country_col].astype(str)
     if not countries.isin(_PHONE_TEMPLATES).any():
         return
     out = []
-    for orig, country in zip(df[phone_col], countries):
+    for orig, country in zip(df[phone_col], countries, strict=True):
         tmpl = _PHONE_TEMPLATES.get(str(country))
         if tmpl is None:
             out.append(orig)
@@ -2486,7 +2494,8 @@ def _fix_phone_country(df: pd.DataFrame, columns: set, rng: np.random.Generator)
     df[phone_col] = out
 
 
-def _fix_us_geo_chain(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> bool:
+def _fix_us_geo_chain(df: pd.DataFrame, columns: set, rng: np.random.Generator,
+                      owned: AbstractSet[str] = frozenset()) -> bool:
     """Rewrite (city, state, zip) as atomic tuples from the US geography map.
 
     Fires when the table carries a city column plus a state and/or zip column
@@ -2503,23 +2512,20 @@ def _fix_us_geo_chain(df: pd.DataFrame, columns: set, rng: np.random.Generator) 
     - the state column keeps the format it already uses (codes stay codes,
       full names stay full names).
 
+    Columns in ``owned`` hold declared values and anchor the tuple instead of
+    being rewritten: a declared state keeps its values and each row's city is
+    drawn from that state; a declared city keeps its values and the state and
+    zip follow it; a declared zip is left as it is.
+
     Returns True when it fired, so the caller skips the piecemeal city/state
     and postal fixes that would otherwise re-touch these columns.
     """
     from misata.vocab_seeds import US_CITY_GEO
 
-    city_col = next((c for c in df.columns
-                     if c.lower() == "city" or c.lower().endswith("_city")), None)
-    state_col = next(
-        (c for c in df.columns
-         if c.lower() in ("state", "province", "region", "state_province")
-         or c.lower().endswith("_state")), None)
-    postal_col = next(
-        (c for c in df.columns if c.lower() in
-         ("zip", "zip_code", "zipcode", "postal", "postal_code", "postcode")), None)
-    country_col = next(
-        (c for c in df.columns
-         if c.lower() == "country" or c.lower().endswith("_country")), None)
+    city_col = _geo_column(df, "city")
+    state_col = _geo_column(df, "state")
+    postal_col = _geo_column(df, "postal")
+    country_col = _geo_column(df, "country")
 
     if city_col is None or country_col is not None:
         return False
@@ -2541,50 +2547,86 @@ def _fix_us_geo_chain(df: pd.DataFrame, columns: set, rng: np.random.Generator) 
         if len(vals):
             use_codes = (vals.str.fullmatch(r"[A-Z]{2}").mean()) >= 0.6
 
-    pool = list(US_CITY_GEO.keys())
-    resampled = rng.choice(pool, size=int((~known).sum()))
+    state_owned = state_col is not None and state_col in owned
     new_cities = cities.copy()
-    new_cities[~known] = resampled
+    if city_col in owned:
+        pass
+    elif state_owned:
+        new_cities = _us_cities_in_states(new_cities, df[state_col], rng)
+    else:
+        pool = list(US_CITY_GEO.keys())
+        new_cities[~known] = rng.choice(pool, size=int((~known).sum())).tolist()
 
     geo = new_cities.map(US_CITY_GEO)
+    mapped = geo.notna().to_numpy()
     df[city_col] = new_cities.values
-    if state_col is not None:
-        df[state_col] = geo.map(lambda t: t[1] if use_codes else t[0]).values
-    if postal_col is not None:
+    if state_col is not None and not state_owned:
+        states = geo.map(lambda t: t[1] if use_codes else t[0], na_action="ignore")
+        df[state_col] = np.where(mapped, states.to_numpy(dtype=object),
+                                 df[state_col].to_numpy(dtype=object))
+    if postal_col is not None and postal_col not in owned:
         suffix = rng.integers(0, 100, size=len(df))
-        df[postal_col] = [f"{t[2]}{s:02d}" for t, s in zip(geo, suffix)]
+        postal = df[postal_col].to_numpy(dtype=object).copy()
+        for i, (t, s) in enumerate(zip(geo, suffix, strict=True)):
+            if mapped[i]:
+                postal[i] = f"{t[2]}{s:02d}"
+        df[postal_col] = postal
     return True
 
 
-def _fix_state_country(df: pd.DataFrame, columns: set, rng: np.random.Generator) -> None:
+def _us_cities_in_states(cities: pd.Series, states: pd.Series,
+                         rng: np.random.Generator) -> pd.Series:
+    """Move each row's city into the row's declared US state.
+
+    A city already in its row's state is kept. Others are drawn from the
+    cities of that state, matched by full name or two-letter code. A state
+    with no city in the US geography map leaves its rows' cities alone.
+    """
+    from misata.vocab_seeds import US_CITY_GEO
+
+    by_state: Dict[str, List[str]] = {}
+    for city, (name, code, _zip3) in US_CITY_GEO.items():
+        by_state.setdefault(name, []).append(city)
+        by_state.setdefault(code, []).append(city)
+    states = states.astype(str).reset_index(drop=True)
+    out = cities.reset_index(drop=True).copy()
+    in_state = np.array([
+        str(state) in US_CITY_GEO.get(city, ())[:2]
+        for city, state in zip(out, states, strict=True)
+    ], dtype=bool)
+    for state in pd.unique(states[~in_state]):
+        pool = by_state.get(state)
+        if not pool:
+            continue
+        rows = np.flatnonzero((states == state).to_numpy() & ~in_state)
+        out.iloc[rows] = rng.choice(pool, size=rows.size).tolist()
+    out.index = cities.index
+    return out
+
+
+def _fix_state_country(df: pd.DataFrame, columns: set, rng: np.random.Generator,
+                       owned: AbstractSet[str] = frozenset()) -> None:
     """Re-map state/province values so each row's state belongs to its country.
 
     Without this an address reads "Curitiba, Indiana, Brazil" — a US state in
     a Brazilian row. Fires when the table carries both a state-ish and a
     country-ish column; states are resampled from the row's country pool.
+
+    A state column in ``owned`` holds declared values and is never rewritten;
+    the row's country and city follow it instead.
     """
-    state_col = next(
-        (c for c in df.columns
-         if c.lower() in ("state", "province", "region", "state_province")
-         or c.lower().endswith("_state") or c.lower().endswith("_province")),
-        None,
-    )
-    country_col = next(
-        (c for c in df.columns
-         if c.lower() == "country" or c.lower().endswith("_country")),
-        None,
-    )
+    state_col = _geo_column(df, "state")
+    country_col = _geo_column(df, "country")
     if state_col is None:
+        return
+    if state_col in owned:
+        _follow_declared_state(df, state_col, country_col, rng, owned)
         return
     # When the row's city is a known one, its actual state is the truth:
     # São Paulo city gets São Paulo state, not a random province. This runs
     # even without a country column, because the city alone determines it.
     from misata.vocab_seeds import CITY_STATE
-    city_col = next(
-        (c for c in df.columns
-         if c.lower() == "city" or c.lower().endswith("_city")),
-        None,
-    )
+    city_col = _geo_column(df, "city")
     if city_col is not None:
         exact = df[city_col].astype(str).map(CITY_STATE)
         has_exact = exact.notna()
@@ -2605,9 +2647,56 @@ def _fix_state_country(df: pd.DataFrame, columns: set, rng: np.random.Generator)
     if not incoherent.any():
         return
     df.loc[incoherent, state_col] = [
-        rng.choice(COUNTRY_STATES[str(c)])
+        str(rng.choice(COUNTRY_STATES[str(c)]))
         for c in countries[incoherent]
     ]
+
+
+def _follow_declared_state(df: pd.DataFrame, state_col: str, country_col: Optional[str],
+                           rng: np.random.Generator, owned: AbstractSet[str]) -> None:
+    """Bring each row's country and city into its declared state.
+
+    The state may be a full name or a US two-letter code. A state that
+    belongs to exactly one country sets the row's country, and a city outside
+    the row's state is redrawn from that state's cities within the country.
+    Columns in ``owned`` are left as they are.
+    """
+    from misata.vocab_seeds import CITY_STATE, US_CITY_GEO
+
+    us_names = {code: name for name, code, _zip3 in US_CITY_GEO.values()}
+    states = np.array([us_names.get(v, v) for v in df[state_col].astype(str)], dtype=object)
+
+    countries = None
+    if country_col is not None:
+        countries = df[country_col].astype(str).to_numpy(dtype=object).copy()
+        if country_col not in owned:
+            home = {state: country for country, pool in COUNTRY_STATES.items() for state in pool}
+            for i, state in enumerate(states):
+                countries[i] = home.get(state, countries[i])
+            df[country_col] = countries
+
+    city_col = _geo_column(df, "city")
+    if city_col is None or city_col in owned:
+        return
+    by_state: Dict[str, List[str]] = {}
+    for city, state in CITY_STATE.items():
+        by_state.setdefault(state, []).append(city)
+    cities = df[city_col].astype(str).to_numpy()
+    misplaced = np.array([CITY_STATE.get(c) != s for c, s in zip(cities, states, strict=True)])
+    if not misplaced.any():
+        return
+    if countries is None:
+        countries = np.full(len(df), "", dtype=object)
+    out = df[city_col].to_numpy(dtype=object).copy()
+    for state, country in dict.fromkeys(zip(states[misplaced], countries[misplaced], strict=True)):
+        pool = by_state.get(state, [])
+        if country in COUNTRY_CITIES:
+            pool = [c for c in pool if c in COUNTRY_CITIES[country]]
+        if not pool:
+            continue
+        rows = np.flatnonzero(misplaced & (states == state) & (countries == country))
+        out[rows] = rng.choice(pool, size=rows.size).tolist()
+    df[city_col] = out
 
 
 def apply_realism_rules(
@@ -2640,12 +2729,13 @@ def apply_realism_rules(
     # whole chain written as atomic tuples from the US geography map; the
     # piecemeal fixes below would only re-touch what it already made
     # consistent. Everything else keeps the per-column repairs.
-    us_chain_done = _fix_us_geo_chain(df, columns, _rng)
-    _fix_city_country(df, columns, _rng)
+    owned = frozenset((protected or set()) | (declared or set()))
+    us_chain_done = _fix_us_geo_chain(df, columns, _rng, owned)
+    _fix_city_country(df, columns, _rng, owned)
     if not us_chain_done:
-        _fix_state_country(df, columns, _rng)
-        _fix_postal_from_city(df, columns, _rng)
-    _fix_phone_country(df, columns, _rng)
+        _fix_state_country(df, columns, _rng, owned)
+        _fix_postal_from_city(df, columns, _rng, owned)
+    _fix_phone_country(df, columns, _rng, owned)
     _fix_time_chains(df, columns, _rng)
 
     # ── Temporal consistency ──
@@ -2708,7 +2798,7 @@ def _product_review_slots(rng, names, categories, size: int) -> dict:
                                   family_for_category)
     cats = list(categories)[:size] if categories is not None else [None] * size
     uses, mats, feats, fams = [], [], [], []
-    for name, cat in zip(list(names)[:size], cats):
+    for name, cat in zip(list(names)[:size], cats, strict=True):
         fam = family_for_category(cat) if cat is not None else None
         noun = _noun_from_name(name).title() if name else ""
         if fam is None:
@@ -2717,7 +2807,9 @@ def _product_review_slots(rng, names, categories, size: int) -> dict:
         _f = {"footwear": "clothing", "furniture": "home", "health": "beauty", "baby": "toys"}
         fams.append(_f.get(fam, fam) if fam else "")
         if fam is None or not name:
-            uses.append(""); mats.append(""); feats.append("")
+            uses.append("")
+            mats.append("")
+            feats.append("")
             continue
         F = PRODUCT_FAMILIES[fam]
         pick = lambda pool: pool[int(rng.integers(len(pool)))] if pool else ""  # noqa: E731
@@ -2794,13 +2886,13 @@ def _fix_review_sentiment(
         sentiment = [detect_sentiment(t) for t in texts]
         bad = np.array([(st >= 4 and se == "negative") or (st <= 2 and se == "positive")
                         or t in ("", "nan", "None")
-                        for st, se, t in zip(stars, sentiment, texts)], dtype=bool)
+                        for st, se, t in zip(stars, sentiment, texts, strict=True)], dtype=bool)
     else:
         bad = np.zeros(len(df), dtype=bool)
     if title_col is not None:
         tsent = [detect_sentiment(t) for t in df[title_col].astype(str)]
         bad_t = np.array([(st >= 4 and se == "negative") or (st <= 2 and se == "positive")
-                          for st, se in zip(stars, tsent)], dtype=bool)
+                          for st, se in zip(stars, tsent, strict=True)], dtype=bool)
     else:
         bad_t = np.zeros(len(df), dtype=bool)
     rows = np.flatnonzero(bad | bad_t)
@@ -3273,9 +3365,9 @@ def _fix_name_nationality_coherence(df: pd.DataFrame, columns: set[str], rng: np
             if "last_name" in columns:
                 df.loc[c_mask, "last_name"] = new_last
             if "name" in columns:
-                df.loc[c_mask, "name"] = [f"{f} {l}" for f, l in zip(new_first, new_last)]
+                df.loc[c_mask, "name"] = [f"{f} {surname}" for f, surname in zip(new_first, new_last, strict=True)]
         else:
-            df.loc[c_mask, name_col] = [f"{f} {l}" for f, l in zip(new_first, new_last)]
+            df.loc[c_mask, name_col] = [f"{f} {surname}" for f, surname in zip(new_first, new_last, strict=True)]
 
 
 def _fix_gender_name_coherence(df: pd.DataFrame, columns: set[str], rng: np.random.Generator) -> None:
@@ -3331,11 +3423,11 @@ def _fix_gender_name_coherence(df: pd.DataFrame, columns: set[str], rng: np.rand
         if "name" in columns:
             last_part = df.loc[mismatch, "last_name"].astype(str) if "last_name" in columns else ""
             df.loc[mismatch, "name"] = [
-                f"{f} {l}".strip() for f, l in zip(new_firsts, last_part)
+                f"{f} {surname}".strip() for f, surname in zip(new_firsts, last_part, strict=True)
             ]
     else:
         df.loc[mismatch, "name"] = [
-            f"{f} {l}".strip() for f, l in zip(new_firsts, lasts)
+            f"{f} {surname}".strip() for f, surname in zip(new_firsts, lasts, strict=True)
         ]
 
 
@@ -3444,8 +3536,8 @@ def _fix_corporate_email(df: pd.DataFrame, columns: set[str], rng: np.random.Gen
             out.append(df.iloc[i][email_col])
             continue
         if firsts is not None:
-            f, l = _clean(firsts.iloc[i]), _clean(lasts.iloc[i])
-            local = f"{f}{seps[i]}{l}".strip(".") or "contact"
+            f, surname = _clean(firsts.iloc[i]), _clean(lasts.iloc[i])
+            local = f"{f}{seps[i]}{surname}".strip(".") or "contact"
         else:
             local = "contact"
         out.append(f"{local}@{domain}")

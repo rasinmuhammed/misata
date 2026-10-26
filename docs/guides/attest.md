@@ -1,0 +1,161 @@
+# Attest a dataset
+
+An attestation is a signed-ready record that a dataset holds what its schema
+declared. Misata writes it in the format software supply chains already use,
+an [in-toto Statement](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md),
+so the tools that verify build artifacts verify data the same way.
+
+```bash
+misata generate -c misata.yaml -o out --attest
+# or, for files that already exist
+misata attest out --schema misata.yaml
+```
+
+```python
+import misata
+
+tables = misata.generate_from_schema(schema)
+# ... write the tables to out/ as Parquet or CSV ...
+result = misata.attest("out", schema)
+assert result.passed, result.summary()
+```
+
+## What it checks
+
+Every invariant comes from the schema, never from the data. Misata derives
+them before reading a row, then DuckDB runs each one against the files on
+disk.
+
+| Declaration | Invariant |
+|---|---|
+| `outcome_curves` | each period's total, the curve's grand total, its peak period, and the planned row count per period |
+| `rate_curves` | each anchor's matching count is within one row of rate × rows |
+| `group_shares` | each group's total in every period and over the whole table |
+| `balanced_ledger` | every journal entry and the trial balance net to zero |
+| `waterfalls` | opening plus movements equals closing, per component |
+| relationships | no child row points at a missing parent |
+| `unique` columns | no value appears twice |
+
+The files can be CSV, JSON Lines or Parquet (one file per table, or a
+folder of parts, Hive-partitioned or not), or a single `data.duckdb`: every
+layout `misata generate --format` writes. Each file is a subject, annotated
+with the tables it holds.
+
+These are the same derivations `misata evalpack` uses, so an attestation
+and an evalpack built from one schema cannot disagree. Every evalpack now
+carries an attestation too, with its checker named `verify_attestation.py`.
+
+Expected and observed values are written as decimal strings at a fixed
+precision, so a sum that floats to `209999.99999999997` reads `210000.00`
+and equality never depends on how a number was printed.
+
+## What it writes
+
+| File | Contents |
+|---|---|
+| `attestation.intoto.json` | the in-toto Statement: each file pinned by SHA-256, and the certificate predicate |
+| `attestation.dsse.json` | the same bytes in an unsigned [DSSE envelope](https://github.com/secure-systems-lab/dsse), ready for a signer |
+| `verify.py` | a standalone checker that needs only Python and `duckdb` |
+
+Anyone with the folder can rerun the whole proof:
+
+```bash
+python out/verify.py
+# ok    13 file(s) match their attested sha256
+# ok    103 of 103 invariant(s) hold
+```
+
+It exits 0 when every digest matches and every invariant holds, and 1
+otherwise. Change one byte of one file and both the digest and the
+invariants that byte touched report it.
+
+`misata attest` exits 0 when the result is `PASSED`, 1 when an invariant does
+not hold, and 2 when the folder cannot be attested (a table has no file, or
+the schema declares nothing checkable).
+
+## Sign it
+
+Misata does not sign anything itself. The Statement is the standard input of
+the signing tools, so use the one your organisation already trusts.
+
+With [cosign](https://docs.sigstore.dev/cosign/verifying/attestation/):
+
+```bash
+cosign attest-blob \
+  --statement out/attestation.intoto.json \
+  --bundle out/attestation.sigstore.json \
+  out/orders.parquet
+```
+
+In GitHub Actions, with
+[`actions/attest`](https://github.com/actions/attest), which signs through
+Sigstore with the workflow's own identity and stores the attestation on
+the repository:
+
+```yaml
+jobs:
+  fixtures:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "misata[evalpack]"
+      - run: misata generate -c misata.yaml -o out --attest
+      - run: jq .predicate out/attestation.intoto.json > out/predicate.json
+      - uses: actions/attest@v4
+        with:
+          subject-path: "out/*.csv"
+          predicate-type: https://misata.studio/attestation/certificate/v1
+          predicate-path: out/predicate.json
+```
+
+Anyone can then check a file against it:
+
+```bash
+gh attestation verify out/orders.csv --repo OWNER/REPO \
+  --predicate-type https://misata.studio/attestation/certificate/v1
+```
+
+## Export the checks
+
+The same invariants in the formats data platforms already read:
+
+```bash
+misata attest out --schema misata.yaml --export odcs --export openlineage
+```
+
+- **`datacontract.odcs.yaml`** is an
+  [Open Data Contract Standard](https://bitol-io.github.io/open-data-contract-standard/)
+  v3.2.0 contract with one `type: sql` quality rule per invariant and a
+  `local` server pointing at the files, so
+  [`datacontract test`](https://cli.datacontract.com/) runs every check with
+  DuckDB and fails when one breaks.
+- **`openlineage.json`** is an [OpenLineage](https://openlineage.io/) `RunEvent`.
+  Each input carries the standard `dataQualityAssertions` facet (one
+  assertion per invariant) and a `misata_certificate` facet with the expected
+  and observed values, the spec digest and the seed. Send it to Marquez or
+  any OpenLineage backend.
+
+## In an agent
+
+The MCP server's `attest_dataset` tool takes the folder and the same schema
+dict that `generate_from_schema` took, writes the three files, and returns
+the result with any failing invariants. Report `result` to the user:
+`PASSED` means every declared property holds in the files on disk.
+
+## Limits
+
+- An attestation proves the files match the declarations. It says nothing
+  about how realistic the rows are; that is
+  [`misata.realism_report`](../validate.md).
+- `verifiedAt` changes on every run, so two attestations of the same files
+  differ in that one field. The subjects and invariants do not.
+- The predicate is specified at
+  [`https://misata.studio/attestation/certificate/v1`](../attestation/certificate-v1.md).

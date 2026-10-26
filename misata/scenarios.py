@@ -629,7 +629,7 @@ def draw_products(rng: np.random.Generator, size: int,
     if cats is not None:
         fam = [family_for_category(c) or "generic" for c in cats]
     else:
-        keys, w = zip(*_DEFAULT_FAMILY_MIX)
+        keys, w = zip(*_DEFAULT_FAMILY_MIX, strict=True)
         w = np.array(w) / sum(w)
         fam = [keys[i] for i in rng.choice(len(keys), size=size, p=w)]
     fam_arr = np.array(fam, dtype=object)
@@ -1329,7 +1329,7 @@ def _ticket_slot_rows(rng, size: int, items: Optional[Sequence] = None) -> List[
     devices, browsers, whens, plans = pick(_DEVICES), pick(_BROWSERS), pick(_WHENS), pick(_PLANS)
     from misata.vocab_seeds import CITIES_BY_COUNTRY, FIRST_NAMES, LAST_NAMES
     lnames = pick(LAST_NAMES)
-    phones = [f"07{int(a):03d} {int(b):06d}" for a, b in zip(rng.integers(100, 999, size), rng.integers(0, 999999, size))]
+    phones = [f"07{int(a):03d} {int(b):06d}" for a, b in zip(rng.integers(100, 999, size), rng.integers(0, 999999, size), strict=True)]
     mails = pick(["gmail.com", "outlook.com", "yahoo.co.uk", "icloud.com", "hotmail.com", "proton.me"])
     cities = pick([c for cs in CITIES_BY_COUNTRY.values() for c in cs])
     fnames = pick(FIRST_NAMES)
@@ -1868,7 +1868,7 @@ def job_titles(rng: np.random.Generator, size: int, key: str = "job_title") -> n
     """Job titles with a realistic skew and seniority mix (several hundred
     distinct titles, a few common ones), not 22 titles in equal shares."""
     base = zipf_choice(rng, _JOB_FUNCTIONS, size, s=0.9, q=3, key=key)
-    prefixes, w = zip(*_SENIORITY)
+    prefixes, w = zip(*_SENIORITY, strict=True)
     pre = rng.choice(len(prefixes), size=size, p=np.array(w) / sum(w))
     out = np.empty(size, dtype=object)
     for i in range(size):

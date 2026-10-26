@@ -621,7 +621,7 @@ def render_unit_test_yaml(plan: UnitTestPlan) -> str:
         "",
         "unit_tests:",
         f"  - name: test_{plan.model_name}",
-        f"    description: >",
+        "    description: >",
         f"      Unit test for {plan.model_name}, with Misata-generated inputs.",
         f"    model: {plan.model_name}",
         "    given:",

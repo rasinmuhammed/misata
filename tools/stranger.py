@@ -25,6 +25,7 @@ a markdown file.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shlex
@@ -52,6 +53,16 @@ NEEDS_WORLD = re.compile(
 )
 
 SKIP_MARKER = "stranger: skip"
+
+# A YAML block whose first line is a comment naming a file, such as
+# `# solve.yaml`, is that file: the commands after it on the page read it.
+NAMED_FILE = re.compile(r"\A#\s*([\w.-]+\.ya?ml)\s*$", re.M)
+
+ENVELOPE_SCHEMA = ROOT / "misata" / "_schemas" / "cli-envelope.schema.json"
+EXIT_CODES = {0: "ok", 1: "failed", 2: "usage", 3: "infeasible"}
+
+# Command groups: their subcommand is part of what makes a command distinct.
+GROUPS = {"capsule", "mcp", "recipe"}
 
 
 @dataclass
@@ -128,9 +139,35 @@ def looks_like_a_schema(body: str) -> bool:
     return "tables:" in body and ("columns:" in body or "rows:" in body)
 
 
+def envelope_problem(process: subprocess.CompletedProcess) -> str:
+    """Why a ``--json`` run's stdout is not a valid envelope, or "" when it is."""
+    try:
+        envelope = json.loads(process.stdout)
+    except json.JSONDecodeError as exc:
+        return f"stdout is not one JSON document ({exc.msg})"
+    try:
+        import jsonschema
+    except ImportError:
+        schema = json.loads(ENVELOPE_SCHEMA.read_text())
+        missing = sorted(set(schema["required"]) - set(envelope))
+        if missing:
+            return f"missing {missing}"
+    else:
+        try:
+            jsonschema.validate(envelope, json.loads(ENVELOPE_SCHEMA.read_text()))
+        except jsonschema.ValidationError as exc:
+            return f"schema: {exc.message}"
+    if envelope["exit_code"] != process.returncode:
+        return f"exit_code {envelope['exit_code']} but the process exited {process.returncode}"
+    if EXIT_CODES.get(process.returncode, "failed") != envelope["code"]:
+        return f"code {envelope['code']!r} for exit {process.returncode}"
+    return ""
+
+
 class Runner:
     def __init__(self, python: Path):
         self.python = python
+        self.enveloped: set = set()
 
     def misata(self, args, cwd) -> subprocess.CompletedProcess:
         return subprocess.run([str(self.python), "-m", "misata.cli", *args],
@@ -154,8 +191,11 @@ class Runner:
                 return "skip", f"needs an input file the docs do not ship ({tok})"
         try:
             p = self.misata(tokens[1:], cwd)
+            problem = self.check_envelope(tokens, cwd)
         except subprocess.TimeoutExpired:
             return "fail", "timed out after 300s"
+        if problem:
+            return "fail", f"--json envelope: {problem}"
         if p.returncode != 0:
             tail = (p.stderr or p.stdout).strip().splitlines()
             detail = tail[-1] if tail else f"exit {p.returncode}"
@@ -163,6 +203,14 @@ class Runner:
                 return "skip", "an alternative spelling of a command already run"
             return "fail", detail
         return "pass", ""
+
+    def check_envelope(self, tokens: list[str], cwd: Path) -> str:
+        """Rerun the first documented use of each command with --json."""
+        name = tuple(tokens[1:3] if len(tokens) > 2 and tokens[1] in GROUPS else tokens[1:2])
+        if not name or name[0].startswith("-") or name in self.enveloped or "--json" in tokens:
+            return ""
+        self.enveloped.add(name)
+        return envelope_problem(self.misata([*tokens[1:], "--json"], cwd))
 
     def check_pip(self, tokens: list[str]):
         """A documented `misata[extra]` must be an extra that exists.
@@ -247,8 +295,12 @@ def main() -> int:
             sandbox = sandboxes.setdefault(
                 ex.source, Path(tempfile.mkdtemp(dir=workdir)))
             if ex.lang == "yaml":
+                named = NAMED_FILE.match(ex.body)
+                if named:
+                    (sandbox / named.group(1)).write_text(ex.body)
                 if not looks_like_a_schema(ex.body):
-                    results.append((ex, "skip", "not a misata schema", ""))
+                    detail = f"written as {named.group(1)}" if named else "not a misata schema"
+                    results.append((ex, "skip", detail, ""))
                     continue
                 status, detail = runner.run_yaml(ex.body, sandbox)
                 results.append((ex, status, detail, "schema"))

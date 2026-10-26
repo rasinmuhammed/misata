@@ -40,7 +40,8 @@ misata.to_parquet(tables, "./data/")
 
 MCP tools for agents include `generate_from_schema` (primary), `create_sandbox`
 and `query_sandbox` (an isolated SQLite database to test SQL against),
-`seed_database`, `audit_dataset` and `check_realism`.
+`seed_database`, `explain_schema`, `solve_outcome`, `audit_dataset`, `attest_dataset` and
+`check_realism`.
 
 ## Docs
 

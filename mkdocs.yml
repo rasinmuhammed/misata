@@ -111,6 +111,10 @@ nav:
   - Export: export.md
   - Databricks & Spark: spark.md
   - Validate: validate.md
+  - Attest a Dataset: guides/attest.md
+  - Build an Evalpack: guides/evalpack.md
+  - Solve for a Pipeline's Output: guides/solve.md
+  - Certificate Predicate v1: attestation/certificate-v1.md
   - Realism Report: realism.md
   - Realism Benchmark: realism-benchmark.md
   - Validity Benchmark: validity-benchmark.md

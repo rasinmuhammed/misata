@@ -32,7 +32,6 @@ class CausalSolver:
         
         # Validation
         sample_size = len(list(target_constraints.values())[0])
-        num_vars = len(adjustable_nodes)
         
         # Flatten initial guess into 1D array for scipy
         # x0 = [node1_t0, node1_t1, ..., node2_t0, ...]
@@ -74,7 +73,7 @@ class CausalSolver:
             # 3. Forward Pass
             try:
                 results = self.graph.forward_pass(current_inputs)
-            except Exception as e:
+            except Exception:
                 # If optimization goes wild (e.g. NaN), return high error
                 return 1e9
 

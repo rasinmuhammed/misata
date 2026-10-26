@@ -402,8 +402,10 @@ class TestUniqueForeignKey:
         """There is no valid answer, so inventing one would be the bug."""
         import pytest
         import misata
-        with pytest.raises(ValueError, match="at most one row per parent"):
+        from misata.feasibility import InfeasibleSchema
+        with pytest.raises(InfeasibleSchema) as caught:
             misata.generate_from_schema(self._schema(40))
+        assert [c.kind for c in caught.value.conflicts] == ["unique_fk_exceeds_parents"]
 
 
 class TestUniqueTextColumns:

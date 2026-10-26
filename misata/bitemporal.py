@@ -19,11 +19,12 @@ each version, so a later correction can restate an earlier period.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
+
+from misata.exceptions import ConformanceWarning, warn
 
 NS_PER_DAY = 86_400_000_000_000
 
@@ -41,9 +42,10 @@ def apply_bitemporal(
             spec.recorded_at, spec.superseded_at]
     for c in cols:
         if c not in df.columns:
-            warnings.warn(
+            warn(
                 f"Bitemporal '{spec.name}': column '{c}' missing from "
-                f"'{spec.table}'. Skipping.")
+                f"'{spec.table}'. Skipping.",
+                ConformanceWarning,)
             return tables
 
     n = len(df)
@@ -120,8 +122,9 @@ def apply_bitemporals(
         try:
             apply_bitemporal(tables, spec, rng)
         except Exception as e:
-            warnings.warn(f"Bitemporal '{spec.name}' failed ({e}); table left "
-                          f"as generated.")
+            warn(f"Bitemporal '{spec.name}' failed ({e}); table left "
+                          f"as generated.",
+            ConformanceWarning,)
     return tables
 
 

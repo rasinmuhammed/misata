@@ -36,10 +36,11 @@ tendency:
 """
 from __future__ import annotations
 
-import warnings
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+from misata.exceptions import ConformanceWarning, warn
 
 
 class MarginsIncompatible(ValueError):
@@ -178,9 +179,10 @@ def integerise_2d(table: np.ndarray, n: int) -> np.ndarray:
             break
     # Any residue is a genuine integrality conflict, not a silent nudge.
     if row_need.any() or col_need.any():
-        warnings.warn(
+        warn(
             f"integerise_2d: {int(np.abs(row_need).sum())} unit(s) could not be "
-            f"placed without breaking a margin; the table is reported as is.")
+            f"placed without breaking a margin; the table is reported as is.",
+            ConformanceWarning,)
     return out
 
 
@@ -245,7 +247,7 @@ def solve_joint(
                 f"forbidden combination {combo} names {e} which is not a "
                 f"declared category") from None
     for combo, w in (seed_weights or {}).items():
-        seed[tuple(index[d][c] for d, c in zip(dims, combo))] = float(w)
+        seed[tuple(index[d][c] for d, c in zip(dims, combo, strict=True))] = float(w)
 
     table, dims, levels, diag = ipf(margins, seed=seed)
     if len(dims) == 2:
@@ -296,19 +298,21 @@ def apply_joint_distributions(tables, config, rng) -> None:
             continue
         missing = [c for c in spec.margins if c not in df.columns]
         if missing:
-            warnings.warn(
+            warn(
                 f"JointDistribution '{spec.name}': {spec.table} has no column(s) "
-                f"{missing}. Skipping.")
+                f"{missing}. Skipping.",
+                ConformanceWarning,)
             continue
         dims = list(spec.margins)
         weights = {}
         for key, w in (spec.emphasis or {}).items():
             combo = tuple(key.split("|"))
             if len(combo) != len(dims):
-                warnings.warn(
+                warn(
                     f"JointDistribution '{spec.name}': emphasis key {key!r} has "
                     f"{len(combo)} parts but {len(dims)} margins are declared. "
-                    f"Ignoring it.")
+                    f"Ignoring it.",
+                    ConformanceWarning,)
                 continue
             weights[combo] = float(w)
         counts, dims, levels, _diag = solve_joint(

@@ -38,11 +38,14 @@ personal information in the output and nothing to anonymise.
 | `validate_yaml` | refuses declarations that cannot all hold, with the arithmetic | no |
 | `seed_database` | inserts rows into a database you point it at | **yes** |
 | `audit_dataset` | scores a folder of CSVs for contradictions | no |
+| `explain_schema` | shows what a schema will generate, without generating it | no |
+| `solve_outcome` | finds outcome-curve values that make SQL metrics over the data hit targets | no |
+| `attest_dataset` | proves a folder of files holds its schema's declarations | **yes** (three files beside the data) |
 | `validate_domain` | flags impossible values for a domain (clinical, financial) | no |
 | `create_sandbox` | spins up an isolated SQLite test database with realistic relational data | **yes** (isolated sandbox file) |
 | `query_sandbox` | executes a read-only SQL query against an isolated sandbox database | no |
 
-`seed_database` and `create_sandbox` are the only tools that write files/data. `seed_database` plans by default and applies only when explicitly told to. `create_sandbox` writes to an isolated test SQLite database.
+`seed_database`, `create_sandbox` and `attest_dataset` are the only tools that write files or data. `seed_database` plans by default and applies only when explicitly told to. `create_sandbox` writes to an isolated test SQLite database. `attest_dataset` writes `attestation.intoto.json`, `attestation.dsse.json` and `verify.py` into the folder it checked.
 
 ## Example prompts
 

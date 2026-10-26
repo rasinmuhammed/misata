@@ -1,4 +1,4 @@
-"""Run the Gauntlet's 99 assertions against other generators.
+"""Run the Gauntlet's assertions against other generators.
 
 Methodology, stated plainly because fairness is the whole point:
 
@@ -45,14 +45,15 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 
-from benchmarks.gauntlet import (build_assertions, build_schema, KNOWN_RED,
-                                 ORDER_STATUSES, SUB_STATUSES, TICKET_STATUSES)
+from benchmarks.gauntlet import (build_assertions, build_schema, KNOWN_RED, LOYALTY_STATES,
+                                 AD_CHANNEL_SHARES, ORDER_STATUSES, SUB_STATUSES,
+                                 TICKET_STATUSES)
 
 SEED = 7
 ROWS = {"categories": 8, "products": 120, "customers": 500, "addresses": 700,
         "subscriptions": 600, "orders": 2500, "order_items": 6000,
         "payments": 2800, "shipments": 1800, "returns": 300,
-        "support_tickets": 800}
+        "support_tickets": 800, "loyalty_accounts": 400, "ad_spend": 3000}
 
 
 # --------------------------------------------------------------------------- #
@@ -207,6 +208,27 @@ def generate_with_faker() -> Dict[str, pd.DataFrame]:
         "status": rng.choice(TICKET_STATUSES, n, p=[0.2, 0.15, 0.45, 0.2]),
         "resolved_at": dt("2022-07-02", "2025-06-30", n).where(
             rng.random(n) > 0.35, pd.NaT),
+    })
+
+    # A careful script reads the UNIQUE on customer_id and samples without
+    # replacement, and draws the state from the declared list.
+    n = ROWS["loyalty_accounts"]
+    t["loyalty_accounts"] = pd.DataFrame({
+        "account_id": np.arange(1, n + 1),
+        "customer_id": rng.choice(t["customers"]["customer_id"], n, replace=False),
+        "home_state": rng.choice(LOYALTY_STATES, n),
+        "home_city": [fake.city() for _ in range(n)],
+        "home_zip": [fake.zipcode() for _ in range(n)],
+    })
+
+    # Channels drawn at the declared shares and amounts around the planned
+    # average: the script has no way to make a month or a channel total exact.
+    n = ROWS["ad_spend"]
+    t["ad_spend"] = pd.DataFrame({
+        "spend_id": np.arange(1, n + 1),
+        "spend_date": dt("2024-01-01", "2024-12-31", n).normalize(),
+        "channel": rng.choice(list(AD_CHANNEL_SHARES), n, p=list(AD_CHANNEL_SHARES.values())),
+        "amount": np.round(np.exp(rng.normal(np.log(250.0) - 0.125, 0.5, n)), 2),
     })
     return t
 

@@ -258,7 +258,7 @@ A period with `n` rows and target `T` can keep every row inside the column's dec
 
 This never happens silently. Three surfaces report the sacrifice:
 
-1. Generation emits a `UserWarning` naming the table, column, period, and the bound that was sacrificed.
+1. Generation emits a `ConformanceWarning` naming the table, column, period, and the bound that was sacrificed.
 2. `conformance_preview()` sets `bounds_respected=False` on the affected curve and adds a per-period warning, before any rows exist.
 3. The Oracle report flags it under `guarantees.kpi_conformance`: `bounds_passed=False`, with per-period `bound_violation` details (rows below min, rows above max, observed extremes). The AME check itself still passes, since the aggregate was met.
 

@@ -1,4 +1,4 @@
-from typing import List, Dict, Callable, Optional, Any
+from typing import List, Dict, Callable, Optional
 import networkx as nx # type: ignore
 import numpy as np
 

@@ -11,9 +11,10 @@ Supported targets:
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+
+from misata.sqlutil import quote_ident
 
 
 def to_parquet(
@@ -249,7 +250,6 @@ def to_sql(
 
         paths = misata.to_sql(tables, "./data/", dialect="postgresql")
     """
-    import re
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -258,11 +258,7 @@ def to_sql(
         str(dialect).lower(), str(dialect).lower())
 
     def _quote(name: str, dialect: str) -> str:
-        # Escape the quote character itself inside the identifier to prevent
-        # broken DDL from generated column/table names containing quotes.
-        if dialect == "mysql":
-            return f"`{name.replace('`', '``')}`"
-        return f'"{name.replace(chr(34), chr(34)+chr(34))}"'
+        return quote_ident(name, "mysql" if dialect == "mysql" else "ansi")
 
     def _py_type_to_sql(dtype, dialect: str) -> str:
         if hasattr(dtype, "name"):
@@ -312,7 +308,9 @@ def to_sql(
     written: Dict[str, Path] = {}
     for name, df in tables.items():
         path = output_dir / f"{name}.sql"
-        q = lambda n: _quote(n, dialect)
+        def q(n: str) -> str:
+            return _quote(n, dialect)
+
         lines = [f"CREATE TABLE IF NOT EXISTS {q(name)} ("]
         col_defs = []
         for col in df.columns:
@@ -373,9 +371,7 @@ def to_seed_sql(
         dialect_clean = "sqlite"
 
     def _quote(name: str) -> str:
-        if dialect_clean == "mysql":
-            return f"`{name.replace('`', '``')}`"
-        return f'"{name.replace(chr(34), chr(34)+chr(34))}"'
+        return quote_ident(name, "mysql" if dialect_clean == "mysql" else "ansi")
 
     # Determine table ordering
     ordered_names: list[str] = []
@@ -496,10 +492,10 @@ def to_arrow(
     try:
         import pyarrow as pa
         import pyarrow.ipc as ipc
-    except ImportError:
+    except ImportError as exc:
         raise ImportError(
             "pyarrow is required for to_arrow(). Install it: pip install pyarrow"
-        )
+        ) from exc
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -527,7 +523,7 @@ def to_arrow(
             new_fields.append(field)
             new_columns.append(col)
 
-        table = pa.table(dict(zip([f.name for f in new_fields], new_columns)),
+        table = pa.table(dict(zip([f.name for f in new_fields], new_columns, strict=True)),
                          schema=pa.schema(new_fields))
         with pa.OSFile(str(path), "wb") as sink:
             with ipc.new_file(sink, table.schema) as writer:

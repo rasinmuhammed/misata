@@ -54,15 +54,17 @@ Quick start (Databricks notebook)
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
+from misata.sqlutil import quote_ident, quote_literal
+from misata.exceptions import warn
+
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame as SparkDataFrame, SparkSession
-    from pyspark.sql.types import DataType, StructType
+    from pyspark.sql.types import StructType
     from misata.schema import SchemaConfig
 
 
@@ -180,7 +182,7 @@ def _pandas_dtype_to_spark_type(
     # Object column holding python date objects (e.g. an already-normalised date)
     if isinstance(dtype, pd.CategoricalDtype):
         return StringType()
-    if dtype == object:
+    if pd.api.types.is_object_dtype(dtype):
         non_null = series.dropna()
         if len(non_null) > 0:
             import datetime
@@ -333,7 +335,7 @@ def _sql_quote(identifier: str) -> str:
         _sql_quote("dev_cat.bronze.orders") → "`dev_cat`.`bronze`.`orders`"
         _sql_quote("workspace")             → "`workspace`"
     """
-    return ".".join(f"`{part.replace('`', '')}`" for part in identifier.split("."))
+    return ".".join(quote_ident(part, "spark") for part in identifier.split("."))
 
 
 def _table_exists_uc(spark: Any, full_name: str) -> bool:
@@ -370,11 +372,12 @@ def _uc_foreign_keys(spark: Any, catalog: str, database: str) -> Dict[str, Dict[
     # running the heavier multi-join query.  Avoids long timeouts on old runtimes.
     try:
         spark.sql(
-            f"SELECT 1 FROM `{catalog}`.INFORMATION_SCHEMA.TABLES LIMIT 0"
+            f"SELECT 1 FROM {quote_ident(catalog, 'spark')}.INFORMATION_SCHEMA.TABLES LIMIT 0"
         ).collect()
     except Exception:
         return {}
 
+    cat = quote_ident(catalog, "spark")
     try:
         rows = spark.sql(f"""
             SELECT
@@ -382,14 +385,14 @@ def _uc_foreign_keys(spark: Any, catalog: str, database: str) -> Dict[str, Dict[
                 kcu.COLUMN_NAME AS child_column,
                 ccu.TABLE_NAME  AS parent_table,
                 ccu.COLUMN_NAME AS parent_column
-            FROM `{catalog}`.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-            JOIN `{catalog}`.INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+            FROM {cat}.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+            JOIN {cat}.INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
               ON  kcu.CONSTRAINT_NAME   = rc.CONSTRAINT_NAME
               AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
-            JOIN `{catalog}`.INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
+            JOIN {cat}.INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
               ON  rc.UNIQUE_CONSTRAINT_NAME   = ccu.CONSTRAINT_NAME
               AND rc.UNIQUE_CONSTRAINT_SCHEMA = ccu.CONSTRAINT_SCHEMA
-            WHERE kcu.TABLE_SCHEMA = '{database}'
+            WHERE kcu.TABLE_SCHEMA = {quote_literal(database)}
         """).collect()
         fks: Dict[str, Dict[str, Any]] = {}
         for row in rows:
@@ -413,7 +416,6 @@ def _infer_fk_relationships(
 
         {"orders": {"customer_id": {"table": "customers", "column": "id"}}}
     """
-    table_set = set(table_names)
     fks: Dict[str, Dict[str, str]] = {}
 
     # Build a lookup: singular form → table name
@@ -448,13 +450,11 @@ def _infer_fk_relationships(
                 unresolved.append(f"{table_name}.{col_name}")
 
     if unresolved:
-        warnings.warn(
+        warn(
             "from_catalog_schema could not auto-infer a parent table for these "
             f"FK-looking columns: {unresolved}. Pass them explicitly via "
             "foreign_keys={'<table>': {'<col>': {'table': '<parent>', 'column': 'id'}}} "
             "to guarantee referential integrity.",
-            UserWarning,
-            stacklevel=3,
         )
 
     return fks
@@ -682,7 +682,7 @@ def write_delta(
         try:
             spark.sql(f"CREATE SCHEMA IF NOT EXISTS {_sql_quote(db_full)}")
         except Exception as exc:
-            warnings.warn(f"Could not create schema '{db_full}': {exc}")
+            warn(f"Could not create schema '{db_full}': {exc}")
 
     for table_name, df in tables.items():
         full_name = _full_table_name(table_name, catalog, db)
@@ -718,7 +718,7 @@ def write_delta(
                         writer = writer.clusterBy(*cluster_by[table_name])
                     except (AttributeError, TypeError):
                         # clusterBy unavailable on this Delta version — fall back
-                        warnings.warn(
+                        warn(
                             f"Liquid clustering not supported by this Delta build; "
                             f"writing '{table_name}' without clustering."
                         )
@@ -795,7 +795,8 @@ def _merge_into_delta(
             "Keys must be plain identifiers (letters, digits, underscores)."
         )
     target = DeltaTable.forName(spark, target_table)
-    cond = " AND ".join([f"t.`{k}` = s.`{k}`" for k in keys])
+    quoted = [quote_ident(k, "spark") for k in keys]
+    cond = " AND ".join(f"t.{k} = s.{k}" for k in quoted)
     (
         target.alias("t")
         .merge(source_df.alias("s"), cond)
@@ -990,7 +991,7 @@ def write_delta_stream(
         try:
             spark.sql(f"CREATE SCHEMA IF NOT EXISTS {_sql_quote(db_full)}")
         except Exception as exc:
-            warnings.warn(f"Could not create schema '{db_full}': {exc}")
+            warn(f"Could not create schema '{db_full}': {exc}")
 
     # Track whether we've written the first batch per table (overwrite first, append rest)
     first_batch: Dict[str, bool] = {}
@@ -1132,7 +1133,6 @@ def from_spark_schema(
         "__rows__": row_count,
     }
 
-    has_id = any(f.name.lower() == "id" for f in df_schema.fields)
 
     for f in df_schema.fields:
         col_def = _spark_field_to_col_def(f)
@@ -1275,7 +1275,7 @@ def from_catalog_schema(
             ) from exc
 
     if not table_names:
-        warnings.warn(f"No tables found in '{db_full}'.")
+        warn(f"No tables found in '{db_full}'.")
 
     row_counts = row_counts or {}
     foreign_keys = foreign_keys or {}
@@ -1288,7 +1288,7 @@ def from_catalog_schema(
         try:
             struct = spark.table(full_name).schema
         except Exception as exc:
-            warnings.warn(f"Skipping table '{tname}': could not read schema — {exc}")
+            warn(f"Skipping table '{tname}': could not read schema — {exc}")
             continue
 
         col_dict: Dict[str, Any] = {
@@ -1481,11 +1481,13 @@ def verify_delta_integrity(
         parent_fqn = _qualify(parent_table)
 
         try:
+            child_key = quote_ident(child_col, "spark")
+            parent_key = quote_ident(parent_col, "spark")
             orphan_df = spark.sql(f"""
-                SELECT c.`{child_col}`
+                SELECT c.{child_key}
                 FROM   {_sql_quote(child_fqn)}  c
-                LEFT ANTI JOIN {_sql_quote(parent_fqn)} p ON c.`{child_col}` = p.`{parent_col}`
-                WHERE  c.`{child_col}` IS NOT NULL
+                LEFT ANTI JOIN {_sql_quote(parent_fqn)} p ON c.{child_key} = p.{parent_key}
+                WHERE  c.{child_key} IS NOT NULL
             """)
             orphan_count = orphan_df.count()
 
