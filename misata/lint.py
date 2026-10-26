@@ -7,7 +7,7 @@ arithmetic against the schema alone, in milliseconds, with the message you
 would otherwise meet mid-generation:
 
 - aggregate targets versus declared per-row bounds (lo * n <= T <= hi * n)
-- Prop. 3 row-count clamps that would inflate or deflate per-row values
+- row-count clamps that would inflate or deflate per-row values
 - reversed or degenerate date ranges
 - unique columns whose declared range cannot host the row count
 - relationships pointing at tables or keys that do not exist
@@ -124,7 +124,7 @@ def _check_rates(schema: "SchemaConfig") -> List[LintFinding]:
 
 
 def _check_curves(schema: "SchemaConfig") -> List[LintFinding]:
-    """Bound feasibility and Prop. 3 clamps via the conformance preview."""
+    """Bound feasibility and row-count clamps via the conformance preview."""
     if not schema.outcome_curves:
         return []
     out = []

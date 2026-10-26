@@ -50,7 +50,7 @@ min/max_transactions_per_period.
 
 The conformance preview (`misata preview`) shows these conflicts before any rows are generated.
 
-## Row-count clamps (Prop. 3 saturation)
+## Row-count clamps
 
 When a period target needs more rows than `max_transactions_per_period` allows, or fewer than `min_transactions_per_period`, the row count is held to the bound and each row grows or shrinks to keep the total exact. Every aggregate check still passes while the per-row mean leaves `avg_transaction_value`, so generation says so:
 

@@ -356,6 +356,9 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Output changes
 
+- Conformance warnings name a row-count clamp in plain words, `upper row-count
+  clamp` and `lower row-count clamp`, instead of `Prop. 3 upper clamp` and
+  `Prop. 3 lower clamp`.
 - A lifecycle state reachable several ways splits its rows across every
   route in exact counts, weighted by how often a walk taking each
   transition out of a state equally often follows the route. With

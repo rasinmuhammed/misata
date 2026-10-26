@@ -12,12 +12,12 @@ import sys
 
 import pytest
 
-duckdb = pytest.importorskip("duckdb")
-
 import misata
 from misata import OutcomeCurveBuilder, RateCurveBuilder
 from misata.evalpack import build_evalpack, _quote_ident
 from misata.schema import Column, Constraint, Relationship, SchemaConfig, Table
+
+duckdb = pytest.importorskip("duckdb")
 
 
 def _pack_schema(seed: int = 7, max_tx: int = 10_000) -> SchemaConfig:
@@ -215,9 +215,9 @@ class TestGuards:
 
 
 class TestConformanceWarnings:
-    def test_prop3_clamp_warning_recorded_and_printed(self, tmp_path, capsys):
+    def test_row_count_clamp_warning_recorded_and_printed(self, tmp_path, capsys):
         """A period whose ideal row count exceeds max_transactions_per_period
-        ships inflated per-row values (Prop. 3 upper clamp) — the pack must
+        ships inflated per-row values (upper row-count clamp) — the pack must
         say so in the manifest and on stdout, never silently."""
         # Peak target 200,000 at avg 150 needs ≈1,333 rows; cap at 100.
         result = build_evalpack(_pack_schema(seed=11, max_tx=100),
@@ -232,7 +232,7 @@ class TestConformanceWarnings:
             (result.output_dir / "certificate.json").read_text())
         assert certificate["conformance_warnings"] == result.conformance_warnings
         out = capsys.readouterr().out
-        assert "Prop. 3 upper clamp" in out
+        assert "upper row-count clamp" in out
 
     def test_unclamped_curve_has_no_warnings(self, pack):
         assert pack.conformance_warnings == []

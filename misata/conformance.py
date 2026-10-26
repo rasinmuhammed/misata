@@ -111,7 +111,7 @@ class ConformancePreview:
 
     Returned by :func:`conformance_preview`. Contains the full period plan
     for every outcome curve, estimated row counts, clamping warnings, and
-    a top-level flag indicating whether AME = 0 is achievable.
+    a top-level flag indicating whether every period total can be hit exactly.
     """
 
     schema_name: str
@@ -120,7 +120,7 @@ class ConformancePreview:
 
     @property
     def ame_achievable(self) -> bool:
-        """``True`` if all curves can reach AME = 0 with current settings."""
+        """``True`` if every curve can hit its period totals exactly with current settings."""
         return all(c.ame_achievable for c in self.curves)
 
     @property
@@ -314,7 +314,7 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
         for bucket, target, est_rows in zip(
             resolved.buckets, resolved.targets, row_counts, strict=True
         ):
-            # Prop. 3 clamping check
+            # Row-count clamp check
             if resolved.avg_transaction_value and target > 0:
                 ideal_rows = target / resolved.avg_transaction_value
                 if ideal_rows > resolved.max_transactions_per_period:
@@ -322,7 +322,7 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
                         f"Period '{bucket.label}': target={target:,.2f} requires "
                         f"≈{ideal_rows:.0f} rows but max_transactions_per_period="
                         f"{resolved.max_transactions_per_period} — per-row values "
-                        f"will be inflated (Prop. 3 upper clamp). "
+                        f"will be inflated (upper row-count clamp). "
                         f"Raise max_transactions_per_period to avoid distortion."
                     )
                 elif ideal_rows < resolved.min_transactions_per_period:
@@ -330,7 +330,7 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
                         f"Period '{bucket.label}': target={target:,.2f} requires "
                         f"≈{ideal_rows:.0f} rows but min_transactions_per_period="
                         f"{resolved.min_transactions_per_period} — per-row values "
-                        f"will be deflated (Prop. 3 lower clamp)."
+                        f"will be deflated (lower row-count clamp)."
                     )
 
             period_previews.append(

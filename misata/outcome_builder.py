@@ -215,7 +215,7 @@ class OutcomeCurveBuilder:
         return self
 
     def row_bounds(self, min_tx: int, max_tx: int) -> "OutcomeCurveBuilder":
-        """Row-count bounds per period (paper Prop. 3 distortion guard)."""
+        """Row-count bounds per period, which keep per-row values from being distorted."""
         self._min_tx = max(1, min_tx)
         self._max_tx = max(min_tx, max_tx)
         return self
@@ -249,7 +249,7 @@ class OutcomeCurveBuilder:
             period: Period label — ``"YYYY-MM"``, ``"YYYY-Q1"``, or integer month.
             value:  Exact total for that period (e.g. ``50_000.0`` dollars).
 
-        The engine guarantees this total will be hit exactly (AME = 0).
+        The engine guarantees this total will be hit exactly.
         """
         _, month = _parse_period_key(period)
         self._anchors[month] = float(value)
