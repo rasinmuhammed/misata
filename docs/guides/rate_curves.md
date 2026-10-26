@@ -7,7 +7,7 @@ description: "Declare the exact share of a boolean or categorical outcome per pe
 
 An **outcome curve** controls *how much* of a numeric column accumulates per period (revenue, volume). A **rate curve** controls *what fraction* of a boolean or categorical outcome is positive per period: a churn rate rising from 2% to 9% over a year, a fraud rate climbing through the holidays, a conversion rate improving each quarter.
 
-This is the Rate-Conformance (RCE) axis from the paper, orthogonal to the aggregate (AME) axis that outcome curves cover. The engine flips exactly `round(n_period × rate)` rows per period, so the realised rate matches your target with **RCE = 0**.
+The engine flips exactly `round(n_period × rate)` rows per period, so the realised rate matches your target to the nearest row.
 
 > Pick the right tool: a *magnitude over time* is an [outcome curve](outcome_curves.md); a *rate/proportion over time* is a rate curve; a *static split* with no time component is just categorical `probabilities`.
 

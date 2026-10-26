@@ -3130,7 +3130,7 @@ def lint_cmd(schema_file: str, strict: bool, rows: int) -> None:
     """Check a schema for infeasible declarations BEFORE generating anything.
 
     Runs the same feasibility arithmetic generation applies, in milliseconds:
-    aggregate targets versus declared bounds, Prop. 3 row-count clamps,
+    aggregate targets versus declared bounds, row-count clamps,
     reversed date ranges, unique ranges too small for the row count,
     relationships pointing nowhere, group shares that cannot fit their
     buckets, waterfalls with more movements than rows.

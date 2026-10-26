@@ -421,8 +421,8 @@ class OutcomeCurve(BaseModel):
 class RateCurve(BaseModel):
     """Declares an exact rate target for a boolean or categorical column per period.
 
-    This covers the rate-conformance (RCE) axis from the SpecBench paper —
-    orthogonal to the aggregate (AME) axis captured by ``OutcomeCurve``.
+    Where ``OutcomeCurve`` fixes how much a measure sums to per period, this
+    fixes what fraction of rows is positive per period.
 
     Example — exactly 3% fraud in Q1 rising to 5% by Q4::
 

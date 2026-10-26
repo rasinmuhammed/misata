@@ -205,4 +205,4 @@ What changes, when you generate data on purpose, is that the data starts to carr
 
 For most software, that is a convenience. For an analytics company, it is the whole job. You are in the business of vouching for numbers. It is worth being able to vouch for the ones you build on first.
 
-If you want to try it, Misata is `pip install misata`, the source and runnable examples are on [GitHub](https://github.com/rasinmuhammed/misata), and the exact-aggregate mechanism behind the revenue curves is written up in an [arXiv preprint](https://arxiv.org/abs/2606.08736v1). Whatever you use, give the data an answer before you ask the product to find it.
+If you want to try it, Misata is `pip install misata`, the source and runnable examples are on [GitHub](https://github.com/rasinmuhammed/misata), and every recipe there ends in the check that proves its numbers. Whatever you use, give the data an answer before you ask the product to find it.

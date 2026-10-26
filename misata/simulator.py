@@ -4063,20 +4063,19 @@ class DataSimulator:
     def _apply_rate_curves(self, df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         """Enforce exact per-period rate targets for boolean/categorical columns.
 
-        Implements the Rate-Conformance (RCE) axis from the SpecBench paper
-        (arXiv:2606.08736v1, §4).  For each ``RateCurve`` attached to this
-        table, the method:
+        For each ``RateCurve`` attached to this table, the method:
 
         1. Groups rows by period using the declared ``time_column``.
         2. Resolves the target rate for each observed period via optional linear
            interpolation between anchor points (``RateCurve.interpolate=True``).
         3. Flips exactly ``round(n_period × rate)`` rows to ``true_value`` using
-           the Prop. 2 integer-rounding + remainder-correction algorithm that the
-           FactEngine uses for aggregate targets — guaranteeing RCE = 0 per period.
+           the integer-rounding and remainder-correction step the FactEngine
+           uses for aggregate targets, so each period's rate is exact to the
+           nearest row.
 
         This is a **pure post-generation pass**: it changes *which* rows are
         classified as positive but never mutates any numeric aggregate column,
-        so the FactEngine's AME = 0 guarantee is preserved.
+        so the FactEngine's exact totals are preserved.
         """
         rate_curves = getattr(self.config, "rate_curves", None)
         if not rate_curves:
@@ -4108,7 +4107,7 @@ class DataSimulator:
         return df
 
     def _enforce_rate_curve(self, df: pd.DataFrame, rc: Any) -> pd.DataFrame:
-        """Enforce one ``RateCurve`` using the Prop. 2 remainder-corrected algorithm.
+        """Enforce one ``RateCurve`` with remainder-corrected rounding.
 
         For each observed monthly period, the target rate is resolved (with
         optional interpolation), then exactly ``round(n_period × rate)`` rows
@@ -4261,7 +4260,7 @@ class DataSimulator:
                 if not np.isnan(r)
             }
 
-        # ── Prop. 2 enforcement per period ───────────────────────────────
+        # ── exact enforcement per period ──────────────────────────────────
         df = df.copy()
         true_val = rc.true_value
 
@@ -4284,7 +4283,7 @@ class DataSimulator:
             period_indices = df.index[period_mask].to_numpy()
             n_period = len(period_indices)
 
-            # Exact positive-class count: Prop. 2 binomial rounding
+            # Exact positive-class count: round(n * rate)
             target_count = int(round(n_period * target_rate))
             target_count = max(0, min(n_period, target_count))
 
@@ -4335,8 +4334,8 @@ class DataSimulator:
         an avg_transaction_value and a row_count, we can derive an implied total
         target and correct toward it batch by batch.
 
-        Algorithm (Prop. 2 analogue for floating-point)
-        -----------------------------------------------
+        Algorithm (remainder correction for floating-point)
+        ---------------------------------------------------
         For each period *p* with implied target *T_p*:
         1. Compute *B_p* = sum of the metric column for rows in this batch that
            fall in period *p*.

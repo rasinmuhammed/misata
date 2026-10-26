@@ -1,10 +1,10 @@
 """
-Misata - Outcome-Conformant Synthetic Data
+Misata - declarative synthetic data
 
-Declare the outcome you want — a revenue curve, a fraud rate, multi-table aggregates —
-and Misata generates realistic relational data that hits those targets exactly, with
-referential integrity, from a sentence, YAML, or your database. No ML model, no real
-data required. See the method paper: arXiv:2606.08736.
+Declare what must be true, a revenue curve, a fraud rate, a balanced ledger, a
+foreign key that never dangles, and Misata generates realistic relational data
+that holds all of it exactly, from a sentence, YAML, SQL DDL or your database.
+No ML model, no real data required.
 
 Quickstart::
 

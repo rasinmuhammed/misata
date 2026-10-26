@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="270" viewBox="0 0 680 270" role="img" aria-labelledby="t d" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+<title id="t">Every subscription carries the history its status implies</title>
+<desc id="d">trialing: 84 rows with started_at; trialing to active: 720 rows with started_at, activated_at; trialing to active to past_due: 84 rows with started_at, activated_at, past_due_at; trialing to churned: 156 rows with started_at, churned_at; trialing to active to churned: 78 rows with started_at, activated_at, churned_at; trialing to active to past_due to churned: 78 rows with started_at, activated_at, past_due_at, churned_at. Rows matching no declared route: 0.</desc>
+<rect width="680" height="270" rx="8" fill="#fcfcfb"/>
+<text x="16" y="38" font-size="11" fill="#52514e">route to the status</text>
+<text x="282" y="38" font-size="10.5" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#52514e">started_at</text>
+<text x="354" y="38" font-size="10.5" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#52514e">activated_at</text>
+<text x="426" y="38" font-size="10.5" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#52514e">past_due_at</text>
+<text x="498" y="38" font-size="10.5" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#52514e">churned_at</text>
+<text x="546" y="38" font-size="11" fill="#52514e">rows</text>
+<text x="16" y="68" font-size="12" fill="#52514e"><tspan fill="#0b0b0b" font-weight="600">trialing</tspan></text>
+<circle cx="282" cy="64" r="5.5" fill="#2a78d6"/>
+<circle cx="354" cy="64" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<circle cx="426" cy="64" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<circle cx="498" cy="64" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<path d="M546.0,59.0 h7.2 a4.0,4.0 0 0 1 4.0,4.0 v2.0 a4.0,4.0 0 0 1 -4.0,4.0 h-7.2 z" fill="#2a78d6"/>
+<text x="563.2" y="68" font-size="11" fill="#0b0b0b">84</text>
+<line x1="16" x2="664" y1="78.0" y2="78.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="16" y="96" font-size="12" fill="#52514e">trialing → <tspan fill="#0b0b0b" font-weight="600">active</tspan></text>
+<circle cx="282" cy="92" r="5.5" fill="#2a78d6"/>
+<circle cx="354" cy="92" r="5.5" fill="#2a78d6"/>
+<circle cx="426" cy="92" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<circle cx="498" cy="92" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<path d="M546.0,87.0 h92.0 a4.0,4.0 0 0 1 4.0,4.0 v2.0 a4.0,4.0 0 0 1 -4.0,4.0 h-92.0 z" fill="#2a78d6"/>
+<text x="648.0" y="96" font-size="11" fill="#0b0b0b">720</text>
+<line x1="16" x2="664" y1="106.0" y2="106.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="16" y="124" font-size="12" fill="#52514e">trialing → active → <tspan fill="#0b0b0b" font-weight="600">past_due</tspan></text>
+<circle cx="282" cy="120" r="5.5" fill="#2a78d6"/>
+<circle cx="354" cy="120" r="5.5" fill="#2a78d6"/>
+<circle cx="426" cy="120" r="5.5" fill="#2a78d6"/>
+<circle cx="498" cy="120" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<path d="M546.0,115.0 h7.2 a4.0,4.0 0 0 1 4.0,4.0 v2.0 a4.0,4.0 0 0 1 -4.0,4.0 h-7.2 z" fill="#2a78d6"/>
+<text x="563.2" y="124" font-size="11" fill="#0b0b0b">84</text>
+<line x1="16" x2="664" y1="134.0" y2="134.0" stroke="#e4e3df" stroke-width="1"/>
+<text x="16" y="152" font-size="12" fill="#52514e">trialing → <tspan fill="#0b0b0b" font-weight="600">churned</tspan></text>
+<circle cx="282" cy="148" r="5.5" fill="#2a78d6"/>
+<circle cx="354" cy="148" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<circle cx="426" cy="148" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<circle cx="498" cy="148" r="5.5" fill="#2a78d6"/>
+<path d="M546.0,143.0 h16.8 a4.0,4.0 0 0 1 4.0,4.0 v2.0 a4.0,4.0 0 0 1 -4.0,4.0 h-16.8 z" fill="#2a78d6"/>
+<text x="572.8" y="152" font-size="11" fill="#0b0b0b">156</text>
+<text x="16" y="180" font-size="12" fill="#52514e">trialing → active → <tspan fill="#0b0b0b" font-weight="600">churned</tspan></text>
+<circle cx="282" cy="176" r="5.5" fill="#2a78d6"/>
+<circle cx="354" cy="176" r="5.5" fill="#2a78d6"/>
+<circle cx="426" cy="176" r="4.5" fill="none" stroke="#52514e" stroke-width="1.2"/>
+<circle cx="498" cy="176" r="5.5" fill="#2a78d6"/>
+<path d="M546.0,171.0 h6.4 a4.0,4.0 0 0 1 4.0,4.0 v2.0 a4.0,4.0 0 0 1 -4.0,4.0 h-6.4 z" fill="#2a78d6"/>
+<text x="562.4" y="180" font-size="11" fill="#0b0b0b">78</text>
+<text x="16" y="208" font-size="12" fill="#52514e">trialing → active → past_due → <tspan fill="#0b0b0b" font-weight="600">churned</tspan></text>
+<circle cx="282" cy="204" r="5.5" fill="#2a78d6"/>
+<circle cx="354" cy="204" r="5.5" fill="#2a78d6"/>
+<circle cx="426" cy="204" r="5.5" fill="#2a78d6"/>
+<circle cx="498" cy="204" r="5.5" fill="#2a78d6"/>
+<path d="M546.0,199.0 h6.4 a4.0,4.0 0 0 1 4.0,4.0 v2.0 a4.0,4.0 0 0 1 -4.0,4.0 h-6.4 z" fill="#2a78d6"/>
+<text x="562.4" y="208" font-size="11" fill="#0b0b0b">78</text>
+<text x="16" y="256" font-size="11.5" fill="#52514e">1,200 subscriptions. Filled: the timestamp is set. Rows whose timestamps match no declared route: 0.</text>
+</svg>

@@ -6,7 +6,7 @@
         "role": "maintainer",
         "name": "Muhammed Rasin",
         "email": "rasin@misata.studio",
-        "description": "I am an independent open source developer based in India. I built Misata as a side project to solve a real problem I kept running into: generating realistic, relationally intact test data without needing a copy of production. The project has grown into a research-backed library with a published arXiv paper formalising the core mechanism, a built-in MCP server for AI coding agents, and integrations with Databricks, Delta Lake, and dbt. I maintain it alone and am looking for funding to work on it more seriously.",
+        "description": "I am an independent open source developer based in India. I built Misata as a side project to solve a real problem I kept running into: generating realistic, relationally intact test data without needing a copy of production. The project has grown into a library whose every declared number is re-checked by DuckDB in a certificate anyone can run, a built-in MCP server for AI coding agents, and integrations with Databricks, Delta Lake, and dbt. I maintain it alone and am looking for funding to work on it more seriously.",
         "webpageUrl": {
             "url": "https://github.com/rasinmuhammed"
         }
@@ -15,7 +15,7 @@
         {
             "guid": "misata",
             "name": "Misata",
-            "description": "Misata generates realistic, multi-table synthetic data that conforms to the outcomes you declare — exact revenue curves, fraud rates, referential integrity, and statistical structure — from a sentence, a YAML schema, or an existing database schema. No ML model is required. No real data is needed.\n\nThe core mechanism is formalised in a peer-reviewed arXiv preprint (arXiv:2606.08736): a closed-form Gamma conditional-sum method that satisfies declared aggregates to exactly $0.00 error, where off-the-shelf imitation synthesisers trained on the same data miss by 74 to 86%. The paper also introduces SpecBench, the first benchmark measuring conformance to analytical outcomes for cold-start relational synthesis.\n\nMisata ships a Model Context Protocol (MCP) server so AI coding agents (Claude, Cursor, Windsurf) can call it directly. It integrates with Apache Spark, Delta Lake, and dbt. It is used for database seeding, integration test fixtures, BI demo data, and statistical method validation.",
+            "description": "Misata generates realistic, multi-table synthetic data that conforms to the outcomes you declare — exact revenue curves, fraud rates, referential integrity, and statistical structure — from a sentence, a YAML schema, or an existing database schema. No ML model is required. No real data is needed.\n\nMisata ships a Model Context Protocol (MCP) server so AI coding agents (Claude, Cursor, Windsurf) can call it directly. It integrates with Apache Spark, Delta Lake, and dbt. It is used for database seeding, integration test fixtures, BI demo data, and statistical method validation.",
             "webpageUrl": {
                 "url": "https://misata.studio"
             },

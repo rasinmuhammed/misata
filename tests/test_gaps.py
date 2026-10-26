@@ -2,7 +2,7 @@
 and Gap 4 (streaming exactness).
 
 Every test makes a hard, mathematical assertion — not just "it ran without error".
-The tolerance used is derived from the Prop. 2 guarantee: for period with n rows,
+The tolerance follows from exact rounding: for a period with n rows,
 the realized count is exactly round(n * rate), so the realized rate deviates by at
 most 0.5/n from the declared rate.  We use a generous 2/n bound to allow for
 edge-case tie-breaking without being flakey.
@@ -10,14 +10,12 @@ edge-case tie-breaking without being flakey.
 
 from __future__ import annotations
 
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os
+import sys
 
-import numpy as np
 import pandas as pd
 import pytest
 
-import misata
 from misata.schema import (
     Column, Relationship, RateCurve, SchemaConfig, Table, OutcomeCurve,
 )
@@ -104,7 +102,7 @@ class TestRateCurveEnforcement:
         jan_df = df[jan_mask]
         n_jan = len(jan_df)
         realized_rate = jan_df["is_fraud"].sum() / n_jan
-        # Prop. 2 guarantee: |realized - declared| ≤ 0.5/n
+        # Exact rounding: |realized - declared| ≤ 0.5/n
         tolerance = 0.5 / n_jan + 1e-9
         assert abs(realized_rate - 0.05) <= tolerance, (
             f"Realized fraud rate {realized_rate:.4f} deviates from 0.05 "
@@ -379,11 +377,9 @@ class TestStreamingExactness:
 
     def test_exact_curve_ame_zero_via_generate_all(self):
         """generate_all() must preserve AME=0 for exact outcome curve tables."""
-        import sys, os
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
         from research.specbench.metrics import aggregate_match_error
 
-        targets = {"01": 40_000.0, "06": 80_000.0, "12": 200_000.0}
         curve = OutcomeCurve(
             table="orders",
             column="amount",

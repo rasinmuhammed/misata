@@ -7,12 +7,7 @@ description: "Declare what a column must sum to in each period, such as monthly 
 
 Misata's outcome-curve engine lets you declare **what your data should aggregate to** rather than how individual rows are distributed. The engine then generates rows that hit your declared targets **exactly**: not approximately.
 
-This capability is formalised in the published paper:
-
-> **Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark**  
-> Muhammed Rasin, arXiv:2606.08736v1 (2026)
-
-The paper proves the mechanism is exactly conditional-sum sampling of a Gamma population via Lukacs' characterisation. The Aggregate Mean Error (AME) is exactly 0 for the closed-form engine, versus 74–86% miss for off-the-shelf learned synthesisers.
+Pass `--attest` and DuckDB re-checks every period total on the written files, with a `verify.py` anyone can run.
 
 ---
 
@@ -23,8 +18,8 @@ You declare targets; Misata generates individual rows whose aggregate (sum per p
 ```
 Declared:   Jan=$10k   Jun=$45k   Dec=$120k
 Generated:  36,200 individual order rows
-Verified:   sum(Jan orders) = $10,000.00 ✓  AME = 0
-            sum(Dec orders) = $120,000.00 ✓  AME = 0
+Verified:   sum(Jan orders) = $10,000.00 ✓
+            sum(Dec orders) = $120,000.00 ✓
 ```
 
 ---
@@ -88,7 +83,7 @@ tables = generate_from_schema(schema)
 | `.seasonal(black_friday=True, ...)` | Apply named seasonal event multipliers |
 | `.avg_value(mu)` | Average transaction value: drives row count (§3.1) |
 | `.concentration(alpha)` | Dirichlet α: controls dispersion (§3.2) |
-| `.row_bounds(min_tx, max_tx)` | Row-count bounds per period (Prop. 3 guard) |
+| `.row_bounds(min_tx, max_tx)` | Row-count bounds per period |
 | `.intra_period(pattern)` | Within-period timestamp distribution |
 | `.build()` | Returns an `OutcomeCurve` |
 
@@ -147,9 +142,9 @@ misata generate   # → data/orders.csv with exact monthly sums
 
 ---
 
-## Rate Curves (RCE Axis)
+## Rate Curves
 
-`OutcomeCurve` targets aggregate sums (AME axis). **`RateCurve`** targets the rate of a boolean or categorical column per period, the rate-conformance (RCE) axis introduced in SpecBench.
+`OutcomeCurve` targets aggregate sums. **`RateCurve`** targets the rate of a boolean or categorical column per period.
 
 ### SDK
 
@@ -255,7 +250,7 @@ chart_data = preview.to_dict()
 | `total_rows` | Estimated total rows across all periods |
 | `ame_achievable` | `True` for this specific curve |
 | `bounds_respected` | `False` when a period target forces per-row values past the declared min/max |
-| `warnings` | Prop. 3 clamping and bound-conflict warnings for this curve |
+| `warnings` | row-count clamp and bound-conflict warnings for this curve |
 
 ### Precedence: aggregate targets win over column bounds
 
@@ -309,16 +304,15 @@ def handle_generate(payload: dict, schema):
 
 ## Mathematical Background
 
-The engine implements **Proposition 2** from the paper:
+Each period's total is split across its rows exactly:
 
 > Given a total `T_p` and `n_p` rows, sample proportions `w` from a symmetric Dirichlet(α). Then `x_i = ⌊w_i · T_p · 10^d⌋ / 10^d` with remainder correction gives `Σ x_i = T_p` exactly.
 
 Key parameters:
 - `concentration` (Dirichlet α), higher = tighter per-row distribution
-- `avg_transaction_value` (`μ`), sets `n_p = round(T_p / μ)` (Prop. 3)
+- `avg_transaction_value` (`μ`), sets `n_p = round(T_p / μ)`
 - `min/max_transactions_per_period`, guards against distortion when `n_p` is clamped
 
-See the full paper at [arXiv:2606.08736v1](https://arxiv.org/abs/2606.08736v1) for proofs and SpecBench benchmark results.
 
 ## See it end to end
 

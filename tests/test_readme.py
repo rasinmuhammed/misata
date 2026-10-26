@@ -29,7 +29,7 @@ def test_relative_links_resolve():
 
 def test_charts_are_in_the_repository():
     charts = re.findall(r"raw\.githubusercontent\.com/rasinmuhammed/misata/main/([^\"]+\.svg)", README)
-    assert len(charts) == 4
+    assert len(charts) == 10
     assert all((ROOT / chart).is_file() for chart in charts)
 
 

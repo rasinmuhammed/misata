@@ -16,7 +16,6 @@ files on disk and writes a certificate anyone can re-run.
 [![Python](https://img.shields.io/pypi/pyversions/misata.svg?style=flat-square)](https://pypi.org/project/misata/)
 [![Tests](https://img.shields.io/github/actions/workflow/status/rasinmuhammed/misata/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/rasinmuhammed/misata/actions)
 [![License](https://img.shields.io/github/license/rasinmuhammed/misata.svg?style=flat-square)](https://github.com/rasinmuhammed/misata/blob/main/LICENSE)
-[![arXiv](https://img.shields.io/badge/arXiv-2606.08736-b31b1b?style=flat-square)](https://arxiv.org/abs/2606.08736)
 [![Open in Colab](https://img.shields.io/badge/Open%20in-Colab-F9AB00?style=flat-square&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/rasinmuhammed/misata/blob/main/notebooks/quickstart.ipynb)
 [![smithery badge](https://smithery.ai/badge/misata/misata)](https://smithery.ai/servers/misata/misata)
 
@@ -90,7 +89,15 @@ totals (180,000.00 in January, 240,000.00 in June, 310,000.00 in December,
 straight lines between), the channel split inside every one of those months,
 the planned row count per month, zero orphaned `customer_id`s and unique keys.
 `verify.py` needs only the standard library and `duckdb`, and it shares no
-code with the generator. Change one cent in one row and it says so:
+code with the generator.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/assets/readme/curve-light.svg" width="680" alt="The quickstart generated and summed by month. Twelve stacked bars split into web, app and store rise from 180,000.00 in January through 240,000.00 in June to 310,000.00 in December. Each bar ends exactly at the declared monthly total, and the channels hold 50, 30 and 20 percent. The largest gap between declared and generated over 48 totals and cells is 0.00.">
+
+<sub>The YAML above, generated and summed by month and channel. Each bar is a month of generated revenue split by channel; the cap is the total the YAML declares. Drawn by <a href="https://github.com/rasinmuhammed/misata/blob/main/tools/readme_charts.py">readme_charts.py</a> from a fresh run of this README's own YAML.</sub>
+</div>
+
+Change one cent in one row and it says so:
 
 ```text
 FAIL  orders.csv: sha256 301165f9dc4e does not match the attested 670f89195826
@@ -126,6 +133,53 @@ Three properties make this different from a generator with options:
   self-consistent wrong answer.
 - **The same spec, seed and version give the same bytes** on Linux, macOS and
   Windows, so a fixture can live in git with its fingerprint.
+
+---
+
+## Where this is going
+
+Misata's aim is that nobody writes a Python script to make a dataset, of any
+kind. You say what has to be true; the engine works out the rows, refuses
+what cannot hold, and proves what it built.
+
+It is not there yet, and it is getting there brick by brick. Each release adds
+things you can declare instead of programming, and a brick is laid only when it
+passes three tests: it can be **declared** in a few lines of YAML, it is
+**refused** before generation when it contradicts another declaration, and it
+is **re-checked** on the rows afterwards by code that did not write them.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/assets/readme/bricks-light.svg" width="680" alt="A wall of bricks, one per guarantee Misata understands today, in three courses: keys, rules and relationships such as foreign keys, unique keys and CHECK rules; exact counts and sums such as outcome_curves, rate_curves and group_shares; and state, structure, time and texture such as lifecycles, dag_edges and time_grids. Bricks the DuckDB certificate re-checks are filled. Above them sits an unfinished course of dashed bricks for what still has to be scripted by hand.">
+
+<sub>Every brick is something you declare instead of code. Drawn from <a href="https://github.com/rasinmuhammed/misata/blob/main/misata/registry.py">misata/registry.py</a>, the list a contract test holds the code to, so the wall cannot claim a brick the engine does not have.</sub>
+</div>
+
+<br/>
+
+**One fact, two ways.** What a script has to do to make a fact true, and what
+you write instead:
+
+| The fact | In a generator script | In Misata |
+|---|---|---|
+| January revenue is 180,000.00 | draw amounts, sum them, rescale, round, chase the last cent | `{month: 1, target_value: 180000}` |
+| web is half of every month's revenue | rescale inside each month and channel, then repair the monthly totals you just broke | `shares: {web: 0.5, app: 0.3, store: 0.2}` |
+| every order has a real customer | sample ids from the parent table and keep both in step | `customers.customer_id -> orders.customer_id` |
+| some churned customers were active first | branch on status, write timestamps in order, null the rest, count by hand | `transitions: [[trialing, active], [active, churned]]` |
+| 1% of transfers form laundering patterns, in a set mix | build each ring and fan by hand, then prove the background has no cycle of its own | `rate: 0.01` and `shares: {cycle: 0.4, fan_in: 0.25, ...}` |
+| the trial balance is zero | post both legs of every entry and reconcile at the end | a `balanced_ledger` constraint on the journal lines |
+
+**What still takes code**, and where each one stands:
+
+| Still scripted by hand | Where it stands |
+|---|---|
+| The expected output of logic Misata cannot invert: window functions, custom SQL, business rules | `misata solve` drives your real dbt, SQL or Python pipeline to a declared number within a stated tolerance; past that, you write the expected value |
+| Correlations you can only describe by example | `misata.mimic` fits them from real rows, and its output is not anonymous |
+| Free text with a voice of its own | text is generated from grammars and agrees with its row; prose that reads as written is not declarable yet |
+| Version histories (SCD2) and inventory trajectories | generated to balance, not yet declared step by step |
+| Documents, images and audio | not started |
+
+[LIMITATIONS.md](https://github.com/rasinmuhammed/misata/blob/main/LIMITATIONS.md) keeps the full list. When a line leaves this
+table, it is because the brick that replaces it has passed all three tests.
 
 ---
 
@@ -265,6 +319,12 @@ certificate checks both, row by row. A state reachable several ways splits its
 rows across every route: of the 312 churned, 156 left during the trial, 78
 after being active and 78 after falling past due.
 
+<div align="center">
+<img src="https://raw.githubusercontent.com/rasinmuhammed/misata/main/docs/assets/readme/history-light.svg" width="680" alt="Every demo-tenant subscription grouped by the timestamps it carries. 84 trialing rows have only started_at. 720 active rows add activated_at. 84 past-due rows add past_due_at. 156 churned straight from trial with started_at and churned_at, 78 churned after being active, and 78 churned after falling past due, each carrying every timestamp on its route. Rows matching no declared route: 0.">
+
+<sub>The demo tenant's 1,200 subscriptions, grouped by which timestamps are set. Six routes, and no row outside them. Drawn by <a href="https://github.com/rasinmuhammed/misata/blob/main/tools/readme_charts.py">readme_charts.py</a> from the recipe's own YAML.</sub>
+</div>
+
 ---
 
 ## When it says no
@@ -338,13 +398,15 @@ argument with the rest of the docs.
 
 ## Cite
 
+If Misata helps your work, cite the software. GitHub's **Cite this
+repository** button reads the same metadata from
+[CITATION.cff](https://github.com/rasinmuhammed/misata/blob/main/CITATION.cff).
+
 ```bibtex
-@article{rasin2026declarative,
-  title  = {Declarative Outcome-Conformant Synthesis: Exact, Closed-Form
-            Specification Satisfaction and a Conformance Benchmark},
+@software{rasin_misata,
+  title  = {Misata: declarative synthetic data},
   author = {Rasin, Muhammed},
-  year   = {2026},
-  url    = {https://arxiv.org/abs/2606.08736}
+  url    = {https://github.com/rasinmuhammed/misata}
 }
 ```
 

@@ -285,6 +285,7 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- `CITATION.cff` and the README cite the software itself.
 - `mimic` keeps an `ssn`, `tax_id` or other national ID column a national
   ID. It was profiled as a phone number because its dashes matched the
   phone shape; a phone now also needs a phone's ten to fifteen digits.
@@ -355,6 +356,9 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Output changes
 
+- Conformance warnings name a row-count clamp in plain words, `upper row-count
+  clamp` and `lower row-count clamp`, instead of `Prop. 3 upper clamp` and
+  `Prop. 3 lower clamp`.
 - A lifecycle state reachable several ways splits its rows across every
   route in exact counts, weighted by how often a walk taking each
   transition out of a state equally often follows the route. With
