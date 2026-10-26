@@ -2397,15 +2397,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rate-curves-rce-axis" class="md-nav__link">
+  <a href="#rate-curves" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rate Curves (RCE Axis)
+        Rate Curves
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Rate Curves (RCE Axis)">
+    <nav class="md-nav" aria-label="Rate Curves">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -4757,15 +4757,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rate-curves-rce-axis" class="md-nav__link">
+  <a href="#rate-curves" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rate Curves (RCE Axis)
+        Rate Curves
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Rate Curves (RCE Axis)">
+    <nav class="md-nav" aria-label="Rate Curves">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -4889,19 +4889,14 @@
 
 <h1 id="outcome-curve-driven-synthesis">Outcome Curve-Driven Synthesis</h1>
 <p>Misata's outcome-curve engine lets you declare <strong>what your data should aggregate to</strong> rather than how individual rows are distributed. The engine then generates rows that hit your declared targets <strong>exactly</strong>: not approximately.</p>
-<p>This capability is formalised in the published paper:</p>
-<blockquote>
-<p><strong>Declarative Outcome-Conformant Synthesis: Exact, Closed-Form Specification Satisfaction and a Conformance Benchmark</strong><br />
-Muhammed Rasin, arXiv:2606.08736v1 (2026)</p>
-</blockquote>
-<p>The paper proves the mechanism is exactly conditional-sum sampling of a Gamma population via Lukacs' characterisation. The Aggregate Mean Error (AME) is exactly 0 for the closed-form engine, versus 74–86% miss for off-the-shelf learned synthesisers.</p>
+<p>Pass <code>--attest</code> and DuckDB re-checks every period total on the written files, with a <code>verify.py</code> anyone can run.</p>
 <hr />
 <h2 id="core-concept">Core Concept</h2>
 <p>You declare targets; Misata generates individual rows whose aggregate (sum per period) matches:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Declared:   Jan=$10k   Jun=$45k   Dec=$120k
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Generated:  36,200 individual order rows
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Verified:   sum(Jan orders) = $10,000.00 ✓  AME = 0
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>            sum(Dec orders) = $120,000.00 ✓  AME = 0
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Verified:   sum(Jan orders) = $10,000.00 ✓
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>            sum(Dec orders) = $120,000.00 ✓
 </code></pre></div>
 <hr />
 <h2 id="three-authoring-paths">Three Authoring Paths</h2>
@@ -4984,7 +4979,7 @@ Muhammed Rasin, arXiv:2606.08736v1 (2026)</p>
 </tr>
 <tr>
 <td><code>.row_bounds(min_tx, max_tx)</code></td>
-<td>Row-count bounds per period (Prop. 3 guard)</td>
+<td>Row-count bounds per period</td>
 </tr>
 <tr>
 <td><code>.intra_period(pattern)</code></td>
@@ -5062,8 +5057,8 @@ Muhammed Rasin, arXiv:2606.08736v1 (2026)</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>misata<span class="w"> </span>generate<span class="w">   </span><span class="c1"># → data/orders.csv with exact monthly sums</span>
 </code></pre></div>
 <hr />
-<h2 id="rate-curves-rce-axis">Rate Curves (RCE Axis)</h2>
-<p><code>OutcomeCurve</code> targets aggregate sums (AME axis). <strong><code>RateCurve</code></strong> targets the rate of a boolean or categorical column per period, the rate-conformance (RCE) axis introduced in SpecBench.</p>
+<h2 id="rate-curves">Rate Curves</h2>
+<p><code>OutcomeCurve</code> targets aggregate sums. <strong><code>RateCurve</code></strong> targets the rate of a boolean or categorical column per period.</p>
 <h3 id="sdk">SDK</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">misata</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutcomeCurveBuilder</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
@@ -5200,7 +5195,7 @@ Muhammed Rasin, arXiv:2606.08736v1 (2026)</p>
 </tr>
 <tr>
 <td><code>warnings</code></td>
-<td>Prop. 3 clamping and bound-conflict warnings for this curve</td>
+<td>row-count clamp and bound-conflict warnings for this curve</td>
 </tr>
 </tbody>
 </table>
@@ -5244,15 +5239,14 @@ Muhammed Rasin, arXiv:2606.08736v1 (2026)</p>
 </code></pre></div>
 <hr />
 <h2 id="mathematical-background">Mathematical Background</h2>
-<p>The engine implements <strong>Proposition 2</strong> from the paper:</p>
+<p>Each period's total is split across its rows exactly:</p>
 <blockquote>
 <p>Given a total <code>T_p</code> and <code>n_p</code> rows, sample proportions <code>w</code> from a symmetric Dirichlet(α). Then <code>x_i = ⌊w_i · T_p · 10^d⌋ / 10^d</code> with remainder correction gives <code>Σ x_i = T_p</code> exactly.</p>
 </blockquote>
 <p>Key parameters:
 - <code>concentration</code> (Dirichlet α), higher = tighter per-row distribution
-- <code>avg_transaction_value</code> (<code>μ</code>), sets <code>n_p = round(T_p / μ)</code> (Prop. 3)
+- <code>avg_transaction_value</code> (<code>μ</code>), sets <code>n_p = round(T_p / μ)</code>
 - <code>min/max_transactions_per_period</code>, guards against distortion when <code>n_p</code> is clamped</p>
-<p>See the full paper at <a href="https://arxiv.org/abs/2606.08736v1">arXiv:2606.08736v1</a> for proofs and SpecBench benchmark results.</p>
 <h2 id="see-it-end-to-end">See it end to end</h2>
 <ul>
 <li><a href="../../usecases/warehouse-before-users/">A warehouse before the product has users</a>: a twelve-month revenue curve with plan shares and a refund rate.</li>

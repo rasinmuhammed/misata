@@ -4711,7 +4711,7 @@
 
 <h1 id="rate-curves">Rate Curves</h1>
 <p>An <strong>outcome curve</strong> controls <em>how much</em> of a numeric column accumulates per period (revenue, volume). A <strong>rate curve</strong> controls <em>what fraction</em> of a boolean or categorical outcome is positive per period: a churn rate rising from 2% to 9% over a year, a fraud rate climbing through the holidays, a conversion rate improving each quarter.</p>
-<p>This is the Rate-Conformance (RCE) axis from the paper, orthogonal to the aggregate (AME) axis that outcome curves cover. The engine flips exactly <code>round(n_period × rate)</code> rows per period, so the realised rate matches your target with <strong>RCE = 0</strong>.</p>
+<p>The engine flips exactly <code>round(n_period × rate)</code> rows per period, so the realised rate matches your target to the nearest row.</p>
 <blockquote>
 <p>Pick the right tool: a <em>magnitude over time</em> is an <a href="../outcome_curves/">outcome curve</a>; a <em>rate/proportion over time</em> is a rate curve; a <em>static split</em> with no time component is just categorical <code>probabilities</code>.</p>
 </blockquote>

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="300" viewBox="0 0 680 300" role="img" aria-labelledby="t d" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+<title id="t">Declared monthly revenue against generated revenue</title>
+<desc id="d">Twelve monthly totals and a channel split declared in the quickstart YAML, and the generated orders summed by month and channel. Jan declared 180,000.00, generated 180,000.00; Feb declared 192,000.00, generated 192,000.00; Mar declared 204,000.00, generated 204,000.00; Apr declared 216,000.00, generated 216,000.00; May declared 228,000.00, generated 228,000.00; Jun declared 240,000.00, generated 240,000.00; Jul declared 251,666.67, generated 251,666.67; Aug declared 263,333.33, generated 263,333.33; Sep declared 275,000.00, generated 275,000.00; Oct declared 286,666.67, generated 286,666.67; Nov declared 298,333.33, generated 298,333.33; Dec declared 310,000.00, generated 310,000.00. Largest gap: 0.00.</desc>
+<rect width="680" height="300" rx="8" fill="#1a1a19"/>
+<rect x="64" y="20" width="10" height="10" rx="2" fill="#3987e5"/>
+<text x="80" y="29" font-size="12.5" fill="#f0efec">web 50.0%</text>
+<rect x="168" y="20" width="10" height="10" rx="2" fill="#d95926"/>
+<text x="184" y="29" font-size="12.5" fill="#f0efec">app 30.0%</text>
+<rect x="272" y="20" width="10" height="10" rx="2" fill="#199e70"/>
+<text x="288" y="29" font-size="12.5" fill="#f0efec">store 20.0%</text>
+<line x1="376" x2="394" y1="25" y2="25" stroke="#f0efec" stroke-width="2"/>
+<text x="400" y="29" font-size="12.5" fill="#f0efec">declared monthly total</text>
+<line x1="64" x2="664" y1="240.0" y2="240.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="56" y="244.0" font-size="11" text-anchor="end" fill="#c3c2b7">0k</text>
+<line x1="64" x2="664" y1="198.0" y2="198.0" stroke="#383835" stroke-width="1"/>
+<text x="56" y="202.0" font-size="11" text-anchor="end" fill="#c3c2b7">100k</text>
+<line x1="64" x2="664" y1="156.0" y2="156.0" stroke="#383835" stroke-width="1"/>
+<text x="56" y="160.0" font-size="11" text-anchor="end" fill="#c3c2b7">200k</text>
+<line x1="64" x2="664" y1="114.0" y2="114.0" stroke="#383835" stroke-width="1"/>
+<text x="56" y="118.0" font-size="11" text-anchor="end" fill="#c3c2b7">300k</text>
+<line x1="64" x2="664" y1="72.0" y2="72.0" stroke="#383835" stroke-width="1"/>
+<text x="56" y="76.0" font-size="11" text-anchor="end" fill="#c3c2b7">400k</text>
+<rect x="74.0" y="202.2" width="30.0" height="37.8" fill="#3987e5"/>
+<rect x="74.0" y="179.5" width="30.0" height="20.7" fill="#d95926"/>
+<path d="M74.0,177.5 v-9.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v9.1 z" fill="#199e70"/>
+<line x1="69.0" x2="109.0" y1="164.4" y2="164.4" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="89.0" y="155.4" font-size="11" text-anchor="middle" fill="#f0efec">180,000.00</text>
+<text x="89.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Jan</text>
+<rect x="124.0" y="199.7" width="30.0" height="40.3" fill="#3987e5"/>
+<rect x="124.0" y="175.5" width="30.0" height="22.2" fill="#d95926"/>
+<path d="M124.0,173.5 v-10.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v10.1 z" fill="#199e70"/>
+<line x1="119.0" x2="159.0" y1="159.4" y2="159.4" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="139.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Feb</text>
+<rect x="174.0" y="197.2" width="30.0" height="42.8" fill="#3987e5"/>
+<rect x="174.0" y="171.5" width="30.0" height="23.7" fill="#d95926"/>
+<path d="M174.0,169.5 v-11.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v11.1 z" fill="#199e70"/>
+<line x1="169.0" x2="209.0" y1="154.3" y2="154.3" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="189.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Mar</text>
+<rect x="224.0" y="194.6" width="30.0" height="45.4" fill="#3987e5"/>
+<rect x="224.0" y="167.4" width="30.0" height="25.2" fill="#d95926"/>
+<path d="M224.0,165.4 v-12.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v12.1 z" fill="#199e70"/>
+<line x1="219.0" x2="259.0" y1="149.3" y2="149.3" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="239.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Apr</text>
+<rect x="274.0" y="192.1" width="30.0" height="47.9" fill="#3987e5"/>
+<rect x="274.0" y="163.4" width="30.0" height="26.7" fill="#d95926"/>
+<path d="M274.0,161.4 v-13.2 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v13.2 z" fill="#199e70"/>
+<line x1="269.0" x2="309.0" y1="144.2" y2="144.2" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="289.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">May</text>
+<rect x="324.0" y="189.6" width="30.0" height="50.4" fill="#3987e5"/>
+<rect x="324.0" y="159.4" width="30.0" height="28.2" fill="#d95926"/>
+<path d="M324.0,157.4 v-14.2 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v14.2 z" fill="#199e70"/>
+<line x1="319.0" x2="359.0" y1="139.2" y2="139.2" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="339.0" y="130.2" font-size="11" text-anchor="middle" fill="#f0efec">240,000.00</text>
+<text x="339.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Jun</text>
+<rect x="374.0" y="187.1" width="30.0" height="52.9" fill="#3987e5"/>
+<rect x="374.0" y="155.4" width="30.0" height="29.7" fill="#d95926"/>
+<path d="M374.0,153.4 v-15.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v15.1 z" fill="#199e70"/>
+<line x1="369.0" x2="409.0" y1="134.3" y2="134.3" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="389.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Jul</text>
+<rect x="424.0" y="184.7" width="30.0" height="55.3" fill="#3987e5"/>
+<rect x="424.0" y="151.5" width="30.0" height="31.2" fill="#d95926"/>
+<path d="M424.0,149.5 v-16.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v16.1 z" fill="#199e70"/>
+<line x1="419.0" x2="459.0" y1="129.4" y2="129.4" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="439.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Aug</text>
+<rect x="474.0" y="182.2" width="30.0" height="57.8" fill="#3987e5"/>
+<rect x="474.0" y="147.6" width="30.0" height="32.7" fill="#d95926"/>
+<path d="M474.0,145.6 v-17.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v17.1 z" fill="#199e70"/>
+<line x1="469.0" x2="509.0" y1="124.5" y2="124.5" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="489.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Sep</text>
+<rect x="524.0" y="179.8" width="30.0" height="60.2" fill="#3987e5"/>
+<rect x="524.0" y="143.7" width="30.0" height="34.1" fill="#d95926"/>
+<path d="M524.0,141.7 v-18.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v18.1 z" fill="#199e70"/>
+<line x1="519.0" x2="559.0" y1="119.6" y2="119.6" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="539.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Oct</text>
+<rect x="574.0" y="177.4" width="30.0" height="62.6" fill="#3987e5"/>
+<rect x="574.0" y="139.8" width="30.0" height="35.6" fill="#d95926"/>
+<path d="M574.0,137.8 v-19.1 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v19.1 z" fill="#199e70"/>
+<line x1="569.0" x2="609.0" y1="114.7" y2="114.7" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="589.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Nov</text>
+<rect x="624.0" y="174.9" width="30.0" height="65.1" fill="#3987e5"/>
+<rect x="624.0" y="135.8" width="30.0" height="37.1" fill="#d95926"/>
+<path d="M624.0,133.8 v-20.0 a4.0,4.0 0 0 1 4.0,-4.0 h22.0 a4.0,4.0 0 0 1 4.0,4.0 v20.0 z" fill="#199e70"/>
+<line x1="619.0" x2="659.0" y1="109.8" y2="109.8" stroke="#f0efec" stroke-width="2" stroke-linecap="round"/>
+<text x="639.0" y="100.8" font-size="11" text-anchor="middle" fill="#f0efec">310,000.00</text>
+<text x="639.0" y="256" font-size="11" text-anchor="middle" fill="#c3c2b7">Dec</text>
+<text x="64" y="284" font-size="11.5" fill="#c3c2b7">Largest gap between declared and generated, over 48 monthly totals and month-by-channel cells: 0.00</text>
+</svg>

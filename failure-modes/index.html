@@ -1839,10 +1839,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#row-count-clamps-prop-3-saturation" class="md-nav__link">
+  <a href="#row-count-clamps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Row-count clamps (Prop. 3 saturation)
+        Row-count clamps
       
     </span>
   </a>
@@ -4656,10 +4656,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#row-count-clamps-prop-3-saturation" class="md-nav__link">
+  <a href="#row-count-clamps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Row-count clamps (Prop. 3 saturation)
+        Row-count clamps
       
     </span>
   </a>
@@ -4790,7 +4790,7 @@
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>min/max_transactions_per_period.
 </code></pre></div>
 <p>The conformance preview (<code>misata preview</code>) shows these conflicts before any rows are generated.</p>
-<h2 id="row-count-clamps-prop-3-saturation">Row-count clamps (Prop. 3 saturation)</h2>
+<h2 id="row-count-clamps">Row-count clamps</h2>
 <p>When a period target needs more rows than <code>max_transactions_per_period</code> allows, or fewer than <code>min_transactions_per_period</code>, the row count is held to the bound and each row grows or shrinks to keep the total exact. Every aggregate check still passes while the per-row mean leaves <code>avg_transaction_value</code>, so generation says so:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ConformanceWarning: amount: 3 of 3 periods (2024-01, 2024-02, 2024-03) need a row
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>count outside min/max_transactions_per_period [1, 20] at avg_transaction_value=50.
