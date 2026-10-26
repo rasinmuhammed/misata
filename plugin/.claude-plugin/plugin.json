@@ -2,7 +2,7 @@
   "name": "misata",
   "displayName": "Misata",
   "version": "1.1.0",
-  "description": "Realistic multi-table test data whose foreign keys resolve and whose totals reconcile, checked before it is handed over.",
+  "description": "Declarative synthetic data: multi-table test data whose foreign keys resolve and totals hold exactly, checked by DuckDB before it is handed over.",
   "author": {
     "name": "Muhammed Rasin",
     "email": "rasin@misata.studio",

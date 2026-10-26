@@ -1,6 +1,6 @@
 ---
-title: "Misata: Synthetic Data Generator for Python With Exact, Verifiable Outcomes"
-description: "Misata generates multi-table synthetic data from SQL DDL, a YAML schema, a live database or one sentence. Foreign keys, CHECK rules and declared totals hold, and an attestation proves it."
+title: "Misata: Declarative Synthetic Data Generator for Python"
+description: "Declarative synthetic data for Python. Generate multi-table data from SQL DDL, YAML, a live database or one sentence that holds every fact you declare, with a DuckDB certificate that proves it."
 ---
 
 # Misata

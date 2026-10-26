@@ -8,19 +8,20 @@
 # standard provider variables rather than a Misata-specific one.
 
 name: misata
-displayName: Misata — Declarative Synthetic Data
+displayName: "Misata: Declarative Synthetic Data"
 
 description: >
-  Generate relational synthetic data that satisfies what you declare, and get a
-  verification of it back. Describe the dataset in a sentence or hand over a
-  schema, and the engine builds every table together: foreign keys resolve,
+  Declarative synthetic data for Python: state the facts a dataset must hold
+  and get multi-table data that holds them exactly, with a DuckDB check anyone
+  can rerun. Describe the dataset in a sentence or hand over a schema, and the
+  engine builds every table together: foreign keys resolve,
   declared aggregates hit their target exactly, and derived columns satisfy the
   formula they were declared with. The same schema and seed return the same
   rows, so a dataset you liked yesterday is still there tomorrow.
 
   The division of labour is the point. The agent designs the schema, which is
   what agents are genuinely good at, and the engine guarantees the arithmetic,
-  which is what they are not. Twelve tools:
+  which is what they are not. Fifteen tools:
 
     create_sandbox        Create and seed an isolated SQLite sandbox database
                           for testing, pre-populated with realistic, referentially
