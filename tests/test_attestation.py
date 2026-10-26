@@ -493,3 +493,33 @@ class TestLedgerAcrossBatches:
         lines.drop(index=doomed).to_csv(directory / "lines.csv", index=False)
         failures = {f["id"] for f in attest(directory, schema, write=False).failures}
         assert "entries.entry_id->lines.entry_id.min_children" in failures
+
+
+def test_a_partitioned_relationship_is_attested_and_a_leak_fails(tmp_path):
+    schema = misata.from_dict_schema({
+        "workspaces": {"__rows__": 6, "workspace_id": {"type": "integer", "unique": True,
+                                                       "min": 1, "max": 6}},
+        "users": {"__rows__": 40, "user_id": {"type": "integer", "unique": True,
+                                              "min": 1, "max": 40},
+                  "workspace_id": {"type": "foreign_key", "references": "workspaces.workspace_id"}},
+        "tasks": {"__rows__": 300, "task_id": {"type": "integer", "unique": True,
+                                               "min": 1, "max": 300},
+                  "workspace_id": {"type": "foreign_key", "references": "workspaces.workspace_id"},
+                  "assignee_id": {"type": "foreign_key", "references": "users.user_id"}},
+        "__relationships__": [{"parent_table": "users", "parent_key": "user_id",
+                               "child_table": "tasks", "child_key": "assignee_id",
+                               "partition_by": ["workspace_id"]}],
+    }, seed=6)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _write(misata.generate_from_schema(schema), tmp_path, "csv")
+    invariant = "users.user_id->tasks.assignee_id.partition_by"
+    result = attest(tmp_path, schema, write=False)
+    assert invariant in {i["id"] for i in result.invariants} and result.passed
+
+    tasks = pd.read_csv(tmp_path / "tasks.csv")
+    users = pd.read_csv(tmp_path / "users.csv")
+    stranger = users.loc[users["workspace_id"] != tasks.loc[0, "workspace_id"], "user_id"].iloc[0]
+    tasks.loc[0, "assignee_id"] = stranger
+    tasks.to_csv(tmp_path / "tasks.csv", index=False)
+    assert {f["id"] for f in attest(tmp_path, schema, write=False).failures} == {invariant}

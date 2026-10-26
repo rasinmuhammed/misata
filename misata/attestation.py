@@ -19,8 +19,8 @@ declared answer and the answer observed in the written files.
 
 The invariants come from the declarations, never from the data: outcome-curve
 totals and their row plan, rate anchors, foreign keys, unique columns, ledger
-identities, group shares, waterfalls, row rules, minimum children per parent
-and declared graph structure. Expected and observed values are
+identities, group shares, waterfalls, row rules, minimum children per parent,
+partitioned relationships and declared graph structure. Expected and observed values are
 written as decimal strings at a fixed precision, so float formatting can never
 decide equality. ``result`` is ``PASSED`` only when every invariant holds.
 
@@ -309,6 +309,27 @@ def _min_children_invariants(schema: "SchemaConfig") -> List[Invariant]:
     return out
 
 
+def _partition_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """A child shares every ``partition_by`` column with the parent it points at."""
+    out = []
+    for rel in schema.relationships:
+        if not rel.partition_by:
+            continue
+        parent, child = quote_ident(rel.parent_table), quote_ident(rel.child_table)
+        pk, fk = quote_ident(rel.parent_key), quote_ident(rel.child_key)
+        differs = " OR ".join(f"p.{quote_ident(c)} IS DISTINCT FROM c.{quote_ident(c)}"
+                              for c in rel.partition_by)
+        out.append(Invariant(
+            id=f"{rel.parent_table}.{rel.parent_key}->{rel.child_table}.{rel.child_key}"
+               f".partition_by",
+            kind="partition_by",
+            sql=f"SELECT COUNT(*) FROM {child} c JOIN {parent} p ON p.{pk} = c.{fk} "
+                f"WHERE {differs}",
+            expected="0", value_type="integer", table=rel.child_table,
+        ))
+    return out
+
+
 def acyclic_sql(table: str, from_column: str, to_column: str, where: str = "") -> str:
     """Count the nodes on or downstream of a cycle among an edge table's rows.
 
@@ -411,6 +432,7 @@ def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     invariants += _unique_invariants(schema)
     invariants += _row_rule_invariants(schema)
     invariants += _min_children_invariants(schema)
+    invariants += _partition_invariants(schema)
     invariants += _graph_invariants(schema)
 
     seen: Dict[str, int] = {}

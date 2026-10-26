@@ -38,6 +38,8 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   checked. The DuckDB floor is 1.3, for `USING KEY`.
 - A relationship's `min_children` is attested: no parent has fewer
   children than declared.
+- A relationship's `partition_by` is attested: no child row shares a key
+  with a parent from another partition.
 - Observed decimals never read `-0.00`. A trial balance whose float sum
   cancels to -1e-10 is zero and matches `0.00`.
 - Every command that reads a schema file reads SQL DDL from a `.sql` file:
@@ -214,6 +216,13 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Declared values hold
 
+- A relationship whose child column is declared a plain `int` or `text`
+  makes it a foreign key. It was generated from the column's own type, so
+  `users.user_id -> tasks.assignee_id` over `assignee_id: {type: int}` left
+  most tasks pointing at no user, without a warning.
+- A misspelt type inside a `json` or `array` column is refused when the
+  schema loads, naming the field (`profile.full_name`), instead of failing
+  partway through generation after earlier tables were written.
 - `balanced_ledger` balances whole journal entries over the whole table.
   It ran per batch, so an entry whose lines straddled a batch boundary had a
   line moved to another entry, which could leave entries with fewer lines
@@ -270,6 +279,8 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- The pytest plugin finds a relative `schema=` beside the test file before
+  looking at the rootdir, and reads `.sql` and JSON schemas as well as YAML.
 - A DDL rule written `CHECK (seen_at IS NULL OR seen_at >= booked_at)` is
   honoured and attested as the rule it guards. It was skipped with a
   warning, so seeding a database that enforces it could fail.
@@ -309,6 +320,9 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Output changes
 
+- `misata generate --format jsonl` writes `json` and `array` columns as
+  nested objects and lists, as `misata.to_jsonl` already did, instead of
+  escaped strings. Neither writes `\/` for a forward slash any more.
 - Email addresses and usernames transliterate accented names: Schröder is
   `schroeder`, José is `jose`, where every non-ASCII letter used to be
   dropped (`schrder`). The four golden fingerprints with such a name change

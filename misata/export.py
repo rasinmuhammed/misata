@@ -161,6 +161,19 @@ def decode_json_columns(df: Any, schema: Any = None, table: Optional[str] = None
     return out
 
 
+def json_lines(df: Any, **options: Any) -> str:
+    """``df`` as JSON Lines text, nested values as written and ``/`` unescaped.
+
+    pandas escapes every forward slash (``Europe\\/London``); JSON does not
+    require it, and a fixture meant to be read should not carry it. Every
+    slash pandas writes is escaped, so removing the escape is exact.
+    """
+    text = df.to_json(orient="records", lines=True, date_format="iso",
+                      force_ascii=False, **options)
+    text = text.replace("\\/", "/")
+    return text if not text or text.endswith("\n") else text + "\n"
+
+
 def to_jsonl(
     tables: Dict[str, Any],
     output_dir: Union[str, Path],
@@ -190,8 +203,7 @@ def to_jsonl(
     written: Dict[str, Path] = {}
     for name, df in tables.items():
         path = output_dir / f"{name}.jsonl"
-        decode_json_columns(df, schema, name).to_json(
-            path, orient="records", lines=True, date_format="iso", force_ascii=False)
+        path.write_text(json_lines(decode_json_columns(df, schema, name)), encoding="utf-8")
         written[name] = path
 
     return written

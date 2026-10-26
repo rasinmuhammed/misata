@@ -7,7 +7,7 @@ whole table, so output size is bounded by disk, not memory. Three formats:
     ``<table>.csv`` per table.
 ``jsonl``
     ``<table>.jsonl`` per table, one JSON object per row, timestamps in ISO
-    8601.
+    8601, ``json`` and ``array`` columns as nested objects and lists.
 ``parquet``
     ``<table>.parquet`` per table, streamed through one writer. With
     ``partition_by``, every table holding that column is written Hive-style
@@ -131,10 +131,12 @@ class CsvSink(Sink):
 
 class JsonlSink(Sink):
     def _write(self, table: str, batch: pd.DataFrame) -> None:
+        from misata.export import decode_json_columns, json_lines
+
         mode = "a" if table in self.rows else "w"
         with open(self.root / f"{table}.jsonl", mode, encoding="utf-8") as fh:
-            batch.to_json(fh, orient="records", lines=True, date_format="iso",
-                          date_unit="s", double_precision=15, force_ascii=False)
+            fh.write(json_lines(decode_json_columns(batch, self.schema, table),
+                                date_unit="s", double_precision=15))
 
     def files(self, table: str) -> List[Path]:
         return [self.root / f"{table}.jsonl"]

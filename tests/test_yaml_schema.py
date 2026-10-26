@@ -170,6 +170,29 @@ class TestLoadYamlSchema:
         assert (rel.child_table, rel.child_key) == ("lines", "entry_id")
         assert rel.min_children == 2
 
+    def test_a_relationship_makes_a_plain_int_column_a_foreign_key(self):
+        import warnings
+        import misata
+
+        schema = self._load_str(
+            "seed: 3\n"
+            "tables:\n"
+            "  users:\n"
+            "    rows: 30\n"
+            "    columns:\n"
+            "      user_id: {type: int, unique: true, min: 1, max: 30}\n"
+            "  tasks:\n"
+            "    rows: 200\n"
+            "    columns:\n"
+            "      assignee_id: {type: int}\n"
+            "relationships:\n"
+            "  - users.user_id -> tasks.assignee_id\n")
+        assert schema.get_columns("tasks")[0].type == "foreign_key"
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate_from_schema(schema)
+        assert tables["tasks"]["assignee_id"].isin(tables["users"]["user_id"]).all()
+
     def test_inequality_constraint_parsed(self):
         schema = self._load_str(RELATIONAL_YAML)
         # Inequality constraint should be on the orders table

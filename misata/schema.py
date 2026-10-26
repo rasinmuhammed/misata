@@ -12,6 +12,25 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from misata.exceptions import warn
 
+def _check_nested_types(name: str, col_type: str, params: Dict[str, Any]) -> None:
+    """Resolve every field and item type under a json or array column.
+
+    Raises ValueError naming the field, so a misspelt nested type is refused
+    with the schema instead of partway through generation.
+    """
+    from misata.compat import resolve_column_type
+
+    if col_type == "json":
+        specs = list((params.get("fields") or {}).items())
+    else:
+        specs = [("items", params["items"])] if "items" in params else []
+    for field, spec in specs:
+        raw = spec if isinstance(spec, str) else (spec or {}).get("type", "text")
+        resolved = resolve_column_type(str(raw), where=f"{name}.{field}")
+        if resolved in ("json", "array") and isinstance(spec, dict):
+            _check_nested_types(f"{name}.{field}", resolved, spec)
+
+
 #: Column names that hold a date of birth.
 _BIRTH_DATE = re.compile(r"(^|_)(dob|birth_?date|birthday|date_of_birth|born_on)($|_)", re.I)
 
@@ -88,6 +107,13 @@ class Column(BaseModel):
         """Validate distribution parameters based on column type."""
         col_type = info.data.get("type")
         return cls._normalize_distribution_params(col_type, v or {}, info.data.get("name"))
+
+    @model_validator(mode="after")
+    def _nested_types_resolve(self) -> "Column":
+        """A json or array column's field and item types are checked when declared."""
+        if self.type in ("json", "array"):
+            _check_nested_types(self.name, self.type, self.distribution_params)
+        return self
 
     def validate_generation_ready(self) -> None:
         """Raise if the column still lacks required information for generation."""
@@ -1725,6 +1751,23 @@ class SchemaConfig(BaseModel):
                 raise ValueError(f"Child table '{rel.child_table}' not found in schema")
 
         return v
+
+    @model_validator(mode="after")
+    def _child_keys_are_foreign_keys(self) -> "SchemaConfig":
+        """A relationship's child column holds its parent's keys.
+
+        Declared as a plain ``int`` or ``text`` column, it would otherwise be
+        generated from that type's own distribution and point at no parent,
+        so the relationship would be ignored without a word.
+        """
+        for rel in self.relationships:
+            columns = self.columns.get(rel.child_table) or []
+            for i, col in enumerate(columns):
+                if col.name == rel.child_key and col.type in ("int", "text"):
+                    columns[i] = Column(name=col.name, type="foreign_key",
+                                        nullable=col.nullable, unique=col.unique,
+                                        semantic=col.semantic, description=col.description)
+        return self
 
     def get_table(self, name: str) -> Optional[Table]:
         """Get a table by name."""

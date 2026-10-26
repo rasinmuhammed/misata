@@ -55,34 +55,49 @@ def _marker_args(request) -> Dict[str, Any]:
     kwargs = dict(marker.kwargs)
     if marker.args and "schema" not in kwargs and "story" not in kwargs:
         kwargs["schema"] = marker.args[0]
+    schema = kwargs.get("schema")
+    if isinstance(schema, (str, bytes)) or hasattr(schema, "__fspath__"):
+        kwargs["schema"] = _schema_path(schema, request)
     if not kwargs.get("schema") and not kwargs.get("story"):
         raise pytest.UsageError("@pytest.mark.misata needs schema= or story=")
     return kwargs
 
 
-def _build(kwargs: Dict[str, Any], rootdir) -> Dict[str, Any]:
-    import misata
+def _schema_path(schema_arg: Any, request) -> Any:
+    """A relative schema path, found beside the test file first, then at the rootdir."""
+    from pathlib import Path
 
-    schema_arg, story = kwargs.get("schema"), kwargs.get("story")
-    seed, rows = kwargs.get("seed"), kwargs.get("rows")
-    if story:
-        return misata.generate(story, rows=rows or 100, seed=seed if seed is not None else 42)
+    path = Path(schema_arg)
+    if path.is_absolute():
+        return path
+    beside = Path(request.node.path).parent / path
+    return beside if beside.exists() else Path(request.config.rootpath) / path
+
+
+def _schema(kwargs: Dict[str, Any]) -> Any:
+    """The marker's schema as a SchemaConfig: a file, a dict, or one already built."""
+    schema_arg = kwargs.get("schema")
     if isinstance(schema_arg, (str, bytes)) or hasattr(schema_arg, "__fspath__"):
-        from pathlib import Path
-
-        from misata.yaml_schema import load_yaml_schema
-        path = Path(schema_arg)
-        if not path.is_absolute():
-            path = Path(rootdir) / path
-        schema = load_yaml_schema(path)
+        from misata.yaml_schema import load_schema_file
+        schema = load_schema_file(schema_arg)
     elif isinstance(schema_arg, dict):
         from misata.compat import from_dict_schema
         schema = from_dict_schema(schema_arg)
     else:
         schema = schema_arg
-    if seed is not None:
-        schema.seed = seed
-    return misata.generate_from_schema(schema)
+    if kwargs.get("seed") is not None:
+        schema.seed = kwargs["seed"]
+    return schema
+
+
+def _build(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    import misata
+
+    if kwargs.get("story"):
+        seed = kwargs.get("seed")
+        return misata.generate(kwargs["story"], rows=kwargs.get("rows") or 100,
+                               seed=seed if seed is not None else 42)
+    return misata.generate_from_schema(_schema(kwargs))
 
 
 def _key(kwargs: Dict[str, Any]) -> Tuple:
@@ -100,7 +115,7 @@ def misata_tables(request):
     kwargs = _marker_args(request)
     key = _key(kwargs)
     if key not in _CACHE:
-        _CACHE[key] = _build(kwargs, request.config.rootpath)
+        _CACHE[key] = _build(kwargs)
     return {name: df.copy() for name, df in _CACHE[key].items()}
 
 
@@ -114,21 +129,7 @@ def misata_sqlite(request, tmp_path):
         if kwargs.get("seed") is not None:
             schema.seed = kwargs["seed"]
     else:
-        tables_kwargs = dict(kwargs)
-        schema = tables_kwargs.get("schema")
-        if isinstance(schema, (str, bytes)) or hasattr(schema, "__fspath__"):
-            from pathlib import Path
-
-            from misata.yaml_schema import load_yaml_schema
-            path = Path(schema)
-            if not path.is_absolute():
-                path = Path(request.config.rootpath) / path
-            schema = load_yaml_schema(path)
-        elif isinstance(schema, dict):
-            from misata.compat import from_dict_schema
-            schema = from_dict_schema(schema)
-        if kwargs.get("seed") is not None:
-            schema.seed = kwargs["seed"]
+        schema = _schema(kwargs)
     url = f"sqlite:///{tmp_path / 'misata.db'}"
     misata.seed_database(schema, url, create=True)
     yield url

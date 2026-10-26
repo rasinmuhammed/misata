@@ -189,6 +189,8 @@ class Runner:
         if head.startswith("python") and len(tokens) > 1 and (
                 VERIFIER.search(tokens[1]) or (cwd / tokens[1]).resolve() in self.shipped):
             return self.run_script(tokens, cwd)
+        if head == "pytest" and len(tokens) > 1 and (cwd / tokens[1]).resolve() in self.shipped:
+            return self.run_pytest(tokens, cwd)
         if NEEDS_WORLD.search(line):
             return "skip", "needs a database, a key, or a placeholder"
         if head != "misata":
@@ -231,6 +233,19 @@ class Runner:
         try:
             done = subprocess.run([str(self.python), *tokens[1:]], cwd=cwd,
                                   capture_output=True, text=True, timeout=300)
+        except subprocess.TimeoutExpired:
+            return "fail", "timed out after 300s"
+        if done.returncode != 0:
+            tail = (done.stdout + done.stderr).strip().splitlines()
+            return "fail", tail[-1] if tail else f"exit {done.returncode}"
+        return "pass", ""
+
+    def run_pytest(self, tokens: list[str], cwd: Path):
+        """A test file the recipe ships, run with the misata pytest plugin loaded."""
+        try:
+            done = subprocess.run([str(self.python), "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                                   *tokens[1:]], cwd=cwd, capture_output=True, text=True,
+                                  timeout=300)
         except subprocess.TimeoutExpired:
             return "fail", "timed out after 300s"
         if done.returncode != 0:
