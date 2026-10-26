@@ -517,7 +517,13 @@ def load_tables_from_db(
         for table in tables:
             limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
             query = f"SELECT * FROM {quote_ident(table)}{limit_sql}"
-            result[table] = pd.read_sql_query(query, conn)
+            if dialect == "sqlite":
+                result[table] = pd.read_sql_query(query, conn)
+                continue
+            with conn.cursor() as cur:
+                cur.execute(query)
+                columns = [d[0] for d in cur.description or []]
+                result[table] = pd.DataFrame(cur.fetchall(), columns=columns)
         return result
     finally:
         conn.close()

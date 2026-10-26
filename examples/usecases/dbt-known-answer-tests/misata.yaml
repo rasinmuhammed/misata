@@ -1,0 +1,37 @@
+# misata.yaml
+name: shop_revenue
+seed: 11
+tables:
+  customers:
+    rows: 400
+    columns:
+      customer_id: {type: int, unique: true, min: 1, max: 400}
+      signed_up_at: {type: date, start: "2024-06-01", end: "2024-12-31"}
+  orders:
+    rows: 6000
+    columns:
+      order_id: {type: int, unique: true, min: 1, max: 1000000}
+      customer_id: {type: foreign_key}
+      channel: {type: categorical, choices: [web, app, marketplace]}
+      amount: {type: float, min: 5, max: 900}
+      ordered_at: {type: date, start: "2025-01-01", end: "2025-06-30"}
+relationships:
+  - customers.customer_id -> orders.customer_id
+outcome_curves:
+  - table: orders
+    column: amount
+    time_column: ordered_at
+    value_mode: absolute
+    start_date: "2025-01-01"
+    curve_points:
+      - {month: 1, target_value: 82000}
+      - {month: 2, target_value: 88500}
+      - {month: 3, target_value: 97250}
+      - {month: 4, target_value: 101000}
+      - {month: 5, target_value: 112400}
+      - {month: 6, target_value: 125000}
+group_shares:
+  - table: orders
+    measure: amount
+    group_column: channel
+    shares: {web: 0.5, app: 0.35, marketplace: 0.15}

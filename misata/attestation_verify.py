@@ -183,6 +183,8 @@ def verify(directory: Path) -> Tuple[bool, List[str]]:
     present = [s for s in subjects if subject_path(directory, s["name"]).is_file()]
     try:
         con = connect(directory, present)
+    except ImportError:
+        raise
     except Exception as exc:  # noqa: BLE001 - unreadable files are a failed check
         lines.append(f"FAIL  the attested files cannot be read: {str(exc).splitlines()[0]}")
         return False, lines

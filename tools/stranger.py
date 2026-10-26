@@ -41,7 +41,7 @@ ALLOWED = {"misata", "python", "python3", "pytest"}
 # Commands that are real but cannot run unattended: they want a database, a key,
 # a long-running server, or they deliberately destroy data.
 NEEDS_WORLD = re.compile(
-    r"postgres|postgresql|mysql|sqlite:/|--db-url|\bseed\b|--truncate|serve|studio|"
+    r"postgres|postgresql|mysql|sqlite:/|--db-url|(?<![-\w])seed\b|--truncate|serve|studio|"
     r"--use-llm|--provider|groq|openai|ollama|bedrock|kaggle|wikidata|prisma|dbt|"
     r"spark|delta|--sqlalchemy|localhost|127\.0\.0\.1|<|\$\{|YOUR_|xxx",
     re.I,
@@ -216,6 +216,9 @@ class Runner:
         script = (cwd / tokens[1]).resolve()
         if not script.is_file() or cwd.resolve() not in script.parents:
             return "skip", f"needs a verifier the page has not written yet ({tokens[1]})"
+        for tok in tokens[2:]:
+            if tok.endswith(DATA_SUFFIXES + (".jsonl",)) and not (cwd / tok).exists():
+                return "skip", f"needs an input file the docs do not ship ({tok})"
         try:
             done = subprocess.run([str(self.python), *tokens[1:]], cwd=cwd,
                                   capture_output=True, text=True, timeout=300)
@@ -299,11 +302,13 @@ def main() -> int:
     ap.add_argument("--clean", action="store_true",
                     help="fresh venv from the built wheel (the honest mode)")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--only", metavar="TEXT", help="run only pages whose path contains TEXT")
     args = ap.parse_args()
 
     docs = sorted(ROOT.glob("docs/**/*.md")) + [ROOT / "README.md"]
     docs += sorted(ROOT.glob("examples/usecases/*/README.md"))
-    docs = [d for d in docs if d.exists() and RECIPE_COPIES not in d.parents]
+    docs = [d for d in docs if d.exists() and RECIPE_COPIES not in d.parents
+            and (args.only is None or args.only in d.relative_to(ROOT).as_posix())]
     examples = extract(docs)
 
     workdir = Path(tempfile.mkdtemp(prefix="stranger-"))
