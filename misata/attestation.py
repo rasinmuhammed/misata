@@ -39,6 +39,8 @@ from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
 
+from pydantic import BaseModel
+
 from misata import attestation_verify
 from misata.attestation_verify import PREDICATE_TYPE, STATEMENT_FILE, STATEMENT_TYPE
 from misata.exceptions import MisataError
@@ -222,8 +224,9 @@ def _disturbed_columns(schema: "SchemaConfig") -> Optional[set]:
             noise.null_rate or noise.outlier_rate or noise.typo_rate):
         return None
     disturbed = set()
-    for declaration in [*schema.typos, *schema.outliers, *schema.missingness,
-                        *schema.late_arrivals]:
+    declarations: List[BaseModel] = [*schema.typos, *schema.outliers, *schema.missingness,
+                                     *schema.late_arrivals]
+    for declaration in declarations:
         table = getattr(declaration, "table", None)
         names = {c.name for c in schema.get_columns(table)} if table else set()
         for value in declaration.model_dump().values():
