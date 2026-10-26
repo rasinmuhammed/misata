@@ -52,12 +52,6 @@ class EnhanceRequest(BaseModel):
     enhancement: str
 
 
-class IndustrySuggestionsRequest(BaseModel):
-    """Request for industry-specific improvements."""
-    schema_config: Dict[str, Any]
-    industry: str
-
-
 class SchemaResponse(BaseModel):
     """Response containing generated schema."""
     schema_config: Dict[str, Any]
@@ -251,12 +245,12 @@ async def generate_schema_from_graph(request: GraphRequest):
 @app.post("/api/enhance-schema", response_model=SchemaResponse)
 async def enhance_schema(request: EnhanceRequest):
     """
-    Enhance an existing schema with additional requirements.
+    Enrich an existing schema's distributions, guided by a free-text request.
     """
     try:
         llm = LLMSchemaGenerator()
         existing = SchemaConfig(**request.schema_config)
-        enhanced = llm.enhance_schema(existing, request.enhancement)
+        enhanced = llm.enrich_schema(existing, prompt=request.enhancement)
 
         return SchemaResponse(
             schema_config=enhanced.model_dump(),
@@ -266,22 +260,6 @@ async def enhance_schema(request: EnhanceRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Schema enhancement failed: {str(e)}") from e
-
-
-@app.post("/api/industry-suggestions")
-async def get_industry_suggestions(request: IndustrySuggestionsRequest):
-    """
-    Get AI suggestions for making data more industry-realistic.
-    """
-    try:
-        llm = LLMSchemaGenerator()
-        schema = SchemaConfig(**request.schema_config)
-        suggestions = llm.suggest_industry_improvements(schema, request.industry)
-
-        return suggestions
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}") from e
 
 
 # ============================================================================

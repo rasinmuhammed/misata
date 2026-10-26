@@ -484,14 +484,13 @@ class ConstrainedWarehouseGenerator:
         col_name_lower = col.name.lower()
         
         if col.type == "int":
+            low = 0 if col.min_val is None else int(col.min_val)
+            high = 100 if col.max_val is None else int(col.max_val)
             if col.distribution == "normal":
-                mean = col.mean or (col.min_val + col.max_val) / 2
-                std = col.std or (col.max_val - col.min_val) / 6
-                values = self.rng.normal(mean, std, size)
-                values = np.clip(values, col.min_val, col.max_val)
-                return values.astype(int)
-            else:  # uniform
-                return self.rng.integers(col.min_val or 0, col.max_val or 100, size)
+                mean = (low + high) / 2 if col.mean is None else col.mean
+                std = (high - low) / 6 if col.std is None else col.std
+                return np.clip(self.rng.normal(mean, std, size), low, high).astype(int)
+            return self.rng.integers(low, high + 1, size)
         
         elif col.type == "float":
             # Smart price detection

@@ -304,11 +304,17 @@ def test_merge_refinements_enforces_contract():
 
     schema, report = parse_spec(FRIEND_PROMPT)
 
-    # A coupling on a locked column with in-vocabulary values is accepted.
+    # A coupling with in-vocabulary values is accepted.
     assert merge_refinements(schema, report, SENTIMENT_COUPLING) == 1
     sent = {c.name: c for c in schema.columns["product_reviews"]}["sentiment"]
     assert sent.distribution_params["depends_on"] == "rating"
     assert sent.distribution_params["mapping"]["5"] == ["positive"]
+
+    # Templates write free text a declared pool cannot admit, so a locked
+    # column refuses them rather than failing on the missing mapping.
+    templated = {"support_tickets": {"category": {"distribution_params": {
+        "depends_on": "priority", "templates": {"high": ["Escalated by phone"]}}}}}
+    assert merge_refinements(schema, report, templated) == 0
 
     # Everything below is rejected: out-of-vocab mapping on a locked enum,
     # pool change on a locked enum, retyping an FK, retyping a PK.

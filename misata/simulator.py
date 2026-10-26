@@ -4543,8 +4543,10 @@ class DataSimulator:
         else:
             periods = pd.Series(0, index=df.index)
 
+        from misata.feasibility import Conflict, InfeasibleSchema
+
         out = values.copy()
-        conflicts = []
+        conflicts: List[Conflict] = []
         for period, idx in df.groupby(periods.values, dropna=False).groups.items():
             block = values.loc[idx].dropna()
             n = len(block)
@@ -4557,12 +4559,15 @@ class DataSimulator:
             if target < floor_total - 1e-6 or target > ceil_total + 1e-6:
                 bound = (f"min={lo:g}" if target < floor_total else f"max={hi:g}")
                 needed = floor_total if target < floor_total else ceil_total
-                conflicts.append(
-                    f"{table_name}.{column_name} period {period}: the curve asks "
-                    f"for a total of {target:,.2f} across {n} row(s), but the "
-                    f"declared {bound} allows a total of {needed:,.2f}. Widen the "
-                    f"bound, change the target, or move rows into this period."
-                )
+                where = f"{table_name}.{column_name}"
+                conflicts.append(Conflict(
+                    kind="curve_exceeds_column_bounds",
+                    where=where,
+                    declarations=[f"outcome_curve on {where}", f"{bound} on {column_name}"],
+                    arithmetic=(f"period {period} needs a total of {target:,.2f} across "
+                                f"{n} row(s), but {bound} allows {needed:,.2f}"),
+                    remedy="widen the bound, change the target, or move rows into this period",
+                ))
                 continue
 
             fitted = block.clip(lower=lo, upper=hi).astype(float)
@@ -4590,7 +4595,6 @@ class DataSimulator:
             out.loc[fitted.index] = fitted
 
         if conflicts:
-            from misata.feasibility import InfeasibleSchema
             raise InfeasibleSchema(conflicts)
 
         df[column_name] = out

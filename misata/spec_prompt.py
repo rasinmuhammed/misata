@@ -673,8 +673,10 @@ def merge_refinements(
             if cname in locked.get(tname, set()):
                 # Contractual column: a coupling is the only accepted change,
                 # and every mapped value must stay inside the declared pool.
+                # A value mapping can be checked against the pool; templates
+                # write free text, which a declared pool cannot admit.
                 declared = (col.distribution_params or {}).get("choices")
-                if not has_coupling or declared is None:
+                if not (has_coupling and isinstance(mapping, dict)) or declared is None:
                     continue
                 allowed = {str(v) for v in declared}
                 mapped = {str(v) for vs in mapping.values() for v in _as_list(vs)}
