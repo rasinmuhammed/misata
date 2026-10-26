@@ -178,6 +178,7 @@ examples/bank_evalpack_out/
 !tests/test_timeseries.py
 !tests/test_solve.py
 !tests/test_publish.py
+!tests/test_usecase_recipes.py
 !tests/test_pipeline_proofs.py
 !tests/test_sinks.py
 !tests/test_mcp_workspace.py
