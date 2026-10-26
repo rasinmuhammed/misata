@@ -100,12 +100,12 @@ class CoherenceReport:
 
     def summary(self) -> str:
         if self.clean:
-            return "Coherence: clean — no reader-visible contradictions."
+            return "Coherence: clean, no reader-visible contradictions."
         counts = self.by_severity()
         parts = [f"{counts[s]} {s}" for s in ("high", "medium", "low") if counts.get(s)]
         n_repaired = sum(1 for f in self.findings if f.repaired)
         tail = f" ({n_repaired} repaired)" if n_repaired else ""
-        return f"Coherence score {self.score:.0f}/100 — " + ", ".join(parts) + tail
+        return f"Coherence score {self.score:.0f}/100: " + ", ".join(parts) + tail
 
     def to_dict(self) -> Dict[str, Any]:
         ordered = sorted(
@@ -1660,16 +1660,35 @@ def _detect_outcome_curve_mismatch(tables, schema) -> List[CoherenceFinding]:
     return out
 
 
+#: Presets that move declared date windows to end on the day of generation.
+DATE_ANCHORING_PRESETS = ("demo", "eval")
+
+
 def _detect_declared_window_violation(tables, schema) -> List[CoherenceFinding]:
-    """A date outside the window its column declares (min/max, start/end)."""
+    """A date outside the window its column declares (min/max, start/end).
+
+    A lifecycle's state timestamps are owned by the lifecycle, which places
+    them after the chain's start; they are checked by the lifecycle audit.
+    The ``demo`` and ``eval`` presets move every window to end on the day the
+    data was generated (unless curves or processes pin the dates), so the
+    windows as written no longer apply.
+    """
     out: List[CoherenceFinding] = []
+    anchored = (str(getattr(schema, "preset", "") or "").lower() in DATE_ANCHORING_PRESETS
+                and not (schema.outcome_curves or schema.rate_curves
+                         or getattr(schema, "processes", None)))
+    if anchored:
+        return out
+    owned = {(spec.table, c) for spec in (getattr(schema, "lifecycles", None) or [])
+             for c in spec.timestamp_columns()}
     for table, cols in (getattr(schema, "columns", None) or {}).items():
         df = tables.get(table)
         if df is None or df.empty:
             continue
         for col in cols:
             p = col.distribution_params or {}
-            if col.type not in ("date", "datetime") or col.name not in df.columns or p.get("formula"):
+            if (col.type not in ("date", "datetime") or col.name not in df.columns
+                    or p.get("formula") or (table, col.name) in owned):
                 continue
             try:
                 lo, hi = pd.Timestamp(p.get("start")), pd.Timestamp(p.get("end")) + pd.Timedelta(days=1)

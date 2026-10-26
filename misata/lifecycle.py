@@ -29,7 +29,7 @@ child is generated.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -37,6 +37,7 @@ import pandas as pd
 from misata.exceptions import ConformanceWarning, warn
 
 NS_PER_DAY = 86_400_000_000_000
+NS_PER_SECOND = 1_000_000_000
 
 
 def _allocate_states(
@@ -90,8 +91,14 @@ def apply_lifecycle(
     df: pd.DataFrame,
     spec: Any,
     rng: np.random.Generator,
+    date_columns: Iterable[str] = (),
 ) -> pd.DataFrame:
-    """Enforce one lifecycle on a materialised table. Mutates and returns ``df``."""
+    """Enforce one lifecycle on a materialised table. Mutates and returns ``df``.
+
+    Timestamps in ``date_columns`` are rounded up to whole days, and every
+    state stays at or after the state before it on its path.
+    """
+    days = set(date_columns)
     if df is None or df.empty:
         return df
     if spec.state_column not in df.columns:
@@ -175,7 +182,8 @@ def apply_lifecycle(
     for c in ts_cols:
         df[c] = pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
 
-    max_gap_ns = max(int(spec.max_days_per_step), 1) * NS_PER_DAY
+    # Gaps are whole seconds, as a database would store them.
+    max_gap_s = max(int(spec.max_days_per_step), 1) * NS_PER_DAY // NS_PER_SECOND
     status = df[spec.state_column].to_numpy()
 
     for state, path in paths.items():
@@ -185,14 +193,20 @@ def apply_lifecycle(
             continue
         # Gaps for this group's whole path in one draw, then a running sum so
         # the timestamps ascend strictly in path order.
-        gaps = rng.integers(1, max_gap_ns, size=(cnt, len(path)))
+        gaps = rng.integers(1, max_gap_s, size=(cnt, len(path))) * NS_PER_SECOND
         gaps[:, 0] = 0                      # entering the initial state is the base instant
         offsets = np.cumsum(gaps, axis=1)
+        previous = None
         for i, pstate in enumerate(path):
             col = spec.timestamp_of(pstate)
             if not col or col not in df.columns:
                 continue
             vals = base_ns[mask] + offsets[:, i]
+            if col in days:
+                vals = -(-vals // NS_PER_DAY) * NS_PER_DAY
+            if previous is not None:
+                vals = np.maximum(vals, previous)
+            previous = vals
             df.loc[mask, col] = pd.to_datetime(vals)
 
     return df
@@ -202,6 +216,7 @@ def apply_lifecycles(
     tables: Dict[str, pd.DataFrame],
     config: Any,
     rng: np.random.Generator,
+    date_columns: Iterable[str] = (),
 ) -> Dict[str, pd.DataFrame]:
     """Apply every declared lifecycle whose table is present."""
     for spec in (getattr(config, "lifecycles", None) or []):
@@ -209,7 +224,7 @@ def apply_lifecycles(
         if df is None:
             continue
         try:
-            tables[spec.table] = apply_lifecycle(df, spec, rng)
+            tables[spec.table] = apply_lifecycle(df, spec, rng, date_columns)
         except Exception as e:   # never let a lifecycle corrupt an otherwise-valid run
             warn(
                 f"Lifecycle '{spec.name}' could not be applied ({e}); "

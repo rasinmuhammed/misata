@@ -320,3 +320,72 @@ class TestInteractions:
         for _, group in events.groupby("entity_id"):
             assert group["timestamp"].is_monotonic_increasing
 
+
+
+class TestLifecycleOnAChildTable:
+    """A lifecycle on a table whose rows must postdate a parent."""
+
+    SPEC = {
+        "name": "subs", "seed": 404,
+        "tables": {
+            "customers": {"rows": 600, "columns": {
+                "customer_id": {"type": "int", "unique": True, "min": 1, "max": 600},
+                "signed_up_at": {"type": "date", "start": "2023-01-01", "end": "2025-09-30"}}},
+            "subscriptions": {"rows": 600, "columns": {
+                "subscription_id": {"type": "int", "unique": True, "min": 1, "max": 600},
+                "customer_id": {"type": "foreign_key", "unique": True},
+                "status": {"type": "categorical", "choices": ["trialing", "active", "churned"]},
+                "started_at": {"type": "date", "start": "2023-01-01", "end": "2025-09-30"},
+                "activated_at": {"type": "date", "nullable": True},
+                "churned_at": {"type": "datetime", "nullable": True}}},
+        },
+        "relationships": ["customers.customer_id -> subscriptions.customer_id"],
+        "lifecycles": [{
+            "name": "subscription", "table": "subscriptions", "state_column": "status",
+            "start_column": "started_at", "initial": "trialing",
+            "states": [{"name": "trialing"}, {"name": "active", "timestamp": "activated_at"},
+                       {"name": "churned", "timestamp": "churned_at", "terminal": True}],
+            "transitions": [["trialing", "active"], ["active", "churned"]],
+            "weights": {"trialing": 0.1, "active": 0.6, "churned": 0.3}}],
+    }
+
+    @pytest.fixture(scope="class")
+    def generated(self, tmp_path_factory):
+        import warnings
+
+        import yaml
+
+        from misata.yaml_schema import load_yaml_schema
+
+        path = tmp_path_factory.mktemp("lc") / "misata.yaml"
+        path.write_text(yaml.safe_dump(self.SPEC), encoding="utf-8")
+        schema = load_yaml_schema(path)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            tables = misata.generate_from_schema(schema)
+        return schema, tables, caught
+
+    def test_the_start_column_stays_inside_its_window_and_after_its_parent(self, generated):
+        _, tables, caught = generated
+        subs, customers = tables["subscriptions"], tables["customers"]
+        started = pd.to_datetime(subs["started_at"])
+        assert started.min() >= pd.Timestamp("2023-01-01")
+        assert started.max() <= pd.Timestamp("2025-09-30")
+        joined = subs.merge(customers, on="customer_id")
+        assert (pd.to_datetime(joined["started_at"])
+                >= pd.to_datetime(joined["signed_up_at"])).all()
+        assert not [w for w in caught if "born at the edge" in str(w.message)]
+
+    def test_state_timestamps_are_whole_days_or_whole_seconds(self, generated):
+        _, tables, _ = generated
+        activated = pd.to_datetime(tables["subscriptions"]["activated_at"]).dropna()
+        churned = pd.to_datetime(tables["subscriptions"]["churned_at"]).dropna()
+        assert (activated == activated.dt.normalize()).all()
+        assert (churned == churned.dt.floor("s")).all()
+
+    def test_the_audit_is_clean(self, generated):
+        from misata.coherence import coherence_audit
+
+        schema, tables, _ = generated
+        report = coherence_audit(tables, schema=schema)
+        assert report.clean, [f.message for f in report.findings]

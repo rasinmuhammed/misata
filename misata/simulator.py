@@ -908,6 +908,14 @@ class DataSimulator:
 
         return valid_ids
 
+    def _lifecycle_timestamps(self, table_name: str) -> set:
+        """Per-state timestamp columns a lifecycle on this table owns."""
+        owned: set = set()
+        for spec in (getattr(self.config, "lifecycles", None) or []):
+            if spec.table == table_name:
+                owned.update(spec.timestamp_columns())
+        return owned
+
     def _derived_time_columns(self, table_name: str) -> set:
         """Timestamps that are consequences rather than causes.
 
@@ -1701,6 +1709,11 @@ class DataSimulator:
         insert, whichever branch produced it.
         """
         values = self._generate_column_raw(table_name, column, size, table_data)
+        if column.name in self._lifecycle_timestamps(table_name):
+            # The lifecycle writes these over the finished table. Until then
+            # they are empty, so no pass reacts to placeholder dates; the draw
+            # above still runs, keeping every other column's values unchanged.
+            return np.full(size, np.datetime64("NaT"), dtype="datetime64[ns]")
         max_len = (column.distribution_params or {}).get("max_length")
         if max_len and column.type in ("text", "categorical") and len(values):
             values = _truncate_text(values, int(max_len))
@@ -6010,7 +6023,12 @@ class DataSimulator:
         if not child_dt:
             return df
 
-        child_min = df[child_dt].min(axis=1)
+        # A row's birth is its earliest causal date. Lifecycle and ingest
+        # timestamps are consequences of the row, so they move with the shift
+        # but never define how far it must go.
+        derived = self._derived_time_columns(table_name)
+        causal_dt = [c for c in child_dt if c not in derived] or child_dt
+        child_min = df[causal_dt].min(axis=1)
         # A strict-inequality nudge so the child starts after, not exactly on,
         # the parent's birth (lognormal hours, capped at ~30 days). Whole
         # seconds only, so the shift never leaks sub-second noise into dates.
@@ -6693,6 +6711,8 @@ class DataSimulator:
                                     {table_name: buffered[table_name]},
                                     type("_One", (), {"lifecycles": [_spec]})(),
                                     self.rng,
+                                    date_columns=[c.name for c in self.config.get_columns(table_name)
+                                                  if c.type == "date"],
                                 )
                         self._refresh_context(table_name, buffered[table_name])
             else:

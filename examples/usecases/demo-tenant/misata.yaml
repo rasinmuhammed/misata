@@ -1,0 +1,51 @@
+# misata.yaml
+name: demo_tenant
+seed: 404
+preset: demo
+tables:
+  customers:
+    rows: 1200
+    columns:
+      customer_id: {type: int, unique: true, min: 1, max: 1200}
+      company: {type: text, text_type: company}
+      industry: {type: categorical, choices: [software, retail, health, finance, logistics], probabilities: [0.34, 0.22, 0.16, 0.16, 0.12]}
+      signed_up_at: {type: date, start: "2023-01-01", end: "2025-09-30"}
+  subscriptions:
+    rows: 1200
+    columns:
+      subscription_id: {type: int, unique: true, min: 1, max: 1200}
+      customer_id: {type: foreign_key, unique: true}
+      plan: {type: categorical, choices: [starter, growth, enterprise], probabilities: [0.55, 0.33, 0.12]}
+      status: {type: categorical, choices: [trialing, active, past_due, churned]}
+      started_at: {type: date, start: "2023-01-01", end: "2025-09-30", weekday_weights: [0.19, 0.2, 0.2, 0.18, 0.15, 0.04, 0.04]}
+      activated_at: {type: date, nullable: true}
+      past_due_at: {type: date, nullable: true}
+      churned_at: {type: date, nullable: true}
+  payments:
+    rows: 18000
+    columns:
+      payment_id: {type: int, unique: true, min: 1, max: 1000000}
+      customer_id: {type: foreign_key, sampling: pareto, alpha: 1.1}
+      amount: {type: float, distribution: lognormal, mean: 900, std: 2200, min: 40, max: 60000, decimals: 2}
+      paid_at: {type: datetime, start: "2023-01-01", end: "2025-10-20", weekday_weights: [0.17, 0.17, 0.17, 0.17, 0.16, 0.08, 0.08]}
+relationships:
+  - customers.customer_id -> subscriptions.customer_id
+  - customers.customer_id -> payments.customer_id
+lifecycles:
+  - name: subscription
+    table: subscriptions
+    state_column: status
+    start_column: started_at
+    initial: trialing
+    states:
+      - {name: trialing}
+      - {name: active, timestamp: activated_at}
+      - {name: past_due, timestamp: past_due_at}
+      - {name: churned, timestamp: churned_at, terminal: true}
+    transitions:
+      - [trialing, active]
+      - [trialing, churned]
+      - [active, past_due]
+      - [active, churned]
+      - [past_due, churned]
+    weights: {trialing: 0.07, active: 0.6, past_due: 0.07, churned: 0.26}

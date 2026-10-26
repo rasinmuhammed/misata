@@ -193,6 +193,19 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Declared values hold
 
+- A lifecycle on a table that must postdate its parent keeps the start
+  column inside its declared window. The causality pass took each row's
+  earliest date from every date column, including lifecycle timestamps that
+  hold placeholder values until the lifecycle writes them, and shifted
+  `started_at` years past its declared end. Lifecycle timestamps are now
+  empty until the lifecycle runs and never set how far a row moves.
+- Lifecycle timestamps are whole seconds, and whole days in a `date` column,
+  with each state still at or after the one before it.
+- `misata audit` no longer reports a lifecycle's own timestamps as outside a
+  window they never declared, nor dates moved by the `demo` and `eval`
+  presets as outside the windows those presets moved.
+- `verify.py` names DuckDB when it is missing instead of reporting the files
+  unreadable.
 - A state column with declared values (`choices`, `enum`, or a DDL
   `CHECK (... IN (...))`) keeps them through geography coherence. The
   undeclared columns follow it instead: each row's city moves into its
@@ -251,6 +264,11 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Output changes
 
+- Tables with a lifecycle whose timestamp columns had placeholder values
+  during generation produce different rows: the start column stays in its
+  window, and state timestamps are whole seconds or whole days.
+- The audit summary reads `Coherence: clean, no reader-visible
+  contradictions.` and `Coherence score N/100: ...`.
 - Attestations and evalpack certificates carry more invariants (row rules),
   so their invariant counts and `attestation.intoto.json` files change.
 - `save_yaml_schema` writes `nullable: false` only for a column that

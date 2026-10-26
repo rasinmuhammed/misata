@@ -366,7 +366,7 @@ integrity proof, a coherence score, and — when the schema declares a
     "available": true,
     "score": 96.0,
     "clean": true,
-    "summary": "Coherence: clean — no reader-visible contradictions.",
+    "summary": "Coherence: clean, no reader-visible contradictions.",
     "findings": [],
     "findings_truncated": 0
   }
