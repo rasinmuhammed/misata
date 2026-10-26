@@ -280,11 +280,13 @@ class Runner:
         if missing:
             return "fail", (f"documented extra(s) {missing} do not exist; "
                             f"available: {sorted(real)}")
-        if self.wheel is not None and not wanted <= self.installed:
+        # A tool the page also installs and then runs, such as pytest.
+        tools = [tok for tok in tokens if tok == "pytest"]
+        if self.wheel is not None and not (wanted | set(tools)) <= self.installed:
             subprocess.run([str(self.python), "-m", "pip", "-q", "install",
-                            f"{self.wheel}[{','.join(sorted(wanted))}]"],
+                            f"{self.wheel}[{','.join(sorted(wanted))}]", *tools],
                            check=True, capture_output=True)
-            self.installed |= wanted
+            self.installed |= wanted | set(tools)
         return "pass", ""
 
     def run_yaml(self, body: str, cwd: Path):

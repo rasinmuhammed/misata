@@ -69,6 +69,7 @@ relationships:
 ## Write the fixtures
 
 ```bash
+pip install "misata[duckdb]" pytest
 misata generate -c misata.yaml -o fixtures --format jsonl --attest
 ```
 

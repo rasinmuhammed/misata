@@ -81,6 +81,7 @@ targets:
 ```
 
 ```bash
+pip install "misata[duckdb]"
 misata solve -c solve.yaml -o solved --format parquet
 ```
 

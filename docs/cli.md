@@ -6,7 +6,7 @@ description: "Every Misata command-line command: generate synthetic data from DD
 # CLI Reference
 
 ```bash
-pip install misata
+pip install "misata[duckdb]"   # DuckDB and Parquet: attest, evalpack, --format parquet and duckdb
 misata --help
 ```
 
