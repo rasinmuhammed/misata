@@ -36,6 +36,10 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   longest path whether or not a cycle exists (0.4 seconds over 300,000
   edges). Each motif kind's edge count and the flagged total are exact and
   checked. The DuckDB floor is 1.3, for `USING KEY`.
+- A relationship's `min_children` is attested: no parent has fewer
+  children than declared.
+- Observed decimals never read `-0.00`. A trial balance whose float sum
+  cancels to -1e-10 is zero and matches `0.00`.
 - Every command that reads a schema file reads SQL DDL from a `.sql` file:
   `misata generate -c schema.sql`, `misata explain schema.sql`,
   `misata attest out -s schema.sql`, and `schema:` in `solve.yaml`.
@@ -208,6 +212,10 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Declared values hold
 
+- `balanced_ledger` balances whole journal entries over the whole table.
+  It ran per batch, so an entry whose lines straddled a batch boundary had a
+  line moved to another entry, which could leave entries with fewer lines
+  than `min_children` declared, or none.
 - A lifecycle on a table that must postdate its parent keeps the start
   column inside its declared window. The causality pass took each row's
   earliest date from every date column, including lifecycle timestamps that
@@ -260,6 +268,10 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- A relationship written as an object accepts `parent: entries.entry_id`
+  and `child: lines.entry_id`, as the arrow shorthand does.
+- A schema file that fails validation exits 2 with the reason instead of a
+  traceback.
 - `save_yaml_schema` writes every declaration, per-table constraints, the
   full form of relationships that carry more than their keys, every column
   parameter, the preset and the description, and `load_yaml_schema` reads

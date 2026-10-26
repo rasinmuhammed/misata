@@ -61,10 +61,18 @@ def format_value(value: Any, value_type: str, like: str = "") -> str:
         number = Decimal(str(value))
     except InvalidOperation:
         return str(value)
-    if value_type == "integer":
-        return str(number.quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
-    places = len(like.partition(".")[2])
-    return str(number.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_EVEN))
+    places = 0 if value_type == "integer" else len(like.partition(".")[2])
+    return canonical_decimal(number, places)
+
+
+def canonical_decimal(number: Decimal, places: int) -> str:
+    """``number`` at ``places`` decimals, half-even, with zero never negative.
+
+    A float sum that cancels to -1e-10 rounds to -0.00, which is zero and
+    must read the same as 0.00.
+    """
+    rounded = number.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_EVEN)
+    return str(rounded.copy_abs() if rounded.is_zero() else rounded)
 
 
 def _ident(name: str) -> str:

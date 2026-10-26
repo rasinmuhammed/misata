@@ -241,11 +241,15 @@ def _parse_relationship(raw: Union[str, Dict[str, Any]]) -> Relationship:
     unknown = sorted(set(raw) - set(Relationship.model_fields) - aliases)
     if unknown:
         raise ValueError(f"relationship {parent} -> {child} has unknown field(s) {unknown}")
+    # `parent: orders.order_id` names the key the way the arrow shorthand does.
+    parent, _, parent_col = str(parent).partition(".")
+    child, _, child_col = str(child).partition(".")
     fields.update(
         parent_table=parent,
-        parent_key=raw.get("parent_col") or raw.get("parent_key") or "id",
+        parent_key=raw.get("parent_col") or raw.get("parent_key") or parent_col or "id",
         child_table=child,
-        child_key=raw.get("child_col") or raw.get("child_key") or f"{parent}_id",
+        child_key=(raw.get("child_col") or raw.get("child_key") or child_col
+                   or f"{parent}_id"),
     )
     if "temporal" in raw:
         fields["temporal_constraint"] = bool(raw["temporal"])

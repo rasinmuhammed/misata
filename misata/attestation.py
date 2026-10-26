@@ -19,7 +19,8 @@ declared answer and the answer observed in the written files.
 
 The invariants come from the declarations, never from the data: outcome-curve
 totals and their row plan, rate anchors, foreign keys, unique columns, ledger
-identities, group shares, waterfalls, row rules and declared graph structure. Expected and observed values are
+identities, group shares, waterfalls, row rules, minimum children per parent
+and declared graph structure. Expected and observed values are
 written as decimal strings at a fixed precision, so float formatting can never
 decide equality. ``result`` is ``PASSED`` only when every invariant holds.
 
@@ -35,14 +36,15 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from pydantic import BaseModel
 
 from misata import attestation_verify
-from misata.attestation_verify import PREDICATE_TYPE, STATEMENT_FILE, STATEMENT_TYPE
+from misata.attestation_verify import (PREDICATE_TYPE, STATEMENT_FILE, STATEMENT_TYPE,
+                                       canonical_decimal)
 from misata.exceptions import MisataError
 from misata.sqlutil import quote_ident, quote_literal
 
@@ -151,8 +153,7 @@ _VALUE_TYPES = {"number": "decimal", "integer": "integer", "string": "string"}
 def _expected_string(value: Any, value_type: str, places: int) -> str:
     if value_type == "string":
         return str(value)
-    quantum = Decimal(1).scaleb(-places) if value_type == "decimal" else Decimal(1)
-    return str(Decimal(str(value)).quantize(quantum, rounding=ROUND_HALF_EVEN))
+    return canonical_decimal(Decimal(str(value)), places if value_type == "decimal" else 0)
 
 
 def _question_table(source: Dict[str, Any]) -> str:
@@ -288,6 +289,26 @@ def _row_rule_invariants(schema: "SchemaConfig") -> List[Invariant]:
     return out
 
 
+def _min_children_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Every parent a relationship covers has at least its declared children."""
+    out = []
+    for rel in schema.relationships:
+        if rel.min_children < 1 or rel.filters:
+            continue
+        parent, child = quote_ident(rel.parent_table), quote_ident(rel.child_table)
+        pk, fk = quote_ident(rel.parent_key), quote_ident(rel.child_key)
+        out.append(Invariant(
+            id=f"{rel.parent_table}.{rel.parent_key}->{rel.child_table}.{rel.child_key}"
+               f".min_children",
+            kind="min_children",
+            sql=(f"SELECT COUNT(*) FROM {parent} p LEFT JOIN (SELECT {fk} AS k, COUNT(*) AS n "
+                 f"FROM {child} GROUP BY {fk}) c ON c.k = p.{pk} "
+                 f"WHERE COALESCE(c.n, 0) < {int(rel.min_children)}"),
+            expected="0", value_type="integer", table=rel.child_table,
+        ))
+    return out
+
+
 def acyclic_sql(table: str, from_column: str, to_column: str, where: str = "") -> str:
     """Count the nodes on or downstream of a cycle among an edge table's rows.
 
@@ -389,6 +410,7 @@ def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     invariants += _rate_invariants(schema)
     invariants += _unique_invariants(schema)
     invariants += _row_rule_invariants(schema)
+    invariants += _min_children_invariants(schema)
     invariants += _graph_invariants(schema)
 
     seen: Dict[str, int] = {}

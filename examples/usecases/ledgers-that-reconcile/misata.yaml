@@ -1,0 +1,56 @@
+# misata.yaml
+name: general_ledger
+seed: 8
+tables:
+  accounts:
+    rows: 40
+    columns:
+      account_id: {type: int, unique: true, min: 1000, max: 1039}
+      account_type: {type: categorical, choices: [asset, liability, equity, revenue, expense], probabilities: [0.3, 0.2, 0.05, 0.15, 0.3]}
+  journal_entries:
+    rows: 8000
+    columns:
+      entry_id: {type: int, unique: true, min: 1, max: 8000}
+      source: {type: categorical, choices: [billing, payroll, payables, manual], probabilities: [0.45, 0.15, 0.3, 0.1]}
+      posted_on: {type: date, start: "2024-01-01", end: "2025-12-31"}
+  journal_lines:
+    rows: 36000
+    columns:
+      line_id: {type: int, unique: true, min: 1, max: 36000}
+      entry_id: {type: foreign_key, sampling: uniform}
+      account_id: {type: foreign_key}
+      debit: {type: float, distribution: lognormal, mean: 2400, std: 5200, min: 0.01, max: 400000, decimals: 2}
+      credit: {type: float, distribution: lognormal, mean: 2400, std: 5200, min: 0.01, max: 400000, decimals: 2}
+    constraints:
+      - name: double_entry
+        type: balanced_ledger
+        group_by: [entry_id]
+        debit_column: debit
+        credit_column: credit
+  receivables_rollforward:
+    rows: 400
+    columns:
+      period: {type: categorical, choices: ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4", "2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4"]}
+      movement_type: {type: categorical, choices: [invoiced, collected, written_off]}
+      amount: {type: float, min: 1, max: 250000, decimals: 2}
+relationships:
+  - {parent: journal_entries.entry_id, child: journal_lines.entry_id, min_children: 2}
+  - accounts.account_id -> journal_lines.account_id
+waterfalls:
+  - table: receivables_rollforward
+    period_column: period
+    type_column: movement_type
+    amount_column: amount
+    starting_value: 1250000
+    inflow_shares: {invoiced: 1.0}
+    outflow_shares: {collected: 0.96, written_off: 0.04}
+    outflow_rate: 0.55
+    points:
+      - {period: "2024-Q1", ending_value: 1318400.00}
+      - {period: "2024-Q2", ending_value: 1402750.50}
+      - {period: "2024-Q3", ending_value: 1377210.25}
+      - {period: "2024-Q4", ending_value: 1461980.75}
+      - {period: "2025-Q1", ending_value: 1512006.10}
+      - {period: "2025-Q2", ending_value: 1590044.80}
+      - {period: "2025-Q3", ending_value: 1566310.35}
+      - {period: "2025-Q4", ending_value: 1648902.40}

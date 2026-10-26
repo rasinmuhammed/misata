@@ -189,6 +189,8 @@ def test_invariants_come_from_the_schema_alone(schema):
     (209999.99999999997, "decimal", "210000.00", "210000.00"),
     (0.1 + 0.2, "decimal", "0.3000", "0.3000"),
     (3.0, "integer", "3", "3"),
+    (-1.4551915228366852e-11, "decimal", "0.00", "0.00"),
+    (-0.4, "integer", "0", "0"),
     (True, "boolean", "true", "true"),
     (None, "decimal", "1.00", "null"),
     ("2024-03", "string", "2024-03", "2024-03"),
@@ -441,3 +443,53 @@ class TestGraphs:
         transfers.to_csv(directory / "transfers.csv", index=False)
         failures = {f["id"] for f in attest(directory, schema, write=False).failures}
         assert failures == {"transfers.src->dst.acyclic"}
+
+
+class TestLedgerAcrossBatches:
+    """A ledger balances whole entries, so an entry whose lines span two batches
+    keeps every line and its declared minimum."""
+
+    @pytest.fixture()
+    def books(self, tmp_path):
+        schema = misata.from_dict_schema({
+            "entries": {"__rows__": 3_000,
+                        "entry_id": {"type": "integer", "unique": True, "min": 1, "max": 3_000}},
+            "lines": {"__rows__": 13_000,
+                      "line_id": {"type": "integer", "unique": True, "min": 1, "max": 13_000},
+                      "entry_id": {"type": "foreign_key", "references": "entries.entry_id"},
+                      "debit": {"type": "float", "min": 1, "max": 900},
+                      "credit": {"type": "float", "min": 1, "max": 900},
+                      "__constraints__": [{"name": "double_entry", "type": "balanced_ledger",
+                                           "group_by": ["entry_id"], "debit_column": "debit",
+                                           "credit_column": "credit"}]},
+            "__relationships__": [{"parent_table": "entries", "parent_key": "entry_id",
+                                   "child_table": "lines", "child_key": "entry_id",
+                                   "min_children": 2}],
+        }, seed=4)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate_from_schema(schema)
+        return tables, schema, tmp_path
+
+    def test_every_entry_keeps_two_lines_and_balances(self, books):
+        tables, schema, directory = books
+        lines = tables["lines"]
+        per_entry = lines.groupby("entry_id").size().reindex(tables["entries"]["entry_id"],
+                                                             fill_value=0)
+        assert per_entry.min() >= 2
+        sides = lines.groupby("entry_id")[["debit", "credit"]].sum().round(2)
+        assert (sides["debit"] == sides["credit"]).all()
+        result = attest(_write(tables, directory, "csv"), schema, write=False)
+        assert result.passed, result.summary()
+        assert "entries.entry_id->lines.entry_id.min_children" in {
+            i["id"] for i in result.invariants}
+
+    def test_an_entry_left_with_one_line_fails_min_children(self, books):
+        tables, schema, directory = books
+        _write(tables, directory, "csv")
+        lines = pd.read_csv(directory / "lines.csv")
+        entry = lines["entry_id"].value_counts().idxmin()
+        doomed = lines.index[lines["entry_id"] == entry][1:]
+        lines.drop(index=doomed).to_csv(directory / "lines.csv", index=False)
+        failures = {f["id"] for f in attest(directory, schema, write=False).failures}
+        assert "entries.entry_id->lines.entry_id.min_children" in failures

@@ -4792,29 +4792,30 @@ class DataSimulator:
             # Row-level bound: low_column <= column <= high_column (e.g. bid <= sale <= list).
             df = self._apply_col_range_constraint(df, constraint)
 
-        elif constraint.type == "balanced_ledger":
-            # Double-entry invariant: per group, sum(debit) == sum(credit) exactly.
-            df = self._apply_balanced_ledger(df, constraint)
-
         elif constraint.type == "when_then":
             # Conditional implication: a status gates its dependent columns.
             df = self._apply_when_then(df, constraint)
 
         # lte_parent / sum_lte_parent are cross-table: they need the parent
         # materialised and run in the post-generation pass (generate_all),
-        # not here where only one table's batch is visible.
+        # not here where only one table's batch is visible. balanced_ledger
+        # balances whole entries, whose lines can fall in different batches,
+        # so it runs in _whole_table_rules.
 
         return df
 
     def _whole_table_rules(self, table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         """Re-assert composite keys and column-to-column rules over the
-        concatenated table: batches are each valid, the union may not be."""
+        concatenated table, and balance ledgers: batches are each valid, the
+        union may not be, and a journal entry's lines can span batches."""
         table = self.config.get_table(table_name)
         for c in (table.constraints or []):
             if c.type == "unique_combination":
                 df = self._unique_combination(df, list(c.group_by), table_name)
             elif c.type == "inequality":
                 df = self._apply_inequality_constraint(df, c)
+            elif c.type == "balanced_ledger":
+                df = self._apply_balanced_ledger(df, c)
         return df.reset_index(drop=True)
 
     def _unique_combination(self, df: pd.DataFrame, cols: List[str],
@@ -4934,9 +4935,11 @@ class DataSimulator:
         3. Rounding to ``decimals`` leaves a residual on each side; absorb it
            into that side's largest line so both sides equal T exactly.
 
-        Degenerate groups (a lone line, or a side with no lines) are handled by
-        mirroring: a single line becomes a matched debit/credit pair of equal
-        value, which still balances.
+        An entry whose lines are all on one side has half of them moved to
+        the other. An entry with a single line cannot balance, so that line
+        is moved into an entry with two or more; declaring ``min_children: 2``
+        on the entry relationship means no entry is left with fewer than two.
+        Runs over the whole table, so an entry's lines are never split.
         """
         debit_col = getattr(constraint, "debit_column", None)
         credit_col = getattr(constraint, "credit_column", None)
@@ -6611,11 +6614,13 @@ class DataSimulator:
         for event in cascade_events:
             cascade_tables.add(event.table)
             cascade_tables.update(event.propagate_to.keys())
-        # A composite key or column-to-column rule has to hold across the
-        # whole table, not one batch at a time, so those tables are buffered.
+        # A composite key, a column-to-column rule or a balanced ledger has to
+        # hold across the whole table, not one batch at a time, so those
+        # tables are buffered.
         whole_table_rules = {
             t.name for t in config.tables
-            if any(c.type in ("unique_combination", "inequality") for c in (t.constraints or []))
+            if any(c.type in ("unique_combination", "inequality", "balanced_ledger")
+                   for c in (t.constraints or []))
         }
         tables = (cascade_tables | rollup_tables
                   | {s.table for s in group_share_specs}

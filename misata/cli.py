@@ -86,10 +86,16 @@ def _load_yaml_or_json(path: str) -> Dict[str, Any]:
 
 def _load_schema(path: str, seed: Optional[int] = None,
                  rows: Optional[int] = None) -> SchemaConfig:
-    """A schema from misata.yaml, a SchemaConfig dump, or the dict schema form."""
+    """A schema from misata.yaml, a SchemaConfig dump, or the dict schema form.
+
+    A file that does not describe a valid schema exits 2 with the reason.
+    """
     from misata.yaml_schema import load_schema_file
 
-    return load_schema_file(path, seed=seed, rows=rows)
+    try:
+        return load_schema_file(path, seed=seed, rows=rows)
+    except ValueError as exc:
+        fail(f"{path}: {exc}", EXIT_USAGE)
 
 
 def _write_json(path: Path, payload: Dict[str, Any]) -> None:

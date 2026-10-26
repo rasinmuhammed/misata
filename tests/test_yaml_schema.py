@@ -152,6 +152,24 @@ class TestLoadYamlSchema:
         assert rel.child_table == "orders"
         assert rel.child_key == "user_id"
 
+    def test_object_relationship_names_keys_like_the_shorthand(self):
+        schema = self._load_str(
+            "tables:\n"
+            "  entries:\n"
+            "    rows: 10\n"
+            "    columns:\n"
+            "      entry_id: {type: int, unique: true, min: 1, max: 10}\n"
+            "  lines:\n"
+            "    rows: 40\n"
+            "    columns:\n"
+            "      entry_id: {type: foreign_key}\n"
+            "relationships:\n"
+            "  - {parent: entries.entry_id, child: lines.entry_id, min_children: 2}\n")
+        rel = schema.relationships[0]
+        assert (rel.parent_table, rel.parent_key) == ("entries", "entry_id")
+        assert (rel.child_table, rel.child_key) == ("lines", "entry_id")
+        assert rel.min_children == 2
+
     def test_inequality_constraint_parsed(self):
         schema = self._load_str(RELATIONAL_YAML)
         # Inequality constraint should be on the orders table
