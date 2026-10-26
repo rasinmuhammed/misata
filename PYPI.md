@@ -261,8 +261,9 @@ Of 1,200 subscriptions, exactly 720 are active, 312 churned, 84 past due and
 84 still trialing: weights are counts, allocated by largest remainder, not
 probabilities. Every past-due row has an activation date and a past-due date,
 in that order and after it started; no active row has a churn date. The
-certificate checks both, row by row. A state reachable two ways is entered by its shortest route, so declare
-the transitions you mean.
+certificate checks both, row by row. A state reachable several ways splits its
+rows across every route: of the 312 churned, 156 left during the trial, 78
+after being active and 78 after falling past due.
 
 ---
 

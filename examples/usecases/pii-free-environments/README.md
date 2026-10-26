@@ -119,7 +119,7 @@ ok    23 of 23 invariant(s) hold
 ✓ Coherence: clean, no reader-visible contradictions.
 ```
 
-`misata realism staging` still warns twice: appointments are spread evenly
-over the week, and optional columns are never empty. DDL cannot say a
-clinic is closed at weekends or how often a phone number is missing; a
-`misata.yaml` with `weekday_weights` and `missingness` can.
+`misata realism staging` still warns once: optional columns are never
+empty. Appointments already thin out at weekends, because the column names
+say they are scheduled, but DDL cannot say how often a phone number is
+missing; a `misata.yaml` with `missingness` can.

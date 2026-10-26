@@ -115,7 +115,7 @@ Each invariant:
 | `not_null` | `nullable: false`, DDL `NOT NULL` | nulls, which must be 0 |
 | `acyclic` | `dag_edges` | nodes on or below a cycle outside a declared motif case, which must be 0 |
 | `motif_edges`, `flagged_edges` | `graph_motifs` | edges of each motif shape, and flagged edges |
-| `lifecycle_history` | `lifecycles` | rows whose timestamps are not their state's path from `initial`, set in order and not before `start_column`, with every other timestamp null, which must be 0 |
+| `lifecycle_history` | `lifecycles` | rows whose timestamps are not one of their state's routes from `initial`, set in order and not before `start_column`, with every other timestamp null, which must be 0 |
 | `lifecycle_mix` | `lifecycles` | states whose row count is a full row or more from its weighted share of the table, which must be 0 |
 | `solved_target` | `misata solve` with a SQL pipeline | the pipeline's metric for a period, with `within_tolerance` |
 

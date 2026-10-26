@@ -318,28 +318,38 @@ def _check_lifecycles(config: Any) -> List[Conflict]:
             if c.when_column != spec.state_column or c.when_op != "==":
                 continue
             state = c.when_value
-            path = spec.path_to(state) if isinstance(state, str) else None
-            if path is None:
+            routes = [path for path, _ in spec.routes_to(state)] if isinstance(state, str) else []
+            if not routes:
                 continue
             owner = next((s for s in spec.states
                           if s.timestamp == c.then_column), None)
             if owner is None:
                 continue
-            on_path = owner.name in set(path)
-            # Machine says populated; rule says null (or vice versa).
-            if (on_path and c.then == "null") or (not on_path and c.then == "not_null"):
+            on = sum(owner.name in route for route in routes)
+            # The machine populates the column on every route, on some, or on
+            # none; a rule is consistent only with "every" (not_null) or
+            # "none" (null).
+            if (on and c.then == "null") or (on < len(routes) and c.then == "not_null"):
+                coverage = "every" if on == len(routes) else "some" if on else "no"
+                implied = {"every": "populated", "some": "populated on some rows",
+                           "no": "NULL"}[coverage]
+                ways = " or ".join(" → ".join(route) for route in routes)
+                remedy = (f"remove constraint '{c.name}', since the lifecycle already "
+                          f"implies the correct rule, or change the machine")
+                if coverage == "some":
+                    remedy = (f"remove constraint '{c.name}', or the transitions "
+                              f"that reach '{state}' "
+                              f"{'through' if c.then == 'null' else 'around'} "
+                              f"'{owner.name}'")
                 out.append(Conflict(
                     kind="rule_contradicts_lifecycle",
                     where=f"{spec.table}.{c.then_column}",
                     declarations=[f"constraint '{c.name}'", f"lifecycle '{spec.name}'"],
                     arithmetic=(
-                        f"the machine's path to '{state}' is {' → '.join(path)}, so "
-                        f"'{owner.name}' is {'on' if on_path else 'not on'} it and "
-                        f"{c.then_column} must be "
-                        f"{'populated' if on_path else 'NULL'}; the constraint "
-                        f"requires {c.then}"),
-                    remedy=(f"remove constraint '{c.name}' — the lifecycle already "
-                            f"implies the correct rule — or change the machine"),
+                        f"the machine reaches '{state}' by {ways}, so '{owner.name}' "
+                        f"is on {coverage} route and {c.then_column} is {implied}; "
+                        f"the constraint requires {c.then}"),
+                    remedy=remedy,
                 ))
     return out
 
@@ -624,6 +634,8 @@ def _check_event_log_capacity(config: Any) -> List[Conflict]:
     number of events it requires. Refusing here beats warning at the end, when
     the user is already holding an incomplete log.
     """
+    from misata.lifecycle import largest_remainder
+
     out: List[Conflict] = []
     for spec in (getattr(config, "event_logs", None) or []):
         lc = next((lifecycle for lifecycle in (getattr(config, "lifecycles", None) or [])
@@ -635,19 +647,25 @@ def _check_event_log_capacity(config: Any) -> List[Conflict]:
         if not entities or not rows:
             continue
         weights = dict(getattr(lc, "weights", None) or {})
+        def events_on(route: List[str]) -> int:
+            return sum(s in spec.state_events for s in route)
+
+        def routes(state: str) -> List[Tuple[List[str], float]]:
+            return lc.routes_to(state) or [([state], 1.0)]
+
         if not weights:
-            # No mix declared: the cheapest possible state still needs its path.
-            lengths = [len([s for s in (lc.path_to(st.name) or [st.name])
-                            if s in spec.state_events]) for st in lc.states]
+            # No mix declared: the cheapest possible route still needs its events.
+            lengths = [events_on(route) for st in lc.states for route, _ in routes(st.name)]
             needed = entities * (min(lengths) if lengths else 1)
         else:
             total_w = sum(float(v) for v in weights.values()) or 1.0
             needed = 0
             for st in lc.states:
-                share = float(weights.get(st.name, 0.0)) / total_w
-                path = lc.path_to(st.name) or [st.name]
-                per = len([x for x in path if x in spec.state_events])
-                needed += int(round(entities * share)) * per
+                rows_in_state = int(round(entities * float(weights.get(st.name, 0.0)) / total_w))
+                state_routes = routes(st.name)
+                counts = largest_remainder(rows_in_state, [share for _, share in state_routes])
+                needed += sum(count * events_on(route)
+                              for count, (route, _) in zip(counts, state_routes, strict=True))
         if needed > rows:
             out.append(Conflict(
                 kind="event_log_capacity",

@@ -88,27 +88,34 @@ def apply_event_log(
             ConformanceWarning,)
         return tables
 
-    # For each state, the ordered (event_type, timestamp_column) its path
-    # implies. Computed once per state, not once per row.
-    ts_of = {st.name: getattr(st, "timestamp", None) for st in lc.states}
-    plan: Dict[Any, list] = {}
-    reached_of: Dict[Any, list] = {}
-    for st in lc.states:
-        path = lc.path_to(st.name) or [st.name]
-        reached_of[st.name] = path
-        plan[st.name] = [(spec.state_events[s], ts_of.get(s))
-                         for s in path if s in spec.state_events]
-
     ent = entities.set_index(entity_pk)
     ent = ent[~ent.index.duplicated(keep="first")]
     states = ent[lc.state_column]
+
+    # Each entity's ordered (event_type, timestamp_column) steps, from the
+    # route its own timestamps show it took. Routes are shared by many
+    # entities, so each one's steps are built once.
+    ts_of = {st.name: getattr(st, "timestamp", None) for st in lc.states}
+    stamp_cols = [c for c in lc.timestamp_columns() if c in ent.columns]
+    state_of_col = {ts: name for name, ts in ts_of.items() if ts}
+    present = ent[stamp_cols].notna().to_numpy()
+    steps_of: Dict[tuple, list] = {}
+    plan: Dict[Any, list] = {}
+    for k, st, row in zip(states.index, states.to_numpy(), present, strict=True):
+        key = (st, row.tobytes())
+        if key not in steps_of:
+            stamped = [state_of_col[c] for c, on in zip(stamp_cols, row, strict=True) if on]
+            route = lc.route_taken(st, stamped, stamp_cols) or [st]
+            steps_of[key] = [(spec.state_events[s], ts_of.get(s))
+                             for s in route if s in spec.state_events]
+        plan[k] = steps_of[key]
 
     # Allocate rows by what each entity's state REQUIRES, rather than hoping the
     # foreign key happened to give it enough. min_children can only promise one
     # row per entity, and a done task needs three; the first version of this
     # pass left 523 done tasks with no completion event for exactly that reason.
     keys = list(ent.index)
-    need = [len(plan.get(states.get(k), [])) for k in keys]
+    need = [len(plan[k]) for k in keys]
     total_need = int(sum(need))
     n = len(events)
     if total_need > n:
@@ -153,7 +160,7 @@ def apply_event_log(
     filler_cache: Dict[Any, list] = {}
     for k in keys:
         st = states.get(k)
-        steps = plan.get(st) or []
+        steps = plan[k]
         if not steps:
             continue
         row = ent.loc[k]
@@ -191,14 +198,14 @@ def apply_event_log(
             continue
         j = int(slot[i])
         if j >= 0:
-            types[i] = plan[states.get(k)][j][0]
+            types[i] = plan[k][j][0]
             stamps[i] = filled[j]
         else:
             pool = filler_cache.get(k) or []
             if not pool:
                 # Nothing legal to add: repeat the first event of the path,
                 # which is always true of the entity and never terminal.
-                types[i] = plan[states.get(k)][0][0]
+                types[i] = plan[k][0][0]
                 stamps[i] = filled[0]
             else:
                 types[i] = pool[int(rng.integers(0, len(pool)))]

@@ -6,7 +6,8 @@ including tables, columns, relationships, and scenario events.
 """
 
 import re
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from collections import deque
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -661,12 +662,13 @@ class Lifecycle(BaseModel):
     Those are all the same defect — a row whose columns describe a history
     that could not have happened.
 
-    Declaring the machine makes the whole class impossible. For a row in state
-    S, the engine derives the path from ``initial`` to S and guarantees:
+    Declaring the machine makes the whole class impossible. Each row in state
+    S takes one route from ``initial`` to S (see :meth:`routes_to`), and the
+    engine guarantees:
 
     1. ``state_column`` only ever holds a declared state name.
-    2. Every state on the path has its timestamp populated, in path order.
-    3. Every state off the path has its timestamp NULL.
+    2. Every state on the route has its timestamp populated, in route order.
+    3. Every state off the route has its timestamp NULL.
     4. The whole chain postdates ``start_column`` when one is given.
 
     This subsumes hand-written ``when_then`` rules and status gating: instead
@@ -749,10 +751,9 @@ class Lifecycle(BaseModel):
     def path_to(self, target: str) -> Optional[List[str]]:
         """Shortest legal path from ``initial`` to ``target``.
 
-        Returns None when the target is unreachable, which the caller reports
-        rather than silently generating an impossible row. Breadth-first, so
-        the path chosen is the shortest one; a state reachable two ways gets
-        the direct route.
+        Returns None when the target is unreachable. Breadth-first, so of
+        several routes the one returned is the shortest; :meth:`routes_to`
+        gives them all.
         """
         start = self.initial or (self.states[0].name if self.states else None)
         if start is None:
@@ -774,6 +775,66 @@ class Lifecycle(BaseModel):
                 seen.add(nxt)
                 queue.append(path + [nxt])
         return None
+
+    def routes_to(self, target: str, limit: int = 64) -> List[Tuple[List[str], float]]:
+        """Every distinct route from ``initial`` to ``target``, with its share.
+
+        A cancelled order may have been cancelled before or after it shipped,
+        and the two leave different histories. Routes are the simple paths to
+        ``target``, shortest first; two routes that timestamp the same states
+        cannot be told apart in a row, so only the shorter is kept. Each
+        route's share is the probability that a walk taking every transition
+        out of a state equally often follows it, normalised over the routes
+        to ``target``. Empty when ``target`` is unreachable.
+        """
+        start = self.initial or (self.states[0].name if self.states else None)
+        if start is None or target not in self.state_names():
+            return []
+        adjacency: Dict[str, List[str]] = {}
+        for a, b in self.transitions:
+            if b not in adjacency.setdefault(a, []):
+                adjacency[a].append(b)
+        routes: List[Tuple[List[str], float]] = []
+        signatures = set()
+        queue: deque = deque([([start], 1.0)])
+        while queue and len(routes) < limit:
+            path, p = queue.popleft()
+            if path[-1] == target:
+                signature = self.signature(path)
+                if signature not in signatures:
+                    signatures.add(signature)
+                    routes.append((path, p))
+                continue
+            nexts = adjacency.get(path[-1], [])
+            for nxt in nexts:
+                if nxt not in path:
+                    queue.append((path + [nxt], p / len(nexts)))
+        total = sum(p for _, p in routes)
+        return [(path, p / total) for path, p in routes]
+
+    def signature(self, route: List[str]) -> frozenset:
+        """The states on ``route`` whose entry a row records."""
+        return frozenset(s for s in route if self.timestamp_of(s))
+
+    def route_taken(self, state: str, stamped: Iterable[str],
+                    columns: Optional[Iterable[str]] = None) -> Optional[List[str]]:
+        """The route a row in ``state`` took, from the states it timestamps.
+
+        ``columns`` restricts the comparison to the timestamp columns a table
+        actually holds; a route whose signature matches nothing falls back to
+        the shortest, so a caller always gets a legal history to work from.
+        """
+        routes = [path for path, _ in self.routes_to(state)]
+        if not routes:
+            return None
+        held = None if columns is None else set(columns)
+
+        def seen(states: Iterable[str]) -> frozenset:
+            return frozenset(s for s in states if held is None
+                             or self.timestamp_of(s) in held)
+
+        observed = seen(stamped)
+        return next((r for r in routes if seen(self.signature(r)) == observed), routes[0])
 
 
 class EventLog(BaseModel):

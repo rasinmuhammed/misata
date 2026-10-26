@@ -1,8 +1,8 @@
 """Tests for declared entity lifecycles (misata/lifecycle.py).
 
-The contract: for a row in state S, with P = path(initial → S),
+The contract: for a row in state S, with P one route from initial to S,
   * every state in P that has a timestamp column has it populated,
-  * those timestamps ascend in path order,
+  * those timestamps ascend in route order,
   * every state outside P has its timestamp NULL,
   * the whole chain postdates start_column.
 
@@ -255,6 +255,124 @@ class TestRefusalAndAudit:
         tables["orders"].loc[0, "status"] = "teleported"
         report = coherence_audit(tables, schema=schema)
         assert any(f.kind == "lifecycle_illegal_state" for f in report.findings)
+
+
+# --------------------------------------------------------------------------- #
+# a state reachable more than one way
+# --------------------------------------------------------------------------- #
+
+def _two_way_cancel(**over):
+    """Orders cancel before shipping or after it."""
+    return _order_lifecycle(transitions=[
+        ("placed", "shipped"), ("shipped", "completed"), ("completed", "returned"),
+        ("placed", "cancelled"), ("shipped", "cancelled")], **over)
+
+
+class TestRoutes:
+    def test_every_route_with_its_walk_share(self):
+        routes = _two_way_cancel().routes_to("cancelled")
+        assert [path for path, _ in routes] == [
+            ["placed", "cancelled"], ["placed", "shipped", "cancelled"]]
+        assert [share for _, share in routes] == pytest.approx([2 / 3, 1 / 3])
+
+    def test_routes_that_timestamp_the_same_states_are_one_route(self):
+        lc = Lifecycle(
+            name="t", table="t", state_column="s", initial="a",
+            states=[LifecycleState(name="a", timestamp="a_at"), LifecycleState(name="b"),
+                    LifecycleState(name="c"), LifecycleState(name="d", timestamp="d_at")],
+            transitions=[("a", "b"), ("a", "c"), ("b", "d"), ("c", "d")])
+        assert lc.routes_to("d") == [(["a", "b", "d"], 1.0)]
+
+    def test_unreachable_state_has_no_routes(self):
+        assert _order_lifecycle(transitions=[("placed", "shipped")]).routes_to("cancelled") == []
+
+    def test_rows_split_across_routes_in_exact_counts(self):
+        df = misata.generate_from_schema(_schema(_two_way_cancel()))["orders"]
+        cancelled = df[df["status"] == "cancelled"]
+        assert len(cancelled) == 40
+        assert cancelled["shipped_at"].notna().sum() == 13
+        shipped = cancelled.dropna(subset=["shipped_at"])
+        assert (shipped["shipped_at"] <= shipped["cancelled_at"]).all()
+
+    def test_the_audit_is_clean(self):
+        schema = _schema(_two_way_cancel())
+        report = coherence_audit(misata.generate_from_schema(schema), schema=schema)
+        assert not [f for f in report.findings if f.kind.startswith("lifecycle")]
+
+    def test_the_audit_catches_a_history_no_route_has(self):
+        lc = Lifecycle(
+            name="t", table="orders", state_column="status", initial="placed",
+            states=[LifecycleState(name="placed", timestamp="placed_at"),
+                    LifecycleState(name="shipped", timestamp="shipped_at"),
+                    LifecycleState(name="cancelled", timestamp="cancelled_at"),
+                    LifecycleState(name="completed", timestamp="completed_at")],
+            transitions=[("placed", "shipped"), ("placed", "cancelled"),
+                         ("shipped", "completed"), ("cancelled", "completed")])
+        schema = _schema(lc)
+        tables = misata.generate_from_schema(schema)
+        df = tables["orders"]
+        row = df.index[(df["status"] == "completed") & df["cancelled_at"].isna()][0]
+        df.loc[row, "cancelled_at"] = df.loc[row, "completed_at"]
+        kinds = {f.kind for f in coherence_audit(tables, schema=schema).findings}
+        assert "lifecycle_no_route" in kinds
+
+    def test_a_rule_that_forbids_one_route_is_refused(self):
+        from misata.feasibility import InfeasibleSchema
+        from misata.schema import Constraint
+        schema = _schema(_two_way_cancel())
+        schema.tables[0].constraints = [Constraint(
+            name="no_ship_on_cancel", type="when_then", when_column="status",
+            when_op="==", when_value="cancelled", then_column="shipped_at", then="null")]
+        with pytest.raises(InfeasibleSchema, match="on some route"):
+            misata.generate_from_schema(schema)
+
+    def test_an_event_log_follows_each_rows_route(self):
+        from misata.schema import EventLog
+        rows = 300
+        lc = Lifecycle(
+            name="task_lc", table="tasks", state_column="state", initial="open",
+            states=[LifecycleState(name="open", timestamp="opened_at"),
+                    LifecycleState(name="started", timestamp="started_at"),
+                    LifecycleState(name="done", timestamp="closed_at", terminal=True)],
+            transitions=[("open", "started"), ("started", "done"), ("open", "done")],
+            weights={"open": 0.2, "started": 0.3, "done": 0.5})
+        schema = SchemaConfig(
+            name="routes", seed=5,
+            tables=[Table(name="tasks", row_count=rows), Table(name="task_events", row_count=900)],
+            columns={
+                "tasks": [Column(name="task_id", type="int", unique=True,
+                                 distribution_params={"min": 1, "max": rows}),
+                          Column(name="state", type="categorical",
+                                 distribution_params={"choices": ["open", "started", "done"]}),
+                          *(Column(name=c, type="datetime", nullable=True,
+                                   distribution_params={"start": "2024-01-01", "end": "2024-12-31"})
+                            for c in ("opened_at", "started_at", "closed_at"))],
+                "task_events": [
+                    Column(name="event_id", type="int", unique=True,
+                           distribution_params={"min": 1, "max": 900}),
+                    Column(name="task_id", type="foreign_key",
+                           distribution_params={"references": "tasks.task_id"}),
+                    Column(name="event_type", type="categorical",
+                           distribution_params={"choices": ["created", "started", "closed"]}),
+                    Column(name="occurred_at", type="datetime",
+                           distribution_params={"start": "2024-01-01", "end": "2024-12-31"})],
+            },
+            relationships=[Relationship(parent_table="tasks", child_table="task_events",
+                                        parent_key="task_id", child_key="task_id")],
+            lifecycles=[lc],
+            event_logs=[EventLog(
+                name="log", table="task_events", entity_table="tasks", entity_key="task_id",
+                event_type_column="event_type", event_time_column="occurred_at",
+                state_events={"open": "created", "started": "started", "done": "closed"})])
+        tables = misata.generate_from_schema(schema)
+        tasks = tables["tasks"].set_index("task_id")
+        events = tables["task_events"].groupby("task_id")["event_type"].agg(set)
+        done = tasks[tasks["state"] == "done"]
+        assert done["started_at"].notna().any() and done["started_at"].isna().any()
+        for task_id, row in done.iterrows():
+            assert ("started" in events[task_id]) == pd.notna(row["started_at"])
+        assert not [f for f in coherence_audit(tables, schema=schema).findings
+                    if f.kind in ("event_log",) or f.kind.startswith("lifecycle")]
 
 
 # --------------------------------------------------------------------------- #

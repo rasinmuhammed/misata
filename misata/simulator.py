@@ -2712,11 +2712,22 @@ class DataSimulator:
                             np.floor(self.rng.exponential(span / 4.0, size)), span).astype(int)
                     else:
                         deltas = self.rng.integers(min_delta, max_delta + 1, size=size)
-                    base_dates = pd.to_datetime(table_data[base_col], errors="coerce")
-                    dates = base_dates + pd.to_timedelta(deltas, unit="D")
+                    base_dates = pd.DatetimeIndex(
+                        pd.to_datetime(table_data[base_col], errors="coerce"))
+                    dates = (base_dates + pd.to_timedelta(deltas, unit="D")).normalize()
+                    # The derived day keeps the weekly rhythm of its own
+                    # mechanism; a row the shift would carry outside its
+                    # declared gap from the base column keeps its day.
+                    earliest = (base_dates + pd.Timedelta(days=min_delta)).normalize()
+                    latest = (base_dates + pd.Timedelta(days=max_delta)).normalize()
+                    if earliest.notna().any():
+                        shaped = self._shape_activity_times(
+                            dates, table_name, column, earliest.min(), latest.max(),
+                            date_only=True)
+                        dates = shaped.where((shaped >= earliest) & (shaped <= latest), dates)
                     if params.get("max_date") == "today":
                         today = pd.Timestamp.now().normalize()
-                        dates = dates.clip(upper=today)
+                        dates = dates.where(~(dates > today), today)
                     # column.type == "date" here, never "datetime": the
                     # contract is a calendar day, not a timestamp, regardless
                     # of whether the base column it's offset from carried a

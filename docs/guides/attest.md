@@ -69,7 +69,7 @@ disk.
 | a declared NOT NULL: DDL `NOT NULL`, `nullable: false`, a primary key | no value is null |
 | `dag_edges` | no cycle outside a declared motif case |
 | `graph_motifs` | each motif shape has exactly its planned edges, and exactly the flagged ones are flagged |
-| `lifecycles` | every row's timestamps are its state's path, in order and after the start; each state's count is within one row of its weight |
+| `lifecycles` | every row's timestamps are one of its state's routes, in order and after the start; each state's count is within one row of its weight |
 
 Row rules are left out on a column that `typos`, `outliers`, `missingness`
 or `late_arrivals` targets, and everywhere when `noise` injects nulls,

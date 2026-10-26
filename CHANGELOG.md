@@ -40,8 +40,8 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   children than declared.
 - A relationship's `partition_by` is attested: no child row shares a key
   with a parent from another partition.
-- Lifecycles are attested. Every row's timestamps must be its state's path
-  from `initial`, in order and not before `start_column`, with every other
+- Lifecycles are attested. Every row's timestamps must be one of its
+  state's routes from `initial`, in order and not before `start_column`, with every other
   timestamp null, and each state's count must be within one row of its
   weighted share. The state column's domain is the lifecycle's states,
   so a status column whose choices were inferred before the lifecycle
@@ -355,6 +355,21 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Output changes
 
+- A lifecycle state reachable several ways splits its rows across every
+  route in exact counts, weighted by how often a walk taking each
+  transition out of a state equally often follows the route. With
+  `trialing -> churned` beside `trialing -> active -> churned`, some churned
+  rows now carry an activation date, where every one used to churn straight
+  from trial. Event logs follow each row's own route, a `when_then` rule
+  that holds on only some routes is refused, and the audit reports a row
+  whose timestamps match no route as `lifecycle_no_route`. A state with one
+  route generates the same rows as before.
+- A weekend row that a timestamp's rhythm moves goes to a weekday of the
+  same week chosen evenly, instead of the nearest weekday, which piled a
+  weekend's volume onto Friday and Monday. A date derived from another
+  column (`seen_at` after `booked_at`) gets the same weekly rhythm within
+  its declared gap, where it used to be flat across all seven days. Every
+  golden fingerprint changes for this reason alone.
 - `misata generate --format jsonl` writes `json` and `array` columns as
   nested objects and lists, as `misata.to_jsonl` already did, instead of
   escaped strings. Neither writes `\/` for a forward slash any more.

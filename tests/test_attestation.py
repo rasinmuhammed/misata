@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import json
 import subprocess
 import sys
@@ -578,6 +579,18 @@ class TestLifecycles:
         orders.to_csv(directory / "orders.csv", index=False)
         failures = {f["id"] for f in attest(directory, schema, write=False).failures}
         assert failures == {"orders.fulfilment.lifecycle_history"}
+
+    def test_every_route_to_a_state_is_a_legal_history(self, tmp_path):
+        spec = copy.deepcopy(self.ORDERS)
+        spec["orders"]["__lifecycles__"][0]["transitions"].append(["paid", "cancelled"])
+        schema = misata.from_dict_schema(spec, seed=21)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tables = misata.generate_from_schema(schema)
+        cancelled = tables["orders"][tables["orders"]["status"] == "cancelled"]
+        assert cancelled["paid_at"].notna().any() and cancelled["paid_at"].isna().any()
+        _write(tables, tmp_path, "csv")
+        assert attest(tmp_path, schema, write=False).passed
 
     def test_a_shifted_mix_fails(self, orders_dir):
         directory, schema = orders_dir

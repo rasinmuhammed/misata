@@ -133,11 +133,17 @@ Lifecycle(
 )
 ```
 
-**Guarantees.** For a row in state S with path P from `initial` to S: every state
-in P has its timestamp populated, in path order; every state outside P has its
-timestamp NULL; the whole chain postdates `start_column`. State shares match
-`weights` exactly. P is the shortest legal path, so a state reachable two ways
-is always entered by the shorter one; declare the transitions you mean.
+**Guarantees.** For a row in state S with route P from `initial` to S: every
+state in P has its timestamp populated, in route order; every state outside P
+has its timestamp NULL; the whole chain postdates `start_column`. State shares
+match `weights` exactly.
+
+A state reachable several ways splits its rows across every route, in exact
+counts. Each route's share is how often a walk that takes every transition out
+of a state equally often follows it: with `placed -> cancelled` and
+`placed -> shipped -> cancelled` both declared, two thirds of cancelled orders
+never shipped and one third did. Routes that timestamp the same states leave
+the same history, so they count as one.
 
 A returned order therefore carries the shipment and completion it necessarily
 passed through, which is the thing a per-pair rule cannot express. The

@@ -46,8 +46,8 @@ class TestPersonSampler:
         people = sampler.sample(5000)
         match = np.mean(
             [
-                lookup_surname_culture(l) == c
-                for l, c in zip(people["last"], people["culture"])
+                lookup_surname_culture(last) == c
+                for last, c in zip(people["last"], people["culture"], strict=True)
             ]
         )
         # intermix rate is 6%, plus a little cross-culture surname ambiguity
@@ -66,7 +66,7 @@ class TestPersonSampler:
         people = sampler.sample(500)
         assert set(people["culture"]) == {"japanese"}
         # ~94% of surnames stay japanese (6% intermix falls back to mix → japanese too)
-        assert all(l in CULTURE_POOLS["japanese"]["last"] for l in people["last"])
+        assert all(last in CULTURE_POOLS["japanese"]["last"] for last in people["last"])
 
     def test_pools_are_culture_and_gender_consistent(self):
         # No name may appear in both genders of the same culture
@@ -151,6 +151,27 @@ class TestTemporalProfiles:
         assert (out.nanosecond == 0).all()
         assert out.hour.min() >= 7 and out.hour.max() <= 19
         assert (out.dayofweek >= 5).mean() < 0.05  # weekends damped
+
+    def test_damped_weekends_leave_the_weekdays_level(self):
+        dates, rng = self._dates(n=20000)
+        shares = pd.Series(apply_temporal_profile(dates, SCHEDULED, rng).dayofweek
+                           ).value_counts(normalize=True).sort_index()
+        weekdays = shares.loc[0:4]
+        assert weekdays.max() - weekdays.min() < 0.02
+
+    def test_a_date_derived_from_another_keeps_the_weekly_rhythm(self):
+        tables = misata.generate_from_schema(misata.from_ddl("""
+            CREATE TABLE appointments (
+                id INTEGER PRIMARY KEY,
+                booked_at TIMESTAMP NOT NULL,
+                seen_at TIMESTAMP,
+                CHECK (seen_at IS NULL OR seen_at >= booked_at)
+            );"""), seed=7)
+        df = tables["appointments"]
+        booked = pd.to_datetime(df["booked_at"])
+        seen = pd.to_datetime(df["seen_at"])
+        assert (seen.dropna().dt.dayofweek >= 5).mean() < 0.05
+        assert not (seen < booked).any()
 
     def test_human_action_has_seconds_but_no_subsecond_noise(self):
         dates, rng = self._dates()

@@ -85,18 +85,21 @@ def damp_weekends(
     days: pd.DatetimeIndex, weekend_factor: float, rng: np.random.Generator
 ) -> pd.DatetimeIndex:
     """Keep each weekend row with probability ``weekend_factor``; move the
-    rest to the nearest weekday (Saturday to Friday, Sunday to Monday), so
-    the overall date distribution barely moves while weekends thin out."""
+    rest to a weekday of the same week, chosen evenly, so weekends thin out
+    while the weekdays stay level and no row moves more than six days.
+
+    Moving each row to the nearest weekday instead would pile a weekend's
+    worth of activity onto Friday and Monday, a spike real data never has.
+    """
     if weekend_factor >= 1.0 or len(days) == 0:
         return days
     dow = days.dayofweek.values
-    keep = rng.random(len(days)) < weekend_factor
+    moved = (dow >= 5) & ~(rng.random(len(days)) < weekend_factor)
+    if not moved.any():
+        return days
     shift = np.zeros(len(days), dtype="int64")
-    shift[(dow == 5) & ~keep] = -1   # Saturday → Friday
-    shift[(dow == 6) & ~keep] = 1    # Sunday → Monday
-    if shift.any():
-        days = days + pd.to_timedelta(shift, unit="D")
-    return days
+    shift[moved] = rng.integers(0, 5, size=int(moved.sum())) - dow[moved]
+    return days + pd.to_timedelta(shift, unit="D")
 
 
 def apply_temporal_profile(
@@ -107,8 +110,8 @@ def apply_temporal_profile(
 ) -> pd.DatetimeIndex:
     """Re-shape times-of-day (and weekend density) without moving the date
     distribution: the day each row lands on is preserved except for the
-    weekend damping shift of ±1–2 days, so outcome curves and FK-relative
-    ranges stay intact."""
+    weekend damping move into the same week, so outcome curves and
+    FK-relative ranges stay intact."""
     size = len(dates)
     if size == 0:
         return dates

@@ -100,12 +100,6 @@ bug worth reporting.
   chose.** Each tenant's row share follows its declared gross movement, so a
   tiny tenant on a big table still gets few rows. Declare more rows if every
   tenant needs a dense history.
-- **A lifecycle state reachable two ways is entered by its shortest route.**
-  With `trialing -> churned` declared beside `trialing -> active -> churned`,
-  every churned row churns straight from trial, so no churned row has an
-  activation date. Declare only the routes rows should take, or split the
-  state (`churned_in_trial`, `churned_after_paying`).
-
 - **Payments are deliberately not forced to equal order totals.** Partial
   payments and installments are real, so `payment.amount == order.total` is
   not enforced or checked. If your story needs exact settlement, declare it.

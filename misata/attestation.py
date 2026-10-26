@@ -409,11 +409,11 @@ def _graph_invariants(schema: "SchemaConfig") -> List[Invariant]:
 
 
 def _lifecycle_invariants(schema: "SchemaConfig") -> List[Invariant]:
-    """Declared lifecycles: every row's history is its state's path, and the mix is the weights.
+    """Declared lifecycles: every row's history is a route to its state, and the mix is the weights.
 
-    For a row in state S, every timestamped state on the path from ``initial``
-    to S is set, in path order and not before ``start_column``, and every
-    other timestamp is NULL. Each state's row count is within one row of its
+    For a row in state S, every timestamped state on one route from
+    ``initial`` to S is set, in route order and not before ``start_column``,
+    and every other timestamp is NULL. Each state's row count is within one row of its
     share of the table, which is what largest-remainder allocation
     guarantees whatever the table's final size.
     """
@@ -428,7 +428,7 @@ def _lifecycle_invariants(schema: "SchemaConfig") -> List[Invariant]:
         if spec.state_column not in columns or any(
                 (spec.table, c) in disturbed for c in [spec.state_column, start, *stamps] if c):
             continue
-        paths = {s: p for s in spec.state_names() if (p := spec.path_to(s))}
+        paths = {s: r for s in spec.state_names() if (r := spec.routes_to(s))}
         if not paths:
             continue
         table, state = quote_ident(spec.table), quote_ident(spec.state_column)
@@ -437,14 +437,17 @@ def _lifecycle_invariants(schema: "SchemaConfig") -> List[Invariant]:
             return f"CAST({quote_ident(column)} AS TIMESTAMP)"
 
         legal = []
-        for name, path in paths.items():
-            on = [c for c in (spec.timestamp_of(s) for s in path) if c in stamps]
-            terms = [f"{quote_ident(c)} IS NOT NULL" for c in on]
-            terms += [f"{quote_ident(c)} IS NULL" for c in stamps if c not in on]
-            terms += [f"{at(a)} <= {at(b)}" for a, b in pairwise(on)]
-            if start and on:
-                terms.append(f"({quote_ident(start)} IS NULL OR {at(start)} <= {at(on[0])})")
-            legal.append(f"({state} = {quote_literal(name)} AND {' AND '.join(terms or ['TRUE'])})")
+        for name, routes in paths.items():
+            for path, _ in routes:
+                on = [c for c in (spec.timestamp_of(s) for s in path) if c in stamps]
+                terms = [f"{quote_ident(c)} IS NOT NULL" for c in on]
+                terms += [f"{quote_ident(c)} IS NULL" for c in stamps if c not in on]
+                terms += [f"{at(a)} <= {at(b)}" for a, b in pairwise(on)]
+                if start and on:
+                    terms.append(f"({quote_ident(start)} IS NULL OR {at(start)} <= {at(on[0])})")
+                clause = f"({state} = {quote_literal(name)} AND {' AND '.join(terms or ['TRUE'])})"
+                if clause not in legal:
+                    legal.append(clause)
         out.append(Invariant(
             id=f"{spec.table}.{spec.name}.lifecycle_history", kind="lifecycle_history",
             sql=f"SELECT COUNT(*) FROM {table} WHERE NOT COALESCE({' OR '.join(legal)}, FALSE)",

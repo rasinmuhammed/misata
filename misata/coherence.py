@@ -748,56 +748,63 @@ def _detect_lifecycle_violation(tables, schema) -> List[CoherenceFinding]:
                 rows_affected=undeclared,
             ))
 
+        stamped_cols = [(st, spec.timestamp_of(st)) for st in spec.state_names()
+                        if spec.timestamp_of(st) in df.columns]
         for state in spec.state_names():
-            path = spec.path_to(state)
-            if path is None:
+            routes = [path for path, _ in spec.routes_to(state)]
+            in_state = (status == state).to_numpy()
+            if not routes or not in_state.any():
                 continue
-            on_path = {p for p in path}
-            in_state = status == state
-            if not in_state.any():
-                continue
-            for st in spec.state_names():
-                col = spec.timestamp_of(st)
-                if not col or col not in df.columns:
-                    continue
-                vals = df.loc[in_state, col]
-                if st in on_path:
-                    bad = int(vals.isna().sum())
-                    if bad:
-                        out.append(CoherenceFinding(
-                            kind="lifecycle_missing_timestamp", severity="high",
-                            table=spec.table, column=col,
-                            message=(f"{bad} rows in state '{state}' are missing "
-                                     f"'{col}', but '{st}' is on their path"),
-                            rows_affected=bad,
-                        ))
+            # A timestamp every route sets is required, one no route sets is
+            # forbidden, and the rest must together match one whole route.
+            required = set.intersection(*(set(r) for r in routes))
+            allowed = set.union(*(set(r) for r in routes))
+            frame = df.loc[in_state, [col for _, col in stamped_cols]]
+            present = frame.notna().to_numpy()
+            broken = np.zeros(len(frame), dtype=bool)
+            for i, (st, col) in enumerate(stamped_cols):
+                if st in required:
+                    bad_rows = ~present[:, i]
+                    kind, what = "lifecycle_missing_timestamp", "are missing"
+                    why = f"but '{st}' is on every route to it"
+                elif st not in allowed:
+                    bad_rows = present[:, i]
+                    kind, what = "lifecycle_impossible_timestamp", "carry"
+                    why = f"but '{st}' is on no route to it"
                 else:
-                    bad = int(vals.notna().sum())
-                    if bad:
-                        out.append(CoherenceFinding(
-                            kind="lifecycle_impossible_timestamp", severity="high",
-                            table=spec.table, column=col,
-                            message=(f"{bad} rows in state '{state}' carry '{col}', "
-                                     f"but '{st}' is not on their path"),
-                            rows_affected=bad,
-                        ))
-
-            # Path order: consecutive timestamped states must ascend.
-            stamped = [spec.timestamp_of(p) for p in path]
-            stamped = [c for c in stamped if c and c in df.columns]
-            for a_col, b_col in pairwise(stamped):
-                pair = df.loc[in_state, [a_col, b_col]].dropna()
-                if pair.empty:
                     continue
-                bad = int((pair[b_col] < pair[a_col]).sum())
-                if bad:
+                broken |= bad_rows
+                if bad := int(bad_rows.sum()):
                     out.append(CoherenceFinding(
-                        kind="lifecycle_out_of_order", severity="high",
-                        table=spec.table, column=b_col,
-                        message=(f"{bad} rows in state '{state}' have {b_col} "
-                                 f"before {a_col}, against the declared path"),
+                        kind=kind, severity="high", table=spec.table, column=col,
+                        message=f"{bad} rows in state '{state}' {what} '{col}', {why}",
                         rows_affected=bad,
                     ))
+
+            matched = np.zeros(len(frame), dtype=bool)
+            for route in routes:
+                takes = (present == np.array([st in route for st, _ in stamped_cols])).all(axis=1)
+                matched |= takes
+                # Route order: consecutive timestamped states must ascend.
+                on = [c for c in map(spec.timestamp_of, route) if c in frame.columns]
+                for a_col, b_col in pairwise(on):
+                    pair = frame.loc[takes, [a_col, b_col]]
+                    if bad := int((pair[b_col] < pair[a_col]).sum()):
+                        out.append(CoherenceFinding(
+                            kind="lifecycle_out_of_order", severity="high",
+                            table=spec.table, column=b_col,
+                            message=(f"{bad} rows in state '{state}' have {b_col} "
+                                     f"before {a_col}, against the declared route"),
+                            rows_affected=bad,
+                        ))
+            if stamped_cols and (bad := int((~matched & ~broken).sum())):
+                out.append(CoherenceFinding(
+                    kind="lifecycle_no_route", severity="high",
+                    table=spec.table, column=spec.state_column,
+                    message=(f"{bad} rows in state '{state}' timestamp a set of "
+                             f"states that no declared route to it passes through"),
+                    rows_affected=bad,
+                ))
 
         # The chain must postdate its declared start.
         if spec.start_column and spec.start_column in df.columns:
@@ -1260,9 +1267,16 @@ def _detect_event_log_mismatch(tables, schema) -> List[CoherenceFinding]:
         state_of = ent[lc.state_column]
         by_entity = events.groupby(spec.entity_key)[spec.event_type_column].agg(set)
 
+        stamp_cols = [c for c in lc.timestamp_columns() if c in ent.columns]
+        state_of_col = {lc.timestamp_of(s): s for s in lc.state_names() if lc.timestamp_of(s)}
+        present = ent[stamp_cols].notna().to_numpy()
+        route_of: Dict[tuple, List[str]] = {}
         missing = extra = 0
-        for key, st in state_of.items():
-            path = lc.path_to(st) or [st]
+        for (key, st), row in zip(state_of.items(), present, strict=True):
+            if (st, row.tobytes()) not in route_of:
+                stamped = [state_of_col[c] for c, on in zip(stamp_cols, row, strict=True) if on]
+                route_of[st, row.tobytes()] = lc.route_taken(st, stamped, stamp_cols) or [st]
+            path = route_of[st, row.tobytes()]
             required = {spec.state_events[s] for s in path
                         if s in spec.state_events}
             allowed = required | set(spec.filler_events or [])
