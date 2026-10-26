@@ -1,6 +1,18 @@
-from typing import List, Dict, Callable, Optional
-import networkx as nx # type: ignore
+from typing import Any, List, Dict, Callable, Optional
 import numpy as np
+
+
+def _networkx() -> Any:
+    """The ``networkx`` module, which the ``causal`` extra installs."""
+    try:
+        import networkx  # type: ignore
+    except ImportError as exc:
+        raise ImportError(
+            "The causal graph requires networkx. "
+            "Install with: pip install 'misata[causal]'"
+        ) from exc
+    return networkx
+
 
 class CausalNode:
     """
@@ -24,7 +36,7 @@ class CausalGraph:
     Manages the DAG structure and execution order.
     """
     def __init__(self):
-        self.graph = nx.DiGraph()
+        self.graph = _networkx().DiGraph()
         self.nodes: Dict[str, CausalNode] = {}
 
     def add_node(self, node: CausalNode):
@@ -35,7 +47,7 @@ class CausalGraph:
 
     def get_topological_sort(self) -> List[str]:
         """Returns execution order"""
-        return list(nx.topological_sort(self.graph))
+        return list(_networkx().topological_sort(self.graph))
 
     def forward_pass(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         """
