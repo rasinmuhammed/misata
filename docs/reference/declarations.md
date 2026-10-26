@@ -93,10 +93,10 @@ generating anything.
 
 Every `__dunder__` directive below may also be nested inside the table dict
 it describes (the way `__correlations__` is usually written), not just
-declared at the top level — either placement reaches the engine, and a
+declared at the top level. Either placement reaches the engine, and a
 nested entry's `"table"` field is filled in from context when you leave it
 out. `misata lint` validates against the published JSON Schema, which keeps
-`table` required on every entry either way — include it explicitly there
+`table` required on every entry either way. Include it explicitly there
 even when nested, for a validator that can't see the nesting context.
 
 ---

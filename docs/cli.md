@@ -1,6 +1,6 @@
 ---
-title: CLI Reference, Misata Command-Line Synthetic Data Tool
-description: Full CLI reference for Misata. Generate synthetic datasets, scaffold YAML schemas, seed databases, and validate CSV files, all from the command line.
+title: "Misata CLI Reference: generate, explain, attest, solve, evalpack, publish"
+description: "Every Misata command-line command: generate synthetic data from DDL, YAML or a sentence, seed databases, explain a schema, attest files, solve for pipeline targets, build evalpacks and publish, with JSON output and exit codes."
 ---
 
 # CLI Reference
@@ -120,16 +120,36 @@ misata generate -c schema.sql -o out --attest           # SQL DDL: keys, CHECKs,
 
 | Flag | Default | Description |
 |:--|:--|:--|
-| `--story` |: | Plain-English story |
+| `--story` | none | Plain-English story |
 | `--rows` | 10 000 | Row count for primary table |
 | `--locale` | auto-detected | BCP-47 locale code (e.g. `de_DE`) |
 | `--seed` | random | Integer seed for reproducibility |
 | `--output-dir` | `.` | Directory to write output files |
-| `--format` | `csv` | `csv`, `jsonl` and `parquet` write one file per table; `duckdb` writes every table into `data.duckdb`. Rows are written as they are generated, so output size is bounded by disk, not memory |
-| `--partition-by` |: | With `--format parquet`, tables that have this column are written Hive-style: `orders/status=paid/part-00000.parquet` |
-| `--db-url` |: | Database URL for direct seeding |
+| `--format` | `csv` | `csv`, `jsonl` and `parquet` write one file per table; `jsonl` keeps nested columns as objects and lists; `duckdb` (DuckDB 1.3 or later) writes every table into `data.duckdb`. Rows are written as they are generated, so output size is bounded by disk, not memory |
+| `--partition-by` | none | With `--format parquet`, tables that have this column are written Hive-style: `orders/status=paid/part-00000.parquet`, one file per partition with a row group per batch. A column with more than 10,000 values is refused |
+| `--db-url` | none | Database URL for direct seeding |
 | `--db-create` | false | Create tables if they don't exist |
 | `--attest` | false | Attest the written files against the schema; exits 1 if a declaration does not hold |
+
+---
+
+## `misata seed`
+
+Fill a live Postgres or SQLite database from its own schema: tables and
+foreign keys are read from the database, rows are inserted parents first in
+one transaction, and every foreign key is checked against the database
+afterwards. See [Seed a live database](guides/seed-a-live-database.md).
+
+```bash
+misata seed postgresql://localhost/myapp_dev --dry-run      # the plan, nothing written
+misata seed postgresql://localhost/myapp_dev --rows 500
+misata seed sqlite:///dev.db --skip schema_migrations
+misata seed postgresql://localhost/myapp_dev --append       # keep populated tables
+misata seed postgresql://localhost/myapp_dev --truncate --yes
+```
+
+A table that already has rows is refused unless you pass `--truncate`
+(wipe it first) or `--append` (leave it and fill only the empty tables).
 
 ---
 
@@ -189,6 +209,91 @@ question verifies.
 
 ---
 
+## `misata audit` and `misata realism`
+
+Two checks for any folder of CSVs, whoever generated it.
+
+```bash
+misata audit out                         # reader-visible contradictions
+misata audit out --schema misata.yaml --strict
+misata realism out                       # statistical tells of generated data
+misata realism out --json                # the report is data.realism
+```
+
+`audit` finds what a reader would notice: an order shipped before it was
+placed, a churn date on an active subscription, and with a schema, orphaned
+foreign keys and parent totals that disagree with their children. `realism`
+finds shapes real data almost never has: flat weekdays, uniform amounts,
+every customer with the same number of orders. See the
+[realism report](realism.md).
+
+---
+
+## `misata lint`
+
+Check a schema file for declarations that cannot hold, before generating
+anything.
+
+```bash
+misata lint misata.yaml
+misata lint misata.yaml --strict
+```
+
+---
+
+## `misata sandbox`
+
+Create a SQLite database for an agent or a person to query. It refuses to
+overwrite a database it did not create, and queries run read-only. With
+`-c`, it holds the same rows as `misata generate` and an evalpack's first
+rotation for that schema, so an agent's SQL returns the same number in the
+sandbox and in the grader.
+
+```bash
+misata sandbox -c misata.yaml --db sandbox.db
+misata sandbox -c misata.yaml --db sandbox.db --sql "SELECT COUNT(*) FROM orders"
+misata sandbox --domain saas --rows 250
+```
+
+See [A sandbox an AI agent can act in](usecases/agent-sandbox.md).
+
+---
+
+## `misata mimic`
+
+Generate a twin of a CSV file. The twin is fitted to the real rows, reuses
+their category values and quantiles, and is not anonymous. It writes
+`fitted.json` beside the output, and `misata publish` refuses that folder
+without `--allow-fitted`. See [Mimic](guides/mimic.md).
+
+```bash
+misata mimic customers.csv --rows 100000 --output ./synthetic --seed 42
+```
+
+---
+
+## `misata provenance`
+
+Print what a dataset was made from, for a security or data-sharing review.
+Without a folder it prints the statement: generation from a schema reads no
+rows and needs no network, and the same version, schema and seed give the
+same bytes. With a folder it adds the inputs the attestation records
+(Misata version, schema hash, seed, result), whether `misata mimic` fitted
+it to real rows, and a sha256 and row count for every data file.
+
+```bash
+misata provenance
+misata provenance out
+misata provenance out --json
+```
+
+Regenerating the folder and comparing the hashes shows the schema and seed
+were the whole input. See [Data provenance](data-provenance.md) for the full
+statement and [PII-free staging and test environments](usecases/pii-free-environments.md)
+for the review it supports.
+
+---
+
 ## `misata validate`
 
 Profile a CSV and optionally check it against a schema.
@@ -242,3 +347,19 @@ Launch the visual schema designer (requires `pip install "misata[studio]"`).
 misata studio
 misata studio --port 8080 --no-browser
 ```
+
+---
+
+## Other commands
+
+| Command | What it does | Read |
+|---|---|---|
+| `misata dbt-seed` | generate into a dbt `seeds/` directory | [dbt seed integration](guides/dbt-seed.md) |
+| `misata dbt-unit-test` | fixtures for dbt `unit_tests:` from your project's `target/manifest.json` | [Known-answer tests for dbt](usecases/dbt-known-answer-tests.md) |
+| `misata dbt-fixture` | dbt 1.8+ unit test fixture CSVs from a story or schema | [dbt seed integration](guides/dbt-seed.md) |
+| `misata dbt-mutate` | measure whether your data tells correct SQL from plausible wrong SQL | |
+| `misata prisma-seed` | seed data from a Prisma schema | |
+| `misata mcp` | the MCP server for AI agents | [MCP server](guides/mcp.md) |
+| `misata serve` | the REST API, on 127.0.0.1 unless you pass `--host` | [REST API](guides/rest-api.md) |
+
+`misata COMMAND --help` lists every option.

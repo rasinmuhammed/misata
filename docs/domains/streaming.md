@@ -1,5 +1,5 @@
 ---
-title: Generate Streaming Platform Synthetic Data in Python | Misata
+title: "Generate Streaming Platform Synthetic Data in Python"
 description: Generate realistic streaming platform synthetic datasets in Python, subscribers, content, watch history, and ratings with churn coherence, completion rates, and content type distributions. No real viewer data required.
 ---
 
@@ -92,10 +92,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Latin American streaming — Spanish and Portuguese content, regional subscriber distribution
+# Latin American streaming: Spanish and Portuguese content, regional subscriber distribution
 tables = misata.generate("Latin American streaming platform with Spanish content library", rows=5000)
 
-# Asian streaming — Korean, Japanese, and Chinese content types
+# Asian streaming: Korean, Japanese, and Chinese content types
 tables = misata.generate("Asian streaming platform with K-drama and anime content", rows=5000)
 ```
 

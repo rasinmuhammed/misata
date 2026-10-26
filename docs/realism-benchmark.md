@@ -1,3 +1,8 @@
+---
+title: "Realism Benchmark: Detection AUC for Synthetic Data, Misata vs Faker vs SDV"
+description: "Blind and fitted synthetic data generators scored against held-out real Olist orders and NYC taxi trips, by a classifier's detection AUC over five seeds and by distribution distances."
+---
+
 # Realism benchmark
 
 Misata's default mode never sees real data, so "realistic" cannot be shown the
@@ -50,6 +55,24 @@ other metrics move by 0.01 or less between seeds; every one is in
 |---|---|---|---|---|---|---|
 | Olist | 0.500 (0.49–0.51) | 0.730 (0.73–0.73) | **0.629** (0.63–0.63) | 0.783 (0.78–0.79) | **0.537** (0.53–0.54) | 0.711 (0.71–0.72) |
 | NYC taxis | 0.503 (0.50–0.51) | 0.801 (0.80–0.81) | 0.750 (0.75–0.75) | 0.788 (0.78–0.79) | **0.543** (0.53–0.55) | 0.675 (0.67–0.68) |
+
+```chart
+type: bar
+title: Detection AUC, mean of five seeds (0.5 means a classifier cannot tell synthetic from real; lower is better)
+min: 0.5
+max: 0.85
+reference: 0.5
+source: benchmarks/results/summary.json, realism.datasets.*.detect_auc.mean
+
+| Generator | Olist | NYC taxis |
+|---|---:|---:|
+| real_train (noise floor) | 0.5 | 0.503 |
+| misata_mimic (fitted) | 0.537 | 0.543 |
+| misata_schema (blind) | 0.629 | 0.75 |
+| sdv_copula (fitted) | 0.711 | 0.675 |
+| misata_story (blind) | 0.73 | 0.801 |
+| faker_script (blind) | 0.783 | 0.788 |
+```
 
 ### Olist (30,000 orders)
 
@@ -155,3 +178,10 @@ other metrics did not change.
   category labels. They never see shares, ranges or any row.
 - Five seeds. A seed changes which 30,000 Olist orders are sampled, the
   train/test split and every generator's seed; it cannot add datasets.
+
+## Related
+
+- [Realism report](realism.md): the tells check behind the tells score, for any generator
+- [Validity benchmark](validity-benchmark.md): keys and CHECK rules rather than shapes
+- [Mimic](guides/mimic.md): the fitted contestant, which is not anonymous
+- [Limitations](limitations.md): the taxi fare miss and other known gaps

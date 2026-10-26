@@ -1,3 +1,8 @@
+---
+title: "Incremental Synthetic Data: Grow a Dataset Without Regenerating"
+description: "Add rows to an existing synthetic dataset later, with ids offset automatically and foreign keys valid across both batches."
+---
+
 # Incremental Generation
 
 Grow an existing dataset without regenerating from scratch. IDs auto-offset, FK integrity is maintained across both batches.

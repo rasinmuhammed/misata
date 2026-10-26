@@ -1,6 +1,6 @@
 ---
 title: "Distribution Reference, Every Numeric Shape Misata Supports"
-description: "The complete set of numeric distributions — normal, log-normal, uniform, exponential, poisson, binomial, zipf/pareto, beta, gamma — with their parameters and when to use each."
+description: "The complete set of numeric distributions (normal, log-normal, uniform, exponential, poisson, binomial, zipf/pareto, beta, gamma) with their parameters and when to use each."
 ---
 
 # Distribution Reference
@@ -33,7 +33,7 @@ Every `int`/`float` column carries a `distribution` in its `distribution_params`
 
 ## Heavy-tailed (power-law)
 
-For "a few get most, most get very few" — views, followers, wealth, file sizes:
+For "a few get most, most get very few" (views, followers, wealth, file sizes):
 
 | Distribution | Params | Notes |
 |---|---|---|

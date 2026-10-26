@@ -1,5 +1,5 @@
 ---
-title: Generate Pharma & Clinical Research Synthetic Data in Python | Misata
+title: "Generate Pharma & Clinical Research Synthetic Data in Python"
 description: Generate realistic pharma and clinical research synthetic datasets in Python, researchers, clinical trials, projects, and timesheets with phase-accurate distributions. No real trial or patient data required or used.
 ---
 
@@ -82,7 +82,7 @@ tables = misata.generate(
 # European pharma: EU-style trial phases and researcher records
 tables = misata.generate("European pharma research company with 150 researchers", rows=150)
 
-# US pharma — FDA-track trials, US institutional affiliations
+# US pharma: FDA-track trials, US institutional affiliations
 tables = misata.generate("US oncology research company with Phase I-III trials", rows=200)
 ```
 

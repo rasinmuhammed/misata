@@ -1,3 +1,8 @@
+---
+title: "Outcome Curves: Synthetic Data That Hits Exact Monthly Totals"
+description: "Declare what a column must sum to in each period, such as monthly revenue, and Misata generates rows whose totals match exactly, with a conformance preview before generating."
+---
+
 # Outcome Curve-Driven Synthesis
 
 Misata's outcome-curve engine lets you declare **what your data should aggregate to** rather than how individual rows are distributed. The engine then generates rows that hit your declared targets **exactly**: not approximately.
@@ -34,7 +39,7 @@ The simplest path, describe your curve in plain English. The `StoryParser` extra
 import misata
 
 tables = misata.generate(
-    "An ecommerce store with 10k orders — revenue from $10k in January "
+    "An ecommerce store with 10k orders: revenue from $10k in January "
     "to $120k in December, with a Black Friday spike and an August dip"
 )
 ```
@@ -52,7 +57,7 @@ Use `OutcomeCurveBuilder` when you need precise control, the primary target for 
 ```python
 from misata import OutcomeCurveBuilder, parse, generate_from_schema
 
-# Sparse anchors — the builder interpolates between them
+# Sparse anchors: the builder interpolates between them
 curve = (
     OutcomeCurveBuilder("orders", column="amount", time_column="order_date")
     .start("2024-01-01")
@@ -62,7 +67,7 @@ curve = (
     .dip("2024-08", factor=0.7)   # August slowdown (-30%)
     .spike("2024-11", factor=1.3) # November push (+30%)
     .avg_value(75.0)              # drives row-count planning (paper §3.1)
-    .concentration(2.0)           # Dirichlet α — per-row dispersion (paper §3.2)
+    .concentration(2.0)           # Dirichlet α: per-row dispersion (paper §3.2)
     .build()
 )
 
@@ -314,3 +319,9 @@ Key parameters:
 - `min/max_transactions_per_period`, guards against distortion when `n_p` is clamped
 
 See the full paper at [arXiv:2606.08736v1](https://arxiv.org/abs/2606.08736v1) for proofs and SpecBench benchmark results.
+
+## See it end to end
+
+- [A warehouse before the product has users](../usecases/warehouse-before-users.md): a twelve-month revenue curve with plan shares and a refund rate.
+- [Known-answer tests for dbt models](../usecases/dbt-known-answer-tests.md): a curve as the answer key of a dbt test.
+- [Solve for a pipeline's output](solve.md): when the number that matters is computed downstream of the curve.

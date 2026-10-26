@@ -1,6 +1,6 @@
 ---
-title: Solve for a Pipeline's Output
-description: Make a dbt model, a SQL query or a Python function produce the numbers you declare, by moving Misata's outcome curves until the pipeline's metrics hit their targets.
+title: "Solve for a Pipeline's Output: Make dbt or SQL Hit Target Metrics"
+description: "Make a dbt model, a SQL query or a Python function produce the numbers you declare, by moving Misata's outcome curves until the pipeline's metrics hit their targets, then attest the result."
 ---
 
 # Solve for a pipeline's output
@@ -14,6 +14,28 @@ and repeats until every period is within tolerance.
 
 The result is a dataset that, run through your real pipeline, produces the
 numbers you asked for, plus a solved schema that regenerates it exactly.
+
+```diagram
+# The inverse loop
+ solve.yaml: targets per period, one lever (an outcome curve) per target
+      │
+      ▼
+ ┌─▶ schema with the lever's curve points ──▶ feasibility gate (exit 3 if not)
+ │        │
+ │        ▼
+ │   generate (same seed every iteration)
+ │        │
+ │        ▼
+ │   your pipeline: DuckDB SQL · dbt on DuckDB · a Python function
+ │        │
+ │        ▼
+ │   metric per period vs target ── every period within tolerance? ──▶ converged
+ │        │ no                                                          │
+ │        ▼                                                             ▼
+ └── step each lever: coupled least squares,          write: tables, misata.solved.yaml,
+     else secant, else damped ratio                   schema.solved.json, solve.json,
+     (never past zero, never more than 20x)           an attestation (SQL: each solved period)
+```
 
 ## A first solve
 
@@ -213,6 +235,13 @@ Tax is not linear in wages: brackets, the EITC phase-out and the Child Tax
 Credit make doubling wages more than double the tax, which is why the secant
 step does the work here. The Tax-Calculator proof runs in the test suite
 when `taxcalc` is installed (`tests/test_pipeline_proofs.py`).
+
+## See it end to end
+
+[Known-answer tests for dbt models](../usecases/dbt-known-answer-tests.md)
+declares the monthly totals a model must produce when the model only sums
+them. When the model transforms the rows first (fees, refunds, a fiscal
+calendar), give the same targets to `misata solve` with a dbt pipeline.
 
 ## From an agent
 

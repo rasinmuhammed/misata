@@ -1,3 +1,8 @@
+---
+title: "Build a Text-to-SQL Evaluation Dataset With a Verified Answer Key"
+description: "misata evalpack writes databases whose answers were declared before the data existed, verifies every gold SQL with DuckDB on several rotated databases, and scores your model's SQL against all of them."
+---
+
 # Build an evalpack
 
 An evalpack is a database with questions whose answers were fixed before a
@@ -61,6 +66,25 @@ share every declared answer and differ in every row. A question ships only
 when its answer holds on all of them, and a candidate counts as correct
 only when it matches on all of them.
 
+```diagram
+# One answer key, three databases
+                     misata.yaml (declared answers)
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          ▼                     ▼                     ▼
+   rotations/seed-42     rotations/seed-43     rotations/seed-44
+   different rows        different rows        different rows
+   same answers          same answers          same answers
+          │                     │                     │
+          └──────── every gold SQL must match on all ─┘
+                                │      (else the question is dropped)
+                                ▼
+                questions.jsonl  +  verify.py --candidates answers.jsonl
+                                │
+            OK   only when the candidate matches on every database
+            FAIL when it fits one database's rows and not the others
+```
+
 That catches queries that depend on particular rows rather than on the
 question: a hard-coded key, a `LIMIT` without `ORDER BY`, a filter that
 happens to select the same rows in one database. It does not catch a model
@@ -95,6 +119,19 @@ carries rows:
 | `datetime` | 100% | 100% |
 | `date` | 0% | 12% |
 
+```chart
+type: bar
+title: Off-by-one window mistakes that still pass, by time column type
+suffix: "%"
+max: 100
+source: the 12-month, three-rotation pack in tests/test_evalpack_rotations.py
+
+| Mistake | datetime column | date column |
+|---|---:|---:|
+| exclusive_start | 100 | 0 |
+| inclusive_end | 100 | 12 |
+```
+
 Measured on the 12-month, three-rotation pack in
 `tests/test_evalpack_rotations.py`. The `inclusive_end` mistakes that still
 pass close the last period, where no row exists past the end of the curve.
@@ -102,6 +139,23 @@ A `time_grids` declaration can put the dates in business hours: on a `date`
 column the grid never changes the day. On a `datetime` curve column a grid
 is refused, because rows late on a period's last day would roll into the
 next period.
+
+## Declare money with cents
+
+The same reasoning applies to rounding. With round targets (a month that
+sums to exactly 410,000), a query that rounds money to whole units returns
+the gold answer and cannot be told apart from a correct one. Declare targets
+with cents (410,000.37) and that mistake fails. In the
+[eval-database recipe](../usecases/eval-database.md), money rounded to whole
+units passes 88.6% of the time with round targets and never with cents.
+
+## Packs from an answer key
+
+When the questions come from somewhere other than the schema's declarations,
+such as a generated answer key, `misata.evalpack.verify_questions(con,
+questions)` applies the same comparison: it keeps the questions whose gold
+SQL returns the expected answer on a DuckDB connection, and returns the
+dropped ones with their `drop_reason`.
 
 ## Limits
 
@@ -112,3 +166,12 @@ next period.
   same Misata version.
 - Why a candidate question was dropped is listed in
   [failure modes](../failure-modes.md#evalpack-question-gates).
+
+## See it end to end
+
+- [An eval database with a correct answer key](../usecases/eval-database.md):
+  46 questions, three rotations, scored candidates and the near-miss table.
+- [A sandbox an AI agent can act in](../usecases/agent-sandbox.md): the same
+  grader behind an agent that queries a live SQLite sandbox.
+- [Publish to Hugging Face](publish.md): a rotated pack becomes one split
+  per rotation.

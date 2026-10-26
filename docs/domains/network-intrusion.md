@@ -1,11 +1,11 @@
 ---
-title: "Generate Synthetic Network Intrusion / Netflow Data in Python | Misata"
+title: "Generate Synthetic Network Intrusion / Netflow Data in Python"
 description: "Generate labeled netflow-style traffic with attack injection grounded in the ID2T / UNSW-NB15 construction methodology and named MITRE ATT&CK techniques (T1595, T1498, T1048.003, T1110). No real packet capture required, and no privacy problem to anonymize away."
 ---
 
 # Generate Synthetic Network Intrusion / Netflow Data in Python
 
-Security researchers openly complain that the standard intrusion-detection benchmarks are stale and keep getting reused anyway "because nothing better exists" — NSL-KDD dates to 1999, CICIDS2017 to 2017. Entire dedicated tools (ID2T, AIT Netflow, HIKARI-2021) exist purely to make fresher ones. A `protocol` column and an `is_attack` flag with no statistical relationship between them doesn't help: a port scan, a DDoS flood, and a brute-force attempt each carry a specific, checkable signature in packet size, byte count, and source/destination fan pattern, and a labeled dataset is only useful for testing an IDS if that signature is actually present in the data, not just named in a column.
+Security researchers openly complain that the standard intrusion-detection benchmarks are stale and keep getting reused anyway "because nothing better exists": NSL-KDD dates to 1999, CICIDS2017 to 2017. Entire dedicated tools (ID2T, AIT Netflow, HIKARI-2021) exist purely to make fresher ones. A `protocol` column and an `is_attack` flag with no statistical relationship between them doesn't help: a port scan, a DDoS flood, and a brute-force attempt each carry a specific, checkable signature in packet size, byte count, and source/destination fan pattern, and a labeled dataset is only useful for testing an IDS if that signature is actually present in the data, not just named in a column.
 
 ```python
 import misata
@@ -31,7 +31,7 @@ tables = misata.generate_from_schema(misata.from_dict_schema(schema, seed=13))
 print(list(tables.keys()))   # ['hosts', 'flows']
 ```
 
-That is the minimal shape. The full example — IP addresses shaped to each host's declared zone, per-service traffic profiles, and each attack category built to carry its named technique's actual statistical signature — is a working, runnable script: [`examples/network_intrusion_netflow.py`](https://github.com/rasinmuhammed/misata/blob/main/examples/network_intrusion_netflow.py). Run it directly:
+That is the minimal shape. The full example (IP addresses shaped to each host's declared zone, per-service traffic profiles, and each attack category built to carry its named technique's actual statistical signature) is a working, runnable script: [`examples/network_intrusion_netflow.py`](https://github.com/rasinmuhammed/misata/blob/main/examples/network_intrusion_netflow.py). Run it directly:
 
 ```bash
 python examples/network_intrusion_netflow.py
@@ -72,20 +72,20 @@ ALL CHECKS PASSED
 
 ## What each attack category is grounded in
 
-**The overall construction.** Protocol-realistic background traffic with attacks injected against documented behavior patterns and known ground-truth labels is the ID2T / UNSW-NB15 methodology (Cyber Range Lab, Australian Centre for Cyber Security). UNSW-NB15's own two-column convention — a binary `label` plus a multi-class `attack_cat` — is why this example ships both, rather than only one.
+**The overall construction.** Protocol-realistic background traffic with attacks injected against documented behavior patterns and known ground-truth labels is the ID2T / UNSW-NB15 methodology (Cyber Range Lab, Australian Centre for Cyber Security). UNSW-NB15's own two-column convention, a binary `label` plus a multi-class `attack_cat`, is why this example ships both, rather than only one.
 
-**Port scan (MITRE ATT&CK T1595, Active Scanning).** A real SYN scan leaves a specific fingerprint: a single bare TCP SYN packet (`packet_count = 1`), a minimal 40-60 byte frame with no payload, no completed handshake, and — the actual tell — one or a handful of source hosts hitting a huge, largely non-repeating spread of destination ports against very few targets. This example generates exactly that spread and checks it: scanning hosts hit roughly 50x more distinct ports than an ordinary benign host does.
+**Port scan (MITRE ATT&CK T1595, Active Scanning).** A real SYN scan leaves a specific fingerprint: a single bare TCP SYN packet (`packet_count = 1`), a minimal 40-60 byte frame with no payload, no completed handshake, and (the actual tell) one or a handful of source hosts hitting a huge, largely non-repeating spread of destination ports against very few targets. This example generates exactly that spread and checks it: scanning hosts hit roughly 50x more distinct ports than an ordinary benign host does.
 
-**DDoS (MITRE ATT&CK T1498, Network Denial of Service).** A flood's signature isn't a large packet — it's concentration. Each individual flow here is small (1-3 packets), but a wide, distinct pool of external sources (a simulated botnet) all converge on the same one or two internal targets, checked directly: dozens of distinct sources, at most two distinct destinations.
+**DDoS (MITRE ATT&CK T1498, Network Denial of Service).** A flood's signature isn't a large packet: it's concentration. Each individual flow here is small (1-3 packets), but a wide, distinct pool of external sources (a simulated botnet) all converge on the same one or two internal targets, checked directly: dozens of distinct sources, at most two distinct destinations.
 
-**DNS exfiltration (MITRE ATT&CK T1048.003, Exfiltration Over DNS).** Forced to the real transport — UDP, port 53, exactly like any legitimate DNS query — because the only way to exfiltrate data through DNS is to look like DNS. What gives it away, and what this example actually measures, is payload size: exfiltrated data has to be encoded into the query itself, so its average bytes-per-packet runs well above an ordinary DNS lookup's, checked as a direct ratio against this same dataset's own benign DNS traffic rather than an assumed constant.
+**DNS exfiltration (MITRE ATT&CK T1048.003, Exfiltration Over DNS).** Forced to the real transport (UDP, port 53, exactly like any legitimate DNS query) because the only way to exfiltrate data through DNS is to look like DNS. What gives it away, and what this example actually measures, is payload size: exfiltrated data has to be encoded into the query itself, so its average bytes-per-packet runs well above an ordinary DNS lookup's, checked as a direct ratio against this same dataset's own benign DNS traffic rather than an assumed constant.
 
-**Brute force (MITRE ATT&CK T1110, Brute Force).** Scoped to the two services it actually targets in practice — SSH (22) and RDP (3389) — with short flows sized like a failed authentication handshake, repeated from a small attacker pool against a small target pool far more densely than any benign traffic pattern: dozens of flows per attacker/target pair here, against roughly one for ordinary traffic.
+**Brute force (MITRE ATT&CK T1110, Brute Force).** Scoped to the two services it actually targets in practice, SSH (22) and RDP (3389), with short flows sized like a failed authentication handshake, repeated from a small attacker pool against a small target pool far more densely than any benign traffic pattern: dozens of flows per attacker/target pair here, against roughly one for ordinary traffic.
 
 ## Giveaways caught before shipping
 
-The [credit-risk-portfolio example](credit-risk.md) shipped once with unrounded floats and a nanosecond-precision date column. This one was built with those exact failure modes in mind from the start: `start_time` is floored to millisecond precision (a real netflow collector's actual resolution, not pandas' nanosecond default), IP addresses are shaped to each host's declared zone (internal hosts get RFC 1918 `10.x.x.x` addresses, external hosts get addresses outside every private and loopback range), no flow has a host talking to itself, and every packet/byte combination is checked against the physical floor of a real frame — no flow implies a sub-40-byte packet, which a pair of independently random integer columns would produce constantly.
+The [credit-risk-portfolio example](credit-risk.md) shipped once with unrounded floats and a nanosecond-precision date column. This one was built with those exact failure modes in mind from the start: `start_time` is floored to millisecond precision (a real netflow collector's actual resolution, not pandas' nanosecond default), IP addresses are shaped to each host's declared zone (internal hosts get RFC 1918 `10.x.x.x` addresses, external hosts get addresses outside every private and loopback range), no flow has a host talking to itself, and every packet/byte combination is checked against the physical floor of a real frame: no flow implies a sub-40-byte packet, which a pair of independently random integer columns would produce constantly.
 
 ## What this is not
 
-This targets the four attack categories above, generated to carry their real statistical signature — it is not a general-purpose IDS training corpus covering every category UNSW-NB15 or CICIDS2017 label (backdoors, exploits, worms, and several others aren't modeled here). The traffic volumes and host counts are declared, not measured from a real network's actual baseline load. This is built for testing detection logic and validating a pipeline's handling of labeled netflow data, not as a drop-in replacement for a production SOC's live traffic feed.
+This targets the four attack categories above, generated to carry their real statistical signature. It is not a general-purpose IDS training corpus covering every category UNSW-NB15 or CICIDS2017 label (backdoors, exploits, worms, and several others aren't modeled here). The traffic volumes and host counts are declared, not measured from a real network's actual baseline load. This is built for testing detection logic and validating a pipeline's handling of labeled netflow data, not as a drop-in replacement for a production SOC's live traffic feed.

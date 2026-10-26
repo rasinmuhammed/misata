@@ -1,3 +1,8 @@
+---
+title: "Realism Report: Detect the Tells of Fake or Generated Data"
+description: "Scan any tables, from Faker, SDV, Mockaroo or Misata, for the shapes real data almost never has: uniform money, flat weekdays, even fan-out, placeholder names and templated text."
+---
+
 # Realism report: find the tells of generated data
 
 `misata audit` catches contradictions: orders shipped before they were placed,

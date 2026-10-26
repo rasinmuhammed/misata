@@ -1,5 +1,5 @@
 ---
-title: Generate EdTech Synthetic Data in Python | Misata
+title: "Generate EdTech Synthetic Data in Python"
 description: Generate realistic EdTech synthetic datasets in Python, instructors, courses, students, enrollments, and quiz attempts with back-to-school seasonality, completion rate distributions, and referential integrity. No real student data required.
 ---
 
@@ -47,7 +47,7 @@ Five tables: `instructors` → `courses` → `enrollments` (linking students to 
 import misata
 
 tables = misata.generate(
-    "An edtech platform with 5k students — back to school surge, New Year spike in programming courses",
+    "An edtech platform with 5k students: back to school surge, New Year spike in programming courses",
     rows=5000,
     seed=42,
 )
@@ -83,7 +83,7 @@ print(merged.groupby("difficulty")["passed"].mean())
 
 ```python
 tables = misata.generate(
-    "Edtech platform with 10k students — January New Year resolution spike, "
+    "Edtech platform with 10k students: January New Year resolution spike, "
     "August back-to-school surge, summer lull in June-July",
     rows=10_000,
     seed=42,
@@ -93,10 +93,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Indian edtech — Indian student names, INR course pricing, regional subjects
+# Indian edtech: Indian student names, INR course pricing, regional subjects
 tables = misata.generate("Indian edtech platform with 5k students and coding courses", rows=5000)
 
-# Global MOOC — students from US, UK, India, Nigeria, Brazil
+# Global MOOC: students from US, UK, India, Nigeria, Brazil
 tables = misata.generate("Global online learning platform with 10k students", rows=10_000)
 ```
 

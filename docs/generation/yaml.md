@@ -1,3 +1,8 @@
+---
+title: "YAML Schema Reference for Synthetic Data: misata.yaml"
+description: "Write a misata.yaml schema, commit it to git and regenerate the same dataset anywhere: structure, column types, relationships, scaffolding with misata init and round-tripping."
+---
+
 # YAML Schema
 
 Define your schema in a file, commit it to git, and reproduce the same dataset anywhere, no LLM required.

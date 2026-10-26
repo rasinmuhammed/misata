@@ -1,3 +1,8 @@
+---
+title: "When Misata Refuses: Infeasible Declarations, Warnings and Fixes"
+description: "What Misata does when a schema cannot be satisfied exactly: rate rounding, bounds versus totals, row-count clamps, evalpack question gates, and how to make warnings fatal in CI."
+---
+
 # When Misata refuses
 
 Misata treats an impossible declaration as a bug in the declaration, not something to paper over. When your spec cannot be satisfied exactly, the engine either warns and tells you which property it sacrificed, or drops the affected artifact rather than shipping a wrong one. This page collects every such refusal, with the arithmetic that triggers it and the exact message you will see, so you can search this page by the warning text itself.

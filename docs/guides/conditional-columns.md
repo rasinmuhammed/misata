@@ -1,11 +1,11 @@
 ---
 title: "Conditional Columns, Make One Column Depend on Another"
-description: "Use depends_on to make a column's distribution conditional on another column or a parent table — salary by role, MRR by plan tier, approval rate by policy type — including across foreign keys."
+description: "Use depends_on to make a column's distribution conditional on another column or a parent table (salary by role, MRR by plan tier, approval rate by policy type), including across foreign keys."
 ---
 
 # Conditional Columns (`depends_on`)
 
-Real data is conditional: salary depends on role, MRR depends on plan tier, claim-approval probability depends on policy type. `depends_on` makes a column's distribution switch on the value of another column — in the same table, or in a parent table across a foreign key.
+Real data is conditional: salary depends on role, MRR depends on plan tier, claim-approval probability depends on policy type. `depends_on` makes a column's distribution switch on the value of another column: in the same table, or in a parent table across a foreign key.
 
 > If two *numeric* columns should move together statistically (without one strictly determining the other), use a [correlation](correlations.md) instead. Use `depends_on` when a category picks the distribution.
 

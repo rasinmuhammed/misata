@@ -1,6 +1,6 @@
 ---
-title: Pytest Fixtures for Synthetic Data | Misata
-description: Use misata.testing to create pytest fixtures that generate realistic synthetic data without database setup. Zero configuration, reproducible seeds, full FK integrity.
+title: "pytest Fixtures With Realistic Relational Test Data"
+description: "Use Misata in pytest: fixtures that generate related tables with valid keys, reproducible seeds and fingerprints you can commit with the test."
 ---
 
 # Pytest Fixtures with Misata
@@ -37,8 +37,10 @@ def test_churn_report(misata_tables):
     ...
 ```
 
-- `schema=` takes a path (relative to the pytest root), a dict schema or a
-  `SchemaConfig`; `story=` takes a sentence. `seed=` and `rows=` are optional.
+- `schema=` takes a path, a dict schema or a `SchemaConfig`; `story=` takes
+  a sentence. `seed=` and `rows=` are optional. A relative path is looked up
+  beside the test file first, then from the pytest root, and may point at
+  YAML, JSON or SQL DDL (`.sql`).
 - Tests with the same marker arguments share one generation per session, and
   each test gets its own copies, so mutating a frame never leaks.
 - `misata_generate`, `misata_parse` and `misata_preview` are also available.
@@ -175,3 +177,9 @@ import misata
 def shared_ecommerce():
     return misata.generate("An ecommerce store", rows=5000, seed=42)
 ```
+
+## Related
+
+- [Seed a dev database from its DDL](../usecases/seed-a-dev-database.md): a CI database seeded and attested from its own DDL
+- [Known-answer tests for dbt models](../usecases/dbt-known-answer-tests.md): tests that assert the right number, not only unique keys
+- [Python API reference](../reference/python-api.md#check-the-result): `fingerprint` and the other checks

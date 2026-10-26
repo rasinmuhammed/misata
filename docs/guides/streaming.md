@@ -1,6 +1,6 @@
 ---
-title: Streaming Large Synthetic Datasets | Misata
-description: Generate 10M+ row synthetic datasets without loading everything into memory using misata.generate_stream(). Yields (table_name, batch_df) tuples for memory-efficient processing.
+title: "Stream Millions of Rows of Synthetic Data in Bounded Memory"
+description: "Generate datasets larger than memory with generate_stream or misata generate --format parquet, csv, jsonl or duckdb, with one-hop roll-ups reconciled while streaming."
 ---
 
 # Streaming Large Synthetic Datasets
@@ -182,3 +182,5 @@ misata.generate_stream(
 - [generate()](../quickstart.md), standard in-memory generation
 - [Export](../export.md), Parquet, DuckDB, JSONL export
 - [Database Seeding](database-seeding-python.md), seed directly into a database
+- [A warehouse before the product has users](../usecases/warehouse-before-users.md), 291,000 rows to partitioned Parquet with an attestation
+- [CLI reference](../cli.md#misata-generate), `--format` and `--partition-by`

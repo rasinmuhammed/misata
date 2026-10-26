@@ -1,6 +1,6 @@
 ---
-title: Faker vs SDV vs Misata, Choosing the Right Python Synthetic Data Tool
-description: Compare Faker, SDV, and Misata for Python synthetic data generation. See real code examples for multi-table datasets, database seeding, and test data, and pick the right tool for your use case.
+title: "Faker vs SDV vs Misata: Which Python Synthetic Data Tool?"
+description: "How Faker, SDV and Misata differ: per-column fake values, models trained on real data, and declared multi-table generation, with measured violations and detection AUC."
 ---
 
 # Faker vs SDV vs Misata: Choosing the Right Python Synthetic Data Tool
@@ -27,6 +27,24 @@ the difference with working code so you can pick the right one in under five min
 | Reproducible seed | ✓ | ✓ | ✓ |
 | Install size | Small | Large (~1 GB w/ deps) | Medium |
 
+## Measured on the same schemas
+
+Two benchmarks in the Misata repository compare the three directly; both
+have a command that reproduces them.
+
+- **Validity.** On five SQL schemas with CHECK rules, composite keys and a
+  self-referencing hierarchy, Misata generated from the DDL has zero
+  violations. A per-column Faker script has 15,014 to 50,416 per schema. SDV's
+  multi-table model (HMA), fitted on valid data, has 3,055 to 5,557 on the
+  three schemas it accepts and refuses the other two. See the
+  [validity benchmark](../validity-benchmark.md).
+- **Realism.** A classifier separating generated orders from held-out real
+  Olist orders scores a detection AUC of 0.629 on blind Misata, 0.711 on SDV's
+  Gaussian copula fitted to the real orders, and 0.783 on a Faker script
+  (0.5 means it cannot tell them apart). On NYC taxi trips SDV fitted to the
+  trips does better than blind Misata, 0.675 against 0.750. See the
+  [realism benchmark](../realism-benchmark.md).
+
 ---
 
 ## Faker: row-level fake data, no relationships
@@ -38,7 +56,7 @@ providers covering names, addresses, credit card numbers, and more.
 from faker import Faker
 fake = Faker()
 
-# One row of user data — fast and simple
+# One row of user data, fast and simple
 print(fake.name())         # "Patricia Mueller"
 print(fake.email())        # "tricia23@example.net"
 print(fake.credit_card_number())  # "4532015112830366"
@@ -50,7 +68,7 @@ print(fake.credit_card_number())  # "4532015112830366"
 # Building a customers → orders relationship by hand
 customers = [{"id": i, "email": fake.email()} for i in range(1000)]
 
-# You must manually wire FK integrity yourself — nothing enforces it
+# You must manually wire FK integrity yourself: nothing enforces it
 orders = [
     {
         "order_id": j,
@@ -107,7 +125,7 @@ MRR targets, churn percentages) are pinned exactly.
 ```python
 import misata
 
-# One line — no real data, no model training, no FK wiring
+# One line: no real data, no model training, no FK wiring
 tables = misata.generate("A fintech company with 2000 customers and banking transactions.", seed=42)
 
 customers    = tables["customers"]     # 2,000 rows
@@ -128,7 +146,7 @@ schema = misata.parse(
 )
 tables = misata.generate_from_schema(schema)
 
-# Monthly MRR sums match the targets exactly — not approximately
+# Monthly MRR sums match the targets exactly, not approximately
 monthly = tables["subscriptions"].groupby(
     pd.to_datetime(tables["subscriptions"]["start_date"]).dt.month
 )["mrr"].sum()
@@ -145,7 +163,7 @@ match real ABO/Rh statistics. Credit scores match real FICO distributions. MRR
 follows a log-normal curve because real SaaS revenue is log-normal.
 
 ```python
-# Healthcare — blood types follow real ABO/Rh frequencies (no config needed)
+# Healthcare: blood types follow real ABO/Rh frequencies (no config needed)
 tables = misata.generate("A hospital with 500 patients and doctors.", seed=42)
 patients = tables["patients"]
 
@@ -191,7 +209,7 @@ valid  = set(ids)
 
 customers = [{"customer_id": i, "email": fake.email(), "name": fake.name()} for i in ids]
 
-# Manual FK wiring — you're responsible for this
+# Manual FK wiring: you're responsible for this
 orders = [
     {
         "order_id":    j,
@@ -202,7 +220,7 @@ orders = [
     for j in range(1, 5001)
 ]
 
-# No integrity guarantee — you'd need to assert this yourself
+# No integrity guarantee: you'd need to assert this yourself
 ```
 
 ~30 lines. You wrote the distribution, the FK logic, and the date range manually.
@@ -210,7 +228,7 @@ orders = [
 ### SDV
 
 ```python
-# SDV requires real data — this task cannot be completed from scratch.
+# SDV requires real data: this task cannot be completed from scratch.
 # You would need real customer and order tables to fit the model first.
 ```
 
@@ -225,7 +243,7 @@ tables    = misata.generate("An ecommerce store with 1000 customers and orders."
 customers = tables["customers"]   # 1,000 rows, realistic email/name/signup_date
 orders    = tables["orders"]      # 5,000+ rows, right-skewed amounts
 
-# FK integrity is guaranteed — no assertion needed, but it holds:
+# FK integrity is guaranteed, no assertion needed, but it holds:
 assert (~orders["customer_id"].isin(customers["customer_id"])).sum() == 0
 ```
 
@@ -271,4 +289,4 @@ pip install "misata[llm]"
 - [Multi-table synthetic data in Python](multi-table-synthetic-data.md)
 - [Database seeding with Python](database-seeding-python.md)
 - [Synthetic data for BI demos](synthetic-data-for-bi-demos.md)
-- [Python synthetic data generator guide](python-synthetic-data-generator.md)
+- [Python synthetic data generator guide](../python-synthetic-data-generator.md)

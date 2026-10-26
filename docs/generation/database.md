@@ -1,3 +1,8 @@
+---
+title: "Generate Synthetic Data From an Existing Database Schema"
+description: "Introspect a live Postgres, MySQL or SQLite schema, generate rows that respect its foreign keys, and seed a development copy in one transaction."
+---
+
 # Database Seeding
 
 Point Misata at an existing database schema and fill a dev or staging environment with production-like data, FK ordering handled automatically.
@@ -7,22 +12,24 @@ Point Misata at an existing database schema and fill a dev or staging environmen
 ```python
 from misata import schema_from_db, generate_from_schema, seed_database
 
-# Read your live schema — no column definitions needed
+# Read your live schema: no column definitions needed
 schema = schema_from_db("postgresql://user:pass@localhost/myapp")
-tables = generate_from_schema(schema)
 
-report = seed_database(tables, "postgresql://user:pass@localhost/myapp_dev")
-print(report)
-# SeedReport: seeded 6 tables, 47,300 rows in 1.2s
+# Generate and insert into a dev copy, in one transaction
+report = seed_database(schema, "postgresql://user:pass@localhost/myapp_dev")
+print(report.table_rows)
+
+# Or keep the rows in memory as DataFrames
+tables = generate_from_schema(schema)
 ```
 
 ## CLI workflow
 
 ```bash
-# Step 1 — introspect into a YAML file
+# Step 1: introspect into a YAML file
 misata init --db postgresql://user:pass@localhost/myapp
 
-# Step 2 — review / edit misata.yaml, then seed
+# Step 2: review or edit misata.yaml, then seed
 misata generate --db-url postgresql://user:pass@localhost/myapp_dev --db-create
 ```
 

@@ -1,5 +1,5 @@
 ---
-title: Generate Food Delivery Synthetic Data in Python | Misata
+title: "Generate Food Delivery Synthetic Data in Python"
 description: Generate realistic food delivery synthetic datasets in Python, restaurants, customers, couriers, orders, and order items with delivery time coherence and cuisine distributions. No real order data required.
 ---
 
@@ -91,10 +91,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Indian food delivery — Indian cuisines, INR pricing, Indian cities
+# Indian food delivery: Indian cuisines, INR pricing, Indian cities
 tables = misata.generate("Indian food delivery app with 200 restaurants in Mumbai and Delhi", rows=1000)
 
-# UK platform — British and international cuisines, GBP pricing, UK cities
+# UK platform: British and international cuisines, GBP pricing, UK cities
 tables = misata.generate("UK food delivery platform with 150 restaurants in London", rows=800)
 ```
 

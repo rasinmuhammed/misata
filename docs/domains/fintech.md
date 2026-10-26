@@ -1,5 +1,5 @@
 ---
-title: Generate Fintech Synthetic Data in Python | Misata
+title: "Generate Fintech Synthetic Data in Python"
 description: Generate realistic fintech synthetic datasets in Python, customers, bank accounts, transactions, fraud flags, and credit scores with locale-aware IBANs and configurable fraud rates. No real data required.
 ---
 
@@ -74,7 +74,7 @@ Generate a dataset where fraud spikes during a specific period, useful for train
 
 ```python
 tables = misata.generate(
-    "Fintech with 5k customers — fraud spike in March due to phishing campaign, "
+    "Fintech with 5k customers: fraud spike in March due to phishing campaign, "
     "normal rate 1%, March rate 8%, back to normal by April",
     rows=5000,
     seed=42,
@@ -84,13 +84,13 @@ tables = misata.generate(
 ## Advanced: multi-locale fintech
 
 ```python
-# German banking — EUR, German IBANs (DE##...), German names
+# German banking: EUR, German IBANs (DE##...), German names
 tables = misata.generate("German neo-bank with 3k customers, SEPA payments", rows=3000)
 
-# US fintech — USD, US credit scores, SSN-format verification
+# US fintech: USD, US credit scores, SSN-format verification
 tables = misata.generate("US lending fintech with 5k customers, FICO scoring", rows=5000)
 
-# Indian fintech — INR, UPI payments, Aadhaar verification
+# Indian fintech: INR, UPI payments, Aadhaar verification
 tables = misata.generate("Indian fintech with UPI payments and 2k customers", rows=2000)
 ```
 

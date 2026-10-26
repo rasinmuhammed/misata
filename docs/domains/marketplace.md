@@ -1,5 +1,5 @@
 ---
-title: Generate Marketplace Synthetic Data in Python | Misata
+title: "Generate Marketplace Synthetic Data in Python"
 description: Generate realistic marketplace synthetic datasets in Python, sellers, buyers, listings, and orders with power-law seller distributions, beta-rated reviews, and referential integrity. No real user data required.
 ---
 
@@ -66,7 +66,7 @@ print(tables["orders"]["status"].value_counts(normalize=True))
 
 ```python
 tables = misata.generate(
-    "Marketplace with 1k sellers — Black Friday GMV spike, slow January, growing through the year",
+    "Marketplace with 1k sellers: Black Friday GMV spike, slow January, growing through the year",
     rows=5000,
     seed=42,
 )
@@ -75,10 +75,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# Latin American marketplace — BRL/MXN pricing, regional product categories
+# Latin American marketplace: BRL/MXN pricing, regional product categories
 tables = misata.generate("Brazilian ecommerce marketplace with 500 sellers", rows=2000)
 
-# Southeast Asian gig marketplace — SGD pricing, regional skills
+# Southeast Asian gig marketplace: SGD pricing, regional skills
 tables = misata.generate("Freelance platform in Southeast Asia with 300 sellers", rows=1000)
 ```
 

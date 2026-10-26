@@ -1,5 +1,5 @@
 ---
-title: Generate Ecommerce Synthetic Data in Python | Misata
+title: "Generate Ecommerce Synthetic Data in Python"
 description: Generate realistic ecommerce synthetic datasets in Python, customers, products, orders, and order items with correct FK relationships, temporal coherence, and Black Friday curves. No training data required.
 ---
 
@@ -75,7 +75,7 @@ Ecommerce revenue is highly seasonal, Black Friday, Christmas, and post-holiday 
 
 ```python
 tables = misata.generate(
-    "Ecommerce store with 10k customers — "
+    "Ecommerce store with 10k customers: "
     "Black Friday spike in November, Christmas peak in December, Q1 slump, "
     "steady growth through the year from $500k to $2M",
     rows=10_000,
@@ -92,10 +92,10 @@ print(monthly_revenue)
 ## Advanced: locale-aware generation
 
 ```python
-# Brazilian ecommerce — BRL currency, Portuguese names, São Paulo/Rio cities
+# Brazilian ecommerce: BRL currency, Portuguese names, São Paulo/Rio cities
 tables = misata.generate("Brazilian ecommerce store with 5k customers", rows=5000)
 
-# UK ecommerce — GBP, British names and addresses
+# UK ecommerce: GBP, British names and addresses
 tables = misata.generate("UK online shop with 3k customers", rows=3000)
 ```
 
@@ -114,8 +114,10 @@ tables = misata.generate(
 ## Export and seed
 
 ```python
-# Seed a test Postgres database
-misata.seed_database(tables, "postgresql://user:pass@localhost/shop_test")
+# Seed a test Postgres database from the same story
+schema = misata.parse("Ecommerce store with 10k customers", rows=10_000)
+schema.seed = 42
+misata.seed_database(schema, "postgresql://user:pass@localhost/shop_test")
 
 # Export to CSV for dbt seeds
 misata.to_parquet(tables, output_dir="./ecommerce_data/")

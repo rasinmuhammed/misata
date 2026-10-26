@@ -1,3 +1,8 @@
+---
+title: "Export Synthetic Data to Parquet, DuckDB, JSON Lines and Polars"
+description: "Write Misata tables to Parquet, a DuckDB database, JSON Lines with nested columns or Polars DataFrames, and render one invoice or report document per row."
+---
+
 # Export
 
 ## Parquet

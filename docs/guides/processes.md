@@ -1,3 +1,8 @@
+---
+title: "Synthetic Event Logs for Process Mining"
+description: "Declare how a case moves between steps, how often it loops back and how long each step takes, and get one row per event in the shape process-mining tools read."
+---
+
 # Processes and event logs
 
 A lifecycle says which states a row's history contains. A **process** says

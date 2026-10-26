@@ -1,5 +1,5 @@
 ---
-title: Generate Crypto & Web3 Synthetic Data in Python | Misata
+title: "Generate Crypto & Web3 Synthetic Data in Python"
 description: Generate realistic crypto and Web3 synthetic datasets in Python, wallets, tokens, blockchain transactions, and price history with correct hex addresses, gas fee distributions, and transaction type mixes. No real on-chain data required.
 ---
 
@@ -90,7 +90,7 @@ tables = misata.generate(
 # Ethereum and Polygon focused
 tables = misata.generate("Multi-chain DEX with Ethereum and Polygon wallets", rows=2000)
 
-# Solana ecosystem — different address format, SOL-native tokens
+# Solana ecosystem: different address format, SOL-native tokens
 tables = misata.generate("Solana DeFi protocol with wallet transactions", rows=1500)
 ```
 

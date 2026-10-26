@@ -1,3 +1,8 @@
+---
+title: "Attest a Synthetic Dataset: in-toto Attestation and verify.py"
+description: "Check written CSV, Parquet or DuckDB files against every invariant their schema declares, pin each file by SHA-256 in an in-toto Statement, and hand over a verify.py that reruns the proof with DuckDB."
+---
+
 # Attest a dataset
 
 An attestation is a signed-ready record that a dataset holds what its schema
@@ -20,6 +25,28 @@ result = misata.attest("out", schema)
 assert result.passed, result.summary()
 ```
 
+```diagram
+# Generate, attest, verify: who runs what
+ you                                   anyone with the folder
+ ───                                   ──────────────────────
+ misata.yaml / schema.sql
+      │  derive invariants (before reading a row)
+      ▼
+ misata generate -o out ──▶ out/*.parquet, *.csv, data.duckdb
+      │
+      ▼
+ --attest / misata attest
+      │  DuckDB runs every invariant's SQL on the files
+      │  each file pinned by SHA-256
+      ▼
+ out/attestation.intoto.json ─────────▶ python out/verify.py
+ out/attestation.dsse.json                 1. sha256 of every file
+ out/verify.py                             2. rerun every invariant
+      │                                    exit 0: PASSED
+      ▼                                    exit 1: a byte or a rule changed
+ cosign / actions/attest (optional) ──▶ gh attestation verify
+```
+
 ## What it checks
 
 Every invariant comes from the schema, never from the data. Misata derives
@@ -34,10 +61,15 @@ disk.
 | `balanced_ledger` | every journal entry and the trial balance net to zero |
 | `waterfalls` | opening plus movements equals closing, per component |
 | relationships | no child row points at a missing parent |
+| a relationship's `min_children` | no parent has fewer children than declared |
+| a relationship's `partition_by` | every child shares its parent's partition columns |
 | `unique` columns | no value appears twice |
 | `inequality` and `col_range` constraints, including a DDL `CHECK (due_on > issued_on)` | no row breaks the rule |
 | a declared string domain: `choices`, or a DDL `CHECK (plan IN (...))` | no value falls outside it |
 | a declared NOT NULL: DDL `NOT NULL`, `nullable: false`, a primary key | no value is null |
+| `dag_edges` | no cycle outside a declared motif case |
+| `graph_motifs` | each motif shape has exactly its planned edges, and exactly the flagged ones are flagged |
+| `lifecycles` | every row's timestamps are its state's path, in order and after the start; each state's count is within one row of its weight |
 
 Row rules are left out on a column that `typos`, `outliers`, `missingness`
 or `late_arrivals` targets, and everywhere when `noise` injects nulls,
@@ -166,3 +198,14 @@ the result with any failing invariants. Report `result` to the user:
   differ in that one field. The subjects and invariants do not.
 - The predicate is specified at
   [`https://misata.studio/attestation/certificate/v1`](../attestation/certificate-v1.md).
+
+## See it end to end
+
+- [Seed a dev database from its DDL](../usecases/seed-a-dev-database.md):
+  22 invariants from three `CREATE TABLE` statements.
+- [A warehouse before the product has users](../usecases/warehouse-before-users.md):
+  80 invariants over partitioned Parquet.
+- [Fraud and AML data with labelled truth](../usecases/fraud-aml.md): an
+  acyclic check written as a recursive DuckDB query.
+- [Publish to Hugging Face](publish.md) re-verifies an attested folder
+  before it uploads anything.

@@ -1,5 +1,5 @@
 site_name: Misata
-site_description: Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.
+site_description: Open-source Python synthetic data generator. Generate multi-table data from SQL DDL, YAML, a live database or a sentence, with declared totals, rates and rules that hold and an attestation that proves it.
 site_url: https://rasinmuhammed.github.io/misata
 repo_url: https://github.com/rasinmuhammed/misata
 repo_name: rasinmuhammed/misata
@@ -68,19 +68,76 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Quick Start: quickstart.md
-  - Prompts: prompts.md
-  - Declaration Reference: reference/declarations.md
-  - Generation:
-    - generation/index.md
-    - Plain English: generation/story.md
-    - YAML Schema: generation/yaml.md
-    - From a Database: generation/database.md
-    - Python Dict: generation/dict.md
-    - LLM-Assisted: generation/llm.md
-    - Incremental: generation/incremental.md
-  - Localisation: localisation.md
-  - Time Series: timeseries.md
+  - Get Started:
+    - Quickstart: quickstart.md
+    - Prompts: prompts.md
+    - Ways to Describe Data:
+      - generation/index.md
+      - Plain English: generation/story.md
+      - From a Database: generation/database.md
+      - Python Dict: generation/dict.md
+      - LLM-Assisted: generation/llm.md
+      - Incremental: generation/incremental.md
+  - Use Cases:
+    - usecases/index.md
+    - Seed a Dev Database From DDL: usecases/seed-a-dev-database.md
+    - Known-Answer Tests for dbt: usecases/dbt-known-answer-tests.md
+    - A Demo Tenant That Tells a Story: usecases/demo-tenant.md
+    - A Warehouse Before Users: usecases/warehouse-before-users.md
+    - An Eval Database With an Answer Key: usecases/eval-database.md
+    - A Sandbox for an AI Agent: usecases/agent-sandbox.md
+    - Fraud and AML With Labelled Truth: usecases/fraud-aml.md
+    - Load and Performance Test Data: usecases/load-testing.md
+    - PII-Free Staging and Test Environments: usecases/pii-free-environments.md
+    - Ledgers That Reconcile: usecases/ledgers-that-reconcile.md
+    - SQL Take-Home Exercises: usecases/take-home-exercises.md
+    - Example Data for Docs and Mock APIs: usecases/example-data-for-docs.md
+  - Guides:
+    - guides/index.md
+    - Seed a Database:
+      - SQL DDL to Schema: guides/from-ddl.md
+      - Seed a Live Database: guides/seed-a-live-database.md
+      - Database Seeding in Python: guides/database-seeding-python.md
+      - Django: guides/django.md
+      - dbt Seed Integration: guides/dbt-seed.md
+    - Test:
+      - pytest Fixtures: guides/testing.md
+      - Validate and Preview: validate.md
+      - Realism Report: realism.md
+      - When Misata Refuses: failure-modes.md
+    - Attest:
+      - Attest a Dataset: guides/attest.md
+      - Certificate Predicate v1: attestation/certificate-v1.md
+    - Publish to Hugging Face: guides/publish.md
+    - Solve for a Pipeline's Output: guides/solve.md
+    - Build an Evalpack: guides/evalpack.md
+    - Stream and Export:
+      - Streaming Large Datasets: guides/streaming.md
+      - Export: export.md
+      - Databricks & Spark: spark.md
+    - Mimic a Real File: guides/mimic.md
+    - Shape the Data:
+      - Outcome Curves: guides/outcome_curves.md
+      - Rate Curves: guides/rate_curves.md
+      - Time Series: timeseries.md
+      - Distribution Reference: guides/distributions.md
+      - Column Correlations: guides/correlations.md
+      - Conditional Columns: guides/conditional-columns.md
+      - Constraints: constraints.md
+      - Narrative Patterns: guides/narrative-patterns.md
+      - Processes and Event Logs: guides/processes.md
+      - Nested JSON and Arrays: guides/nested-columns.md
+      - Long-Form Text: guides/long-form-text.md
+      - Geospatial Realism: guides/geospatial.md
+      - Localisation: localisation.md
+      - Lexicons, Motifs and Joint Margins: guides/declared-vocabulary-and-structure.md
+      - Anomaly Injection: guides/anomaly-injection.md
+      - Custom Generators: guides/custom-generators.md
+      - Use-case Presets: guides/presets.md
+    - Agents and Tools:
+      - MCP Server: guides/mcp.md
+      - REST API: guides/rest-api.md
+      - Jupyter Magic: guides/jupyter.md
   - Domains:
     - Overview: domains.md
     - SaaS: domains/saas.md
@@ -107,51 +164,26 @@ nav:
     - Insurance: domains/insurance.md
     - Travel: domains/travel.md
     - Streaming: domains/streaming.md
-  - Constraints: constraints.md
-  - Export: export.md
-  - Databricks & Spark: spark.md
-  - Validate: validate.md
-  - Attest a Dataset: guides/attest.md
-  - Build an Evalpack: guides/evalpack.md
-  - Solve for a Pipeline's Output: guides/solve.md
-  - Publish to Hugging Face: guides/publish.md
-  - Certificate Predicate v1: attestation/certificate-v1.md
-  - Realism Report: realism.md
-  - Realism Benchmark: realism-benchmark.md
-  - Validity Benchmark: validity-benchmark.md
-  - When Misata Refuses: failure-modes.md
-  - CLI Reference: cli.md
-  - Guides:
-    - guides/index.md
+  - Reference:
+    - CLI: cli.md
+    - YAML Schema: generation/yaml.md
+    - Declarations: reference/declarations.md
+    - Python API: reference/python-api.md
+  - Benchmarks:
+    - Overview: benchmarks.md
+    - Validity Benchmark: validity-benchmark.md
+    - Realism Benchmark: realism-benchmark.md
+    - Research Benchmarks: guides/research-benchmarks.md
+  - Comparisons:
     - Faker vs SDV vs Misata: guides/faker-vs-sdv-vs-misata.md
     - Multi-table Synthetic Data: guides/multi-table-synthetic-data.md
-    - Database Seeding in Python: guides/database-seeding-python.md
     - Synthetic Data for BI Demos: guides/synthetic-data-for-bi-demos.md
     - Python Synthetic Data Generator: python-synthetic-data-generator.md
-    - Mimic Mode: guides/mimic.md
-    - Geospatial Realism: guides/geospatial.md
-    - Long-Form Text: guides/long-form-text.md
-    - Outcome Curves: guides/outcome_curves.md
-    - Rate Curves: guides/rate_curves.md
-    - Column Correlations: guides/correlations.md
-    - Conditional Columns: guides/conditional-columns.md
-    - Distribution Reference: guides/distributions.md
-    - Anomaly Injection: guides/anomaly-injection.md
-    - Research Benchmarks: guides/research-benchmarks.md
-    - Jupyter Magic: guides/jupyter.md
-    - REST API: guides/rest-api.md
-    - Narrative Patterns: guides/narrative-patterns.md
-    - Lexicons, Motifs and Joint Margins: guides/declared-vocabulary-and-structure.md
-    - MCP Server (AI agents): guides/mcp.md
-    - pytest Fixtures: guides/testing.md
-    - Custom Generators: guides/custom-generators.md
-    - Processes and Event Logs: guides/processes.md
-    - Nested JSON and Arrays: guides/nested-columns.md
-    - Use-case Presets: guides/presets.md
-    - Django: guides/django.md
-    - SQL DDL to Schema: guides/from-ddl.md
-    - dbt Seed Integration: guides/dbt-seed.md
-    - Streaming Large Datasets: guides/streaming.md
+  - Limitations:
+    - Limitations: limitations.md
+    - Security Model: security.md
+    - Data Provenance: data-provenance.md
+    - Stability Policy: stability.md
 
 extra:
   social:

@@ -1,6 +1,6 @@
 ---
-title: Localisation, Country-Accurate Synthetic Data in 20 Locales
-description: Misata generates country-accurate synthetic data for 20 locales including US, UK, Germany, Japan, India, and all six GCC states, with real salary distributions, national ID formats, and currencies.
+title: "Localised Synthetic Data: Names, IDs and Currencies in 20 Locales"
+description: "Generate country-accurate names, addresses, phone formats, national IDs and currencies for 20 locales, including the US, UK, Germany, Japan, India and the GCC states."
 ---
 
 # Localisation
@@ -12,7 +12,7 @@ Misata generates country-accurate data automatically, names, salary distribution
 ```python
 import misata
 
-# Locale detected from story — no extra flag needed
+# Locale detected from story, no extra flag needed
 tables = misata.generate("German SaaS company in Berlin with 2k enterprise customers")
 # → de_DE names, salary ~ lognormal median €45k, 5-digit postcodes, GmbH/AG suffixes
 
@@ -62,7 +62,7 @@ Salary data sourced from OECD, World Bank, ILO (2023–24), plus national
 statistics offices for the GCC states: Qatar National Planning Council,
 UAE Federal Competitiveness and Statistics Centre, MenaJobs GCC Salary
 Report 2026, Bahrain's official national-median figure, and Oman's National
-Centre for Statistics and Information — see `misata/locales/packs.py` for
+Centre for Statistics and Information. See `misata/locales/packs.py` for
 per-locale citations. Qatar and the UAE have no median published; those two
 figures are the official average instead, called out as such in the source
 code.

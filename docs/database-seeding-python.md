@@ -9,12 +9,13 @@ No migration scripts. No manual INSERT loops. No orphan rows.
 import misata
 from misata import seed_database
 
-# Generate + seed in two lines
-tables = misata.generate("A SaaS company with 1000 users.", seed=42)
-report = seed_database(tables, "sqlite:///./dev.db", create=True)
+# Parse the story into a schema, then generate straight into the database
+schema = misata.parse("A SaaS company with 1000 users.", rows=1000)
+schema.seed = 42
+report = seed_database(schema, "sqlite:///./dev.db", create=True)
 
-print(report.total_rows)   # 6,000+
-print(report.table_rows)   # {"users": 1000, "subscriptions": 3000, ...}
+print(report.total_rows)   # 2200
+print(report.table_rows)   # {'users': 1000, 'subscriptions': 1200}
 ```
 
 ## Supported databases
@@ -23,20 +24,20 @@ Misata uses SQLAlchemy under the hood, any SQLAlchemy-compatible database works:
 
 ```python
 # SQLite (local dev)
-seed_database(tables, "sqlite:///./local.db", create=True)
+seed_database(schema, "sqlite:///./local.db", create=True)
 
 # PostgreSQL
-seed_database(tables, "postgresql://user:pass@localhost/mydb", create=True)
+seed_database(schema, "postgresql://user:pass@localhost/mydb", create=True)
 
 # MySQL / MariaDB
-seed_database(tables, "mysql+pymysql://user:pass@localhost/mydb", create=True)
+seed_database(schema, "mysql+pymysql://user:pass@localhost/mydb", create=True)
 ```
 
 ## Truncate before seeding (CI / staging)
 
 ```python
 report = seed_database(
-    tables,
+    schema,
     "postgresql://user:pass@staging-db/app",
     create=True,    # CREATE TABLE IF NOT EXISTS
     truncate=True,  # TRUNCATE before INSERT
@@ -107,7 +108,7 @@ For large databases, control memory usage with `batch_size`:
 
 ```python
 report = seed_database(
-    tables,
+    schema,
     "postgresql://user:pass@localhost/prod_clone",
     batch_size=10_000,  # INSERTs in batches of 10k rows
     create=True,
@@ -122,17 +123,14 @@ report = seed_database(
 import pytest
 import misata
 from misata import seed_database
-from sqlalchemy import create_engine
 
-@pytest.fixture(scope="session")
-def db_engine():
-    engine = create_engine("sqlite:///./test.db")
-    return engine
+TEST_DB = "sqlite:///./test.db"
 
 @pytest.fixture(scope="session", autouse=True)
-def seed_test_db(db_engine):
-    tables = misata.generate("A SaaS company with 100 users.", seed=42)
-    seed_database(tables, db_engine, create=True, truncate=True)
+def seed_test_db():
+    schema = misata.parse("A SaaS company with 100 users.", rows=100)
+    schema.seed = 42
+    seed_database(schema, TEST_DB, create=True, truncate=True)
 ```
 
 Every test run starts from a fresh, realistic seed. `seed=42` means the data is

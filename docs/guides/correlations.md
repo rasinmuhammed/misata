@@ -57,7 +57,7 @@ schema = SchemaConfig(
 
 ## Dict schema (`__correlations__`)
 
-The same correlations are available from a plain dict schema (and from the LLM/studio path) via the table-level `__correlations__` directive — no Python objects required:
+The same correlations are available from a plain dict schema (and from the LLM/studio path) via the table-level `__correlations__` directive, no Python objects required:
 
 ```python
 import misata

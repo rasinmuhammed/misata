@@ -1,6 +1,6 @@
 ---
-title: Publish a Verified Dataset to Hugging Face
-description: Upload an attested Misata dataset or evalpack to the Hugging Face Hub with its spec, its certificate and a standalone verifier, after re-checking every invariant.
+title: "Publish a Verified Synthetic Dataset to Hugging Face"
+description: "Upload an attested Misata dataset or evalpack to the Hugging Face Hub with its spec, its certificate, a generated dataset card and a standalone verifier, after re-checking every invariant locally."
 ---
 
 # Publish a verified dataset to Hugging Face
@@ -13,6 +13,30 @@ every declared invariant with DuckDB, without installing Misata.
 Nothing leaves your machine until the same check passes locally. Every
 file's SHA-256 must match the attestation, and every invariant must hold on
 the files as they are now.
+
+```diagram
+# Verify first, then upload
+ out/  (tables + attestation.intoto.json + verify.py)
+   │
+   ▼
+ misata publish out --hf owner/name
+   │
+   ├─ attestation present?                      no ─▶ exit 2
+   ├─ spec present, digest matches?             no ─▶ exit 2
+   ├─ fitted.json (mimic output) without
+   │  --allow-fitted?                          yes ─▶ exit 2
+   ├─ every sha256 matches, every invariant
+   │  holds on the files as they are now?       no ─▶ exit 1, nothing uploaded
+   │
+   ▼
+ DATASET_CARD.md generated from the attestation
+   │
+   ├─ --dry-run ─▶ stop here: read the card, list the files
+   │
+   ▼
+ one commit to the Hub: tables, spec, attestation,
+ DSSE envelope, verify.py, README.md (the card)
+```
 
 ## Publish a dataset
 
@@ -101,3 +125,12 @@ url = misata.publish_to_hub(release, private=True)
 `prepare_hub_release` raises `misata.publish.PublishRefused` for everything
 in the table above. `verification_failed` is True when the data no longer
 holds what its attestation says.
+
+## See it end to end
+
+- [An eval database with a correct answer key](../usecases/eval-database.md)
+  builds the kind of rotated pack that publishes as one split per rotation.
+- [A warehouse before the product has users](../usecases/warehouse-before-users.md)
+  writes an attested Parquet folder that publishes as it is.
+- [Attest a dataset](attest.md) explains what the card's invariant table
+  is made of.

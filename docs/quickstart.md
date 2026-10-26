@@ -1,6 +1,6 @@
 ---
-title: Quick Start, Misata Synthetic Data Generator
-description: Get started with Misata in 5 minutes. Install, generate multi-table synthetic datasets from plain English, shape data with narrative growth curves, and export to CSV, Parquet, or your database.
+title: "Quickstart: Generate Multi-Table Synthetic Data in Python"
+description: "Install Misata, generate a related set of tables from one sentence or a YAML schema, check the plan before generating, attest the result and export to CSV, Parquet, DuckDB or a database."
 ---
 
 # Quick Start
@@ -14,7 +14,11 @@ pip install misata
 Optional extras:
 
 ```bash
-pip install "misata[mcp]"        # MCP server — use Misata from Claude / Cursor
+pip install "misata[mcp]"        # MCP server: use Misata from Claude, Cursor and other agents
+pip install "misata[duckdb]"     # --format duckdb, attestations and verify.py
+pip install "misata[parquet]"    # --format parquet, partitioned output
+pip install "misata[evalpack]"   # text-to-SQL eval packs
+pip install "misata[hf]"         # publish to the Hugging Face Hub
 pip install "misata[llm]"        # Groq / OpenAI / Claude / Gemini / Ollama schema generation
 pip install "misata[documents]"  # PDF output via weasyprint
 pip install "misata[advanced]"   # SDV/CTGAN statistical synthesis
@@ -67,7 +71,7 @@ print(report.table_preview)
 #  {"name": "accounts",  "rows": 10000, "columns": 6},
 #  {"name": "transactions", "rows": 80000, "columns": 8}]
 
-print(report.warnings)           # [] — clean detection
+print(report.warnings)           # [] means a clean detection
 
 print(report.summary())
 # ✓ Domain: fintech  [high]  matched: fintech, fraud
@@ -104,7 +108,7 @@ Describe a growth trajectory in plain English, Misata builds exact per-month tar
 ```python
 # Ecommerce with seasonal story
 tables = misata.generate(
-    "Ecommerce store with 10k customers — "
+    "Ecommerce store with 10k customers: "
     "revenue from $200k in Jan to $350k in Sep, "
     "Black Friday spike, Christmas peak, Q1 slump after holidays",
     rows=10_000, seed=42
@@ -112,14 +116,14 @@ tables = misata.generate(
 
 # SaaS hockey-stick
 tables = misata.generate(
-    "SaaS startup with 2k users — MRR $5k in January, 10x growth over the year, "
+    "SaaS startup with 2k users: MRR $5k in January, 10x growth over the year, "
     "strong Q4 push",
     rows=2000, seed=42
 )
 
 # B2B with summer slump
 tables = misata.generate(
-    "B2B SaaS platform with 1k enterprise customers — "
+    "B2B SaaS platform with 1k enterprise customers: "
     "ARR $500k in Jan, doubled by December, summer slump",
     rows=1000, seed=42
 )
@@ -190,10 +194,10 @@ Add a country to get locale-accurate names, addresses, national IDs, phone prefi
 # German names, IBAN accounts, European address format
 tables = misata.generate("A German fintech with 5k customers", seed=42)
 
-# Brazilian locale — CPF national IDs, BRL salaries
+# Brazilian locale: CPF national IDs, BRL salaries
 tables = misata.generate("A Brazilian HR system with 200 employees", seed=42)
 
-# UK healthcare — NHS numbers, British names
+# UK healthcare: NHS numbers, British names
 tables = misata.generate("A UK healthcare provider with 1k patients", seed=42)
 ```
 
@@ -204,7 +208,9 @@ tables = misata.generate("A UK healthcare provider with 1k patients", seed=42)
 ## Export
 
 ```python
-misata.to_csv(tables, "data/")
+for name, df in tables.items():
+    df.to_csv(f"data/{name}.csv", index=False)
+
 misata.to_parquet(tables, "data/")
 misata.to_duckdb(tables, "data/dataset.duckdb")
 misata.to_jsonl(tables, "data/")
@@ -243,7 +249,38 @@ If you have `misata[mcp]` installed, wire it into Claude Desktop, Cursor, or Win
 
 ---
 
+## Check what you got
+
+Plan a schema file before generating: planned rows per table, which
+declaration writes which column, and every conflict with its remedy.
+
+```bash
+misata explain misata.yaml
+```
+
+Generate with `--attest` to check the written files against every declared
+invariant, with a `verify.py` anyone can rerun using only DuckDB:
+
+```bash
+misata generate -c misata.yaml -o out --attest
+python out/verify.py
+```
+
+And look for the statistical tells of generated data, with no real data to
+compare against:
+
+```python
+report = misata.realism_report(tables)
+print(report.summary())
+```
+
+See [Attest a dataset](guides/attest.md) and the [realism report](realism.md).
+
+---
+
 ## Next steps
+
+- [Use cases: runnable recipes by job →](usecases/index.md)
 
 - [All generation methods →](generation/index.md)
 - [Narrative growth patterns →](guides/narrative-patterns.md)

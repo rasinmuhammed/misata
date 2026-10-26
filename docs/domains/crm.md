@@ -1,5 +1,5 @@
 ---
-title: Generate CRM Synthetic Data in Python | Misata
+title: "Generate CRM Synthetic Data in Python"
 description: Generate realistic CRM synthetic datasets in Python, companies, contacts, deals, and activities with accurate B2B pipeline stage distributions, lognormal deal values, and sales activity mixes. No real customer data required.
 ---
 
@@ -73,7 +73,7 @@ print(f"Win rate: {len(closed)/len(tables['deals']):.1%}")
 
 ```python
 tables = misata.generate(
-    "SaaS company with aggressive Q4 close push — deal activity spikes in October-November, "
+    "SaaS company with aggressive Q4 close push: deal activity spikes in October-November, "
     "strong closed-won in December",
     rows=1000,
     seed=42,
@@ -83,10 +83,10 @@ tables = misata.generate(
 ## Advanced: locale-aware generation
 
 ```python
-# European B2B — German, French, Spanish company names and contacts
+# European B2B: German, French, Spanish company names and contacts
 tables = misata.generate("European B2B software company with accounts in Germany and France", rows=500)
 
-# US enterprise — US company names, enterprise deal sizes
+# US enterprise: US company names, enterprise deal sizes
 tables = misata.generate("US enterprise software company with Fortune 500 accounts", rows=300)
 ```
 
