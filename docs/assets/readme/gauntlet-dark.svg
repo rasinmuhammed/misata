@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="462" viewBox="0 0 680 462" role="img" aria-labelledby="t d" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+<title id="t">The Gauntlet: assertions held per section</title>
+<desc id="d">Misata holds 136 of 136 SQL assertions; a Faker script with the same columns holds 78.</desc>
+<rect width="680" height="462" rx="8" fill="#1a1a19"/>
+<rect x="168" y="20" width="10" height="10" rx="2" fill="#3987e5"/>
+<text x="184" y="29" font-size="12.5" fill="#f0efec">Misata  136 of 136</text>
+<rect x="358" y="20" width="10" height="10" rx="2" fill="#d95926"/>
+<text x="374" y="29" font-size="12.5" fill="#f0efec">Faker script  78 of 136</text>
+<text x="156" y="71" font-size="12" text-anchor="end" fill="#c3c2b7">Keys and nulls</text>
+<path d="M168.0,59.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="66.5" font-size="10.5" fill="#c3c2b7">36/36</text>
+<path d="M168.0,69.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#d95926"/>
+<text x="584.0" y="76.5" font-size="10.5" fill="#c3c2b7">36/36</text>
+<line x1="16" x2="664" y1="83" y2="83" stroke="#383835" stroke-width="1"/>
+<text x="156" y="101" font-size="12" text-anchor="end" fill="#c3c2b7">Value domains</text>
+<path d="M168.0,89.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="96.5" font-size="10.5" fill="#c3c2b7">20/20</text>
+<path d="M168.0,99.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#d95926"/>
+<text x="584.0" y="106.5" font-size="10.5" fill="#c3c2b7">20/20</text>
+<line x1="16" x2="664" y1="113" y2="113" stroke="#383835" stroke-width="1"/>
+<text x="156" y="131" font-size="12" text-anchor="end" fill="#c3c2b7">Time ordering</text>
+<path d="M168.0,119.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="126.5" font-size="10.5" fill="#c3c2b7">10/10</text>
+<path d="M168.0,129.0 h37.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-37.0 z" fill="#d95926"/>
+<text x="215.0" y="136.5" font-size="10.5" fill="#c3c2b7">1/10</text>
+<line x1="16" x2="664" y1="143" y2="143" stroke="#383835" stroke-width="1"/>
+<text x="156" y="161" font-size="12" text-anchor="end" fill="#c3c2b7">Status implies fields</text>
+<path d="M168.0,149.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="156.5" font-size="10.5" fill="#c3c2b7">10/10</text>
+
+<text x="174.0" y="166.5" font-size="10.5" fill="#c3c2b7">0/10</text>
+<line x1="16" x2="664" y1="173" y2="173" stroke="#383835" stroke-width="1"/>
+<text x="156" y="191" font-size="12" text-anchor="end" fill="#c3c2b7">Cross-table totals</text>
+<path d="M168.0,179.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="186.5" font-size="10.5" fill="#c3c2b7">11/11</text>
+
+<text x="174.0" y="196.5" font-size="10.5" fill="#c3c2b7">0/11</text>
+<line x1="16" x2="664" y1="203" y2="203" stroke="#383835" stroke-width="1"/>
+<text x="156" y="221" font-size="12" text-anchor="end" fill="#c3c2b7">Diamond joins</text>
+<path d="M168.0,209.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="216.5" font-size="10.5" fill="#c3c2b7">2/2</text>
+<path d="M168.0,219.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#d95926"/>
+<text x="584.0" y="226.5" font-size="10.5" fill="#c3c2b7">2/2</text>
+<line x1="16" x2="664" y1="233" y2="233" stroke="#383835" stroke-width="1"/>
+<text x="156" y="251" font-size="12" text-anchor="end" fill="#c3c2b7">Geography</text>
+<path d="M168.0,239.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="246.5" font-size="10.5" fill="#c3c2b7">8/8</text>
+<path d="M168.0,249.0 h98.5 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-98.5 z" fill="#d95926"/>
+<text x="276.5" y="256.5" font-size="10.5" fill="#c3c2b7">2/8</text>
+<line x1="16" x2="664" y1="263" y2="263" stroke="#383835" stroke-width="1"/>
+<text x="156" y="281" font-size="12" text-anchor="end" fill="#c3c2b7">Arithmetic</text>
+<path d="M168.0,269.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="276.5" font-size="10.5" fill="#c3c2b7">2/2</text>
+<path d="M168.0,279.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#d95926"/>
+<text x="584.0" y="286.5" font-size="10.5" fill="#c3c2b7">2/2</text>
+<line x1="16" x2="664" y1="293" y2="293" stroke="#383835" stroke-width="1"/>
+<text x="156" y="311" font-size="12" text-anchor="end" fill="#c3c2b7">Distributions</text>
+<path d="M168.0,299.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="306.5" font-size="10.5" fill="#c3c2b7">10/10</text>
+<path d="M168.0,309.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#d95926"/>
+<text x="584.0" y="316.5" font-size="10.5" fill="#c3c2b7">10/10</text>
+<line x1="16" x2="664" y1="323" y2="323" stroke="#383835" stroke-width="1"/>
+<text x="156" y="341" font-size="12" text-anchor="end" fill="#c3c2b7">Lifecycles</text>
+<path d="M168.0,329.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="336.5" font-size="10.5" fill="#c3c2b7">11/11</text>
+<path d="M168.0,339.0 h107.8 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-107.8 z" fill="#d95926"/>
+<text x="285.8" y="346.5" font-size="10.5" fill="#c3c2b7">3/11</text>
+<line x1="16" x2="664" y1="353" y2="353" stroke="#383835" stroke-width="1"/>
+<text x="156" y="371" font-size="12" text-anchor="end" fill="#c3c2b7">Missingness</text>
+<path d="M168.0,359.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="366.5" font-size="10.5" fill="#c3c2b7">4/4</text>
+
+<text x="174.0" y="376.5" font-size="10.5" fill="#c3c2b7">0/4</text>
+<line x1="16" x2="664" y1="383" y2="383" stroke="#383835" stroke-width="1"/>
+<text x="156" y="401" font-size="12" text-anchor="end" fill="#c3c2b7">Late arrivals</text>
+<path d="M168.0,389.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="396.5" font-size="10.5" fill="#c3c2b7">5/5</text>
+
+<text x="174.0" y="406.5" font-size="10.5" fill="#c3c2b7">0/5</text>
+<line x1="16" x2="664" y1="413" y2="413" stroke="#383835" stroke-width="1"/>
+<text x="156" y="431" font-size="12" text-anchor="end" fill="#c3c2b7">Grids and duplicates</text>
+<path d="M168.0,419.0 h406.0 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-406.0 z" fill="#3987e5"/>
+<text x="584.0" y="426.5" font-size="10.5" fill="#c3c2b7">7/7</text>
+<path d="M168.0,429.0 h113.1 a4.0,4.0 0 0 1 4.0,4.0 v0.0 a4.0,4.0 0 0 1 -4.0,4.0 h-113.1 z" fill="#d95926"/>
+<text x="291.1" y="436.5" font-size="10.5" fill="#c3c2b7">2/7</text>
+<line x1="168" x2="168" y1="52" y2="448" stroke="#c3c2b7" stroke-width="1"/>
+</svg>

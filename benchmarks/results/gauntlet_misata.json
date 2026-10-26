@@ -1,0 +1,960 @@
+{
+  "passed": 136,
+  "total": 136,
+  "results": [
+    {
+      "category": "A",
+      "name": "categories.category_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "categories.category_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "products.product_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "products.product_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "customers.customer_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "customers.customer_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "addresses.address_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "addresses.address_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "subscriptions.subscription_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "subscriptions.subscription_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "orders.order_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "orders.order_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "order_items.item_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "order_items.item_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "payments.payment_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "payments.payment_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "shipments.shipment_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "shipments.shipment_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "returns.return_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "returns.return_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "support_tickets.ticket_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "support_tickets.ticket_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "loyalty_accounts.account_id unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "loyalty_accounts.account_id not null",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "products.category_id -> categories.category_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "addresses.customer_id -> customers.customer_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "subscriptions.customer_id -> customers.customer_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "orders.customer_id -> customers.customer_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "order_items.order_id -> orders.order_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "order_items.product_id -> products.product_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "payments.order_id -> orders.order_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "shipments.order_id -> orders.order_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "returns.order_id -> orders.order_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "support_tickets.customer_id -> customers.customer_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "loyalty_accounts.customer_id -> customers.customer_id no orphans",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "A",
+      "name": "loyalty_accounts: one account per customer",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "products.price > 0",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "products.cost > 0",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "products.price > cost (declared inequality)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "categories.margin_pct in [0.05, 0.60]",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "order_items.quantity in [1, 5]",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "order_items.unit_price > 0",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "payments.amount > 0",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "returns.refund_amount > 0",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "subscriptions.mrr in [9, 499]",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "orders.status in enum",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "subscriptions.status in enum",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "support_tickets.status in enum",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "customers.email has an @ and a dot",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "customers.email unique",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "customers.state is a real US state",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "addresses.state is a real US state",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "customers.zip is 5 digits",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "addresses.zip is 5 digits",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "customers.full_name is two-plus words, no filler",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "B",
+      "name": "products.product_name not filler",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "orders never precede customer signup",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "subscriptions never precede customer signup",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "support tickets never precede customer signup",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "payments never precede their order",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "shipments never precede their order",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "returns never precede their order",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "order_items never reference a product created after the order",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "tickets resolved after they were created",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "subscriptions cancelled after they started",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "C",
+      "name": "no order predates the shop's first customer",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "cancelled subscriptions have cancelled_at",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "active subscriptions have no cancelled_at",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "past_due subscriptions have no cancelled_at",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "resolved tickets have resolved_at",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "closed tickets have resolved_at",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "open tickets have no resolved_at",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "pending tickets have no resolved_at",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "shipments only for shipped/completed/returned orders",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "returns only for returned/return_pending orders",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "D",
+      "name": "cancelled orders have no payments",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "orders.total_amount = sum(order_items.line_total), to the cent",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "customers.order_count = count(orders), exactly",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "customers.lifetime_value = sum(payments via orders), to the cent",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "grand total: sum(orders.total_amount) = sum(order_items.line_total)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "grand total: sum(customers.lifetime_value) = sum(payments.amount)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "grand total: sum(customers.order_count) = count(orders)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "refund never exceeds the order total",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "payments per order never exceed the order total",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "F",
+      "name": "order_items.unit_price equals its product's price",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "F",
+      "name": "every product's price is one value everywhere it appears",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "customers: one state per city",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "customers: one city per zip",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "addresses: one state per city",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "addresses: one city per zip",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "city/state pairs agree across customers and addresses",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "loyalty_accounts: home_state holds only its declared codes",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "loyalty_accounts: one state per home city",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "G",
+      "name": "loyalty_accounts: one city per home zip",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "ad_spend: every month totals its declared target, to the cent",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "ad_spend: each channel holds its share of every month, to the cent",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "E",
+      "name": "ad_spend: each channel holds its share of the grand total, within a cent",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "H",
+      "name": "order_items.line_total = quantity * unit_price",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "H",
+      "name": "products.price = cost * 1.65 (declared formula)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "orders.status is a declared lifecycle state",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "every order has placed_at (the initial state)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "shipped_at present exactly when shipped is on the path",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "completed_at present exactly when completed is on the path",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "cancelled_at present exactly when cancelled",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "cancelled orders never carry a shipment timestamp",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "path order holds: placed <= shipped <= completed",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "cancellation never precedes placement",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "the whole chain postdates order_date",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "returned orders carry the full upstream chain",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "J",
+      "name": "every declared state occurs (the machine is exercised)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "K",
+      "name": "income is missing for ~40% of the 18-24 band, as declared",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "K",
+      "name": "income is missing for ~5% of everyone else, as declared",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "K",
+      "name": "missingness is conditional, not uniform (MNAR not MCAR)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "K",
+      "name": "the column is not entirely null and not entirely present",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "L",
+      "name": "nothing is ingested before it happened",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "L",
+      "name": "every order has an ingest timestamp",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "L",
+      "name": "~4% of orders arrive a day or more late, as declared",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "L",
+      "name": "no delay exceeds the declared 3-day bound",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "L",
+      "name": "late arrivals actually exist (the path is exercised)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "M",
+      "name": "every ticket opens on the declared 15-minute grid",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "M",
+      "name": "no ticket carries seconds or sub-seconds",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "M",
+      "name": "every ticket opens inside declared business hours",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "M",
+      "name": "the grid is exercised (more than one distinct slot in use)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "M",
+      "name": "exactly 24 duplicate tickets, as declared (3% of 800)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "M",
+      "name": "duplicated tickets still carry distinct ids",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "M",
+      "name": "duplication did not change the declared row count",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "some customers have zero orders (1%-60%)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "top customer has 3+ orders (degree spread)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "order dates span at least 300 days",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "payment amounts are not near-constant",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "at least 60 distinct product names",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "at least 300 distinct customer names",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "customers span 10+ states",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "every category has a product",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "order status mix is not degenerate (3+ statuses present)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    },
+    {
+      "category": "I",
+      "name": "multi-line orders exist (junction is a real M:N)",
+      "violations": 0,
+      "error": null,
+      "known_red": false
+    }
+  ],
+  "known_red": {},
+  "generation_seconds": 1.04
+}
