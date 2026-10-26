@@ -285,6 +285,11 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- `mimic` keeps an `ssn`, `tax_id` or other national ID column a national
+  ID. It was profiled as a phone number because its dashes matched the
+  phone shape; a phone now also needs a phone's ten to fifteen digits.
+  Generated US SSNs avoid the area, group and serial numbers that are
+  never issued.
 - Generating from a schema never changes it. Semantic inference, curve
   repairs, presets and quality retries work on a copy, so a schema
   reused after `generate_from_schema` or `generate_stream` (to attest,

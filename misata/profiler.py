@@ -45,6 +45,8 @@ _COMPANY_HINTS = {"company", "organization", "employer", "brand", "firm"}
 _LAT_HINTS     = {"lat", "latitude"}
 _LON_HINTS     = {"lon", "lng", "longitude"}
 _ZIP_HINTS     = {"zip", "postal", "postcode", "zip_code", "postal_code"}
+_NATIONAL_ID_HINTS = {"ssn", "national_id", "nationalid", "tax_id", "taxid", "cpf",
+                      "aadhaar", "aadhar", "nid", "nin", "sin"}
 
 
 def _sample_non_null(series: pd.Series, n: int = 200) -> pd.Series:
@@ -65,8 +67,16 @@ def _is_url(series: pd.Series) -> bool:
 
 
 def _is_phone(series: pd.Series) -> bool:
+    """Phone-shaped values with a phone's digit count.
+
+    The character class alone also matches identifiers written with dashes:
+    a US SSN (123-45-6789) has nine digits, a phone number ten to fifteen.
+    """
     sample = _sample_non_null(series.astype(str))
-    return len(sample) > 0 and (sample.str.match(_PHONE_RE)).mean() > 0.7
+    if len(sample) == 0:
+        return False
+    digits = sample.str.count(r"\d")
+    return cast(bool, (sample.str.match(_PHONE_RE) & digits.between(10, 15)).mean() > 0.7)
 
 
 def _detect_text_semantic(col_name: str, series: pd.Series) -> str:
@@ -91,6 +101,8 @@ def _detect_text_semantic(col_name: str, series: pd.Series) -> str:
         return "longitude"
     if name in _ZIP_HINTS:
         return "postal_code"
+    if name in _NATIONAL_ID_HINTS:
+        return "national_id"
     if _is_url(series):
         return "url"
     if _is_phone(series):

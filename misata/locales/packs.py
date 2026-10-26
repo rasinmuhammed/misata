@@ -130,7 +130,7 @@ _reg(LocalePack(
     phone_prefix="+1",
     postcode_pattern=r"\d{5}",
     national_id_label="SSN",
-    national_id_pattern=r"\d{3}-\d{2}-\d{4}",
+    national_id_pattern=r"[1-8]\d{2}-[1-9]\d-[1-9]\d{3}",
     age_mean=38.5,
     age_std=15.0,
     top_cities=[
