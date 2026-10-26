@@ -133,7 +133,10 @@ def connect(directory: Path, subjects: List[Dict[str, Any]]) -> Any:
         for table in tables:
             parts.setdefault(table, []).append(path)
     for table, paths in parts.items():
-        con.execute(f"CREATE VIEW {_ident(table)} AS SELECT * FROM {_source(directory, paths)}")
+        # Row formats are parsed once into a table; Parquet is columnar and
+        # stays a view, so a large dataset is never copied into memory.
+        kind = "VIEW" if all(p.suffix.lower() == ".parquet" for p in paths) else "TABLE"
+        con.execute(f"CREATE {kind} {_ident(table)} AS SELECT * FROM {_source(directory, paths)}")
     return con
 
 

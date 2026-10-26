@@ -858,7 +858,9 @@ def _open_database(duckdb: Any, schema: "SchemaConfig", seed: int, directory: Pa
     con = duckdb.connect()
     for name in tables:
         csv_path = quote_literal(str((tables_dir / f"{name}.csv").resolve()))
-        con.execute(f"CREATE VIEW {_quote_ident(name)} AS SELECT * FROM read_csv_auto({csv_path})")
+        # Parsed once, as a consumer's read_csv_auto would; every question then
+        # runs against the table instead of re-reading the file.
+        con.execute(f"CREATE TABLE {_quote_ident(name)} AS SELECT * FROM read_csv_auto({csv_path})")
     questions = {q.id: q for q in derive_questions(schema)}
     return _Database(seed, schema, directory, tables, con, questions)
 

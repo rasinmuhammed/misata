@@ -1,0 +1,4 @@
+{"id": "q001", "sql": "SELECT ROUND(SUM(amount), 2) FROM sales WHERE date_trunc('month', sold_at) = DATE '2025-01-01'"}
+{"id": "q002", "sql": "SELECT ROUND(SUM(amount), 2) FROM sales WHERE sold_at BETWEEN DATE '2025-02-01' AND DATE '2025-03-01'"}
+{"id": "q008", "sql": "SELECT COUNT(*) FROM sales WHERE strftime(sold_at, '%Y-%m') = '2025-01'"}
+{"id": "q015", "sql": "SELECT ROUND(100.0 * AVG(CAST(is_return AS INTEGER)), 4) FROM sales WHERE sold_at < DATE '2025-02-01'"}

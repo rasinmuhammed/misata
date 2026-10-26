@@ -42,13 +42,13 @@ def _literal(text: str) -> str:
 
 
 def connect(tables_dir: Path) -> Any:
-    """A DuckDB connection with one view per CSV, named by its stem."""
+    """A DuckDB connection with one table per CSV, named by its stem, parsed once."""
     import duckdb
 
     con = duckdb.connect()
     for csv in sorted(tables_dir.glob("*.csv")):
         source = _literal(str(csv.resolve()))
-        con.execute(f"CREATE VIEW {_ident(csv.stem)} AS SELECT * FROM read_csv_auto({source})")
+        con.execute(f"CREATE TABLE {_ident(csv.stem)} AS SELECT * FROM read_csv_auto({source})")
     return con
 
 
