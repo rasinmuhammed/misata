@@ -1,0 +1,35 @@
+# course.yaml
+name: bookshop_takehome
+seed: 100
+tables:
+  customers:
+    rows: 1500
+    columns:
+      customer_id: {type: int, unique: true, min: 1, max: 1500}
+      city: {type: categorical, choices: [Leeds, Bristol, Glasgow, Cardiff, Belfast]}
+  orders:
+    rows: 12000
+    columns:
+      order_id: {type: int, unique: true, min: 1, max: 1000000}
+      customer_id: {type: foreign_key}
+      genre: {type: categorical, choices: [fiction, nonfiction, children, comics]}
+      amount: {type: float, min: 3, max: 220}
+      ordered_on: {type: date, start: "2025-01-01", end: "2025-04-30"}
+relationships:
+  - customers.customer_id -> orders.customer_id
+outcome_curves:
+  - table: orders
+    column: amount
+    time_column: ordered_on
+    value_mode: absolute
+    start_date: "2025-01-01"
+    curve_points:
+      - {month: 1, target_value: 61250.40}
+      - {month: 2, target_value: 58410.15}
+      - {month: 3, target_value: 66980.72}
+      - {month: 4, target_value: 70115.09}
+group_shares:
+  - table: orders
+    measure: amount
+    group_column: genre
+    shares: {fiction: 0.45, nonfiction: 0.25, children: 0.2, comics: 0.1}

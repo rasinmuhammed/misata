@@ -1,0 +1,3 @@
+{"id": "q001", "sql": "SELECT ROUND(SUM(amount), 2) FROM orders WHERE ordered_on >= DATE '2025-01-01' AND ordered_on < DATE '2025-02-01'"}
+{"id": "q005", "sql": "SELECT 237782.06"}
+{"id": "q006", "sql": "SELECT COUNT(*) FROM orders WHERE ordered_on >= DATE '2025-01-01' AND ordered_on < DATE '2025-02-01'"}

@@ -173,6 +173,7 @@ class Runner:
         self.wheel = wheel
         self.enveloped: set = set()
         self.installed: set = set()
+        self.shipped: set = set()
 
     def misata(self, args, cwd) -> subprocess.CompletedProcess:
         return subprocess.run([str(self.python), "-m", "misata.cli", *args],
@@ -185,8 +186,9 @@ class Runner:
             return self.check_pip(tokens)
         if head not in ALLOWED:
             return "skip", f"not an allowed command ({head})"
-        if head.startswith("python") and len(tokens) > 1 and VERIFIER.search(tokens[1]):
-            return self.run_verifier(tokens, cwd)
+        if head.startswith("python") and len(tokens) > 1 and (
+                VERIFIER.search(tokens[1]) or (cwd / tokens[1]).resolve() in self.shipped):
+            return self.run_script(tokens, cwd)
         if NEEDS_WORLD.search(line):
             return "skip", "needs a database, a key, or a placeholder"
         if head != "misata":
@@ -215,8 +217,11 @@ class Runner:
             return "fail", detail
         return "pass", ""
 
-    def run_verifier(self, tokens: list[str], cwd: Path):
-        """A verify.py that Misata wrote into the sandbox; nothing else runs as Python."""
+    def run_script(self, tokens: list[str], cwd: Path):
+        """A verify.py Misata wrote into the sandbox, or a script the recipe ships.
+
+        Nothing else runs as Python.
+        """
         script = (cwd / tokens[1]).resolve()
         if not script.is_file() or cwd.resolve() not in script.parents:
             return "skip", f"needs a verifier the page has not written yet ({tokens[1]})"
@@ -334,6 +339,8 @@ def main() -> int:
                 if ex.source.parent.parent == ROOT / "examples" / "usecases":
                     shutil.copytree(ex.source.parent, sandbox, dirs_exist_ok=True,
                                     ignore=shutil.ignore_patterns("README.md", "out*"))
+                    runner.shipped |= {(sandbox / p.name).resolve()
+                                       for p in ex.source.parent.glob("*.py")}
             if ex.lang == "yaml":
                 named = NAMED_FILE.match(ex.body)
                 if named:

@@ -66,6 +66,11 @@ def answers_match(question: Dict[str, Any], observed: Any) -> bool:
         return False
 
 
+def show(value: Any) -> str:
+    """A value as the report prints it: text quoted, numbers as written."""
+    return repr(value) if isinstance(value, str) else str(value)
+
+
 def run(con: Any, sql: str) -> Tuple[Any, Optional[str]]:
     """The first column of the first row, or the error text."""
     try:
@@ -116,13 +121,13 @@ def check(pack: Path, sql_by_id: Dict[str, str]) -> Tuple[int, List[str]]:
         for label, con in dbs:
             observed, error = run(con, sql)
             if not answers_match(question, observed):
-                missed.append(f"{label}: {error or observed!r}")
+                missed.append(f"{label}: {error or show(observed)}")
         if missed:
             failures += 1
-            lines.append(f"FAIL {qid}: expected {question['expected_answer']!r}; "
+            lines.append(f"FAIL {qid}: expected {show(question['expected_answer'])}; "
                          + "; ".join(missed))
         else:
-            lines.append(f"OK   {qid}: {question['expected_answer']!r}")
+            lines.append(f"OK   {qid}: {show(question['expected_answer'])}")
     for _, con in dbs:
         con.close()
     lines.append(f"\n{len(sql_by_id) - failures}/{len(sql_by_id)} match on all "

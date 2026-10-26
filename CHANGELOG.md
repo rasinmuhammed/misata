@@ -67,6 +67,8 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
   alone (conformance preview, validation, evalpack questions) no longer
   repeats it.
 - New guide, `docs/guides/evalpack.md`.
+- `verify.py --candidates` prints a returned value as written (`237782.06`,
+  not `Decimal('237782.06')`).
 - Building a pack parses each CSV once instead of once per question: three
   rotations of 43,040 rows build in about 3 seconds, down from 35. The
   generated `verify.py` and attestation verifier do the same for CSV and
