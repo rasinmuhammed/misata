@@ -6,11 +6,11 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Open-source Python synthetic data generator. Create realistic multi-table test datasets from plain English, YAML, or your own database, no training data required.">
+        <meta name="description" content="Internal design notes on how Misata aims to stay structurally correct and honestly approximate across unfamiliar business domains.">
       
       
       
-        <link rel="canonical" href="https://rasinmuhammed.github.io/misata/resilience/">
+        <link rel="canonical" href="https://www.misata.studio/docs/resilience">
       
       
       
@@ -19,18 +19,18 @@
       
       
       <link rel="icon" href="../assets/logo.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
-        <title>Resilience & Coverage Design — being bulletproof across every domain - Misata</title>
+        <title>Resilience and Coverage Design Notes - Misata</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -67,7 +67,7 @@
     "codeRepository": "https://github.com/rasinmuhammed/misata",
     "programmingLanguage": "Python",
     "license": "https://opensource.org/licenses/MIT",
-    "softwareVersion": "0.9.7.2",
+    "softwareVersion": "0.9.8",
     "applicationCategory": "DeveloperApplication",
     "keywords": "synthetic data, test data, database seeding, relational data, foreign keys, SQL DDL, fixtures, MCP",
     "url": "https://github.com/rasinmuhammed/misata",
@@ -131,7 +131,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Resilience &amp; Coverage Design — being bulletproof across every domain
+              Resilience and Coverage Design Notes
             
           </span>
         </div>
@@ -262,73 +262,16 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Quick Start
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../prompts/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Prompts
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../reference/declarations/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Declaration Reference
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
     
     
       <li class="md-tabs__item">
-        <a href="../generation/" class="md-tabs__link">
+        <a href="../quickstart/" class="md-tabs__link">
           
   
   
     
   
-  Generation
+  Get Started
 
         </a>
       </li>
@@ -341,17 +284,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../localisation/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../usecases/" class="md-tabs__link">
+          
   
   
     
   
-  Localisation
+  Use Cases
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -360,17 +306,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../timeseries/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guides/" class="md-tabs__link">
+          
   
   
     
   
-  Time Series
+  Guides
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -401,169 +350,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../constraints/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../cli/" class="md-tabs__link">
+          
   
   
     
   
-  Constraints
+  Reference
 
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../export/" class="md-tabs__link">
-        
-  
-  
+        </a>
+      </li>
     
-  
-  Export
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../spark/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Databricks & Spark
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../validate/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Validate
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../realism/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Realism Report
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../realism-benchmark/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Realism Benchmark
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../validity-benchmark/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Validity Benchmark
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../failure-modes/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  When Misata Refuses
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../cli/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  CLI Reference
-
-      </a>
-    </li>
   
 
       
@@ -575,13 +375,57 @@
     
     
       <li class="md-tabs__item">
-        <a href="../guides/" class="md-tabs__link">
+        <a href="../benchmarks/" class="md-tabs__link">
           
   
   
     
   
-  Guides
+  Benchmarks
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guides/faker-vs-sdv-vs-misata/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Comparisons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../limitations/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Limitations
 
         </a>
       </li>
@@ -666,6 +510,66 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../quickstart/" class="md-nav__link">
         
@@ -674,7 +578,7 @@
   <span class="md-ellipsis">
     
   
-    Quick Start
+    Quickstart
   
 
     
@@ -686,9 +590,10 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -713,36 +618,10 @@
     </li>
   
 
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../reference/declarations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Declaration Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -752,8 +631,6 @@
       
         
           
-        
-      
         
       
         
@@ -779,7 +656,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -790,7 +667,7 @@
   <span class="md-ellipsis">
     
   
-    Generation
+    Ways to Describe Data
   
 
     
@@ -801,18 +678,18 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Generation
+    Ways to Describe Data
   
 
           </label>
@@ -835,34 +712,6 @@
     
   
     Plain English
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../generation/yaml/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    YAML Schema
   
 
     
@@ -994,9 +843,1742 @@
     </li>
   
 
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
     
       
       
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../usecases/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Use Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/seed-a-dev-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Seed a Dev Database From DDL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/dbt-known-answer-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known-Answer Tests for dbt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/demo-tenant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Demo Tenant That Tells a Story
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/warehouse-before-users/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Warehouse Before Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/eval-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An Eval Database With an Answer Key
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/agent-sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Sandbox for an AI Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/fraud-aml/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fraud and AML With Labelled Truth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/load-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load and Performance Test Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/pii-free-environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PII-Free Staging and Test Environments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/ledgers-that-reconcile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ledgers That Reconcile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/take-home-exercises/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Take-Home Exercises
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usecases/example-data-for-docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Data for Docs and Mock APIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../guides/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Seed a Database
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Seed a Database
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/from-ddl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL DDL to Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/seed-a-live-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Seed a Live Database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/database-seeding-python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Seeding in Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/django/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Django
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/dbt-seed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dbt Seed Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pytest Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validate and Preview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../realism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Realism Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../failure-modes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When Misata Refuses
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attest
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Attest
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/attest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attest a Dataset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attestation/certificate-v1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificate Predicate v1
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/publish/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publish to Hugging Face
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/solve/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solve for a Pipeline's Output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/evalpack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build an Evalpack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_8" id="__nav_4_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stream and Export
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stream and Export
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming Large Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Databricks & Spark
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/mimic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mimic a Real File
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_10" id="__nav_4_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shape the Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Shape the Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/outcome_curves/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outcome Curves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/rate_curves/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rate Curves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timeseries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time Series
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distribution Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/correlations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Column Correlations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/conditional-columns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conditional Columns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/narrative-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Narrative Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes and Event Logs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/nested-columns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested JSON and Arrays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/long-form-text/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Long-Form Text
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/geospatial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Geospatial Realism
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
   
   
   
@@ -1021,22 +2603,23 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
   
     <li class="md-nav__item">
-      <a href="../timeseries/" class="md-nav__link">
+      <a href="../guides/declared-vocabulary-and-structure/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Time Series
+    Lexicons, Motifs and Joint Margins
   
 
     
@@ -1045,6 +2628,258 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/anomaly-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Anomaly Injection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/custom-generators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Generators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/presets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use-case Presets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents and Tools
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents and Tools
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/rest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REST API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/jupyter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jupyter Magic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -1121,10 +2956,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -1142,8 +2977,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1866,15 +3701,77 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
-      <a href="../constraints/" class="md-nav__link">
+      <a href="../cli/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Constraints
+    CLI
   
 
     
@@ -1886,22 +3783,23 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
   
     <li class="md-nav__item">
-      <a href="../export/" class="md-nav__link">
+      <a href="../generation/yaml/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Export
+    YAML Schema
   
 
     
@@ -1913,22 +3811,23 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
   
     <li class="md-nav__item">
-      <a href="../spark/" class="md-nav__link">
+      <a href="../reference/declarations/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Databricks & Spark
+    Declarations
   
 
     
@@ -1940,22 +3839,23 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
   
     <li class="md-nav__item">
-      <a href="../validate/" class="md-nav__link">
+      <a href="../reference/python-api/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Validate
+    Python API
   
 
     
@@ -1967,6 +3867,14 @@
     </li>
   
 
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
     
       
       
@@ -1974,15 +3882,77 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Benchmarks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
-      <a href="../realism/" class="md-nav__link">
+      <a href="../benchmarks/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Realism Report
+    Overview
   
 
     
@@ -1994,36 +3964,10 @@
     </li>
   
 
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../realism-benchmark/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Realism Benchmark
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -2048,22 +3992,23 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
   
     <li class="md-nav__item">
-      <a href="../failure-modes/" class="md-nav__link">
+      <a href="../realism-benchmark/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    When Misata Refuses
+    Realism Benchmark
   
 
     
@@ -2075,22 +4020,23 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
   
     <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
+      <a href="../guides/research-benchmarks/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI Reference
+    Research Benchmarks
   
 
     
@@ -2099,6 +4045,14 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2111,60 +4065,6 @@
   
     
     
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -2187,18 +4087,17 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_18" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
         
           
-          <div class="md-nav__link md-nav__container">
-            <a href="../guides/" class="md-nav__link ">
-              
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
     
   
-    Guides
+    Comparisons
   
 
     
@@ -2206,27 +4105,19 @@
   
   
 
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_18" id="__nav_18_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
+            <span class="md-nav__icon md-icon"></span>
+          </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_18_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_18">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Guides
+    Comparisons
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
-            
-              
             
               
                 
@@ -2271,34 +4162,6 @@
     
   
     Multi-table Synthetic Data
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/database-seeding-python/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Database Seeding in Python
   
 
     
@@ -2368,6 +4231,75 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Limitations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
               
                 
   
@@ -2375,14 +4307,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/mimic/" class="md-nav__link">
+      <a href="../limitations/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Mimic Mode
+    Limitations
   
 
     
@@ -2403,14 +4335,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/geospatial/" class="md-nav__link">
+      <a href="../security/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Geospatial Realism
+    Security Model
   
 
     
@@ -2431,14 +4363,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/long-form-text/" class="md-nav__link">
+      <a href="../data-provenance/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Long-Form Text
+    Data Provenance
   
 
     
@@ -2459,574 +4391,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../guides/outcome_curves/" class="md-nav__link">
+      <a href="../stability/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Outcome Curves
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/rate_curves/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Rate Curves
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/correlations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Column Correlations
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/conditional-columns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Conditional Columns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/distributions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Distribution Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/anomaly-injection/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Anomaly Injection
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/research-benchmarks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Research Benchmarks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/jupyter/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Jupyter Magic
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/rest-api/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    REST API
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/narrative-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Narrative Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/declared-vocabulary-and-structure/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Lexicons, Motifs and Joint Margins
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/mcp/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    MCP Server (AI agents)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/testing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    pytest Fixtures
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/custom-generators/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Custom Generators
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/processes/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Processes and Event Logs
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/nested-columns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Nested JSON and Arrays
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/presets/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Use-case Presets
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/django/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Django
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/from-ddl/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SQL DDL to Schema
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/dbt-seed/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    dbt Seed Integration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/streaming/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Streaming Large Datasets
+    Stability Policy
   
 
     
@@ -3111,7 +4483,7 @@
   <a href="#c1-archetype-collapse-drops-domain-specific-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C1 — Archetype collapse drops domain-specific columns
+        C1: Archetype collapse drops domain-specific columns
       
     </span>
   </a>
@@ -3122,7 +4494,7 @@
   <a href="#c2-measured-values-are-missing-the-whole-point-of-telemetrylabs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C2 — Measured values are missing (the whole point of telemetry/labs)
+        C2: Measured values are missing (the whole point of telemetry/labs)
       
     </span>
   </a>
@@ -3133,7 +4505,7 @@
   <a href="#c3-explicit-story-attributes-are-ignored" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C3 — Explicit story attributes are ignored
+        C3: Explicit story attributes are ignored
       
     </span>
   </a>
@@ -3144,7 +4516,7 @@
   <a href="#c4-cardinality-is-unrealistic-ignores-stated-and-implied-ratios" class="md-nav__link">
     <span class="md-ellipsis">
       
-        C4 — Cardinality is unrealistic / ignores stated and implied ratios
+        C4: Cardinality is unrealistic / ignores stated and implied ratios
       
     </span>
   </a>
@@ -3183,7 +4555,7 @@
   <a href="#m1-attribute-extraction-from-the-story-closes-c3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        M1 — Attribute extraction from the story (closes C3)
+        M1: Attribute extraction from the story (closes C3)
       
     </span>
   </a>
@@ -3194,7 +4566,7 @@
   <a href="#m2-measured-value-columns-for-eventreading-archetypes-closes-c2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        M2 — Measured-value columns for event/reading archetypes (closes C2)
+        M2: Measured-value columns for event/reading archetypes (closes C2)
       
     </span>
   </a>
@@ -3205,7 +4577,7 @@
   <a href="#m3-cardinality-realism-engine-closes-c4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        M3 — Cardinality realism engine (closes C4)
+        M3: Cardinality realism engine (closes C4)
       
     </span>
   </a>
@@ -3216,7 +4588,7 @@
   <a href="#m4-domain-capsules-as-the-niche-coverage-flywheel-closes-c1-c5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        M4 — Domain capsules as the niche-coverage flywheel (closes C1, C5)
+        M4: Domain capsules as the niche-coverage flywheel (closes C1, C5)
       
     </span>
   </a>
@@ -3227,7 +4599,7 @@
   <a href="#m5-shape-archetype-generators-closes-weak-shapes-3568" class="md-nav__link">
     <span class="md-ellipsis">
       
-        M5 — Shape-archetype generators (closes weak shapes 3/5/6/8)
+        M5: Shape-archetype generators (closes weak shapes 3/5/6/8)
       
     </span>
   </a>
@@ -3238,7 +4610,7 @@
   <a href="#m6-business-rule-validation-gate-the-trust-moment-raises-axis-3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        M6 — Business-rule validation gate (the trust moment) (raises axis 3)
+        M6: Business-rule validation gate (the trust moment) (raises axis 3)
       
     </span>
   </a>
@@ -3249,7 +4621,7 @@
   <a href="#m7-honest-degradation-contract-never-silently-wrong-safety-net" class="md-nav__link">
     <span class="md-ellipsis">
       
-        M7 — Honest-degradation contract (never silently wrong) (safety net)
+        M7: Honest-degradation contract (never silently wrong) (safety net)
       
     </span>
   </a>
@@ -3331,10 +4703,10 @@
   
 
 
-<h1 id="resilience-coverage-design-being-bulletproof-across-every-domain">Resilience &amp; Coverage Design — being bulletproof across every domain</h1>
+<h1 id="resilience-coverage-design-being-bulletproof-across-every-domain">Resilience &amp; Coverage Design: being bulletproof across every domain</h1>
 <blockquote>
-<p><strong>Goal.</strong> A user can describe <em>any</em> business — a SaaS, a vineyard, a vet clinic,
-a semiconductor fab, a microfinance co-op in Lagos — and get data that is
+<p><strong>Goal.</strong> A user can describe <em>any</em> business (a SaaS, a vineyard, a vet clinic,
+a semiconductor fab, a microfinance co-op in Lagos) and get data that is
 <em>structurally correct, statistically plausible, business-rule valid, and
 domain-recognisable</em>. Where we cannot be accurate, we are <strong>honestly
 approximate and never silently wrong</strong>. This document defines the bar, audits
@@ -3349,23 +4721,23 @@ trust. The perception of "simple tool" is earned the moment a user sees a
 <p>The synthetic-data literature converges on five axes. We hold every dataset to
 all five, in priority order:</p>
 <ol>
-<li><strong>Structural fidelity</strong> — the right tables, keys, and relationships exist.</li>
-<li><strong>Referential integrity</strong> — no orphans; child rows point at real parents.</li>
-<li><strong>Business-logic validity</strong> — rows obey domain rules (a refund ≤ the order;
+<li><strong>Structural fidelity</strong>: the right tables, keys, and relationships exist.</li>
+<li><strong>Referential integrity</strong>: no orphans; child rows point at real parents.</li>
+<li><strong>Business-logic validity</strong>: rows obey domain rules (a refund ≤ the order;
    a discharge date ≥ an admission date; a churned user has a cancel event).
-   <em>This is the axis most tools fail</em> — data that is "statistically plausible
+   <em>This is the axis most tools fail</em>: data that is "statistically plausible
    but violates domain logic."</li>
-<li><strong>Statistical fidelity</strong> — marginals and joint distributions look real
+<li><strong>Statistical fidelity</strong>: marginals and joint distributions look real
    (lognormal revenue, bimodal ages, correlated height/weight).</li>
-<li><strong>Domain recognisability</strong> — a domain expert glancing at the data says "yes,
+<li><strong>Domain recognisability</strong>: a domain expert glancing at the data says "yes,
    that's a vet clinic" (species, breeds, vaccine names) not "that's the
    archetype skeleton of a vet clinic" (model, status, acquired_date).</li>
 </ol>
-<p>Misata is already strong on 1–2, partial on 3–4, and <strong>weakest on 5</strong> — which
+<p>Misata is already strong on 1–2, partial on 3–4, and <strong>weakest on 5</strong>, which
 is exactly the axis a human notices first.</p>
 <hr />
 <h2 id="2-where-we-stand-the-tiered-resilience-model-honest-audit">2. Where we stand: the tiered resilience model (honest audit)</h2>
-<p>Misata already has a real, layered architecture — not a single keyword lookup.
+<p>Misata already has a real, layered architecture, not a single keyword lookup.
 Coverage degrades gracefully across tiers:</p>
 <table>
 <thead>
@@ -3428,27 +4800,27 @@ columns</em>, not <em>whether</em> it produces something.</p>
 <h2 id="3-the-empirical-cliffs-stress-test-june-2026">3. The empirical cliffs (stress test, June 2026)</h2>
 <p>Four niche domains pushed through the story path (<code>misata.generate</code>). Structure
 held; the gaps below are real and reproducible.</p>
-<h3 id="c1-archetype-collapse-drops-domain-specific-columns">C1 — Archetype collapse drops domain-specific columns</h3>
+<h3 id="c1-archetype-collapse-drops-domain-specific-columns">C1: Archetype collapse drops domain-specific columns</h3>
 <ul>
 <li><strong>Vet clinic</strong> <code>animals</code> → <code>[animal_id, model, status, acquired_date]</code>.
   An animal became an <em>asset</em> (model/acquired_date) instead of having
   <strong>species, breed, name, age, weight</strong>.</li>
-<li><strong>Vineyard</strong> <code>wine_lots</code> → <code>[name, city, is_active]</code> — a wine lot got a
+<li><strong>Vineyard</strong> <code>wine_lots</code> → <code>[name, city, is_active]</code>: a wine lot got a
   <code>city</code> (place confusion), not varietal/vintage/volume.</li>
 </ul>
-<h3 id="c2-measured-values-are-missing-the-whole-point-of-telemetrylabs">C2 — Measured values are missing (the whole point of telemetry/labs)</h3>
+<h3 id="c2-measured-values-are-missing-the-whole-point-of-telemetrylabs">C2: Measured values are missing (the whole point of telemetry/labs)</h3>
 <ul>
 <li><strong>Factory</strong> <code>sensor_readings</code> → <code>[…, reading_date, status]</code> with <strong>no
-  temperature, no vibration</strong> — the measurement named in the story is absent.</li>
+  temperature, no vibration</strong>: the measurement named in the story is absent.</li>
 <li>Event/reading entities lack their core numeric payload.</li>
 </ul>
-<h3 id="c3-explicit-story-attributes-are-ignored">C3 — Explicit story attributes are ignored</h3>
+<h3 id="c3-explicit-story-attributes-are-ignored">C3: Explicit story attributes are ignored</h3>
 <ul>
-<li>"temperature and vibration sensor readings", "billable hours" — named in the
+<li>"temperature and vibration sensor readings", "billable hours": named in the
   prompt, <strong>never become columns</strong>. The parser extracts <em>entities</em>, not
   <em>attributes</em>.</li>
 </ul>
-<h3 id="c4-cardinality-is-unrealistic-ignores-stated-and-implied-ratios">C4 — Cardinality is unrealistic / ignores stated and implied ratios</h3>
+<h3 id="c4-cardinality-is-unrealistic-ignores-stated-and-implied-ratios">C4: Cardinality is unrealistic / ignores stated and implied ratios</h3>
 <ul>
 <li>200 legal cases → <strong>10,000 attorneys</strong> and <strong>10,000 clients</strong>.</li>
 <li>300 pet owners → 2,000 animals (≈7 pets each) and 30,000 vaccinations.</li>
@@ -3469,25 +4841,25 @@ telco · real-estate · travel/hospitality · gaming · streaming/media · socia
 edtech · gov/civic · legal · agriculture · scientific/lab · non-profit ·
 automotive/AV · construction · field-service.</p>
 <p><strong>B. Data-shape archetypes</strong> (the <em>physics</em> of the rows, domain-independent)
-1. <strong>Entity/dimension</strong> (users, products) — identity + attributes.
-2. <strong>Event/fact</strong> (orders, clicks, payments) — timestamped, FK-heavy.
-3. <strong>Time-series/telemetry</strong> (sensor readings, prices, vitals) — regular
+1. <strong>Entity/dimension</strong> (users, products): identity + attributes.
+2. <strong>Event/fact</strong> (orders, clicks, payments): timestamped, FK-heavy.
+3. <strong>Time-series/telemetry</strong> (sensor readings, prices, vitals): regular
    cadence, autocorrelated values, units.
-4. <strong>State-machine/lifecycle</strong> (subscriptions, claims, tickets) — status
+4. <strong>State-machine/lifecycle</strong> (subscriptions, claims, tickets): status
    transitions with valid orderings.
-5. <strong>Hierarchy/graph</strong> (org charts, bill-of-materials, referrals) — self-refs.
-6. <strong>Ledger/double-entry</strong> (accounting, wallets) — sums that must balance.
-7. <strong>Document/text</strong> (reviews, notes, contracts) — realistic prose.
-8. <strong>Geospatial/movement</strong> (trips, deliveries) — coherent lat/long paths.</p>
+5. <strong>Hierarchy/graph</strong> (org charts, bill-of-materials, referrals): self-refs.
+6. <strong>Ledger/double-entry</strong> (accounting, wallets): sums that must balance.
+7. <strong>Document/text</strong> (reviews, notes, contracts): realistic prose.
+8. <strong>Geospatial/movement</strong> (trips, deliveries): coherent lat/long paths.</p>
 <p>Misata is strong on 1, 2, 7; partial on 4; <strong>weak on 3, 5, 6, 8</strong>. These shape
-archetypes are <em>more leverage than more domains</em> — they generalise across every
+archetypes are <em>more leverage than more domains</em>: they generalise across every
 industry. A robust time-series + ledger + lifecycle engine makes 30 domains
 credible at once.</p>
 <hr />
 <h2 id="5-the-resilience-architecture-implementable">5. The resilience architecture (implementable)</h2>
 <p>Seven mechanisms, each mapped to code, each closing a specific cliff. Ordered by
 impact-to-effort.</p>
-<h3 id="m1-attribute-extraction-from-the-story-closes-c3">M1 — Attribute extraction from the story  <em>(closes C3)</em></h3>
+<h3 id="m1-attribute-extraction-from-the-story-closes-c3">M1: Attribute extraction from the story  <em>(closes C3)</em></h3>
 <p>Teach the parser to lift <strong>named attributes</strong>, not just entities. "machines
 emitting <strong>temperature and vibration</strong>", "<strong>billable hours</strong>", "orders with a
 <strong>total</strong> and <strong>discount</strong>".</p>
@@ -3499,7 +4871,7 @@ emitting <strong>temperature and vibration</strong>", "<strong>billable hours</s
 <li><em>Acceptance:</em> the factory story yields <code>sensor_readings.temperature</code> and
   <code>.vibration</code> with sane units/ranges.</li>
 </ul>
-<h3 id="m2-measured-value-columns-for-eventreading-archetypes-closes-c2">M2 — Measured-value columns for event/reading archetypes  <em>(closes C2)</em></h3>
+<h3 id="m2-measured-value-columns-for-eventreading-archetypes-closes-c2">M2: Measured-value columns for event/reading archetypes  <em>(closes C2)</em></h3>
 <p>Every <code>event</code>/<code>reading</code> entity gets a <strong>payload column</strong> appropriate to its
 verb: a <code>reading</code> → a <code>value</code> (+<code>unit</code>); a <code>payment</code> → an <code>amount</code>; a <code>test</code> →
 a <code>result</code>. Misata already tags <code>MONETARY_EVENTS</code>; generalise to
@@ -3508,7 +4880,7 @@ a <code>result</code>. Misata already tags <code>MONETARY_EVENTS</code>; general
 <li><em>Where:</em> <code>composer._columns_for(entity)</code> archetype → column synthesis.</li>
 <li><em>Acceptance:</em> no reading/measurement table ships without its numeric payload.</li>
 </ul>
-<h3 id="m3-cardinality-realism-engine-closes-c4">M3 — Cardinality realism engine  <em>(closes C4)</em></h3>
+<h3 id="m3-cardinality-realism-engine-closes-c4">M3: Cardinality realism engine  <em>(closes C4)</em></h3>
 <p>Replace flat <code>30000</code>/<code>10000</code> defaults with <strong>ratio-aware</strong> row counts:
 1. Honour explicitly stated counts ("200 cases", "50 machines").
 2. Derive child counts from <strong>relationship multipliers</strong> (pets-per-owner ≈ 1.6;
@@ -3517,13 +4889,13 @@ a <code>result</code>. Misata already tags <code>MONETARY_EVENTS</code>; general
    from <code>domain_priors</code> + commonsense lattice; overridable in the schema.</p>
 <ul>
 <li><em>Where:</em> <code>composer._default_rows</code> + <code>RealismConfig.relationship_multipliers</code>
-  (already exists — wire it into the composer path and the studio).</li>
+  (already exists; wire it into the composer path and the studio).</li>
 <li><em>Acceptance:</em> a 200-case firm has ~20–60 attorneys, not 10,000.</li>
 </ul>
-<h3 id="m4-domain-capsules-as-the-niche-coverage-flywheel-closes-c1-c5">M4 — Domain capsules as the niche-coverage flywheel  <em>(closes C1, C5)</em></h3>
+<h3 id="m4-domain-capsules-as-the-niche-coverage-flywheel-closes-c1-c5">M4: Domain capsules as the niche-coverage flywheel  <em>(closes C1, C5)</em></h3>
 <p>Capsules are the scalable answer to "infinite domains." A capsule supplies:
 vocab pools (species, breeds, vaccine names, varietals), per-column
-distributions, business rules, and cardinality priors — <strong>without touching the
+distributions, business rules, and cardinality priors, <strong>without touching the
 engine</strong>.</p>
 <ul>
 <li><em>Ship a starter library</em> (vet, legal, manufacturing, energy, agriculture,
@@ -3536,10 +4908,10 @@ engine</strong>.</p>
 <li><em>Acceptance:</em> "vet clinic" animals have species/breed/name; a community PR
   adds a domain in one reviewable file.</li>
 </ul>
-<h3 id="m5-shape-archetype-generators-closes-weak-shapes-3568">M5 — Shape-archetype generators  <em>(closes weak shapes 3/5/6/8)</em></h3>
+<h3 id="m5-shape-archetype-generators-closes-weak-shapes-3568">M5: Shape-archetype generators  <em>(closes weak shapes 3/5/6/8)</em></h3>
 <p>Domain-independent generators for the data <em>physics</em>:
 - <strong>Time-series:</strong> cadence + AR(1)/trend/seasonality + noise + unit. (Partial
-  <code>time_series</code> param exists — promote to a first-class archetype with cadence
+  <code>time_series</code> param exists; promote to a first-class archetype with cadence
   inference from the story: "every hour".)
 - <strong>Ledger/double-entry:</strong> a <code>balance</code>/<code>__ledger__</code> directive guaranteeing
   debits = credits and running balances ≥ 0.
@@ -3549,7 +4921,7 @@ engine</strong>.</p>
   the studio can expose them no-code.
 - <em>Acceptance:</em> an accounting dataset balances to the cent; sensor telemetry is
   autocorrelated, not white noise.</p>
-<h3 id="m6-business-rule-validation-gate-the-trust-moment-raises-axis-3">M6 — Business-rule validation gate (the trust moment)  <em>(raises axis 3)</em></h3>
+<h3 id="m6-business-rule-validation-gate-the-trust-moment-raises-axis-3">M6: Business-rule validation gate (the trust moment)  <em>(raises axis 3)</em></h3>
 <p>A post-generation <strong>validator</strong> that checks declared + inferred invariants and
 either repairs or reports them, surfaced like the integrity proof:
 - temporal ordering (<code>created_at ≤ updated_at ≤ closed_at</code>),
@@ -3560,11 +4932,11 @@ either repairs or reports them, surfaced like the integrity proof:
   <strong>conformance report</strong> returned with every run.
 - <em>Acceptance:</em> every run ships a pass/fail card per invariant; violations are
   never silent.</p>
-<h3 id="m7-honest-degradation-contract-never-silently-wrong-safety-net">M7 — Honest-degradation contract (never silently wrong)  <em>(safety net)</em></h3>
+<h3 id="m7-honest-degradation-contract-never-silently-wrong-safety-net">M7: Honest-degradation contract (never silently wrong)  <em>(safety net)</em></h3>
 <p>When confidence is low, <strong>say so</strong> instead of guessing:
 - a per-column/table <strong>confidence</strong> (T1 capsule vs T3 archetype guess),
 - a run-level <strong>coverage report</strong>: "animals: archetype-inferred (no vet
-  capsule) — values are generic; add a capsule or sample CSV for fidelity,"
+  capsule), values are generic; add a capsule or sample CSV for fidelity,"
 - the existing <code>StoryParser</code> fallback warning, generalised and structured.
 - <em>Acceptance:</em> a user never <em>discovers</em> shallowness by surprise; the tool
   told them, with the fix one step away (capsule / CSV / LLM key).</p>
@@ -3578,23 +4950,23 @@ either repairs or reports them, surfaced like the integrity proof:
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>anything else?           → T3 archetype + M1/M2 (structurally right, honestly generic)
 </code></pre></div>
 <p>No branch returns broken or silently-wrong data. Every branch returns the
-conformance + coverage report (M6/M7). That contract — <em>correct or candid,
-never confidently wrong</em> — is what separates a serious engine from a toy.</p>
+conformance + coverage report (M6/M7). That contract, <em>correct or candid,
+never confidently wrong</em>, is what separates a serious engine from a toy.</p>
 <hr />
 <h2 id="7-phased-roadmap-impact-ordered-each-shippable">7. Phased roadmap (impact-ordered, each shippable)</h2>
-<p><strong>Phase 1 — Recognisability &amp; honesty (closes the "simple tool" perception)</strong>
+<p><strong>Phase 1: Recognisability &amp; honesty (closes the "simple tool" perception)</strong>
 - M1 attribute extraction, M2 measured-value columns, M3 cardinality realism.
 - M7 coverage report (cheap, huge trust win).
 - <em>Result:</em> niche stories produce <em>recognisable</em> schemas with payloads and sane
   scale, and admit what they inferred.</p>
-<p><strong>Phase 2 — The capsule flywheel (scales to infinite domains)</strong>
+<p><strong>Phase 2: The capsule flywheel (scales to infinite domains)</strong>
 - M4 starter capsule library (6–10 domains) + auto-select + on-the-fly build.
 - Capsule contribution guide + CI validation; community can add a domain in one
   file.</p>
-<p><strong>Phase 3 — Shape mastery (credible across data physics)</strong>
+<p><strong>Phase 3: Shape mastery (credible across data physics)</strong>
 - M5 time-series, ledger, hierarchy, geospatial archetypes.
 - Studio no-code controls for each.</p>
-<p><strong>Phase 4 — The trust gate (enterprise-grade)</strong>
+<p><strong>Phase 4: The trust gate (enterprise-grade)</strong>
 - M6 full business-rule conformance report, repair loop, exportable as an audit
   artifact.</p>
 <p>Each phase is independently valuable and independently shippable; each adds
@@ -3609,9 +4981,9 @@ This turns "resilient for every use case" into a number that goes up.</p>
 <hr />
 <h3 id="sources">Sources</h3>
 <ul>
-<li><a href="https://bluegen.ai/what-industries-use-synthetic-data/">Synthetic data by industry — use cases &amp; regulation (bluegen.ai)</a></li>
+<li><a href="https://bluegen.ai/what-industries-use-synthetic-data/">Synthetic data by industry: use cases &amp; regulation (bluegen.ai)</a></li>
 <li><a href="https://research.aimultiple.com/synthetic-data-use-cases/">Top synthetic data use cases (AIMultiple)</a></li>
-<li><a href="https://bluegen.ai/how-reliable-is-synthetic-data/">How reliable is synthetic data — failure modes (bluegen.ai)</a></li>
+<li><a href="https://bluegen.ai/how-reliable-is-synthetic-data/">How reliable is synthetic data: failure modes (bluegen.ai)</a></li>
 <li><a href="https://www.synthesized.io/post/why-referential-integrity-matters-in-test-data-management">Why referential integrity matters in test data (Synthesized)</a></li>
 <li><a href="https://arxiv.org/html/2410.03411v1">Benchmarking fidelity &amp; utility of synthetic relational data (arXiv)</a></li>
 <li><a href="https://www.mjvinnovation.com/blog/how-to-validate-synthetic-data-the-guide-to-fidelity-utility-and-privacy/">How to validate synthetic data: fidelity, utility, privacy (MJV)</a></li>
@@ -3622,6 +4994,9 @@ This turns "resilient for every use case" into a number that goes up.</p>
 
 
 
+
+  
+  
 
 
 
@@ -3704,10 +5079,10 @@ This turns "resilient for every use case" into a number that goes up.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.instant", "navigation.indexes", "search.highlight", "search.suggest", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>

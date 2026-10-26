@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="300" viewBox="0 0 680 300" role="img" aria-labelledby="t d" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+<title id="t">How easily a classifier tells generated data from real</title>
+<desc id="d">Detection AUC, mean of five seeds; 0.5 means indistinguishable. Misata, declared schema: Olist 0.63, taxi 0.75; Misata, from a sentence: Olist 0.73, taxi 0.80; Faker script: Olist 0.78, taxi 0.79; SDV, fitted to the real data: Olist 0.71, taxi 0.68; Misata mimic, fitted: Olist 0.54, taxi 0.54.</desc>
+<rect width="680" height="300" rx="8" fill="#fcfcfb"/>
+<circle cx="219" cy="25" r="5" fill="#2a78d6"/>
+<text x="230" y="29" font-size="12.5" fill="#0b0b0b">Olist orders</text>
+<circle cx="369" cy="25" r="5" fill="#eb6834"/>
+<text x="380" y="29" font-size="12.5" fill="#0b0b0b">NYC taxi trips</text>
+<text x="640" y="29" font-size="11" text-anchor="end" fill="#52514e">lower is better</text>
+<line x1="214.0" x2="214.0" y1="52" y2="252" stroke="#e4e3df" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="214.0" y="268" font-size="11" text-anchor="middle" fill="#52514e">0.5</text>
+<line x1="335.7" x2="335.7" y1="52" y2="252" stroke="#e4e3df" stroke-width="1"/>
+<text x="335.7" y="268" font-size="11" text-anchor="middle" fill="#52514e">0.6</text>
+<line x1="457.4" x2="457.4" y1="52" y2="252" stroke="#e4e3df" stroke-width="1"/>
+<text x="457.4" y="268" font-size="11" text-anchor="middle" fill="#52514e">0.7</text>
+<line x1="579.1" x2="579.1" y1="52" y2="252" stroke="#e4e3df" stroke-width="1"/>
+<text x="579.1" y="268" font-size="11" text-anchor="middle" fill="#52514e">0.8</text>
+<text x="218.0" y="286" font-size="11" fill="#52514e">0.5: a classifier cannot tell them from real rows</text>
+<text x="200" y="74" font-size="12" text-anchor="end" fill="#0b0b0b">Misata, declared schema</text>
+<text x="200" y="88" font-size="10.5" text-anchor="end" fill="#52514e">sees no real data</text>
+<circle cx="371.0" cy="68" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="380.0" y="72" font-size="10.5" fill="#52514e">0.63</text>
+<circle cx="518.3" cy="80" r="5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<text x="527.3" y="84" font-size="10.5" fill="#52514e">0.75</text>
+<text x="200" y="114" font-size="12" text-anchor="end" fill="#0b0b0b">Misata, from a sentence</text>
+<text x="200" y="128" font-size="10.5" text-anchor="end" fill="#52514e">sees no real data</text>
+<circle cx="493.9" cy="108" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="502.9" y="112" font-size="10.5" fill="#52514e">0.73</text>
+<circle cx="580.4" cy="120" r="5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<text x="589.4" y="124" font-size="10.5" fill="#52514e">0.80</text>
+<text x="200" y="154" font-size="12" text-anchor="end" fill="#0b0b0b">Faker script</text>
+<text x="200" y="168" font-size="10.5" text-anchor="end" fill="#52514e">sees no real data</text>
+<circle cx="558.5" cy="148" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="567.5" y="152" font-size="10.5" fill="#52514e">0.78</text>
+<circle cx="564.5" cy="160" r="5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<text x="573.5" y="164" font-size="10.5" fill="#52514e">0.79</text>
+<text x="200" y="194" font-size="12" text-anchor="end" fill="#0b0b0b">SDV, fitted to the real data</text>
+<text x="200" y="208" font-size="10.5" text-anchor="end" fill="#52514e">sees the real data</text>
+<circle cx="470.8" cy="188" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="479.8" y="192" font-size="10.5" fill="#52514e">0.71</text>
+<circle cx="427.0" cy="200" r="5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<text x="436.0" y="204" font-size="10.5" fill="#52514e">0.68</text>
+<text x="200" y="234" font-size="12" text-anchor="end" fill="#0b0b0b">Misata mimic, fitted</text>
+<text x="200" y="248" font-size="10.5" text-anchor="end" fill="#52514e">sees the real data</text>
+<circle cx="259.0" cy="228" r="5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="268.0" y="232" font-size="10.5" fill="#52514e">0.54</text>
+<circle cx="266.3" cy="240" r="5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<text x="275.3" y="244" font-size="10.5" fill="#52514e">0.54</text>
+</svg>
