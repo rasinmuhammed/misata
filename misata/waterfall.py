@@ -18,7 +18,7 @@ technique, the same primitives behind exact group shares.
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -61,7 +61,8 @@ def declared_movements(
     prev = round(float(spec.starting_value), 2)
     for point in spec.points:
         period = str(point.get("period"))
-        end = round(float(point.get("ending_value")), 2)
+        ending: Any = point.get("ending_value")
+        end = round(float(ending), 2)
         delta = round(end - prev, 2)
         gross_out = round(max(prev, 0.0) * max(float(spec.outflow_rate), 0.0), 2)
         if delta < 0:

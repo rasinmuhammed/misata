@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 import zlib
 from dataclasses import dataclass, replace
-from typing import Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -76,7 +76,7 @@ def city_populations(country: str) -> Dict[str, int]:
             from importlib.resources import files
             raw = files("misata").joinpath("data_packs/city_population.json").read_text("utf-8")
             _POPULATION = json.loads(raw)["populations"]
-        except Exception:
+        except (OSError, ValueError, KeyError):
             _POPULATION = {}
     return _POPULATION.get(str(country), {})
 
@@ -654,8 +654,8 @@ def draw_products(rng: np.random.Generator, size: int,
         use_attr = rng.random(n) < 0.55
         use_mat = (rng.random(n) < 0.3) if F.material_in_name else np.zeros(n, bool)
         use_var = rng.random(n) < 0.4
-        variants = [eligible(F.variants, noun[i]) for i in idx]
-        variants = [v[int(rng.integers(len(v)))] if v else "" for v in variants]
+        variant_pools = [eligible(F.variants, noun[i]) for i in idx]
+        variants = [v[int(rng.integers(len(v)))] if v else "" for v in variant_pools]
         for j, i in enumerate(idx):
             parts = []
             if use_brand[j]:
@@ -765,7 +765,7 @@ def _specific_first(rng, pool: Sequence[str], noun: str, k: int) -> List[str]:
     fits = eligible(pool, noun)
     n_tag = _SPECIFIC[(id(pool), noun)]
     tagged, plain = list(range(n_tag)), list(range(n_tag, len(fits)))
-    out = []
+    out: List[str] = []
     while len(out) < min(k, len(fits)):
         src = tagged if tagged and (not plain or rng.random() < 0.75) else plain
         out.append(fits[src.pop(int(rng.integers(len(src))))])
@@ -932,10 +932,13 @@ def render_product_descriptions(rng: np.random.Generator, frame: ProductFrame,
         tmpl, used = openers[int(rng.choice(len(openers), p=w / w.sum()))][1:]
         sentences = [_fill(tmpl, rng, slots)]
         rest = feats[used:]
-        tail = []
+        tail: List[Callable[[], str]] = []
         if rest:
             fs = dict(slots, **{f"f{k}": f for k, f in enumerate(rest, 1)}, F1=_cap(rest[0]))
-            tail.append(lambda fs=fs, n=len(rest): _fill(_weighted(rng, _DESC_FEATURES[n]), rng, fs))
+
+            def feature_sentence(fs=fs, n=len(rest)) -> str:
+                return _fill(_weighted(rng, _DESC_FEATURES[n]), rng, fs)
+            tail.append(feature_sentence)
         tail.append(lambda: _fill(_weighted(rng, _DESC_USES), rng, slots))
         tail.append(spec)
         tail.append(lambda: _fill(_pick(rng, _DESC_EXTRAS), rng, dict(slots, **_desc_slots(rng))))
@@ -1436,8 +1439,8 @@ def draw_tickets(rng: np.random.Generator, size: int, *,
             s = _fill(str(_pick(rng, iss.subjects)), rng, slots[i])
         q = rng.random()
         if q < 0.5:
-            pool = _SUBJECT_SUFFIXES + ([" - {item}"] * 3 if iss.family in ("shipping", "returns") else [])
-            s = s + _fill(str(_pick(rng, pool)), rng, slots[i])
+            suffixes = _SUBJECT_SUFFIXES + ([" - {item}"] * 3 if iss.family in ("shipping", "returns") else [])
+            s = s + _fill(str(_pick(rng, suffixes)), rng, slots[i])
             q = 1.0
         if q < 0.12 and "#" not in s and iss.family in ("billing", "shipping", "returns"):
             s = f"{s} (order #{slots[i]['order']})"

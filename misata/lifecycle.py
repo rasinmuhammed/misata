@@ -210,7 +210,7 @@ def apply_lifecycles(
             continue
         try:
             tables[spec.table] = apply_lifecycle(df, spec, rng)
-        except Exception as e:   # never let a lifecycle corrupt an otherwise-valid run
+        except Exception as e:  # noqa: BLE001 - a failed lifecycle warns and leaves the table as generated
             warn(
                 f"Lifecycle '{spec.name}' could not be applied ({e}); "
                 f"'{spec.table}' is left as generated.",

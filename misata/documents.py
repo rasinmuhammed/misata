@@ -420,7 +420,8 @@ class DocumentTemplate:
             "_subtitle": subtitle,
         }
         ctx.update({k: v for k, v in row.items()})  # expose all cols directly
-        return jt.render(**ctx)
+        rendered: str = jt.render(**ctx)
+        return rendered
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +493,7 @@ def generate_documents(
         df = df.head(limit)
 
     # Resolve template
-    fmt_for_template = "markdown" if format == "markdown" else (
+    fmt_for_template: Literal["html", "markdown", "txt"] = "markdown" if format == "markdown" else (
         "txt" if format == "txt" else "html"
     )
     if isinstance(template, DocumentTemplate):
@@ -538,7 +539,7 @@ def _safe_val(v: Any) -> Any:
         import pandas as pd
         if pd.isna(v):
             return None
-    except Exception:
+    except (ImportError, TypeError, ValueError):
         pass
     if isinstance(v, float) and math.isnan(v):
         return None

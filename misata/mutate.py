@@ -422,7 +422,7 @@ def model_sql_path(project_dir: Path, node: Dict[str, Any]) -> Optional[Path]:
     original = node.get("original_file_path")
     if not original:
         return None
-    candidates = [project_dir / original]
+    candidates: List[Path] = [project_dir / original]
     package = node.get("package_name")
     if package:
         candidates.append(project_dir / "dbt_packages" / package / original)

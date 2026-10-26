@@ -86,7 +86,7 @@ class SchemaValidationError(SchemaError):
         self.field = field
         self.value = value
         self.suggestion = suggestion
-        details = {}
+        details: Dict[str, Any] = {}
         if field:
             details["field"] = field
         if value is not None:
@@ -110,7 +110,7 @@ class SchemaParseError(SchemaError):
     def __init__(self, message: str, source: Optional[str] = None, line: Optional[int] = None):
         self.source = source
         self.line = line
-        details = {}
+        details: Dict[str, Any] = {}
         if source:
             details["source"] = source
         if line:
@@ -129,7 +129,7 @@ class RelationshipError(SchemaError):
     ):
         self.parent_table = parent_table
         self.child_table = child_table
-        details = {}
+        details: Dict[str, Any] = {}
         if parent_table:
             details["parent_table"] = parent_table
         if child_table:
@@ -159,7 +159,7 @@ class ColumnGenerationError(GenerationError):
         self.column = column
         self.column_type = column_type
         self.suggestion = suggestion
-        details = {}
+        details: Dict[str, Any] = {}
         if table:
             details["table"] = table
         if column:
@@ -191,7 +191,7 @@ class ConstraintError(GenerationError):
     ):
         self.constraint_type = constraint_type
         self.affected_columns = affected_columns or []
-        details = {}
+        details: Dict[str, Any] = {}
         if constraint_type:
             details["constraint_type"] = constraint_type
         if affected_columns:
@@ -221,7 +221,7 @@ class ReferentialIntegrityError(GenerationError):
         self.parent_table = parent_table
         self.child_table = child_table
         self.missing_ids = missing_ids
-        details = {}
+        details: Dict[str, Any] = {}
         if parent_table:
             details["parent_table"] = parent_table
         if child_table:
@@ -252,7 +252,7 @@ class LLMParseError(LLMError):
     
     def __init__(self, message: str, raw_response: Optional[str] = None):
         self.raw_response = raw_response[:500] if raw_response else None
-        details = {}
+        details: Dict[str, Any] = {}
         if self.raw_response:
             details["raw_response_preview"] = self.raw_response
         super().__init__(message, details)
@@ -264,7 +264,7 @@ class LLMQuotaError(LLMError):
     def __init__(self, message: str, provider: Optional[str] = None, retry_after: Optional[int] = None):
         self.provider = provider
         self.retry_after = retry_after
-        details = {}
+        details: Dict[str, Any] = {}
         if provider:
             details["provider"] = provider
         if retry_after:

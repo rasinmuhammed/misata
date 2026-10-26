@@ -36,7 +36,7 @@ tendency:
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 
@@ -246,10 +246,11 @@ def solve_joint(
             raise MarginsIncompatible(
                 f"forbidden combination {combo} names {e} which is not a "
                 f"declared category") from None
-    for combo, w in (seed_weights or {}).items():
-        seed[tuple(index[d][c] for d, c in zip(dims, combo, strict=True))] = float(w)
+    for cell, w in (seed_weights or {}).items():
+        seed[tuple(index[d][c] for d, c in zip(dims, cell, strict=True))] = float(w)
 
-    table, dims, levels, diag = ipf(margins, seed=seed)
+    table, dims, levels, ipf_diag = ipf(margins, seed=seed)
+    diag = cast(Dict[str, object], ipf_diag)
     if len(dims) == 2:
         counts = integerise_2d(table, n_rows)
         diag["margins_exact"] = True

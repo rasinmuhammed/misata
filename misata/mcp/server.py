@@ -34,18 +34,16 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-# FastMCP has lived in two places across `mcp` releases. Pin to neither: a
-# server that stops importing because an upstream package tidied its namespace
-# is a packaging failure, not a Misata one, and it took CI down on all four
-# interpreters while the local environment still had the older layout.
+# FastMCP has lived in two places across `mcp` releases, so both are tried and
+# neither is pinned: an upstream namespace change must not stop the server
+# importing.
 #
 # Every `mcp` import sits inside this guard, including `mcp.types`. `mcp` is an
-# optional extra, so a plain `pip install misata` leaves it absent, and an
-# unguarded import there meant `misata-mcp` died on a bare ModuleNotFoundError
-# naming a package the reader never asked for. The message below is the one
-# thing a person in that position can act on, so nothing may import ahead of it.
+# optional extra, so a plain `pip install misata` leaves it absent, and the
+# install hint below is the one thing a person in that position can act on,
+# so nothing may import ahead of it.
 _INSTALL_HINT = (
     "The MCP extra is not installed, or this version of `mcp` does not expose "
     "FastMCP at mcp.server.fastmcp or mcp.server. Install it with:\n\n"
@@ -141,7 +139,8 @@ def _domain_catalogue() -> List[Dict[str, Any]]:
 
 def _df_preview(df, n: int = 5) -> List[Dict[str, Any]]:
     """Return up to N rows as JSON-safe dicts."""
-    return json.loads(df.head(n).to_json(orient="records", date_format="iso", default_handler=str))
+    rows = json.loads(df.head(n).to_json(orient="records", date_format="iso", default_handler=str))
+    return cast(List[Dict[str, Any]], rows)
 
 
 def _load_csv_dir(path: str):
@@ -224,7 +223,7 @@ def _domain_block(tables, domain: str) -> Dict[str, Any]:
         }
     try:
         report = misata.validate_domain(tables, domain=domain)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - the plausibility check is advisory
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
     d = report.to_dict() if hasattr(report, "to_dict") else {}
     return {
@@ -252,7 +251,7 @@ def _tool_error(exc: Exception, suggestion: str) -> Dict[str, Any]:
         try:
             message = "; ".join(str(e.get("msg", "")).removeprefix("Value error, ")
                                 for e in errors()) or message
-        except Exception:
+        except Exception:  # noqa: BLE001 - an unexpected errors() shape keeps the plain message
             pass
     return {
         "ok": False,
@@ -286,7 +285,7 @@ def list_domains() -> Dict[str, Any]:
             "count": len(StoryParser.DOMAIN_KEYWORDS),
             "domains": _domain_catalogue(),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "This should never fail — please report a bug at https://github.com/rasinmuhammed/misata/issues")
 
 
@@ -329,7 +328,7 @@ def preview_story(story: str, rows: int = 1000) -> Dict[str, Any]:
             "warnings": report.warnings,
             "summary": report.summary(),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Check that the story is a non-empty string. "
@@ -362,7 +361,7 @@ def inspect_schema(story: str, rows: int = 1000) -> Dict[str, Any]:
     """
     try:
         schema = misata.parse(story, rows=rows)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Try preview_story() first to see how Misata interprets your description. "
@@ -462,7 +461,7 @@ def generate_dataset(
 
     try:
         tables = misata.generate(story, rows=rows, seed=seed)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Try preview_story() first to verify Misata understands the story. "
@@ -870,7 +869,7 @@ def generate_from_schema(
     try:
         config = misata.from_dict_schema(schema, row_count=rows, seed=seed)
         tables = misata.generate_from_schema(config)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Check the schema dict format in this tool's description: each table maps "
@@ -1032,7 +1031,7 @@ def seed_database(
 
     try:
         config = schema_from_db(db_url, default_rows=rows, include_tables=tables)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Check the connection string and that the database is reachable. "
@@ -1113,7 +1112,7 @@ def seed_database(
             smart_mode=False, use_llm=False,
         )
         integrity = verify_referential_integrity(config, db_url)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "The schema was read but the write failed. Check that the "
@@ -1380,7 +1379,7 @@ def validate_yaml(yaml_text: str) -> Dict[str, Any]:
     finally:
         try:
             tmp_path.unlink(missing_ok=True)
-        except Exception:
+        except OSError:
             pass
 
     # Stage 3 — feasibility (declarations that parse, and contradict each
@@ -1460,7 +1459,7 @@ def audit_dataset(dataset_dir: str, top_findings: int = 20) -> Dict[str, Any]:
     """
     try:
         tables = _load_csv_dir(dataset_dir)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Point dataset_dir at a folder with one CSV per table. The "
@@ -1469,7 +1468,7 @@ def audit_dataset(dataset_dir: str, top_findings: int = 20) -> Dict[str, Any]:
         )
     try:
         report = misata.coherence_audit(tables)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "The CSVs loaded but the audit failed — please report this.")
 
     d = report.to_dict()
@@ -1525,7 +1524,7 @@ def explain_schema(schema: Dict[str, Any], seed: Optional[int] = 42,
 
     try:
         plan = explain(misata.from_dict_schema(schema, seed=seed)).to_dict()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "Check the schema against generate_from_schema's "
                                 "description; the error names the field.")
     invariants = plan.pop("invariants")
@@ -1590,7 +1589,7 @@ def solve_outcome(schema: Dict[str, Any], queries: Dict[str, str],
     except SolveError as exc:
         return _tool_error(exc, "Each lever must be an outcome curve with exact values, and "
                                 "each target's periods must fall inside that curve.")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "Check the schema with explain_schema first.")
     data = result.to_dict()
     return {"ok": result.converged, "converged": result.converged, "reason": result.reason,
@@ -1653,7 +1652,7 @@ def attest_dataset(
     except AttestationError as exc:
         return _tool_error(exc, "Generate the dataset first, into this folder, from the "
                                 "same schema.")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "Check that the schema is the one the dataset was generated "
                                 "from.")
 
@@ -1713,7 +1712,7 @@ def check_realism(dataset_dir: str, skip: Optional[List[str]] = None) -> Dict[st
     """
     try:
         tables = _load_csv_dir(dataset_dir)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(exc, "Point dataset_dir at a folder with one CSV per table.")
     try:
         report = misata.realism_report(tables, skip=skip or ())
@@ -1776,14 +1775,14 @@ def validate_domain(dataset_dir: str, domain: str) -> Dict[str, Any]:
 
     try:
         tables = _load_csv_dir(dataset_dir)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "Point dataset_dir at a folder with one CSV per table.",
         )
     try:
         report = misata.validate_domain(tables, domain=domain)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - a tool returns every failure as a structured error
         return _tool_error(
             exc,
             "domain must be one of: clinical_trial, clinical, financial, fintech.",
@@ -1822,7 +1821,7 @@ def main() -> None:
     try:
         from misata import __version__ as _engine_version
         mcp._mcp_server.version = _engine_version
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - the version label is cosmetic
         pass
 
     # FastMCP.run() handles signal management, transport setup, and request loop.

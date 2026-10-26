@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 import zlib
-from typing import AbstractSet, Dict, Iterable, List, Optional, Sequence, Union
+from typing import AbstractSet, Any, Dict, Iterable, List, Optional, Sequence, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -94,11 +94,10 @@ def _is_text_dtype(series: "pd.Series") -> bool:
     """True for a string-holding column under any pandas config.
 
     Newer pandas / numpy-2 string inference gives string columns a ``str`` /
-    ``string`` dtype rather than ``object``; a bare ``dtype == object`` check
-    then silently skips them (the tier-monotonicity and state-machine label
-    lookups both broke on CI this way). This accepts object and string dtypes.
+    ``string`` dtype rather than ``object``, which a bare ``dtype == object``
+    check would skip. This accepts object and string dtypes.
     """
-    return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+    return cast(bool, pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series))
 
 
 def _fuzzy_pool(pools: dict, head: str):
@@ -408,11 +407,11 @@ class RealisticTextGenerator:
             try:
                 from misata.locales.registry import LocaleRegistry
                 self._faker = LocaleRegistry.global_instance().get_faker(self.locale)
-            except Exception:
+            except Exception:  # noqa: BLE001 - fall back to a plain Faker
                 try:
                     from faker import Faker
                     self._faker = Faker(self.locale)
-                except Exception:
+                except Exception:  # noqa: BLE001 - without Faker the built-in vocabularies serve
                     self._faker = None
 
             # seed_instance, not the class-level seed: the registry hands out
@@ -421,7 +420,7 @@ class RealisticTextGenerator:
             if self._faker is not None:
                 try:
                     self._faker.seed_instance(self._faker_seed)
-                except Exception:
+                except Exception:  # noqa: BLE001 - seeding is best-effort on third-party Faker
                     pass
         return self._faker
 
@@ -501,8 +500,8 @@ class RealisticTextGenerator:
                 if _spec is not None and not (
                         _spec.locale_sensitive and self.locale != "en_US"):
                     return Lexicon(_spec, self.rng).draw(size)
-            except Exception:
-                pass  # vocabulary must never break a generation
+            except Exception:  # noqa: BLE001 - vocabulary must never break a generation
+                pass
 
         # Lookup-table labels win over everything: a reference table's label
         # column is an enumeration, not a distribution. A column named
@@ -527,7 +526,7 @@ class RealisticTextGenerator:
         elif semantic_type in (None, "", "name", "sentence", "text", "word"):
             semantic = self._infer_semantic(column_name, table_name) or semantic_type or "name"
         else:
-            semantic = semantic_type
+            semantic = cast(str, semantic_type)
 
         # When a non-default locale is active, prefer Faker for person/address data
         # so names, cities, and phones match the target locale.
@@ -688,10 +687,10 @@ class RealisticTextGenerator:
                     row_makes = table_data[_make_col].astype(str).values[:size]
                     out = []
                     for mk in row_makes:
-                        pool = VEHICLE_MODELS_BY_MAKE.get(mk.strip().lower())
-                        if pool is None:
-                            pool = [p for models in VEHICLE_MODELS_BY_MAKE.values() for p in models]
-                        out.append(self.rng.choice(pool))
+                        make_models = VEHICLE_MODELS_BY_MAKE.get(mk.strip().lower())
+                        if make_models is None:
+                            make_models = [p for models in VEHICLE_MODELS_BY_MAKE.values() for p in models]
+                        out.append(self.rng.choice(make_models))
                     result = np.array(out)
                     if len(result) < size:
                         pad = self.rng.choice(result, size=size - len(result))
@@ -768,7 +767,7 @@ class RealisticTextGenerator:
                     pack = LocaleRegistry.global_instance().get_pack(self.locale)
                     suffix = pack.company_suffixes
                     return np.array([f"{faker.company().split()[0]} {np.random.choice(suffix)}" for _ in range(size)])
-                except Exception:
+                except Exception:  # noqa: BLE001 - Faker providers vary by locale
                     return np.array([faker.company() for _ in range(size)])
             company_names = self._user_vocab("company_name")
             if company_names:
@@ -781,7 +780,7 @@ class RealisticTextGenerator:
                 spec = get_spec("company_name")
                 if spec is not None:
                     return Lexicon(spec, self.rng).draw(size)
-            except Exception:
+            except Exception:  # noqa: BLE001 - vocabulary must never break a generation
                 pass
             return np.array(
                 [
@@ -805,7 +804,7 @@ class RealisticTextGenerator:
             if faker:
                 try:
                     return np.array([faker.job() for _ in range(size)])
-                except Exception:
+                except Exception:  # noqa: BLE001 - Faker providers vary by locale
                     pass
             from misata.scenarios import job_titles, zipf_choice
             user = self._user_vocab("job_title")
@@ -825,7 +824,7 @@ class RealisticTextGenerator:
                     from misata.locales.registry import LocaleRegistry
                     pack = LocaleRegistry.global_instance().get_pack(self.locale)
                     return np.array([pack.country_name] * size)
-                except Exception:
+                except (ImportError, LookupError):
                     pass
             from misata.scenarios import zipf_choice
             user = self._user_vocab("country")
@@ -838,7 +837,7 @@ class RealisticTextGenerator:
             if faker:
                 try:
                     return np.array([faker.city() for _ in range(size)])  # state/prefecture via city for non-US
-                except Exception:
+                except Exception:  # noqa: BLE001 - Faker providers vary by locale
                     pass
             countries = self._series_from_table(table_data, "country", size)
             states = self._vocabulary("state", [])
@@ -876,12 +875,12 @@ class RealisticTextGenerator:
                 pack = LocaleRegistry.global_instance().get_pack(self.locale)
                 if pack.top_cities:
                     return population_choice(self.rng, pack.top_cities, size, pack.country_name)
-            except Exception:
+            except Exception:  # noqa: BLE001 - vocabulary must never break a generation
                 pass
             if faker:
                 try:
                     return np.array([faker.city() for _ in range(size)])
-                except Exception:
+                except Exception:  # noqa: BLE001 - Faker providers vary by locale
                     pass
             countries = self._series_from_table(table_data, "country", size)
             cities = self._vocabulary("city", [])
@@ -1643,7 +1642,7 @@ class RealisticTextGenerator:
             from misata.locales.registry import LocaleRegistry
             pack = LocaleRegistry.global_instance().get_pack(self.locale)
             prefix = pack.phone_prefix  # e.g. "+1", "+44", "+49"
-        except Exception:
+        except (ImportError, LookupError):
             prefix = "+1"
 
         results = []
@@ -1688,7 +1687,7 @@ class RealisticTextGenerator:
         try:
             from misata.locales.registry import LocaleRegistry
             pattern = LocaleRegistry.global_instance().get_pack(self.locale).national_id_pattern
-        except Exception:
+        except (ImportError, LookupError):
             pattern = r"\d{9}"
         return np.array([self._expand_pattern(pattern) for _ in range(size)])
 
@@ -1798,7 +1797,7 @@ class RealisticTextGenerator:
         """Free text of ``kind`` from :mod:`misata.textkit`, reading the row's
         own score, job, city, company and names where the table has them."""
         from misata import textkit
-        ctx = {}
+        ctx: Dict[str, Sequence[Any]] = {}
         for slot, cols in (("job_title", ("job_title", "title", "role", "occupation")),
                            ("city", ("city", "location", "home_city")),
                            ("company", ("company", "company_name", "employer")),
@@ -1824,8 +1823,8 @@ class RealisticTextGenerator:
         """Capsule vocabulary someone actually supplied, else None.
 
         Built-in defaults sit in the capsule too, tagged ``misata-defaults``.
-        They are a last resort: treating them as data let eight generic
-        sentences outrank the category-aware product grammar."""
+        They are a last resort, so a handful of generic sentences never
+        outranks the category-aware product grammar."""
         if self.capsule is None or not self.capsule.vocabularies.get(name):
             return None
         provs = self.capsule.provenance.get(name, [])
@@ -1843,7 +1842,7 @@ class RealisticTextGenerator:
         for n in names:
             col = lower.get(n)
             if col is not None and len(table_data[col]) >= size:
-                return table_data[col].astype(str).tolist()[:size]
+                return cast(list, table_data[col].astype(str).tolist()[:size])
         return None
 
     def _frame_cache(self, kind: str, table_name: str, size: int, parts) -> tuple:
@@ -2244,14 +2243,14 @@ def _fix_time_chains(df: pd.DataFrame, columns: set, rng: np.random.Generator) -
                 return i
         return -1
 
-    chain = [(c, _rank(c)) for c in df.columns
-             if _rank(c) >= 0 and ("time" in c.lower() or "date" in c.lower() or c.lower().endswith("_at"))]
-    chain = [c for c, _ in sorted(chain, key=lambda x: x[1])]
+    ranked = [(c, _rank(c)) for c in df.columns
+              if _rank(c) >= 0 and ("time" in c.lower() or "date" in c.lower() or c.lower().endswith("_at"))]
+    chain = [c for c, _ in sorted(ranked, key=lambda x: x[1])]
     if len(chain) < 2:
         return
     try:
         vals = df[chain].apply(pd.to_datetime, errors="coerce")
-    except Exception:
+    except Exception:  # noqa: BLE001 - a chain that cannot be parsed is left untouched
         return
     # A name that merely contains chain tokens is not a date ("sentiment"
     # contains both "sent" and "time"): drop candidates that do not parse,

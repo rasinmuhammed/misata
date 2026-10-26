@@ -15,7 +15,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 
 @dataclass
@@ -166,7 +166,7 @@ class FeedbackDatabase:
             industry
         ))
 
-        correction_id = cursor.lastrowid
+        correction_id = cast(int, cursor.lastrowid)
 
         # Update learned patterns
         self._update_patterns(cursor, column_name, original, corrected)

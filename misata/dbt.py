@@ -260,7 +260,7 @@ def generate_dbt_schema_yml(
 
     doc[resource_type] = resource_list
 
-    raw_yaml = yaml.dump(
+    raw_yaml: str = yaml.dump(
         doc,
         default_flow_style=False,
         sort_keys=False,

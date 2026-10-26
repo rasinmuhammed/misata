@@ -813,42 +813,42 @@ def apply_dynamics(
     for spec in (getattr(config, "retention", None) or []):
         try:
             apply_retention(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"CohortRetention on '{spec.table}' failed ({e}); "
                           f"table left as generated.",
             ConformanceWarning,)
     for spec in (getattr(config, "late_arrivals", None) or []):
         try:
             apply_late_arrival(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"LateArrival on '{spec.table}' failed ({e}); "
                           f"table left as generated.",
             ConformanceWarning,)
     for spec in (getattr(config, "time_grids", None) or []):
         try:
             apply_time_grid(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the column as generated
             warn(f"TimeGrid on '{spec.table}.{spec.column}' failed "
                           f"({e}); column left as generated.",
             ConformanceWarning,)
     for spec in (getattr(config, "missingness", None) or []):
         try:
             apply_missingness(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"Missingness on '{spec.table}.{spec.column}' failed "
                           f"({e}); table left as generated.",
             ConformanceWarning,)
     for spec in (getattr(config, "outliers", None) or []):
         try:
             apply_outliers(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the column as generated
             warn(f"Outliers on '{spec.table}.{spec.column}' failed "
                           f"({e}); column left as generated.",
             ConformanceWarning,)
     for spec in (getattr(config, "typos", None) or []):
         try:
             apply_typos(tables, spec, config, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the column as generated
             warn(f"Typos on '{spec.table}.{spec.column}' failed "
                           f"({e}); column left as generated.",
             ConformanceWarning,)
@@ -858,7 +858,7 @@ def apply_dynamics(
     for spec in (getattr(config, "duplicates", None) or []):
         try:
             apply_duplicates(tables, spec, rng, config)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"Duplicates on '{spec.table}' failed ({e}); "
                           f"table left as generated.",
             ConformanceWarning,)

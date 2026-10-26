@@ -35,7 +35,7 @@ Usage::
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from misata.schema import SchemaConfig
@@ -294,7 +294,7 @@ def conformance_preview(schema: "SchemaConfig") -> ConformancePreview:
         # keep every value in [min, max] only when min·n ≤ T ≤ max·n. The
         # engine gives the aggregate target precedence, so flag the sacrifice
         # here — before any rows are generated.
-        column_map = {getattr(c, "name", None): c for c in columns}
+        column_map = cast(Dict[str, Any], {getattr(c, "name", None): c for c in columns})
         bound_conflicts = engine.bound_conflicts(plan, column_map)
         bounds_respected = not bound_conflicts
         for conflict in bound_conflicts:

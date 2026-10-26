@@ -80,6 +80,7 @@ def _column_for(field, rows: int) -> Optional[Column]:
                                            "max": max(rows, 1)})
     if isinstance(field, m.BooleanField):
         return Column(name=name, type="boolean", nullable=nullable)
+    params: Dict[str, Any]
     if isinstance(field, (m.IntegerField,)):
         params = _validator_bounds(field)
         if isinstance(field, (m.PositiveIntegerField, m.PositiveSmallIntegerField,
@@ -119,7 +120,7 @@ def _column_for(field, rows: int) -> Optional[Column]:
     elif isinstance(field, m.GenericIPAddressField):
         text_type = "ipv4"
     if isinstance(field, (m.CharField, m.TextField, m.UUIDField, m.GenericIPAddressField)):
-        params: Dict[str, Any] = {}
+        params = {}
         if text_type:
             params["text_type"] = text_type
         max_len = getattr(field, "max_length", None)

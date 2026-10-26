@@ -146,7 +146,7 @@ class StreamingExporter:
         for handle in self._file_handles.values():
             try:
                 handle.close()
-            except Exception:
+            except (OSError, ValueError):
                 pass
         
         self._file_handles.clear()

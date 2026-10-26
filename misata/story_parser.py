@@ -320,13 +320,11 @@ class StoryParser:
     def _parse_numeric_value(self, raw_value: str) -> float:
         """Parse currency-like values such as $50k, 150,000, or 1.5M.
 
-        The magnitude suffix has to be attached to the digits. Commas used to
-        be stripped before the suffix was read, so a capture that ran into the
-        next word applied it across the gap: "Feb 140000, Mar 160000" gave
-        February 140,000,000,000 instead of 140,000, and the run looked
-        plausible right up until someone read the total. A value this parser
-        cannot read confidently now raises, and the caller skips the point,
-        because a dropped declaration is recoverable and a silent factor of a
+        The magnitude suffix must be attached to the digits. Only thousands
+        separators are removed, so a capture that runs into the next value
+        ("Feb 140000, Mar 160000") cannot carry a suffix across the gap. A
+        value this parser cannot read confidently raises and the caller skips
+        the point: a dropped declaration is recoverable, a silent factor of a
         million is not.
         """
         cleaned = raw_value.strip().lower()
@@ -410,7 +408,7 @@ class StoryParser:
 
     def _extract_temporal_events(self, story: str) -> List[Tuple[str, Any]]:
         """Extract temporal patterns (growth, churn, crashes, etc.)."""
-        events = []
+        events: List[Tuple[str, Any]] = []
 
         for pattern, (event_type, param_type) in self.TEMPORAL_PATTERNS.items():
             matches = re.finditer(pattern, story, re.IGNORECASE)
@@ -1159,7 +1157,7 @@ class StoryParser:
         try:
             from misata.locales.detector import detect_locale_from_story
             self.detected_locale = detect_locale_from_story(story)
-        except Exception:
+        except Exception:  # noqa: BLE001 - locale detection is advisory and never blocks parsing
             self.detected_locale = None
 
         # Build schema based on detected domain
@@ -1260,7 +1258,7 @@ class StoryParser:
             # Use model_copy to stay immutable; fall back to object.__setattr__
             try:
                 schema = schema.model_copy(update={"rate_curves": existing + detected_rate_curves})
-            except Exception:
+            except AttributeError:
                 object.__setattr__(schema, "rate_curves", existing + detected_rate_curves)
 
         schema = self._enrich_schema_text_types(schema)
@@ -1579,7 +1577,7 @@ class StoryParser:
         # Rebuild columns dict on the schema
         try:
             schema = schema.model_copy(update={"columns": new_columns})
-        except Exception:
+        except AttributeError:
             object.__setattr__(schema, "columns", new_columns)
         return schema
 
@@ -1641,9 +1639,8 @@ class StoryParser:
     def _build_saas_schema(self, story: str, default_rows: int) -> SchemaConfig:
         """Build a SaaS-specific schema."""
         num_users = self.scale_params.get("users", default_rows)
-        # An explicit count wins over the ratio. "1,000 subscriptions" used to
-        # come back as 960, because users x 1.2 was applied regardless of what
-        # the story asked for, and nothing said the number had been changed.
+        # An explicit count wins over the ratio: "1,000 subscriptions" yields
+        # 1,000, and only an unstated count falls back to users x 1.2.
         num_subscriptions = self.scale_params.get("subscriptions") or int(num_users * 1.2)
 
         # Define tables

@@ -121,7 +121,7 @@ def apply_bitemporals(
     for spec in (getattr(config, "bitemporal", None) or []):
         try:
             apply_bitemporal(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"Bitemporal '{spec.name}' failed ({e}); table left "
                           f"as generated.",
             ConformanceWarning,)

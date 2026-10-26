@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -56,7 +56,7 @@ def _is_email(series: pd.Series) -> bool:
     sample = _sample_non_null(series.astype(str))
     if len(sample) == 0:
         return False
-    return (sample.str.match(_EMAIL_RE)).mean() > 0.8
+    return cast(bool, (sample.str.match(_EMAIL_RE)).mean() > 0.8)
 
 
 def _is_url(series: pd.Series) -> bool:
@@ -111,12 +111,12 @@ def _looks_like_code(series: pd.Series) -> bool:
     sample = _sample_non_null(series.astype(str)).str.strip()
     if len(sample) < 5:
         return False
-    return (
+    return cast(bool, (
         (sample.str.len().between(1, 16)).mean() > 0.9
         and sample.str.match(_CODE_CHARSET_RE).mean() > 0.9
         and sample.str.contains(r"\d").mean() > 0.6
         and (sample.str.count(" ") <= 1).mean() > 0.9
-    )
+    ))
 
 
 def _shape_of(value: str) -> str:
@@ -179,7 +179,7 @@ def _parametric_ks(s: pd.Series, params: Dict[str, Any]) -> float:
     """KS distance between the real column and a draw from the fitted params."""
     try:
         from scipy.stats import ks_2samp
-    except Exception:
+    except ImportError:
         return 0.0  # scipy always present, but never block fitting on its absence
 
     n = min(len(s), 5000)
@@ -309,7 +309,7 @@ def _is_date_col(series: pd.Series) -> bool:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         parsed = pd.to_datetime(sample, errors="coerce")
-    return parsed.notna().mean() > 0.7
+    return cast(bool, parsed.notna().mean() > 0.7)
 
 
 def _cardinality_ratio(series: pd.Series) -> float:

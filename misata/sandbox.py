@@ -230,7 +230,7 @@ def _resolve_schema(*, domain: Optional[str], story: Optional[str],
     templates = set(list_templates())
     name = domain.lower() if domain else None
     if name in templates or not story:
-        chosen = name if name in templates else _DEFAULT_DOMAIN
+        chosen = name if name is not None and name in templates else _DEFAULT_DOMAIN
         return load_template(chosen, row_multiplier=max(0.1, rows / _TEMPLATE_BASE_ROWS))
     from misata.story_parser import StoryParser
 

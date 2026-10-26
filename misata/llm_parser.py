@@ -13,7 +13,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 try:
     from groq import Groq
@@ -880,7 +880,7 @@ class LLMSchemaGenerator:
     """
 
     # Provider configurations
-    PROVIDERS = {
+    PROVIDERS: Dict[str, Dict[str, Any]] = {
         "groq": {
             "base_url": None,  # Uses default
             "env_key": "GROQ_API_KEY",
@@ -938,12 +938,10 @@ class LLMSchemaGenerator:
             "env_key": "INCEPTION_API_KEY",
             "default_model": "mercury-2",
             "protocol": "openai",
-            # Inception rejects anything outside this list with a 400 naming it,
-            # which is where these came from. Declared so a model meant for a
-            # different provider is caught here rather than at their edge: a
-            # deployment carrying MISATA_MODEL=llama-3.3-70b-versatile from a
-            # previous Groq setup sent that straight to Mercury and took schema
-            # design down, because the override was global and models are not.
+            # Inception rejects anything outside this list with a 400 naming it.
+            # Declaring it catches a model meant for a different provider here
+            # rather than at their edge, since a model override is global and
+            # model names are not.
             "models": ("mercury", "mercury-2", "mercury-coder",
                        "mercury-coder-small", "mercury-small"),
         },
@@ -1044,7 +1042,7 @@ class LLMSchemaGenerator:
                 or "us-east-1"
             )
             if bearer:
-                self._bedrock_bearer = bearer
+                self._bedrock_bearer: Optional[str] = bearer
                 self.client = None
             else:
                 self._bedrock_bearer = None
@@ -1167,7 +1165,7 @@ class LLMSchemaGenerator:
             schema, report = parse_spec(story, default_rows=default_rows)
             try:
                 self._refine_spec_schema(schema, report, temperature)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - the deterministic parse stands without the LLM
                 report.untranslated.append(f"LLM refinement skipped: {exc}")
             report.emit()
             return schema
@@ -1193,7 +1191,7 @@ class LLMSchemaGenerator:
                         f"Research found these top players in {domain}: {', '.join(names)}.\n"
                         "Use these names as examples in the 'inline_data' for reference tables if relevant."
                     )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - research context is optional
                 warn(f"Research agent unavailable: {exc}")
 
         user_prompt = f"""Generate a complete synthetic data schema in JSON format for:
@@ -1302,7 +1300,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 if not content:
                     raise ValueError("LLM returned an empty response.")
                 return content
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - any provider error is classified for retry
                 last_exc = exc
                 exc_str = str(exc).lower()
                 # Free-tier TPM ceilings (Groq): "Request too large ... Limit
@@ -1352,7 +1350,7 @@ Include reference tables with inline_data for lookup values and transactional ta
         try:
             response = self.client.chat.completions.create(
                 **base, temperature=temperature, max_tokens=max_tokens)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - re-raised unless it names a parameter
             msg = str(exc).lower()
             modern = ("max_completion_tokens" in msg or "max_tokens" in msg
                       or "unsupported parameter" in msg or "temperature" in msg)
@@ -1367,7 +1365,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 extra["reasoning_effort"] = effort
             response = self.client.chat.completions.create(
                 **base, max_completion_tokens=max_tokens, **extra)
-        return response.choices[0].message.content
+        return cast(str, response.choices[0].message.content)
 
     def _call_anthropic(self, messages: List[Dict], max_tokens: int, temperature: float) -> str:
         """Call Anthropic's Messages API (native SDK, different wire format)."""
@@ -1395,7 +1393,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             system=system_text,
             messages=turns,
         )
-        return response.content[0].text
+        return cast(str, response.content[0].text)
 
     def _call_bedrock(self, messages: List[Dict], max_tokens: int, temperature: float) -> str:
         """Call AWS Bedrock via the Converse API (provider-agnostic message format).
@@ -1432,7 +1430,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             payload["system"] = system_blocks
 
         if getattr(self, "_bedrock_bearer", None):
-            import requests as _req
+            import requests as _req  # type: ignore[import-untyped]
             endpoint = (
                 f"https://bedrock-runtime.{self._bedrock_region}.amazonaws.com"
                 f"/model/{self.model}/converse"
@@ -1449,12 +1447,12 @@ Include reference tables with inline_data for lookup values and transactional ta
             if not resp.ok:
                 raise RuntimeError(f"Bedrock bearer error: {resp.status_code} {resp.text}")
             data = resp.json()
-            return data["output"]["message"]["content"][0]["text"]
+            return cast(str, data["output"]["message"]["content"][0]["text"])
 
         # boto3 path (IAM credentials)
         kwargs: Dict[str, Any] = {"modelId": self.model, **payload}
         response = self.client.converse(**kwargs)
-        return response["output"]["message"]["content"][0]["text"]
+        return cast(str, response["output"]["message"]["content"][0]["text"])
 
     def _refine_spec_schema(self, schema: SchemaConfig, report, temperature: float) -> int:
         """Ask the model to refine a deterministically parsed spec, then merge
@@ -1523,7 +1521,7 @@ Include reference tables with inline_data for lookup values and transactional ta
         """
         for attempt_text in (raw, self._extract_json(raw)):
             try:
-                return json.loads(attempt_text)
+                return cast(Dict, json.loads(attempt_text))
             except json.JSONDecodeError:
                 pass
         raise ValueError(
@@ -1650,7 +1648,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 fitter = CurveFitter()
                 fitted_params = fitter.fit_distribution(points, dist_type)
                 normalized.update(fitted_params)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - malformed LLM points drop the fit, not the schema
                 warn(f"Curve fitting failed for control_points: {exc}")
 
         return normalized
@@ -1712,7 +1710,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                 try:
                     from misata.schema import Constraint
                     table_constraints.append(Constraint(**tc))
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - a malformed LLM constraint never aborts the build
                     warn(
                         f"Skipping malformed constraint on '{table_name_raw}': {exc}"
                     )
@@ -1745,7 +1743,7 @@ Include reference tables with inline_data for lookup values and transactional ta
             ):
                 columns_src[t["name"]] = t["columns"]
 
-        columns = {}
+        columns: Dict[str, List[Column]] = {}
         for table_name, cols in columns_src.items():
             if not isinstance(cols, list):
                 continue
@@ -1755,7 +1753,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     continue
                 if not c.get("name"):
                     continue
-                col_type = c.get("type", "text")
+                col_type: str = c.get("type", "text")
                 
                 # Normalize LLM type variations to valid schema types
                 type_mapping = {
@@ -1776,9 +1774,8 @@ Include reference tables with inline_data for lookup values and transactional ta
                 col_type = type_mapping.get(col_type.lower(), col_type)
 
                 # Models sometimes put a SEMANTIC text type in the `type` field
-                # (e.g. `type: "email"`), which isn't a valid Column type and used
-                # to crash the whole parse with a ValidationError. Coerce it to a
-                # `text` column and carry the intent through as `text_type`.
+                # (e.g. `type: "email"`), which isn't a valid Column type. Coerce
+                # it to a `text` column and carry the intent through as `text_type`.
                 _SEMANTIC_TEXT_TYPES = {
                     "email", "url", "uri", "phone", "name", "full_name", "address",
                     "company", "city", "country", "username", "uuid", "ipv4", "ip",
@@ -2006,7 +2003,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     start_date=c.get("start_date"),
                     curve_points=c.get("curve_points", [])
                 ))
-            except Exception as exc:  # malformed curve — keep the schema, drop the curve
+            except Exception as exc:  # noqa: BLE001 - a malformed curve is dropped, the schema kept
                 warn(f"Skipping malformed outcome_curve for {c.get('table')}.{c.get('column')}: {exc}")
 
         # Repair common LLM quirks in an outcome curve's time_column so a well-formed curve
@@ -2065,7 +2062,7 @@ Include reference tables with inline_data for lookup values and transactional ta
                     description=c.get("description"),
                     rate_points=c.get("rate_points", c.get("curve_points", [])),
                 ))
-            except Exception as exc:  # malformed — keep the schema, drop the curve
+            except Exception as exc:  # noqa: BLE001 - a malformed curve is dropped, the schema kept
                 warn(f"Skipping malformed rate_curve for {c.get('table')}.{c.get('column')}: {exc}")
 
         # Repair a rate curve's time_column the same way as outcome curves: resolve
@@ -2613,7 +2610,7 @@ Return valid JSON with enriched columns, reference_tables, and constraints. Be d
                 "is_reference": t.is_reference,
             })
 
-        columns = {}
+        columns: Dict[str, List[Dict[str, Any]]] = {}
         for table_name, cols in schema.columns.items():
             columns[table_name] = []
             for c in cols:
@@ -2757,7 +2754,7 @@ Return valid JSON with enriched columns, reference_tables, and constraints. Be d
                                 action=c.get("action", "cap"),
                             )
                             table.constraints.append(constraint)
-                        except Exception as exc:
+                        except Exception as exc:  # noqa: BLE001 - an invalid enrichment constraint is skipped
                             warn(f"Skipping invalid constraint for table '{table_name}': {exc}")
                     break
 

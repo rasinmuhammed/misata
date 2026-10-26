@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import bisect
 import re
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, List, Mapping, Optional, Sequence, Union, cast
 
 import numpy as np
 
@@ -113,7 +113,11 @@ class Grammar:
             cum[-1] = 1.0
             self._cum[symbol] = cum
 
-    def expand(self, symbol: str, _depth: int = 0, **slots: str) -> str:
+    def expand(self, symbol: str, **slots: str) -> str:
+        """Expand ``symbol``, filling ``{name}`` placeholders from ``slots`` first."""
+        return self._expand(symbol, 0, slots)
+
+    def _expand(self, symbol: str, _depth: int, slots: Mapping[str, str]) -> str:
         if _depth > self.MAX_DEPTH:
             raise RecursionError(f"grammar too deep at '{symbol}'")
         templates = self._templates[symbol]
@@ -130,7 +134,7 @@ class Grammar:
             if name in slots:
                 return str(slots[name])
             if name in self._templates:
-                return self.expand(name, _depth + 1, **slots)
+                return self._expand(name, _depth + 1, slots)
             raise KeyError(f"grammar symbol or slot '{name}' is not defined")
 
         filled = self._PLACEHOLDER.sub(_fill, template)
@@ -873,7 +877,7 @@ _NOTE_RULES: Dict[str, List[Rule]] = {
 }
 # Sentence-initial variants of follow_up for use after a full stop.
 _NOTE_RULES["follow_up_cap"] = [
-    s[0].upper() + s[1:] for s in _NOTE_RULES["follow_up"]  # type: ignore[index, union-attr]
+    s[0].upper() + s[1:] for s in cast(List[str], _NOTE_RULES["follow_up"])
 ]
 
 _COMMENT_RULES: Dict[str, List[Rule]] = {
@@ -919,7 +923,7 @@ class MicrotextGenerator:
     # ── ratings → sentiment levels ──
 
     @staticmethod
-    def normalize_ratings(ratings: Sequence, size: int, rng: np.random.Generator) -> np.ndarray:
+    def normalize_ratings(ratings: Optional[Sequence], size: int, rng: np.random.Generator) -> np.ndarray:
         """Coerce a rating-ish column to integer star levels 1–5.
 
         Handles floats, 0–10 scales (halved), and missing values (drawn from

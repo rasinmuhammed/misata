@@ -47,7 +47,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -434,7 +434,7 @@ def _text_sample(s: pd.Series) -> Optional[List[str]]:
         return None
     if len(v) > _TEXT_SAMPLE:
         v = v.sample(_TEXT_SAMPLE, random_state=0)
-    return v.tolist()
+    return cast(List[str], v.tolist())
 
 
 def _skeleton(text: str) -> str:
@@ -609,8 +609,8 @@ def _check_text_context(table: str, df: pd.DataFrame) -> List[TellCheck]:
         sub = sub[r.notna()]
         if len(sub) >= 200 and r.nunique() >= 3:
             from misata.microtext import detect_sentiment
-            pol = sub[review].map(lambda t: {"positive": 1, "negative": -1}.get(
-                detect_sentiment(t), 0))
+            polarity: Dict[Optional[str], int] = {"positive": 1, "negative": -1}
+            pol = sub[review].map(lambda t: polarity.get(detect_sentiment(t), 0))
             if (pol != 0).mean() >= 0.2:
                 rho = float(pd.Series(pd.to_numeric(sub[rating])).rank().corr(pol.rank()))
                 ev = {"n": int(len(sub)), "rating_column": rating, "text_column": review,

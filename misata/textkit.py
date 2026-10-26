@@ -16,7 +16,7 @@ ticket's issue).
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, cast
 
 import numpy as np
 
@@ -1049,7 +1049,7 @@ def _slots(rng: np.random.Generator, size: int) -> List[Dict[str, str]]:
              "The Book Nook", "Ember Pizza", "Saltwater Surf", "Juniper Yoga", "Moss Plants"]
     from misata.scenarios import street_lines
     streets = list(street_lines(rng, size))
-    out = []
+    out: List[Dict[str, str]] = []
     for r in rows:
         d = dict(r)
         d.update({
@@ -1815,7 +1815,7 @@ def render(kind: str, rng: np.random.Generator, size: int, *,
     elif kind == "bio":
         # the job title is the row's own value: never paraphrase inside it
         out = vary_keeping(out, [(sl.get("job_given", ""), sl.get("city", ""), sl.get("city2", ""),
-                                  sl.get("company", "")) for sl in slots], rng, reg, styles=False)
+                                  sl.get("company", "")) for sl in slots], rng, cast(str, reg), styles=False)
     elif reg:
         sentences = kind in ("feedback", "note", "clinical")
         out = vary(out, rng, reg, styles=sentences)

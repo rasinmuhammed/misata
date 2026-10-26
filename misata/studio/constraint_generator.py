@@ -43,7 +43,7 @@ try:
     CONSTRAINT_ENGINE_AVAILABLE = True
 except ImportError:
     CONSTRAINT_ENGINE_AVAILABLE = False
-    ConstraintEngine = None
+    ConstraintEngine = None  # type: ignore[assignment,misc]
     # Silent - this is optional for studio features
 
 
@@ -172,7 +172,7 @@ class ConstrainedWarehouseGenerator:
                 self._generate_causal_flow()
                 # If successful, we still need to generate dimensions and fill remaining columns
                 # The causal flow populates 'self.generated_tables' with the core rows.
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - falls back to stochastic generation
                 print(f"⚠️ Causal Generation Failed: {e}. Falling back to stochastic.")
         
         # 2. Separate dimension tables from fact tables
@@ -682,7 +682,7 @@ def convert_schema_config_to_spec(
     else:
         # 1. Identify Fact Table Heuristically (largest table with date + amount)
         # or just pick the one with most rows that isn't reference
-        candidate_tables = []
+        candidate_tables: List[Dict[str, Any]] = []
         
         for table_name, columns in config.columns.items():
             # Find table definition

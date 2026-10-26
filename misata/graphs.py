@@ -368,21 +368,21 @@ def apply_graphs(
     for spec in (getattr(config, "dag_edges", None) or []):
         try:
             apply_dag_edges(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"DagEdges '{spec.name}' failed ({e}); table left as "
                           f"generated.",
             ConformanceWarning,)
     for spec in (getattr(config, "graph_motifs", None) or []):
         try:
             apply_graph_motifs(tables, spec, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"GraphMotifs '{spec.name}' failed ({e}); table left "
                           f"as generated.",
             ConformanceWarning,)
     for spec in (getattr(config, "closures", None) or []):
         try:
             apply_closure(tables, spec, rng, config)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"TransitiveClosure '{spec.name}' failed ({e}); table "
                           f"left as generated.",
             ConformanceWarning,)

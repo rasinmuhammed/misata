@@ -85,14 +85,14 @@ class GenerationPlanner:
         for table in self.schema_config.tables:
             columns = self.schema_config.get_columns(table.name)
             semantic_role = self._classify_table(table.name)
-            text_strategies = {
+            classified = {
                 column.name: self._classify_text_column(table.name, column)
                 for column in columns
                 if column.type == "text"
             }
             text_strategies = {
                 column_name: strategy
-                for column_name, strategy in text_strategies.items()
+                for column_name, strategy in classified.items()
                 if strategy is not None
             }
             tables[table.name] = TablePlan(

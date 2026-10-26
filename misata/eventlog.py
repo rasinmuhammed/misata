@@ -149,6 +149,7 @@ def apply_event_log(
     # Per entity: resolve the timestamps its own lifecycle already wrote, fill
     # the gaps monotonically, then place its rows.
     times_cache: Dict[Any, list] = {}
+    filled: Optional[list]
     filler_cache: Dict[Any, list] = {}
     for k in keys:
         st = states.get(k)
@@ -258,12 +259,11 @@ def _redraw_sibling_keys(
         p_ids = parent[rel.parent_key].to_numpy()
 
         # If the relationship also declares temporal eligibility, honour it
-        # here too. The redraw rewrote which parent a row points at, and doing
-        # that without asking when the parent was born put 1,407 events before
-        # their actor had signed up: fixing a partition leak by opening a
-        # causality hole is not a fix.
+        # here too. The redraw changes which parent a row points at, so it may
+        # only pick parents that already existed at the child's timestamp;
+        # otherwise closing a partition leak would open a causality hole.
         births = None
-        child_ns = None
+        child_ns: Any = None
         ptime = getattr(rel, "parent_time", None)
         ctime = getattr(rel, "child_time", None)
         if ptime and ctime and ptime in parent.columns and ctime in out.columns:
@@ -312,7 +312,7 @@ def apply_event_logs(
     for spec in (getattr(config, "event_logs", None) or []):
         try:
             apply_event_log(tables, spec, config, rng)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
             warn(f"EventLog '{spec.name}' failed ({e}); "
                           f"table left as generated.",
             ConformanceWarning,)

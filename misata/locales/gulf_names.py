@@ -17,7 +17,7 @@ the region ("الكواري", not "كواري").
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 
 _MALE: List[str] = [
     "محمد", "أحمد", "عبدالله", "خالد", "سالم", "سعود", "فهد", "ناصر", "راشد",
@@ -86,17 +86,17 @@ def install_gulf_names(fake, locale: str) -> None:
 
     class GulfNameProvider(BaseProvider):
         def first_name_male(self) -> str:
-            return self.random_element(male)
+            return cast(str, self.random_element(male))
 
         def first_name_female(self) -> str:
-            return self.random_element(female)
+            return cast(str, self.random_element(female))
 
         def first_name(self) -> str:
             pool = male if self.generator.random.random() < 0.5 else female
-            return self.random_element(pool)
+            return cast(str, self.random_element(pool))
 
         def last_name(self) -> str:
-            return self.random_element(family)
+            return cast(str, self.random_element(family))
 
         last_name_male = last_name
         last_name_female = last_name

@@ -202,6 +202,23 @@ class GenerationResult:
     table_row_counts: Dict[str, int] = field(default_factory=dict)
 
 
+@dataclass
+class _BufferPlan:
+    """Which tables a run materialises whole, and the passes that need them."""
+
+    tables: set
+    whole_table_rules: set
+    lifecycle_tables: set
+    dyn_tables: set
+    rollup_specs: list
+    rollup_acc: Any
+    xt_constraints: list
+    group_share_specs: list
+    waterfall_specs: list
+    stock_flow_specs: list
+    scd2_tables: set
+
+
 _MISSING = object()
 
 
@@ -333,8 +350,8 @@ class DataSimulator:
             _attached = auto_attach_capsules(self.config, self.domain_capsule)
             if _attached:
                 self.domain_capsule.metadata["registry_capsules"] = _attached
-        except Exception:
-            pass  # registry is an enhancement, never a failure mode
+        except Exception:  # noqa: BLE001 - registry capsules are an enhancement, never a failure mode
+            pass
         # User-supplied capsule file: its vocabularies beat built-in pools.
         capsule_file = getattr(realism, "capsule_file", None)
         if capsule_file:
@@ -365,7 +382,7 @@ class DataSimulator:
         try:
             from misata.locales.registry import LocaleRegistry
             self._locale_faker = LocaleRegistry.global_instance().get_faker(self.locale)
-        except Exception:
+        except Exception:  # noqa: BLE001 - Faker may reject any locale; the built-in generators stand in
             self._locale_faker = None
         self.workflow_engine = WorkflowEngine(self.rng)
 
@@ -751,7 +768,7 @@ class DataSimulator:
             try:
                 from misata.smart_values import SmartValueGenerator
                 self._smart_gen = SmartValueGenerator()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - smart values are optional; generation warns and continues
                 warn(f"Smart value generation unavailable: {exc}")
                 self._smart_gen = None
         return self._smart_gen
@@ -876,8 +893,8 @@ class DataSimulator:
             and relationship.parent_table in self._pk_store
         ):
             return self._pk_store[relationship.parent_table]
-        # The same for a key named anything else (orders.order_id): without it a
-        # child of a parent past MAX_CONTEXT_ROWS only ever drew the first rows.
+        # The same for a key named anything else (orders.order_id), so a child
+        # of a parent past MAX_CONTEXT_ROWS draws from every row, not the first.
         if not relationship.filters and (relationship.parent_table, relationship.parent_key) in self._key_store:
             return self._key_store[(relationship.parent_table, relationship.parent_key)]
 
@@ -1313,8 +1330,8 @@ class DataSimulator:
             warned = True
         # Each batch owes the parents in proportion to its share of the rows,
         # plus any an earlier batch could not reach. Owing every uncovered
-        # parent at once stole whole batches until all were covered, then let
-        # the popular parents pile up unchecked (one order held 65 lines).
+        # parent at once would steal whole batches until all were covered, then
+        # let the popular parents pile up unchecked.
         owed: Iterable[Any] = parent_ids
         if planned > len(values):
             n = len(parent_ids)
@@ -1407,10 +1424,9 @@ class DataSimulator:
         """Generate a self-referential FK as a forest (orgs.parent_org_id → orgs.org_id).
 
         A hierarchy is not "any row may point at any row minus itself". That
-        rule permits cycles, and the Warren suite duly found them: two orgs
-        naming each other as parent, and a four-hop loop. It also produced no
-        roots at all, because foreign keys were exempt from nulling, so every
-        node had a parent and a cycle was arithmetically unavoidable.
+        rule permits cycles (two orgs naming each other as parent, or a
+        four-hop loop), and without roots every node has a parent, so a cycle
+        is arithmetically unavoidable.
 
         This builds a forest instead, and does it by construction rather than by
         repair: rows are given a fixed order, and a row may only reference a row
@@ -1690,7 +1706,6 @@ class DataSimulator:
         patterns) that each ignore it. A capsule pool has a finite number of
         company names, so a unique column drawing from one collides as soon as
         the row count approaches the pool size, and Postgres rejects the insert.
-        Seeding a Rails-shaped schema died on `tags.name` this way.
 
         Enforcing it here rather than at those four sites is deliberate: this is
         the one function every column passes through, so a branch added later
@@ -1993,7 +2008,7 @@ class DataSimulator:
                                 parent_values = parent_map.reindex(fk_values).values
                     else:
                         parent_values = None
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - an unresolved dependency warns and the column generates unmapped
                     warn(f"Failed to resolve cross-table dependency {parent_col}: {e}", ConformanceWarning)
             
             if parent_values is not None and mapping:
@@ -2176,7 +2191,7 @@ class DataSimulator:
                     from misata.locales.registry import LocaleRegistry
                     pack = LocaleRegistry.global_instance().get_pack(self.locale)
                     return np.array([pack.country_name] * size)
-                except Exception:
+                except (ImportError, LookupError):
                     pass
 
             choices = params.get("choices", ["A", "B", "C"])
@@ -2726,7 +2741,7 @@ class DataSimulator:
                             # "date" means a calendar day, never a timestamp.
                             values = parent_dates + deltas_ns
                             return pd.DatetimeIndex(pd.to_datetime(values)).normalize().values
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - falls back to the declared range with a warning
                     warn(f"Failed to generate relative date: {e}. Falling back to random range.", ConformanceWarning)
 
             # Level-2 curve inheritance: ``inherits_curve_from: "parent_table.time_col"``
@@ -2878,8 +2893,8 @@ class DataSimulator:
                                     values = self.rng.choice(parent_ids, size=size, p=probabilities)
                                     return self._ensure_min_children(
                                         values, parent_ids, relationship)
-                            except Exception:
-                                pass  # Fall through to popularity sampling on any error
+                            except Exception:  # noqa: BLE001 - falls through to popularity sampling
+                                pass
                 if popularity is not None:
                     values = self.rng.choice(parent_ids, size=size,
                                              p=popularity / popularity.sum())
@@ -3112,10 +3127,9 @@ class DataSimulator:
             # full semantic vocabulary is reachable from dict schemas, not
             # just the simulator aliases.
             # `subtype` is the spelling the benchmarks and several examples
-            # use, and it was reaching none of this: it is absent from the
-            # published JSON schema, so it fell through to free text and the
-            # column was filled with business-note sentences. Accept it rather
-            # than silently ignoring it.
+            # use. It is absent from the published JSON schema, so it is
+            # accepted here as a synonym rather than left to fall through to
+            # free text.
             # An explicit Column.semantic outranks everything. It is the only
             # signal here that a human actually stated, and a declaration is
             # honoured or refused, never quietly replaced by inference.
@@ -3128,7 +3142,7 @@ class DataSimulator:
             # Only a GUESSED text_type is discarded here. An explicit
             # Column.semantic is a declaration and must survive: the dict path
             # guesses text_type='name' from any column ending in _name, and
-            # that guess was wiping out `semantic: vessel_name` alongside it.
+            # that guess must not take `semantic: vessel_name` with it.
             if params.get("_text_type_is_default") and not _explicit_semantic:
                 declared = None
             # A "name" column on a lookup table (regions, teams, warehouses)
@@ -3180,9 +3194,9 @@ class DataSimulator:
             _lf = self._locale_faker
             _addr_fn = (_lf.address if _lf else None) or self.text_gen.full_address
             _phone_fn = (_lf.phone_number if _lf else None) or self.text_gen.phone_number
-            # "sentence" no longer means lorem ipsum: free-text notes come from
-            # the seeded business-note grammar, which composes thousands of
-            # distinct human-looking sentences.
+            # "sentence" is free-text notes from the seeded business-note
+            # grammar, which composes thousands of distinct human-looking
+            # sentences.
             _note_fn = lambda: str(self.realistic_text.microtext.notes(1)[0])  # noqa: E731
             _LEGACY_GEN_MAP = {
                 "sentence": (_note_fn,               "text_sentence"),
@@ -3242,7 +3256,7 @@ class DataSimulator:
         """Apply a scenario event to modify data based on conditions."""
         try:
             mask = df.eval(event.condition)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pandas eval of a user expression can raise anything
             warn(f"Failed to evaluate condition '{event.condition}' for event '{event.name}': {e}", ConformanceWarning)
             return df
 
@@ -3289,7 +3303,7 @@ class DataSimulator:
         # Identify affected parent rows
         try:
             affected_mask = parent_df.eval(event.condition)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pandas eval of a user expression can raise anything
             warn(
                 f"Cascade failed: could not evaluate condition '{event.condition}' "
                 f"on parent table '{event.table}': {e}",
@@ -3913,7 +3927,7 @@ class DataSimulator:
                     if isinstance(x_val, str) and '-' in x_val:
                         try:
                             x_val = pd.to_datetime(x_val).month
-                        except Exception:
+                        except (TypeError, ValueError, OverflowError):
                             x_val = 1
                     p_dict['month'] = pd.to_numeric(x_val, errors='coerce')
                     
@@ -4009,7 +4023,7 @@ class DataSimulator:
                 )
                 self._warn_curve_bound_violations(df, table_name, target_col)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - a curve that cannot be applied warns and leaves the table as generated
                 warn(f"Failed to apply outcome curve for {table_name}: {e}", ConformanceWarning)
                 continue
                 
@@ -5475,7 +5489,7 @@ class DataSimulator:
                             "quarter": "Q", "year": "Y"}.get(str(time_unit), "M")
                     try:
                         buckets = pd.to_datetime(df[time_col], errors="coerce").dt.to_period(freq)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - a time column that cannot be bucketed is not re-ranked by period
                         buckets = None
                     if buckets is not None and buckets.notna().any():
                         col_vals = df[col].values.copy()
@@ -5522,7 +5536,7 @@ class DataSimulator:
             if when:
                 try:
                     mask = table_data.eval(when).values.astype(bool)
-                except Exception:
+                except Exception:  # noqa: BLE001 - pandas eval of a user expression can raise anything
                     mask = np.zeros(size, dtype=bool)
             else:
                 mask = np.ones(size, dtype=bool)
@@ -5568,7 +5582,7 @@ class DataSimulator:
                 return result.astype(float)
             elif column.type == "boolean":
                 return result.astype(bool)
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             pass
         return result
 
@@ -5721,7 +5735,7 @@ class DataSimulator:
                 try:
                     mask = df.eval(null_when).values.astype(bool)
                     _null_column(df, col.name, pd.Series(mask, index=df.index))
-                except Exception:
+                except Exception:  # noqa: BLE001 - pandas eval of a user expression can raise anything
                     pass
 
             # --- missing_if: MAR ---
@@ -6102,7 +6116,7 @@ class DataSimulator:
                         cap_hard = np.minimum(
                             cap_hard,
                             (row_end - one_sec - df[t_col]).dt.floor("s"))
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - a curve whose buckets cannot be resolved adds no hard cap
                         continue
             cap = np.minimum(cap_soft, cap_hard)
             capped = np.minimum(total_shift, cap.where(cap > pd.Timedelta(0), pd.Timedelta(0)))
@@ -6211,9 +6225,9 @@ class DataSimulator:
                                       protected: set) -> pd.DataFrame:
         """An order line's amount is its product's price times its quantity.
 
-        Drawn independently, ``orders.amount`` matched ``price * quantity`` on
-        0.2% of rows and was below a single unit's price on 45%: the first
-        JOIN to products exposes it. When a row has a quantity and references
+        Drawn independently, an amount rarely equals ``price * quantity`` and
+        is often below a single unit's price, which the first JOIN to products
+        exposes. When a row has a quantity and references
         a parent with a price, the amount is derived. Columns that carry a
         declared outcome (curve, rollup, formula, dependency) or are otherwise
         protected keep their values: the declaration wins.
@@ -6446,14 +6460,370 @@ class DataSimulator:
         # which is right (a mismatched name and email is the loudest tell that
         # data is fake) and which reintroduces duplicates the generator had
         # already resolved: two rows drawn from the same name pool produce the
-        # same address. Enforcing it in generate_column alone was not enough,
-        # because a later pass rewrote the column.
+        # same address. generate_column alone cannot hold it, because a later
+        # pass rewrites the column.
         for column in self.config.columns.get(table_name, []):
             if column.unique and column.name in df.columns:
                 df[column.name] = self._enforce_unique_text(
                     table_name, column, df[column.name].to_numpy())
 
         return df
+
+    def _rollup_specs(self) -> list:
+        """Declared and inferred roll-ups, minus those a declared curve governs.
+
+        A declared outcome curve is an exact promise about a column. Roll-ups
+        run after generation, so an *inferred* roll-up could overwrite the
+        curve: in the canonical orders/order_items schema, order_total would
+        become the sum of its line items and the declared monthly revenue
+        would stop adding up. The declared target wins; the roll-up on that
+        column is dropped with a warning.
+        """
+        from misata.rollups import collect_declared_rollups, infer_rollups
+
+        rollup_specs = collect_declared_rollups(self.config)
+        try:
+            rollup_specs = rollup_specs + infer_rollups(self.config)
+        except Exception:  # noqa: BLE001 - inference is best-effort and never blocks generation
+            pass
+
+        curve_governed = {
+            (c.table, c.column)
+            for c in (getattr(self.config, "outcome_curves", None) or [])
+        }
+        if not (curve_governed and rollup_specs):
+            return rollup_specs
+        kept = []
+        for spec in rollup_specs:
+            if (spec.parent_table, spec.target_column) in curve_governed:
+                warn(
+                    f"{spec.parent_table}.{spec.target_column} is governed by a declared "
+                    f"outcome curve, so the roll-up from {spec.from_table} was not "
+                    f"applied to it (the declared aggregate takes precedence). "
+                    f"To have both hold, let the roll-up write a different column.",
+                    ConformanceWarning,
+                )
+                continue
+            kept.append(spec)
+        return kept
+
+    def _plan_buffers(self, sorted_tables: List[str], cascade_events: list,
+                      bounded_memory: bool) -> "_BufferPlan":
+        """Decide which tables a post-generation pass needs whole.
+
+        Every pass that rewrites a table from all of its rows (cascades,
+        roll-ups, identities, lifecycles, structure and dynamics passes,
+        composite keys) needs that table materialised; everything else streams.
+        """
+        from misata.bitemporal import bitemporal_tables
+        from misata.crosstable import collect_cross_table_constraints
+        from misata.dynamics import dynamics_tables
+        from misata.eventlog import event_log_tables
+        from misata.graphs import graph_tables
+        from misata.rollups import RollupAccumulator, is_streamable
+
+        config = self.config
+        present = set(sorted_tables)
+
+        # Cross-table roll-ups compute parent summary columns from child facts
+        # so the data reconciles under a JOIN; parent and child buffer together.
+        # Under bounded memory a one-hop roll-up is built from per-batch
+        # partials while its child streams, so only the parent is held.
+        rollup_specs = self._rollup_specs()
+        stream_specs = [s for s in rollup_specs if bounded_memory and is_streamable(s)]
+        rollup_acc = RollupAccumulator(stream_specs) if stream_specs else None
+        rollup_specs = [s for s in rollup_specs if s not in stream_specs]
+        rollup_tables: set = {s.parent_table for s in stream_specs}
+        for s in rollup_specs:
+            rollup_tables.add(s.parent_table)
+            rollup_tables.add(s.from_table)
+            # A multi-hop roll-up needs every intermediate table materialised
+            # to walk the fk chain (payments -> orders -> customers).
+            for hop in (s.via or []):
+                rollup_tables.add(hop)
+
+        # Retention rewrites entity keys and event timestamps; missingness and
+        # late arrival rewrite whole columns. An event log rewrites the child
+        # table from its entities' states; graph and bitemporal passes rewrite
+        # whole tables from a structure; joint satisfaction rewrites whole
+        # columns from a solved cell table; a degraded table carries the
+        # declarations written against it (missingness, outliers, typos, time
+        # grids); a process reads its whole cases table. All need every row.
+        dyn_tables = dynamics_tables(config)
+        dyn_tables |= {t for t in event_log_tables(config) if t in present}
+        dyn_tables |= {t for t in graph_tables(config) if t in present}
+        dyn_tables |= {t for t in bitemporal_tables(config) if t in present}
+        dyn_tables |= {spec.table
+                       for spec in (getattr(config, "joint_distributions", None) or [])
+                       if spec.table in present}
+        dyn_tables |= {s.table for s in (getattr(config, "degradations", None) or [])
+                       if s.table in present}
+
+        # A lifecycle rewrites its table's state column and per-state
+        # timestamps over the whole table, so that table buffers.
+        lifecycle_tables = {
+            s.table for s in (getattr(config, "lifecycles", None) or [])
+            if s.table in present
+        }
+        dyn_tables |= {p.cases_table for p in (getattr(config, "processes", None) or [])
+                       if p.cases_table in present}
+
+        # Cross-table clamps (refund <= its order's total; payments per order
+        # never exceed the order) need both sides materialised too.
+        xt_constraints = collect_cross_table_constraints(config)
+        for child_name, c in xt_constraints:
+            rollup_tables.add(child_name)
+            if getattr(c, "parent_table", None):
+                rollup_tables.add(c.parent_table)
+
+        # Group shares, waterfalls, stock flows and SCD2 histories rewrite
+        # their columns over the whole table at once.
+        group_share_specs = [s for s in (getattr(config, "group_shares", None) or [])
+                             if s.table in present]
+        waterfall_specs = [s for s in (getattr(config, "waterfalls", None) or [])
+                           if s.table in present]
+        stock_flow_specs = [s for s in (getattr(config, "stock_flows", None) or [])
+                            if s.table in present]
+        scd2_tables = {
+            t.name for t in config.tables
+            if getattr(t, "scd2", None) is not None and t.name in present
+        }
+
+        cascade_tables: set = set()
+        for event in cascade_events:
+            cascade_tables.add(event.table)
+            cascade_tables.update(event.propagate_to.keys())
+        # A composite key or column-to-column rule has to hold across the
+        # whole table, not one batch at a time, so those tables are buffered.
+        whole_table_rules = {
+            t.name for t in config.tables
+            if any(c.type in ("unique_combination", "inequality") for c in (t.constraints or []))
+        }
+        tables = (cascade_tables | rollup_tables
+                  | {s.table for s in group_share_specs}
+                  | {s.table for s in waterfall_specs}
+                  | scd2_tables
+                  | {s.table for s in stock_flow_specs}
+                  | lifecycle_tables | dyn_tables | whole_table_rules)
+        return _BufferPlan(
+            tables=tables, whole_table_rules=whole_table_rules,
+            lifecycle_tables=lifecycle_tables, dyn_tables=dyn_tables,
+            rollup_specs=rollup_specs, rollup_acc=rollup_acc,
+            xt_constraints=xt_constraints, group_share_specs=group_share_specs,
+            waterfall_specs=waterfall_specs, stock_flow_specs=stock_flow_specs,
+            scd2_tables=scd2_tables,
+        )
+
+    def _degraded_table(self, table_name: str, trajectory: pd.DataFrame) -> pd.DataFrame:
+        """A degradation trajectory with the table's other declared columns.
+
+        The trajectory owns the rows; any other columns the table declares are
+        generated onto it, so ``quality`` and ``control_type`` still come from
+        the schema.
+        """
+        traj = trajectory.reset_index(drop=True)
+        extra_cols = [c for c in self.config.columns.get(table_name, [])
+                      if c.name not in traj.columns]
+        for col in extra_cols:
+            traj[col.name] = self.generate_column(table_name, col, len(traj), traj)
+        return traj
+
+    def _buffer_table(self, table_name: str, plan: "_BufferPlan") -> Optional[pd.DataFrame]:
+        """Generate a table whole and apply the passes that must precede its children."""
+        batches = list(self.generate_batches(table_name))
+        if not batches:
+            return None
+        df = pd.concat(batches, ignore_index=True)
+        if table_name in plan.whole_table_rules:
+            df = self._whole_table_rules(table_name, df)
+            self._refresh_context(table_name, df)
+        # Lifecycles run before the children are generated: rewriting the
+        # state column changes which parents a filtered relationship considers
+        # eligible (shipments only attach to shipped orders), so children must
+        # see the final states through the refreshed context.
+        if plan.lifecycle_tables and table_name in plan.lifecycle_tables:
+            from misata.lifecycle import apply_lifecycles, lifecycles_for_table
+            for spec in lifecycles_for_table(self.config, table_name):
+                with self._anchor("identity", "lifecycle", table_name, spec.state_column):
+                    apply_lifecycles(
+                        {table_name: df},
+                        type("_One", (), {"lifecycles": [spec]})(),
+                        self.rng,
+                    )
+            self._refresh_context(table_name, df)
+        return df
+
+    def _apply_table_identities(self, buffered: Dict[str, pd.DataFrame],
+                                plan: "_BufferPlan") -> None:
+        """Group shares, waterfalls, stock flows and SCD2 histories, in that order.
+
+        Each is applied per table; one that cannot be applied warns and
+        leaves its table as generated.
+        """
+        if plan.group_share_specs:
+            from misata.shares import apply_group_shares
+            for spec in plan.group_share_specs:
+                if spec.table in buffered:
+                    try:
+                        with self._anchor("identity", "group_shares",
+                                          spec.table, spec.measure):
+                            buffered[spec.table] = apply_group_shares(
+                                buffered[spec.table], spec, self.config, self.rng
+                            )
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
+                            f"group_shares on {spec.table}.{spec.measure} "
+                            "could not be applied; leaving the table as generated",
+                            ConformanceWarning,
+                        )
+        if plan.waterfall_specs:
+            from misata.waterfall import apply_waterfalls
+            by_table: Dict[str, list] = {}
+            for spec in plan.waterfall_specs:
+                by_table.setdefault(spec.table, []).append(spec)
+            for w_table, table_specs in by_table.items():
+                if w_table in buffered:
+                    try:
+                        with self._anchor("identity", "waterfall", w_table):
+                            buffered[w_table] = apply_waterfalls(
+                                buffered[w_table], table_specs, self.rng
+                            )
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
+                            f"waterfall on {w_table} could not be applied; "
+                            "leaving the table as generated",
+                            ConformanceWarning,
+                        )
+        if plan.stock_flow_specs:
+            from misata.stockflow import apply_stock_flow
+            for spec in plan.stock_flow_specs:
+                if spec.table in buffered:
+                    try:
+                        with self._anchor("identity", "stock_flow", spec.table):
+                            buffered[spec.table] = apply_stock_flow(
+                                buffered[spec.table], spec, self.rng)
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
+                            f"stock_flow on {spec.table} could not be applied; "
+                            "leaving the table as generated",
+                            ConformanceWarning,)
+        if plan.scd2_tables:
+            from misata.scd2 import apply_scd2
+            for t_name in plan.scd2_tables:
+                table_cfg = self.config.get_table(t_name)
+                if t_name in buffered and table_cfg is not None and table_cfg.scd2 is not None:
+                    scd2 = table_cfg.scd2
+                    try:
+                        vf_params = next(
+                            (c.distribution_params for c in
+                             self.config.get_columns(t_name)
+                             if c.name == scd2.valid_from), {})
+                        with self._anchor("identity", "scd2", t_name):
+                            buffered[t_name] = apply_scd2(
+                                buffered[t_name], scd2, self.rng,
+                                col_params=vf_params, table_name=t_name)
+                    except Exception:  # noqa: BLE001 - a failed pass warns and leaves the table as generated
+                        warn(
+                            f"scd2 on {t_name} could not be applied; "
+                            "leaving the table as generated",
+                            ConformanceWarning,)
+
+    def _apply_rollups_and_clamps(self, buffered: Dict[str, pd.DataFrame],
+                                  plan: "_BufferPlan") -> None:
+        """Roll-ups and cross-table clamps, interleaved in dependency order.
+
+        1. roll-ups that produce a column some clamp reads (orders.total_amount
+           from line items) run first,
+        2. then the clamps (payments rescaled to never exceed that total),
+        3. then the remaining roll-ups, so an aggregate of clamped values
+           (customers.lifetime_value from payments) sums the final numbers.
+
+        A roll-up failure leaves the tables as generated rather than failing
+        an otherwise valid run.
+        """
+        from misata.rollups import apply_rollups
+
+        rollup_acc = plan.rollup_acc
+        if rollup_acc is not None:
+            try:
+                # A child buffered for another reason never streamed past the
+                # accumulator; it is complete now, so it is fed in whole.
+                for child in rollup_acc.tables():
+                    if child in buffered:
+                        rollup_acc.update(child, buffered[child])
+                rollup_acc.apply(buffered)
+            except Exception:  # noqa: BLE001 - a roll-up failure never fails an otherwise valid run
+                pass
+        rollup_specs, xt_constraints = plan.rollup_specs, plan.xt_constraints
+        if not (rollup_specs or xt_constraints):
+            return
+        try:
+            if xt_constraints:
+                from misata.crosstable import apply_cross_table_constraints
+                clamp_parents = {c.parent_table for _, c in xt_constraints}
+                first = [s for s in rollup_specs if s.parent_table in clamp_parents]
+                rest = [s for s in rollup_specs if s.parent_table not in clamp_parents]
+                apply_rollups(buffered, first, self.config.relationships)
+                apply_cross_table_constraints(buffered, xt_constraints, self.config)
+                apply_rollups(buffered, rest, self.config.relationships)
+            else:
+                apply_rollups(buffered, rollup_specs, self.config.relationships)
+        except Exception:  # noqa: BLE001 - a roll-up failure never fails an otherwise valid run
+            pass
+
+    def _apply_structure_passes(self, buffered: Dict[str, pd.DataFrame],
+                                dyn_tables: set) -> List[str]:
+        """Graphs, joint distributions, bitemporal histories, event logs,
+        processes and dynamics, in that order.
+
+        Structure passes rewrite whole tables and come first; the later passes
+        only adjust clocks and values on rows that already exist. Dynamics run
+        last: retention reassigns event ownership, and missingness has to be
+        the final word on which values are null.
+
+        Returns the tables the process pass created, in creation order.
+        """
+        config = self.config
+        # Motifs and closures are graph structure on their own, without
+        # dag_edges, so any of the three runs the graph pass.
+        if (getattr(config, "dag_edges", None)
+                or getattr(config, "closures", None)
+                or getattr(config, "graph_motifs", None)):
+            from misata.graphs import apply_graphs
+            with self._anchor("identity", "graphs"):
+                apply_graphs(buffered, config, self.rng)
+
+        if getattr(config, "joint_distributions", None):
+            from misata.joint import apply_joint_distributions
+            with self._anchor("identity", "joint"):
+                apply_joint_distributions(buffered, config, self.rng)
+
+        if getattr(config, "bitemporal", None):
+            from misata.bitemporal import apply_bitemporals
+            with self._anchor("identity", "bitemporal"):
+                apply_bitemporals(buffered, config, self.rng)
+
+        # Event logs rewrite event types and times from the entity's
+        # lifecycle; a grid or a late-arrival pass gets the last word on the
+        # clock.
+        if getattr(config, "event_logs", None):
+            from misata.eventlog import apply_event_logs
+            with self._anchor("identity", "event_logs"):
+                apply_event_logs(buffered, config, self.rng)
+
+        # Processes simulate event logs from the finished cases, before the
+        # dynamics pass so missingness or time grids can still apply to them.
+        process_tables: List[str] = []
+        if getattr(config, "processes", None):
+            from misata.process import apply_processes
+            with self._anchor("identity", "processes"):
+                process_tables = apply_processes(buffered, config, self.rng)
+
+        if dyn_tables:
+            from misata.dynamics import apply_dynamics
+            with self._anchor("identity", "dynamics"):
+                apply_dynamics(buffered, config, self.rng)
+        return process_tables
 
     def generate_all(self, bounded_memory: bool = False):
         """
@@ -6462,10 +6832,11 @@ class DataSimulator:
 
         Memory strategy
         ---------------
-        Only tables that participate in a cascade event (as source or target)
-        are buffered in memory.  All other tables stream directly to the caller
-        one batch at a time, keeping memory usage proportional to cascade
-        complexity rather than total dataset size.
+        Only tables that a post-generation pass rewrites whole (cascades,
+        roll-ups, identities, lifecycles, dynamics) are buffered in memory.
+        All other tables stream directly to the caller one batch at a time,
+        keeping memory usage proportional to that work rather than total
+        dataset size.
 
         Yields:
             Tuple[str, pd.DataFrame]: (table_name, batch_df)
@@ -6484,379 +6855,52 @@ class DataSimulator:
         # A degraded table is produced per unit, not per row: its length is the
         # sum of the drawn lives, because a unit that lives 300 cycles has 300
         # readings. Row-at-a-time generation cannot express that, so it is
-        # produced whole here and the normal loop skips it.
-        #
-        # This sits in generate_all rather than in `misata.generate_from_schema`
-        # because the CLI builds a DataSimulator directly: a guarantee wired
-        # into one of two entry points is a guarantee the other one does not
-        # have.
-        _degraded = {}
-        for _spec in (getattr(self.config, "degradations", None) or []):
+        # produced whole here and the normal loop skips it. This lives in
+        # generate_all, not in one public entry point, because every entry
+        # point (the CLI builds a DataSimulator directly) generates through it.
+        degraded: Dict[str, pd.DataFrame] = {}
+        for spec in (getattr(self.config, "degradations", None) or []):
             from misata.degradation import generate as _degrade
-            _degraded[_spec.table] = _degrade(_spec, seed=self.config.seed or 42)
+            degraded[spec.table] = _degrade(spec, seed=self.config.seed or 42)
 
-        # Cross-table roll-ups: parent summary columns computed from child facts so the data
-        # reconciles under a JOIN. Both the parent (target) and the child (source) must be
-        # buffered together for the post-generation pass.
-        from misata.rollups import (collect_declared_rollups, infer_rollups,
-                                     apply_rollups)
-        rollup_specs = collect_declared_rollups(self.config)
-        try:
-            rollup_specs = rollup_specs + infer_rollups(self.config)
-        except Exception:
-            pass  # inference is best-effort; never block generation
-
-        # A declared outcome curve is an exact promise about a column. Roll-ups
-        # run after generation, so an *inferred* roll-up could overwrite the
-        # curve: in the canonical orders/order_items schema, order_total would
-        # become the sum of its line items and the declared monthly revenue
-        # would stop adding up. The declared target wins; the roll-up on that
-        # column is dropped.
-        _curve_governed = {
-            (c.table, c.column)
-            for c in (getattr(self.config, "outcome_curves", None) or [])
-        }
-        if _curve_governed and rollup_specs:
-            _kept = []
-            for _s in rollup_specs:
-                if (_s.parent_table, _s.target_column) in _curve_governed:
-                    warn(
-                        f"{_s.parent_table}.{_s.target_column} is governed by a declared "
-                        f"outcome curve, so the roll-up from {_s.from_table} was not "
-                        f"applied to it (the declared aggregate takes precedence). "
-                        f"To have both hold, let the roll-up write a different column.",
-                        ConformanceWarning,
-                    )
-                    continue
-                _kept.append(_s)
-            rollup_specs = _kept
-        # Bounded memory: a one-hop roll-up is built from per-batch partials
-        # while its child table streams, so only the parent is held.
-        from misata.rollups import RollupAccumulator, is_streamable
-        _stream_specs = [s for s in rollup_specs if bounded_memory and is_streamable(s)]
-        rollup_acc = RollupAccumulator(_stream_specs) if _stream_specs else None
-        rollup_specs = [s for s in rollup_specs if s not in _stream_specs]
-        rollup_tables: set = {s.parent_table for s in _stream_specs}
-        for s in rollup_specs:
-            rollup_tables.add(s.parent_table)
-            rollup_tables.add(s.from_table)
-            # A multi-hop roll-up needs every intermediate table materialised
-            # to walk the fk chain (payments -> orders -> customers).
-            for hop in (s.via or []):
-                rollup_tables.add(hop)
-
-        # Retention rewrites entity keys and event timestamps; missingness and
-        # late arrival rewrite whole columns. All need the finished table.
-        from misata.bitemporal import bitemporal_tables
-        from misata.eventlog import event_log_tables
-        from misata.graphs import graph_tables
-        from misata.dynamics import dynamics_tables
-        dyn_tables = dynamics_tables(self.config)
-
-        # An event log rewrites the whole child table from its entities' states,
-        # so both sides buffer.
-        dyn_tables |= {t for t in event_log_tables(self.config)
-                       if t in set(sorted_tables)}
-        # Graph and bitemporal passes rewrite whole tables from a structure, so
-        # every table they read or write must be materialised at once.
-        dyn_tables |= {t for t in graph_tables(self.config)
-                       if t in set(sorted_tables)}
-        dyn_tables |= {t for t in bitemporal_tables(self.config)
-                       if t in set(sorted_tables)}
-        # Joint satisfaction rewrites whole columns from a solved cell table,
-        # so its table must be materialised rather than streamed past. Without
-        # this the pass ran against an empty buffer and the declared margins
-        # silently did not appear in the output.
-        dyn_tables |= {spec.table
-                       for spec in (getattr(self.config, "joint_distributions", None) or [])
-                       if spec.table in set(sorted_tables)}
-
-        # A degraded table is produced whole and must reach the dynamics pass,
-        # or every declaration written against it (missingness, outliers,
-        # typos, time grids) silently does nothing.
-        dyn_tables |= {s.table for s in (getattr(self.config, "degradations", None) or [])
-                       if s.table in set(sorted_tables)}
-
-        # A lifecycle rewrites its table's state column and per-state
-        # timestamps over the whole table, so that table buffers.
-        lifecycle_tables = {
-            s.table for s in (getattr(self.config, "lifecycles", None) or [])
-            if s.table in set(sorted_tables)
-        }
-        # A process reads its whole cases table and may write its final state.
-        dyn_tables |= {p.cases_table for p in (getattr(self.config, "processes", None) or [])
-                       if p.cases_table in set(sorted_tables)}
-
-        # Cross-table clamps (refund <= its order's total; payments per order
-        # never exceed the order) need both sides materialised too.
-        from misata.crosstable import collect_cross_table_constraints
-        xt_constraints = collect_cross_table_constraints(self.config)
-        for child_name, c in xt_constraints:
-            rollup_tables.add(child_name)
-            if getattr(c, "parent_table", None):
-                rollup_tables.add(c.parent_table)
-
-        # Exact group shares rewrite group labels and rescale the measure over
-        # the whole table at once, so their tables buffer too.
-        group_share_specs = [
-            s for s in (getattr(self.config, "group_shares", None) or [])
-            if s.table in set(sorted_tables)
-        ]
-        group_share_tables = {s.table for s in group_share_specs}
-
-        # Waterfall identities rewrite period/type/amount over the whole
-        # movements table, so those tables buffer as well.
-        waterfall_specs = [
-            s for s in (getattr(self.config, "waterfalls", None) or [])
-            if s.table in set(sorted_tables)
-        ]
-        waterfall_tables = {s.table for s in waterfall_specs}
-
-        # Stock-flow identities rewrite SKU/period/quantity columns.
-        stock_flow_specs = [
-            s for s in (getattr(self.config, "stock_flows", None) or [])
-            if s.table in set(sorted_tables)
-        ]
-        stock_flow_tables = {s.table for s in stock_flow_specs}
-
-        # SCD2 histories rewrite entity/validity columns over the whole table.
-        scd2_tables = {
-            t.name for t in self.config.tables
-            if getattr(t, "scd2", None) is not None and t.name in set(sorted_tables)
-        }
-
-        # Identify which tables must be buffered (cascade resolution OR roll-ups)
-        cascade_tables: set = set()
-        for event in cascade_events:
-            cascade_tables.add(event.table)
-            cascade_tables.update(event.propagate_to.keys())
-        # A composite key or column-to-column rule has to hold across the
-        # whole table, not one batch at a time, so those tables are buffered.
-        whole_table_rules = {
-            t.name for t in self.config.tables
-            if any(c.type in ("unique_combination", "inequality") for c in (t.constraints or []))
-        }
-        buffer_tables = (cascade_tables | rollup_tables | group_share_tables
-                         | waterfall_tables | scd2_tables | stock_flow_tables
-                         | lifecycle_tables | dyn_tables | whole_table_rules)
-
+        plan = self._plan_buffers(sorted_tables, cascade_events, bounded_memory)
+        rollup_acc = plan.rollup_acc
         buffered: Dict[str, pd.DataFrame] = {}
-        streamed: list = []   # tables already yielded (order record for phase 3)
 
-        # Phase 1 — generate in dependency order
+        # Phase 1: generate in dependency order.
         for table_name in sorted_tables:
             # Append mode: a preloaded table already exists in the target and
             # is not regenerated. Its context (PKs) is already seeded so
             # children can reference its rows.
             if table_name in self._skip_tables:
                 continue
-            # A declared degradation owns its table outright: the trajectory is
-            # the rows. Any other columns the table declares are tiled onto it,
-            # so `quality` and `control_type` still come from the schema.
-            if table_name in _degraded:
-                traj = _degraded[table_name].reset_index(drop=True)
-                extra_cols = [c for c in self.config.columns.get(table_name, [])
-                              if c.name not in traj.columns]
-                for col in extra_cols:
-                    traj[col.name] = self.generate_column(
-                        table_name, col, len(traj), traj)
-                # Buffer rather than yield. Declarations have to compose, and
-                # the dynamics pass (missingness, outliers, typos, retention,
-                # time grids) runs only over buffered tables at the end of
-                # generation, so a `missingness` rule on a degraded table must
-                # see these rows. The trajectory owns the rows; it does not own
-                # the rest of the schema.
-                buffered[table_name] = traj
-                continue
-            if table_name in buffer_tables:
-                # Buffer: collect all batches for the post-generation passes
-                batches = []
-                for batch in self.generate_batches(table_name):
-                    batches.append(batch)
-                if batches:
-                    buffered[table_name] = pd.concat(batches, ignore_index=True)
-                    if table_name in whole_table_rules:
-                        buffered[table_name] = self._whole_table_rules(table_name, buffered[table_name])
-                        self._refresh_context(table_name, buffered[table_name])
-                    # Lifecycles run HERE, not in phase 2: rewriting the state
-                    # column changes which parents a filtered relationship
-                    # considers eligible (shipments only attach to shipped
-                    # orders). Children are generated after this point, so they
-                    # must see the final states — hence the context refresh.
-                    if lifecycle_tables and table_name in lifecycle_tables:
-                        from misata.lifecycle import (apply_lifecycles,
-                                                      lifecycles_for_table)
-                        for _spec in lifecycles_for_table(self.config, table_name):
-                            with self._anchor("identity", "lifecycle",
-                                              table_name, _spec.state_column):
-                                apply_lifecycles(
-                                    {table_name: buffered[table_name]},
-                                    type("_One", (), {"lifecycles": [_spec]})(),
-                                    self.rng,
-                                )
-                        self._refresh_context(table_name, buffered[table_name])
+            if table_name in degraded:
+                # A declared degradation owns its table outright. It is
+                # buffered rather than yielded so the dynamics pass
+                # (missingness, outliers, typos, retention, time grids) sees
+                # its rows like any other table's.
+                buffered[table_name] = self._degraded_table(table_name, degraded[table_name])
+            elif table_name in plan.tables:
+                df = self._buffer_table(table_name, plan)
+                if df is not None:
+                    buffered[table_name] = df
             else:
-                # Stream immediately — no post-pass involvement
                 for batch in self.generate_batches(table_name):
                     if rollup_acc is not None:
                         rollup_acc.update(table_name, batch)
                     yield table_name, batch
-                streamed.append(table_name)
 
-        # Phase 2 — apply cascades, then group shares, then roll-ups, to
-        # buffered tables. Group shares run before roll-ups so parent summary
-        # columns sum the post-share children.
+        # Phase 2: cascades, then identities, then roll-ups, over the buffered
+        # tables. Group shares run before roll-ups so parent summary columns
+        # sum the post-share children.
         for event in cascade_events:
             with self._anchor("cascade", str(event.name), event.table):
                 self.propagate_event_cascade(buffered, event)
-        if group_share_specs:
-            from misata.shares import apply_group_shares
-            for spec in group_share_specs:
-                if spec.table in buffered:
-                    try:
-                        with self._anchor("identity", "group_shares",
-                                          spec.table, spec.measure):
-                            buffered[spec.table] = apply_group_shares(
-                                buffered[spec.table], spec, self.config, self.rng
-                            )
-                    except Exception:
-                        warn(
-                            f"group_shares on {spec.table}.{spec.measure} "
-                            "could not be applied; leaving the table as generated",
-                            ConformanceWarning,
-                        )
-        if waterfall_specs:
-            from misata.waterfall import apply_waterfalls
-            by_table: Dict[str, list] = {}
-            for spec in waterfall_specs:
-                by_table.setdefault(spec.table, []).append(spec)
-            for w_table, table_specs in by_table.items():
-                if w_table in buffered:
-                    try:
-                        with self._anchor("identity", "waterfall", w_table):
-                            buffered[w_table] = apply_waterfalls(
-                                buffered[w_table], table_specs, self.rng
-                            )
-                    except Exception:
-                        warn(
-                            f"waterfall on {w_table} could not be applied; "
-                            "leaving the table as generated",
-                            ConformanceWarning,
-                        )
-        if stock_flow_specs:
-            from misata.stockflow import apply_stock_flow
-            for spec in stock_flow_specs:
-                if spec.table in buffered:
-                    try:
-                        with self._anchor("identity", "stock_flow", spec.table):
-                            buffered[spec.table] = apply_stock_flow(
-                                buffered[spec.table], spec, self.rng)
-                    except Exception:
-                        warn(
-                            f"stock_flow on {spec.table} could not be applied; "
-                            "leaving the table as generated",
-                            ConformanceWarning,)
-        if scd2_tables:
-            from misata.scd2 import apply_scd2
-            for t_name in scd2_tables:
-                table_cfg = self.config.get_table(t_name)
-                if t_name in buffered and table_cfg is not None:
-                    try:
-                        vf_params = next(
-                            (c.distribution_params for c in
-                             self.config.get_columns(t_name)
-                             if c.name == table_cfg.scd2.valid_from), {})
-                        with self._anchor("identity", "scd2", t_name):
-                            buffered[t_name] = apply_scd2(
-                                buffered[t_name], table_cfg.scd2, self.rng,
-                                col_params=vf_params, table_name=t_name)
-                    except Exception:
-                        warn(
-                            f"scd2 on {t_name} could not be applied; "
-                            "leaving the table as generated",
-                            ConformanceWarning,)
-        # Roll-ups and cross-table clamps interleave in dependency order:
-        # 1. roll-ups that produce a column some clamp reads (orders.total_amount
-        #    from line items) run first,
-        # 2. then the clamps (payments rescaled to never exceed that total),
-        # 3. then the remaining roll-ups, so an aggregate of clamped values
-        #    (customers.lifetime_value from payments) sums the final numbers.
-        if rollup_acc is not None:
-            try:
-                # a child buffered for another reason never streamed past the
-                # accumulator; it is complete now, so feed it in whole
-                for _child in rollup_acc.tables():
-                    if _child in buffered:
-                        rollup_acc.update(_child, buffered[_child])
-                rollup_acc.apply(buffered)
-            except Exception:
-                pass  # a roll-up failure must never corrupt an otherwise-valid run
-        if rollup_specs or xt_constraints:
-            try:
-                if xt_constraints:
-                    from misata.crosstable import apply_cross_table_constraints
-                    clamp_parents = {c.parent_table for _, c in xt_constraints}
-                    first = [s for s in rollup_specs if s.parent_table in clamp_parents]
-                    rest = [s for s in rollup_specs if s.parent_table not in clamp_parents]
-                    apply_rollups(buffered, first, self.config.relationships)
-                    apply_cross_table_constraints(buffered, xt_constraints, self.config)
-                    apply_rollups(buffered, rest, self.config.relationships)
-                else:
-                    apply_rollups(buffered, rollup_specs, self.config.relationships)
-            except Exception:
-                pass  # a roll-up failure must never corrupt an otherwise-valid run
+        self._apply_table_identities(buffered, plan)
+        self._apply_rollups_and_clamps(buffered, plan)
+        process_tables = self._apply_structure_passes(buffered, plan.dyn_tables)
 
-        # Dynamics run last: retention reassigns event ownership, and
-        # missingness has to be the final word on which values are null or a
-        # later pass would fill them back in.
-        # Graphs and bitemporal histories run before event logs: both rewrite
-        # whole tables from a structure, and the later passes only ever adjust
-        # clocks and values on rows that already exist.
-        # graph_motifs belongs in this gate too: a schema declaring motifs
-        # without dag_edges skipped the pass entirely and emitted an ordinary
-        # table with none of the declared structure in it.
-        if (getattr(self.config, "dag_edges", None)
-                or getattr(self.config, "closures", None)
-                or getattr(self.config, "graph_motifs", None)):
-            from misata.graphs import apply_graphs
-            with self._anchor("identity", "graphs"):
-                apply_graphs(buffered, self.config, self.rng)
-
-        # Joint satisfaction rewrites whole columns from a solved cell table,
-        # so it runs with the other structure passes and before the clock and
-        # value adjustments that follow.
-        if getattr(self.config, "joint_distributions", None):
-            from misata.joint import apply_joint_distributions
-            with self._anchor("identity", "joint"):
-                apply_joint_distributions(buffered, self.config, self.rng)
-
-        if getattr(self.config, "bitemporal", None):
-            from misata.bitemporal import apply_bitemporals
-            with self._anchor("identity", "bitemporal"):
-                apply_bitemporals(buffered, self.config, self.rng)
-
-        # Event logs run before dynamics: they rewrite event types and times
-        # from the entity's lifecycle, and a grid or a late-arrival pass should
-        # get the last word on the clock.
-        if getattr(self.config, "event_logs", None):
-            from misata.eventlog import apply_event_logs
-            with self._anchor("identity", "event_logs"):
-                apply_event_logs(buffered, self.config, self.rng)
-
-        # Processes simulate event logs from the finished cases, before the
-        # dynamics pass so missingness or time grids can still apply to them.
-        process_tables: List[str] = []
-        if getattr(self.config, "processes", None):
-            from misata.process import apply_processes
-            with self._anchor("identity", "processes"):
-                process_tables = apply_processes(buffered, self.config, self.rng)
-
-        if dyn_tables:
-            from misata.dynamics import apply_dynamics
-            with self._anchor("identity", "dynamics"):
-                apply_dynamics(buffered, self.config, self.rng)
-
-        # Phase 3 — yield buffered tables in original dependency order
+        # Phase 3: yield buffered tables in original dependency order.
         for table_name in sorted_tables:
             if table_name in buffered:
                 yield table_name, buffered[table_name]

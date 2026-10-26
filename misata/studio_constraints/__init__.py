@@ -15,10 +15,10 @@ try:
     Z3_AVAILABLE = True
 except ImportError:
     Z3_AVAILABLE = False
-    ConstraintEngine = None
-    BusinessRule = None
-    add_common_business_rules = None
-    create_constraint_engine = None
+    ConstraintEngine = None  # type: ignore[assignment,misc]
+    BusinessRule = None  # type: ignore[assignment,misc]
+    add_common_business_rules = None  # type: ignore[assignment]
+    create_constraint_engine = None  # type: ignore[assignment]
 
 __all__ = [
     "ConstraintEngine",

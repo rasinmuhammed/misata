@@ -36,7 +36,7 @@ class ConstraintEngine:
         self.rules: List[BusinessRule] = []
         self.stats = {"checked": 0, "violations": 0, "fixed": 0}
     
-    def add_rule(self, name: str, condition: str, validator: Callable = None):
+    def add_rule(self, name: str, condition: str, validator: Optional[Callable] = None):
         """
         Add a business rule.
         
@@ -75,7 +75,8 @@ class ConstraintEngine:
             validator=ops[op]
         )
     
-    def add_range_rule(self, name: str, column: str, min_val: float = None, max_val: float = None):
+    def add_range_rule(self, name: str, column: str, min_val: Optional[float] = None,
+                       max_val: Optional[float] = None):
         """Add a value range constraint."""
         def validator(row):
             val = row[column]
@@ -100,7 +101,7 @@ class ConstraintEngine:
         Returns:
             Dict with validation results and violation details
         """
-        results = {
+        results: Dict[str, Any] = {
             "total_rows": len(df),
             "valid_rows": 0,
             "violations": [],
@@ -169,7 +170,7 @@ class ConstraintEngine:
     def ensure_compliance(
         self, 
         df: pd.DataFrame, 
-        generator_fn: Callable[[int], pd.DataFrame] = None,
+        generator_fn: Optional[Callable[[int], pd.DataFrame]] = None,
         max_attempts: int = 10
     ) -> pd.DataFrame:
         """

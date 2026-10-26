@@ -22,7 +22,7 @@ try:
 except ImportError:
     simple_eval = None
 
-    class NameNotDefined(NameError):
+    class NameNotDefined(NameError):  # type: ignore[no-redef]
         """Fallback used when simpleeval is not installed."""
 
 # Whitelist of safe functions
