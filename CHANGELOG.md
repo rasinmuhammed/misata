@@ -285,6 +285,10 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- `misata.seed_database` refuses a table that already has rows unless
+  `truncate=True` or `append=True` says what to do with it, as `misata
+  seed` does, and writes nothing. It used to stop partway with the
+  driver's unique-key error.
 - The Groq provider defaults to `openai/gpt-oss-120b`. Groq retired
   `llama-3.3-70b-versatile`, so every story sent through the default
   failed with a 404.

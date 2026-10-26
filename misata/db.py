@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 
+from misata.exceptions import ConfigurationError
 from misata.schema import SchemaConfig
 from misata.simulator import DataSimulator
 from misata.sqlutil import quote_ident, quote_qualified
@@ -55,6 +56,10 @@ def seed_database(
         use_llm: Use LLM-backed pools when smart_mode is True
         append: Leave already-populated tables untouched and generate only the
             empty ones, drawing their foreign keys from the existing rows.
+
+    Raises:
+        ConfigurationError: A table already has rows and neither ``truncate``
+            nor ``append`` says what to do with them. Nothing is written.
     """
     start_time = time.time()
     dialect, conn = _connect(db_url)
@@ -89,6 +94,16 @@ def seed_database(
         if ext_context:
             preloaded_context = {**(preloaded_context or {}), **ext_context}
             skip_tables = (skip_tables or set()) | ext_skip
+
+        if not (truncate or append):
+            populated = [t.name for t in config.tables
+                         if t.name not in (skip_tables or set())
+                         and _row_count_or_zero(conn, dialect, t.name)]
+            if populated:
+                raise ConfigurationError(
+                    f"{len(populated)} table(s) already have rows ({', '.join(populated)}). "
+                    f"Pass truncate=True to replace them, or append=True to keep them "
+                    f"and seed only the empty tables.")
 
         simulator = DataSimulator(
             config,
@@ -261,6 +276,15 @@ def _load_existing_context(conn, dialect: str, config: SchemaConfig):
             except Exception:  # noqa: BLE001 - an unreadable table is generated normally
                 skip.discard(name)  # can't load it; let normal path handle
     return preloaded, skip
+
+
+def _row_count_or_zero(conn, dialect: str, table: str) -> int:
+    """Rows in ``table``, or 0 when it does not exist yet."""
+    try:
+        with _Savepoint(conn, dialect):
+            return _count_rows(conn, dialect, table)
+    except Exception:  # noqa: BLE001 - a table the driver cannot count is treated as empty
+        return 0
 
 
 def _count_rows(conn, dialect: str, table: str) -> int:
