@@ -285,6 +285,13 @@ class TestCLIInit:
         assert "tables:" in content
         assert "relationships:" in content
 
+    def test_the_template_passes_strict_lint(self, runner, tmp_path):
+        """A schema with no outcome curves is complete, not a lint finding."""
+        out = tmp_path / "misata.yaml"
+        assert runner.invoke(main, ["init", "--output", str(out)]).exit_code == 0
+        result = runner.invoke(main, ["lint", str(out), "--strict"])
+        assert result.exit_code == 0, result.output
+
     def test_init_story_mode_writes_valid_yaml(self, runner, tmp_path):
         """--story flag produces a loadable misata.yaml."""
         out = tmp_path / "misata.yaml"

@@ -1,5 +1,5 @@
 """
-LLM-powered schema generator using Groq Llama 3.3.
+LLM-powered schema generator for Groq, OpenAI, Anthropic, Bedrock, Gemini and local models.
 
 This module provides intelligent schema generation from natural language,
 including:
@@ -871,7 +871,7 @@ class LLMSchemaGenerator:
     Generate realistic schemas from natural language using LLMs.
 
     Supports multiple providers:
-    - groq: Groq Cloud (Llama 3.3) - Fast, free tier
+    - groq: Groq Cloud (gpt-oss-120b) - Fast, free tier
     - openai: OpenAI (GPT-4o) - Best quality
     - ollama: Local Ollama - Free, private
     - mercury: Inception Mercury 2 (diffusion, OpenAI-compatible)
@@ -884,9 +884,10 @@ class LLMSchemaGenerator:
         "groq": {
             "base_url": None,  # Uses default
             "env_key": "GROQ_API_KEY",
-            # llama-3.3-70b's free-tier TPM (12k) fits SYSTEM_PROMPT + a full
-            # schema; qwen3-32b's 6k cap rejects the request before it starts.
-            "default_model": "llama-3.3-70b-versatile",
+            # gpt-oss-120b fits SYSTEM_PROMPT plus a full schema inside Groq's
+            # per-minute token limit; qwen3.8-27b rejects the larger stories
+            # with a 429 before generating.
+            "default_model": "openai/gpt-oss-120b",
             "protocol": "openai",
         },
         "openai": {

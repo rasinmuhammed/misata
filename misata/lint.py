@@ -125,6 +125,8 @@ def _check_rates(schema: "SchemaConfig") -> List[LintFinding]:
 
 def _check_curves(schema: "SchemaConfig") -> List[LintFinding]:
     """Bound feasibility and Prop. 3 clamps via the conformance preview."""
+    if not schema.outcome_curves:
+        return []
     out = []
     try:
         from misata.conformance import conformance_preview

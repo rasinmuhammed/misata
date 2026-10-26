@@ -285,6 +285,13 @@ and versions follow [STABILITY.md](STABILITY.md): batched releases with Output c
 
 ### Other
 
+- The Groq provider defaults to `openai/gpt-oss-120b`. Groq retired
+  `llama-3.3-70b-versatile`, so every story sent through the default
+  failed with a 404.
+- `misata lint --strict` passes a schema without outcome curves, such as
+  the one `misata init` writes. Having no curve is not a finding.
+- `misata mimic --help` says the output is fitted to real rows and is
+  not anonymous, as SECURITY.md does.
 - The pytest plugin finds a relative `schema=` beside the test file before
   looking at the rootdir, and reads `.sql` and JSON schemas as well as YAML.
 - A DDL rule written `CHECK (seen_at IS NULL OR seen_at >= booked_at)` is
