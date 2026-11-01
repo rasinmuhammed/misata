@@ -739,7 +739,23 @@ def generate_from_schema(
 
     __stock_flows__  Per-unit inventory identity: closing = opening + received
       - shipped, enforced for every SKU across every period. Use for warehouse
-      / inventory data where stock levels must be internally consistent.
+      / inventory data where stock levels must be internally consistent. Add
+      "opening": {"flour": 120, ...} to fix each SKU's first opening level,
+      e.g. to continue from a previous run's closing stock.
+
+    __no_overlap__  An entity is in one place at a time: its [start, end)
+      intervals never overlap.
+      [{"table": "visits", "key": "resident_id", "start": "arrived_at",
+        "end": "left_at"}]
+
+    __capacity__  A resource never holds more concurrent intervals than its
+      capacity (a constant "capacity", or "capacity_column" on its table).
+      [{"table": "visits", "resource": "place_id", "start": "arrived_at",
+        "end": "left_at", "capacity_column": "seats"}]
+      A relationship's "parent_end" keeps a child inside its parent's span:
+      {"parent": "visits.visit_id", "child": "orders.visit_id",
+       "parent_time": "arrived_at", "parent_end": "left_at",
+       "child_time": "ordered_at"}
 
     __lifecycles__  A state machine with *legal* transitions (stricter than a
       table-level __state_machine__: illegal jumps are impossible, not just

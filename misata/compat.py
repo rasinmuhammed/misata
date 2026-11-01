@@ -74,6 +74,8 @@ _ENVELOPE_KEYS: Tuple[Tuple[str, str], ...] = (
     ("missingness", "__missingness__"),
     ("late_arrivals", "__late_arrivals__"),
     ("time_grids", "__time_grids__"),
+    ("no_overlap", "__no_overlap__"),
+    ("capacity", "__capacity__"),
     ("duplicates", "__duplicates__"),
     ("event_logs", "__event_logs__"),
     ("outliers", "__outliers__"),
@@ -802,8 +804,9 @@ def _declared_directives(schemas: Dict[str, Any]) -> Dict[str, List[Any]]:
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
                                Duplicates, EventLog, GraphMotifs,
                                JointDistribution, LateArrival, Lifecycle,
-                               Missingness, Outliers, Process, ScenarioEvent,
-                               TimeGrid, TransitiveClosure, Typos)
+                               Missingness, NoOverlap, Capacity, Outliers,
+                               Process, ScenarioEvent, TimeGrid,
+                               TransitiveClosure, Typos)
 
     builders: Tuple[Tuple[str, Callable[[Any], Any]], ...] = (
         ("outcome_curves", lambda raw: OutcomeCurve(**raw)),
@@ -820,6 +823,8 @@ def _declared_directives(schemas: Dict[str, Any]) -> Dict[str, List[Any]]:
         ("missingness", lambda raw: Missingness(**raw)),
         ("late_arrivals", lambda raw: LateArrival(**raw)),
         ("time_grids", lambda raw: TimeGrid(**raw)),
+        ("no_overlap", lambda raw: NoOverlap(**raw)),
+        ("capacity", lambda raw: Capacity(**raw)),
         ("duplicates", lambda raw: Duplicates(**raw)),
         ("event_logs", lambda raw: EventLog(**raw)),
         ("outliers", lambda raw: Outliers(**raw)),

@@ -6596,6 +6596,10 @@ class DataSimulator:
                        if spec.table in present}
         dyn_tables |= {s.table for s in (getattr(config, "degradations", None) or [])
                        if s.table in present}
+        # Interval guarantees rewrite timelines, resources and child moments
+        # over whole tables, reading parents and children together.
+        from misata.intervals import interval_tables
+        dyn_tables |= {t for t in interval_tables(config) if t in present}
 
         # A lifecycle rewrites its table's state column and per-state
         # timestamps over the whole table, so that table buffers.

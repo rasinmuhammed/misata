@@ -386,13 +386,15 @@ def history_svg(theme: str, data: Dict) -> str:
 #: Declarations the DuckDB certificate re-checks, as the invariant kinds
 #: misata.attestation.derive_invariants emits for them.
 IN_CERTIFICATE = {"outcome_curves", "rate_curves", "group_shares", "waterfalls",
-                  "constraints", "lifecycles", "dag_edges", "graph_motifs"}
+                  "stock_flows", "constraints", "lifecycles", "dag_edges", "graph_motifs",
+                  "time_grids", "no_overlap", "capacity"}
 
 #: Keys, row rules and relationship guarantees declared in DDL or on a
 #: relationship or constraint, all re-checked by the certificate.
 FOUNDATION = [("foreign keys", True), ("unique keys", True), ("NOT NULL", True),
               ("CHECK rules", True), ("min_children", True), ("partition_by", True),
-              ("balanced_ledger", True)]
+              ("balanced_ledger", True), ("lte_parent", True), ("sum_lte_parent", True),
+              ("temporal eligibility", True), ("parent_end", True)]
 
 
 def _bricks_data() -> List[Tuple[str, List[Tuple[str, bool]]]]:

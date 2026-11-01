@@ -57,10 +57,18 @@ jobs:
 
       # The Ledger: bitemporal (two independent time axes) and graph-shaped
       # (a DAG edge table plus its transitive closure). Third shape, same
-      # contract. Together the three suites cover 294 assertions.
+      # contract.
       - name: Run the Ledger (bitemporal + graph release gate)
         run: |
           python -m benchmarks.ledger
+
+      # The Borough: a town's day. Intervals that never overlap or overfill a
+      # place, orders inside their visit, and capped spending under exact
+      # daily totals. Fourth shape, same contract. Together the four suites
+      # cover 345 assertions.
+      - name: Run the Borough (intervals + bounded money release gate)
+        run: |
+          python -m benchmarks.borough
 
       - name: Audit dependencies for known vulnerabilities
         if: matrix.python-version == '3.11'

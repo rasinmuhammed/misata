@@ -32,6 +32,11 @@ def apply_stock_flow(
     shorter history starting at the first period (the chain still holds on
     every consecutive pair it has). SKU identifiers reuse the generated
     column's values so their format survives.
+
+    A declared ``opening`` fixes the SKUs and their first opening levels
+    instead: one full history per declared SKU, in declaration order. Rows
+    beyond that are dropped with a warning (strict generation refuses the
+    mismatch before any data exists).
     """
     periods = [str(p) for p in (spec.periods or [])]
     needed = {spec.sku_column, spec.period_column, spec.open_column,
@@ -48,8 +53,23 @@ def apply_stock_flow(
     P = len(periods)
     if n < 1:
         return df
-    n_full = n // P
-    remainder = n - n_full * P
+    declared = list(spec.opening.items()) if spec.opening else None
+    if declared is not None:
+        need = len(declared) * P
+        if n != need:
+            warn(
+                f"stock_flow on {spec.table}: the declared opening has "
+                f"{len(declared)} SKU(s) over {P} period(s), which is {need} rows, "
+                f"but the table has {n}; "
+                + ("dropping the extra rows" if n > need else "the last SKUs get partial histories"),
+                ConformanceWarning,)
+            df = df.iloc[:need].reset_index(drop=True)
+            n = len(df)
+        n_full = min(n // P, len(declared))
+        remainder = n - n_full * P
+    else:
+        n_full = n // P
+        remainder = n - n_full * P
     if n_full == 0:
         warn(
             f"stock_flow on {spec.table}: {n} rows cannot host even one "
@@ -57,7 +77,10 @@ def apply_stock_flow(
             ConformanceWarning,)
     histories: List[int] = [P] * n_full + ([remainder] if remainder else [])
 
-    pool = pd.unique(df[spec.sku_column])
+    if declared is not None:
+        pool = np.array([sku for sku, _ in declared], dtype=object)
+    else:
+        pool = pd.unique(df[spec.sku_column])
     if len(pool) < len(histories):
         warn(
             f"stock_flow on {spec.table}: only {len(pool)} distinct "
@@ -79,7 +102,7 @@ def apply_stock_flow(
     hi = max(int(spec.starting_min), int(spec.starting_max))
     pos = 0
     for s_i, k in enumerate(histories):
-        level = int(rng.integers(lo, hi + 1))
+        level = declared[s_i][1] if declared is not None else int(rng.integers(lo, hi + 1))
         # Typical flow magnitudes scale with the starting level, so a
         # high-volume SKU moves more units than a slow one.
         typical = max(level // 3, 1)

@@ -43,6 +43,22 @@ def split_total_by_shares(
     return targets
 
 
+def measure_decimals(schema: Any, table: str, column: str) -> int:
+    """Decimal places a measure is declared with: 0 for an int column, else the
+    column's ``decimals`` (2 when unset). Read the way the fact engine reads it,
+    so a share never carries more precision than the curve it splits."""
+    try:
+        cols = schema.get_columns(table)
+    except (AttributeError, TypeError):
+        return 2
+    for col in cols or []:
+        if getattr(col, "name", None) == column:
+            if getattr(col, "type", None) == "int":
+                return 0
+            return int((getattr(col, "distribution_params", None) or {}).get("decimals", 2))
+    return 2
+
+
 def normalized_shares(spec: Any) -> Dict[str, float]:
     """Return the spec's shares normalised to sum to 1, warning on drift."""
     shares = {str(k): float(v) for k, v in (spec.shares or {}).items() if float(v) > 0}
@@ -89,10 +105,11 @@ def declared_group_targets(
     shares = normalized_shares(spec)
     if not shares:
         return None
+    decimals = measure_decimals(schema, spec.table, spec.measure)
     out = []
     for bucket, target in zip(resolved.buckets, resolved.targets, strict=True):
         out.append((bucket.start, bucket.end,
-                    split_total_by_shares(shares, float(target))))
+                    split_total_by_shares(shares, float(target), decimals)))
     return out
 
 
@@ -186,9 +203,9 @@ def apply_group_shares(
     Row counts per group follow largest-remainder on fraction * bucket rows,
     with at least one row per positive-share group; a bucket with fewer rows
     than positive-share groups is skipped with a warning (infeasible). Within
-    each group the measure is rescaled to its target, rounded to cents, and
-    the rounding residual lands on the group's largest row, so the bucket
-    total still equals the declared period target exactly.
+    each group the measure is rescaled to its target, rounded to the measure's
+    declared decimals, and the rounding residual lands on the group's largest
+    row, so the bucket total still equals the declared period target exactly.
     """
     shares = normalized_shares(spec)
     if not shares or spec.measure not in df.columns or spec.group_column not in df.columns:
@@ -216,6 +233,7 @@ def apply_group_shares(
     groups = df[spec.group_column].astype(object).to_numpy(copy=True)
 
     lo, hi = _declared_bounds(schema, spec.table, spec.measure)
+    decimals = measure_decimals(schema, spec.table, spec.measure)
     warned_bounds = False
 
     for idx, total in buckets:
@@ -244,7 +262,7 @@ def apply_group_shares(
         # Assign labels over a seeded shuffle of the bucket's rows.
         shuffled = idx.copy()
         rng.shuffle(shuffled)
-        targets = split_total_by_shares(shares, total)
+        targets = split_total_by_shares(shares, total, decimals)
         pos = 0
         for g_i, label in enumerate(labels):
             rows = shuffled[pos: pos + counts[g_i]]
@@ -252,7 +270,7 @@ def apply_group_shares(
             groups[rows] = label
             t = targets[label]
             if rows.size and (lo is not None or hi is not None):
-                fitted = fit_total_within_bounds(measure[rows], t, lo, hi)
+                fitted = fit_total_within_bounds(measure[rows], t, lo, hi, decimals)
                 if fitted is not None:
                     measure[rows] = fitted
                     continue
@@ -269,15 +287,15 @@ def apply_group_shares(
                     )
             cur = measure[rows].sum()
             if cur > 0:
-                measure[rows] = np.round(measure[rows] * (t / cur), 2)
+                measure[rows] = np.round(measure[rows] * (t / cur), decimals)
             elif rows.size:
-                measure[rows] = np.round(t / rows.size, 2)
+                measure[rows] = np.round(t / rows.size, decimals)
             # Residual to the largest row so the group hits t exactly.
-            resid = round(t - measure[rows].sum(), 2)
+            resid = round(t - measure[rows].sum(), decimals)
             if resid and rows.size:
                 big = rows[int(np.argmax(measure[rows]))]
-                measure[big] = round(measure[big] + resid, 2)
+                measure[big] = round(measure[big] + resid, decimals)
 
     df[spec.group_column] = groups
-    df[spec.measure] = np.round(measure, 2)
+    df[spec.measure] = np.round(measure, decimals)
     return df

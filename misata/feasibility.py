@@ -1058,6 +1058,20 @@ def _check_identity_shares(config: Any) -> List[Conflict]:
                             f"complete chain"),
                 remedy=f"raise {spec.table} to at least {len(periods):,} rows",
             ))
+        opening = getattr(spec, "opening", None)
+        if opening and periods and rows and rows != len(opening) * len(periods):
+            need = len(opening) * len(periods)
+            out.append(Conflict(
+                kind="stock_flow_opening_rows",
+                where=str(spec.table),
+                declarations=[f"{spec.table} row_count = {rows:,}",
+                              f"stock_flows opening = {len(opening)} SKU(s)",
+                              f"stock_flows periods = {len(periods)}"],
+                arithmetic=(f"a declared opening fixes the SKUs, so the ledger is "
+                            f"{len(opening)} x {len(periods)} = {need:,} rows, "
+                            f"not {rows:,}"),
+                remedy=f"set {spec.table} to {need:,} rows",
+            ))
         lo = getattr(spec, "starting_min", None)
         hi = getattr(spec, "starting_max", None)
         if lo is not None and hi is not None and float(lo) > float(hi):
@@ -1203,7 +1217,85 @@ def _check_process_wiring(config: Any) -> List[Conflict]:
     return out
 
 
+_TIME_TYPES = ("date", "datetime")
+
+
+def _check_intervals(config: Any) -> List[Conflict]:
+    """An interval declaration must name real timestamp columns and, for a
+    capacity, a resource the relationships resolve, with somewhere to read its
+    capacity from. A capacity of zero leaves a row nowhere to be."""
+    out: List[Conflict] = []
+    tables = {t.name for t in (getattr(config, "tables", None) or [])}
+
+    def wiring(kind: str, table: str, decl: str, roles) -> List[Conflict]:
+        found: List[Conflict] = []
+        if table not in tables:
+            return [Conflict(kind, table, [decl], f"{table!r} is not a declared table",
+                             f"declare {table} or point {decl} at an existing table")]
+        cols = _columns_of(config, table)
+        for role, col, types in roles:
+            if col not in cols:
+                found.append(Conflict(kind, f"{table}.{col}", [decl],
+                                      f"{role} {col!r} is not a column of {table}",
+                                      f"declare {col} on {table}"))
+            elif types and getattr(cols[col], "type", None) not in types:
+                found.append(Conflict(kind, f"{table}.{col}", [decl],
+                                      f"{role} {col!r} is a {cols[col].type} column, not a "
+                                      f"timestamp", f"make {col} a date or datetime"))
+        return found
+
+    for spec in (getattr(config, "no_overlap", None) or []):
+        decl = f"no_overlap on {spec.table}.{spec.key}"
+        out += wiring("no_overlap_wiring", spec.table, decl,
+                      (("key", spec.key, None), ("start", spec.start, _TIME_TYPES),
+                       ("end", spec.end, _TIME_TYPES)))
+    for spec in (getattr(config, "capacity", None) or []):
+        decl = f"capacity on {spec.table}.{spec.resource}"
+        found = wiring("capacity_wiring", spec.table, decl,
+                       (("resource", spec.resource, None), ("start", spec.start, _TIME_TYPES),
+                        ("end", spec.end, _TIME_TYPES)))
+        out += found
+        if found:
+            continue
+        rel = next((r for r in (getattr(config, "relationships", None) or [])
+                    if r.child_table == spec.table and r.child_key == spec.resource), None)
+        if rel is None:
+            out.append(Conflict("capacity_wiring", f"{spec.table}.{spec.resource}", [decl],
+                                f"no relationship resolves {spec.table}.{spec.resource} to "
+                                f"the resources it occupies",
+                                f"declare the relationship <resources>.<key> -> "
+                                f"{spec.table}.{spec.resource}"))
+            continue
+        if spec.capacity_column and spec.capacity_column not in _columns_of(config, rel.parent_table):
+            out.append(Conflict("capacity_wiring", f"{rel.parent_table}.{spec.capacity_column}",
+                                [decl], f"capacity_column {spec.capacity_column!r} is not a "
+                                f"column of {rel.parent_table}",
+                                f"declare {spec.capacity_column} on {rel.parent_table}"))
+        if spec.capacity == 0 and _row_count(config, spec.table):
+            out.append(Conflict("capacity_zero", f"{spec.table}.{spec.resource}", [decl],
+                                f"every resource holds 0 intervals at once, so none of the "
+                                f"{_row_count(config, spec.table):,} rows of {spec.table} "
+                                f"can occupy one", "declare a positive capacity"))
+    for rel in (getattr(config, "relationships", None) or []):
+        if not getattr(rel, "parent_end", None):
+            continue
+        decl = f"parent_end on {rel.parent_table}->{rel.child_table}"
+        if not rel.parent_time or not rel.child_time or rel.child_time_table:
+            out.append(Conflict("containment_wiring", f"{rel.child_table}.{rel.child_key}",
+                                [decl], "a span needs its start: parent_time, and child_time "
+                                "on the child table itself",
+                                "declare parent_time and child_time alongside parent_end"))
+            continue
+        out += wiring("containment_wiring", rel.parent_table, decl,
+                      (("parent_time", rel.parent_time, _TIME_TYPES),
+                       ("parent_end", rel.parent_end, _TIME_TYPES)))
+        out += wiring("containment_wiring", rel.child_table, decl,
+                      (("child_time", rel.child_time, _TIME_TYPES),))
+    return out
+
+
 _CHECKS = _CHECKS + (
+    _check_intervals,
     _check_process_wiring,
     _check_injected_counts,
     _check_declared_fractions,

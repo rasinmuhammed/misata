@@ -542,14 +542,16 @@ def load_yaml_schema(
     from misata.schema import (Bitemporal, CohortRetention, DagEdges,
                                Duplicates, EventLog, GraphMotifs,
                                JointDistribution, LateArrival, Lifecycle,
-                               Missingness, Outliers, Process, TimeGrid,
-                               TransitiveClosure, Typos)
+                               Missingness, NoOverlap, Capacity, Outliers,
+                               Process, TimeGrid, TransitiveClosure, Typos)
     _declared: Dict[str, List[Any]] = {}
     for key, model in (("lifecycles", Lifecycle),
                        ("retention", CohortRetention),
                        ("missingness", Missingness),
                        ("late_arrivals", LateArrival),
                        ("time_grids", TimeGrid),
+                       ("no_overlap", NoOverlap),
+                       ("capacity", Capacity),
                        ("duplicates", Duplicates),
                        ("event_logs", EventLog),
                        ("outliers", Outliers),
@@ -606,6 +608,8 @@ def load_yaml_schema(
         missingness=_declared["missingness"],
         late_arrivals=_declared["late_arrivals"],
         time_grids=_declared["time_grids"],
+        no_overlap=_declared["no_overlap"],
+        capacity=_declared["capacity"],
         duplicates=_declared["duplicates"],
         event_logs=_declared["event_logs"],
         outliers=_declared["outliers"],
@@ -773,7 +777,7 @@ def save_yaml_schema(
 _DECLARATION_KEYS = (
     "events", "outcome_curves", "rate_curves", "group_shares", "waterfalls",
     "stock_flows", "degradations", "lifecycles", "retention", "missingness",
-    "late_arrivals", "time_grids", "duplicates", "event_logs", "outliers", "typos",
+    "late_arrivals", "time_grids", "no_overlap", "capacity", "duplicates", "event_logs", "outliers", "typos",
     "bitemporal", "dag_edges", "closures", "processes", "graph_motifs",
     "joint_distributions",
 )

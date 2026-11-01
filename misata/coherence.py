@@ -569,8 +569,18 @@ _SHIPPED_OK = {"shipped", "dispatched", "in_transit", "out_for_delivery",
 _DELIVERED_OK = {"delivered", "completed", "fulfilled"}
 _RARE_FLAG_TOKENS = ("fraud", "chargeback", "disputed", "is_deleted", "is_spam",
                      "is_bot", "blacklist", "banned")
-_COUNTISH = ("count", "quantity", "qty", "num_", "items", "units", "visits",
-             "sessions", "clicks", "views", "seats", "age")
+#: Name words that mark a column as a count. Matched against whole words of the
+#: snake_case name, so ``age`` flags ``patient_age`` but not ``triaged_at`` or
+#: ``mileage``, and ``count`` flags ``item_count`` but not ``account_balance``.
+_COUNTISH = frozenset({"count", "counts", "quantity", "qty", "items", "units",
+                       "visits", "sessions", "clicks", "views", "seats", "age"})
+
+
+def _is_countish(name: str) -> bool:
+    words = name.lower().split("_")
+    if words[0] in ("temp", "delta", "change", "net"):
+        return False
+    return words[0] == "num" or not _COUNTISH.isdisjoint(words)
 
 
 def _detect_fk_orphans(tables, schema) -> List[CoherenceFinding]:
@@ -1058,6 +1068,95 @@ def _detect_temporal_eligibility_violation(tables, schema) -> List[CoherenceFind
                          f"{ptime} is later than the row's own {ctime}: the "
                          f"parent did not exist yet"),
                 rows_affected=bad,
+            ))
+        pend = getattr(rel, "parent_end", None)
+        if pend and pend in parent.columns and not owner_name:
+            ends = pd.Series(pd.to_datetime(parent[pend], errors="coerce").values,
+                             index=parent[rel.parent_key].values)
+            ends = ends[~ends.index.duplicated(keep="first")]
+            parent_until = pd.to_datetime(child[rel.child_key].map(ends), errors="coerce")
+            late = int((child_when > parent_until).sum())
+            if late:
+                out.append(CoherenceFinding(
+                    kind="temporal_containment", severity="high",
+                    table=rel.child_table, column=ctime,
+                    message=(f"{late} row(s) fall after their {rel.parent_table}'s "
+                             f"{pend}: the row's {ctime} lies outside the parent's span"),
+                    rows_affected=late,
+                ))
+    return out
+
+
+def _interval_frame(df: pd.DataFrame, key: str, start: str, end: str) -> pd.DataFrame:
+    """Rows with a key and both bounds known, as (k, s, e) in nanoseconds."""
+    s = pd.to_datetime(df[start], errors="coerce")
+    e = pd.to_datetime(df[end], errors="coerce")
+    keep = s.notna() & e.notna() & df[key].notna()
+    return pd.DataFrame({"k": df.loc[keep, key].to_numpy(),
+                         "s": s[keep].to_numpy(dtype="datetime64[ns]").astype("int64"),
+                         "e": e[keep].to_numpy(dtype="datetime64[ns]").astype("int64")})
+
+
+def _detect_overlap(tables, schema) -> List[CoherenceFinding]:
+    """An entity's intervals, re-read from the rows, never overlap."""
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "no_overlap", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty or not {spec.key, spec.start, spec.end} <= set(df.columns):
+            continue
+        iv = _interval_frame(df, spec.key, spec.start, spec.end).sort_values(["k", "s", "e"])
+        if iv.empty:
+            continue
+        running_end = iv.groupby("k", sort=False)["e"].cummax()
+        prev_end = running_end.groupby(iv["k"], sort=False).shift()
+        bad = int((iv["s"] < prev_end).sum())
+        if bad:
+            out.append(CoherenceFinding(
+                kind="no_overlap", severity="high", table=spec.table, column=spec.start,
+                message=(f"{bad} interval(s) start before the previous interval of the "
+                         f"same {spec.key} has ended"),
+                rows_affected=bad,
+            ))
+    return out
+
+
+def _detect_capacity(tables, schema) -> List[CoherenceFinding]:
+    """Concurrent intervals per resource, re-counted from the rows, stay within capacity."""
+    out: List[CoherenceFinding] = []
+    for spec in (getattr(schema, "capacity", None) or []):
+        df = tables.get(spec.table)
+        if df is None or df.empty or not {spec.resource, spec.start, spec.end} <= set(df.columns):
+            continue
+        iv = _interval_frame(df, spec.resource, spec.start, spec.end)
+        iv = iv[iv["e"] > iv["s"]]
+        if iv.empty:
+            continue
+        # Ends sort before starts at the same instant: [a, b) and [b, c) never meet.
+        events = pd.concat([iv.assign(t=iv["s"], d=1), iv.assign(t=iv["e"], d=-1)])
+        events = events.sort_values(["k", "t", "d"], kind="mergesort")
+        events["o"] = events.groupby("k", sort=False)["d"].cumsum()
+        peak = events.groupby("k")["o"].max()
+        if spec.capacity_column:
+            rel = next((r for r in schema.relationships if r.child_table == spec.table
+                        and r.child_key == spec.resource), None)
+            if rel is None:
+                continue
+            parent = tables.get(rel.parent_table)
+            if parent is None or spec.capacity_column not in parent.columns:
+                continue
+            caps = (parent.drop_duplicates(subset=[rel.parent_key])
+                    .set_index(rel.parent_key)[spec.capacity_column])
+            limit = pd.to_numeric(peak.index.to_series().map(caps), errors="coerce")
+        else:
+            limit = pd.Series(float(spec.capacity), index=peak.index)
+        over = int(((peak > limit) & limit.notna()).sum())
+        if over:
+            out.append(CoherenceFinding(
+                kind="capacity_exceeded", severity="high", table=spec.table,
+                column=spec.resource,
+                message=(f"{over} {spec.resource} value(s) hold more concurrent "
+                         f"intervals than their capacity"),
+                rows_affected=over,
             ))
     return out
 
@@ -2156,6 +2255,20 @@ def _detect_stock_flow_mismatch(tables, schema) -> List[CoherenceFinding]:
                 table=spec.table, column=spec.open_column,
                 message=f"{negative} rows carry a negative stock quantity",
                 rows_affected=negative))
+        if getattr(spec, "opening", None):
+            first = work.drop_duplicates(subset=[spec.sku_column], keep="first")
+            first = first[first["__ord"] == 0]
+            got = dict(zip(first[spec.sku_column].astype(str),
+                           pd.to_numeric(first[spec.open_column], errors="coerce"), strict=True))
+            wrong = sorted(sku for sku, want in spec.opening.items()
+                           if sku not in got or abs(float(got[sku]) - want) > 0.001)
+            if wrong:
+                out.append(CoherenceFinding(
+                    kind="stock_flow_opening", severity="high",
+                    table=spec.table, column=spec.open_column,
+                    message=(f"{len(wrong)} SKU(s) do not open the first period at "
+                             f"their declared level (e.g. {wrong[0]})"),
+                    rows_affected=len(wrong)))
     return out
 
 
@@ -2259,11 +2372,15 @@ def _detect_bounds(table: str, df: pd.DataFrame) -> List[CoherenceFinding]:
     """Counts must be non-negative; percents in 0-100; rates in 0-1."""
     out: List[CoherenceFinding] = []
     for col in df.columns:
+        # A timestamp is not a magnitude: coercing one yields nanoseconds, and
+        # a missing timestamp yields the most negative int64.
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            continue
         s = _numeric(df[col])
         if s.isna().all():
             continue
-        lc = col.lower()
-        if any(t in lc for t in _COUNTISH) and not lc.startswith(("temp", "delta", "change", "net_")):
+        lc = str(col).lower()
+        if _is_countish(lc):
             bad = int((s < 0).sum())
             if bad:
                 out.append(CoherenceFinding(
@@ -2422,6 +2539,8 @@ def coherence_audit(
         report.findings.extend(_detect_cross_table_bound_violation(tables, schema))
         report.findings.extend(_detect_temporal_eligibility_violation(tables, schema))
         report.findings.extend(_detect_time_grid_violation(tables, schema))
+        report.findings.extend(_detect_overlap(tables, schema))
+        report.findings.extend(_detect_capacity(tables, schema))
         report.findings.extend(_detect_duplicate_count_mismatch(tables, schema))
         report.findings.extend(_detect_partition_leak(tables, schema))
         report.findings.extend(_detect_hierarchy_violation(tables, schema))

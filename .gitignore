@@ -88,6 +88,9 @@ tests/*
 !tests/test_partition_hierarchy.py
 !tests/test_warren.py
 !tests/test_ledger_composition.py
+!tests/test_borough_conformance.py
+!tests/test_intervals.py
+!tests/test_bound_conservation.py
 !tests/test_mutate.py
 jman_output/
 llm_test/

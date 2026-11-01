@@ -16,7 +16,7 @@ stdout instead, the envelope::
       "data": null,
       "warnings": [{"category": "ConformanceWarning", "message": "..."}],
       "text": "what the command would have printed",
-      "misata_version": "0.9.8"
+      "misata_version": "0.9.8.1"
     }
 
 Exit codes are the same in both modes:

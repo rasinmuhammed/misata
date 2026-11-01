@@ -226,7 +226,7 @@ table, it is because the brick that replaces it has passed all three tests.
 | Claim | Measured | Reproduce |
 |---|---|---|
 | Valid by construction | 0 violations of keys, CHECK, UNIQUE, NOT NULL and self-reference trees on five DDL schemas. A per-column Faker script: 15,014 to 50,416 per schema. SDV's multi-table model trained on valid data: 3,055 to 5,557, and it refuses two of the five | `python -m benchmarks.validity_bench` |
-| Conformance | 294 SQL assertions in three suites, all held: the Gauntlet 136, the Warren 110, the Ledger 48 | `python -m benchmarks.gauntlet` |
+| Conformance | 345 SQL assertions in four suites, all held: the Gauntlet 136, the Warren 110, the Ledger 48, the Borough 51 | `python -m benchmarks.gauntlet` |
 | Reproducible | identical fingerprints on Linux, macOS and Windows | `python -m benchmarks.golden` |
 | Scale | 10,000,000 rows across 14 tables in 36.3 s at 0.78 GB peak on an Apple M1, every foreign key checked afterwards | `python benchmarks/bench_r3_volume.py --scale 10 --stream out/` |
 
@@ -251,9 +251,13 @@ the DuckDB certificate.
 | `unique`, `inequality`, `col_range`, choices, NOT NULL, DDL `CHECK` | no row breaks the rule | ✓ |
 | `lifecycles` | a status implies its whole history: the right timestamps set, in order, and the rest null | ✓ |
 | `dag_edges`, `graph_motifs` | no cycle outside a planted case; each ring, fan and chain at its exact count | ✓ |
-| roll-ups, `stock_flows`, `scd2`, `bitemporal`, `when_then`, `lte_parent` | parents equal their children, inventory balances, versions tile a timeline | |
+| `stock_flows` | inventory balances, chains period to period, and opens where declared | ✓ |
+| `lte_parent`, `sum_lte_parent` | a child, or a parent's children together, stay under the parent's bound, without moving a declared total | ✓ |
+| `time_grids`, `parent_time`, `parent_end` | a declared clock; a child after its parent existed, and inside its span | ✓ |
+| `no_overlap`, `capacity` | an entity in one place at a time; no resource holding more than it can at any instant | ✓ |
+| roll-ups, `scd2`, `bitemporal`, `when_then` | parents equal their children, versions tile a timeline | |
 | `outliers`, `typos`, `duplicates`, `missingness`, `late_arrivals` | dirt at exact counts, with an answer key | |
-| `retention`, `joint_distributions`, `time_grids`, `event_logs`, `processes` | cohort curves, joint margins, a declared clock, logs that agree with status | |
+| `retention`, `joint_distributions`, `event_logs`, `processes` | cohort curves, joint margins, logs that agree with status | |
 
 Underneath any declaration, foreign keys resolve by construction (parents are
 built before children), text agrees with its row, money is skewed, timestamps

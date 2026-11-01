@@ -436,7 +436,10 @@ def apply_time_grid(
     # resolved at 16:58 must not come out created at 17:00 and resolved at
     # 16:58: moving one column of a row forward past another one silently
     # inverts the row. Columns that already sat at or after this one keep the
-    # exact gap they had, so the row's internal shape survives the grid.
+    # exact gap they had, so the row's internal shape survives the grid. A
+    # column the move lands exactly on is carried too: 09:09 -> 09:15 beside a
+    # departure at 09:15 would otherwise turn "left after arriving" into a
+    # zero-length stay.
     moved = known & (new_ns > ns)
     if moved.any():
         for other in df.columns:
@@ -446,7 +449,7 @@ def apply_time_grid(
                 continue
             o = _to_ns(df[other])
             o_known = df[other].notna().to_numpy()
-            follows = moved & o_known & (o >= ns) & (o < new_ns)
+            follows = moved & o_known & (o >= ns) & (o <= new_ns)
             if not follows.any():
                 continue
             shifted = df[other].copy()
@@ -808,7 +811,9 @@ def apply_dynamics(
     Order matters and is deliberate: retention rewrites entity keys and event
     timestamps, so it runs before late arrival (which reads the event
     timestamp) and before missingness (which must be the last word on which
-    values are null, or a later pass would fill them back in).
+    values are null, or a later pass would fill them back in). Interval
+    guarantees (no_overlap, capacity, containment) run on the gridded clocks
+    and before any value is nulled.
     """
     for spec in (getattr(config, "retention", None) or []):
         try:
@@ -831,6 +836,10 @@ def apply_dynamics(
             warn(f"TimeGrid on '{spec.table}.{spec.column}' failed "
                           f"({e}); column left as generated.",
             ConformanceWarning,)
+    # Intervals read the final clocks: a grid moves values forward, and a
+    # parent moved past its child is exactly what containment repairs.
+    from misata.intervals import apply_intervals
+    apply_intervals(tables, config, rng)
     for spec in (getattr(config, "missingness", None) or []):
         try:
             apply_missingness(tables, spec, rng)

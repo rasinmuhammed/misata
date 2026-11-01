@@ -5,6 +5,93 @@ All notable changes to Misata will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and versions follow [STABILITY.md](STABILITY.md): batched releases with Output changes and Breaking notes now, [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.
 
+## [0.9.8.1] - 2026-11-01
+
+### Intervals
+
+- `no_overlap` declares that an entity's half-open intervals `[start, end)`
+  never overlap: a resident is in one place at a time. An overlapping
+  interval moves forward to where the previous one ends and keeps its
+  duration.
+- `capacity` declares that a resource never holds more concurrent intervals
+  than a constant `capacity` or its `capacity_column`. An overflowing row
+  moves to another resource the relationship allows (same `partition_by`
+  values, passing its `filters`, already existing at the interval's start);
+  times never change.
+- A relationship's `parent_end` keeps a child inside its parent's span,
+  `parent_time <= child_time <= parent_end`: an order placed during its
+  restaurant visit. A child outside the span moves to a moment drawn from
+  it, on the child's minute grid when it has one.
+- Each is refused early when it names a missing or non-timestamp column, a
+  resource no relationship resolves, or a capacity of zero; reported by the
+  audit as `no_overlap`, `capacity_exceeded` and `temporal_containment`; and
+  re-checked by the certificate.
+
+### Bounds that keep declared totals
+
+- `sum_lte_parent` and `lte_parent` keep an exact outcome curve and group
+  shares on the column they clamp. The amount a clamp removes moves to rows
+  of the same period and group whose bound has room, so "no account spends
+  more than it holds" and "the café took 41,250 on Monday" hold together.
+  Before, the proportional rescale left a 3,180,000 day at 3,148,130 and
+  every merchant share off. When no row has room, the declared total wins
+  and a warning counts the bounds that yielded.
+- Both clamps work in integer units of the column's declared decimals, so a
+  capped sum equals its cap exactly instead of overshooting by float noise.
+
+### Stock flows
+
+- `stock_flows.opening` declares each SKU's level before the first period.
+  Those SKUs are the ledger's, in order, and each opens exactly there, so a
+  run can continue from the previous run's closing levels. A row count that
+  is not one row per SKU per period is refused.
+
+### Attestations
+
+- The certificate re-checks `lte_parent` and `sum_lte_parent`, stock-flow
+  arithmetic, chaining, non-negative levels and declared openings, time
+  grids, temporal eligibility and containment, `no_overlap` and `capacity`.
+- A stock flow's SKU and period columns are attested with its ledger, not
+  against the `choices` they were generated from.
+
+### Conformance
+
+- The Borough, a fourth suite of 51 DuckDB assertions shaped like a town's
+  day: intervals, spans, bounded money under exact totals, and a pantry
+  ledger with declared openings. Its control removes the declarations and
+  checks the suite fails. Four suites now hold 345 assertions.
+
+### Fixes
+
+- A time grid no longer collapses a row's later timestamp onto the moved
+  one. Gridding an arrival of 09:09 to 09:15 beside a departure already at
+  09:15 left a zero-length stay and broke a declared `left_at > arrived_at`;
+  a timestamp the move lands exactly on is now carried with its gap, like
+  one it passes.
+- Temporal eligibility holds after a time grid on the parent. The grid moves
+  a parent's start forward after its children are placed, which left a
+  child that sat between the raw and the gridded start before its parent.
+  Every temporal relationship is re-established on the final clocks.
+- `group_shares` honours the measure's declared decimals; an integer measure
+  gets integer rows instead of cents.
+- The audit's count-column check reads whole words of a column name and
+  skips timestamps. `triaged_at`, `mileage` and `account_balance` are no
+  longer counts, and an empty timestamp no longer reads as a large negative
+  number.
+
+### Output changes
+
+- Schemas declaring `lte_parent` or `sum_lte_parent` generate different
+  values on clamped rows, and on the rows that take a moved amount when the
+  column carries a curve or shares.
+- Schemas with a temporal relationship whose parent time is gridded move the
+  children that preceded their gridded parent.
+- `group_shares` on a measure declared with `decimals` other than 2 rounds to
+  those decimals.
+- A time grid carries a row's timestamp that sat exactly on the moved value's
+  new slot; such rows keep their gap where they used to collapse. The golden
+  fingerprints are unchanged.
+
 ## [0.9.8] - 2026-10-26
 
 ### Attestations

@@ -118,6 +118,22 @@ Period identities: opening + movements = closing; open + received − shipped =
 close; sum(debit) = sum(credit) per journal entry. Each holds to the cent on
 every row and every consecutive pair.
 
+A stock flow can declare where it starts. `opening` maps each SKU to its level
+before the first period:
+
+```python
+StockFlowIdentity(table="inventory", periods=["2026-11-02"],
+                  opening={"flour": 120, "eggs": 0, "milk": 45})
+```
+
+**Guarantees.** Those SKUs are the ledger's SKUs, in that order, and each one
+opens the first period at exactly its declared level. This is how one run
+continues another: the closing levels of its last period are the next run's
+`opening`.
+
+**Refuses.** A table whose row count is not one row per declared SKU per period,
+with the arithmetic, and a negative opening level.
+
 ### `lifecycles`: a state implies a legal history
 
 ```python
@@ -176,6 +192,24 @@ column's own non-null values), or `set`.
 Row-level clamp, and per-parent proportional rescale. The FK is resolved from the
 declared relationship, never guessed.
 
+**Guarantees.** Each row (`lte_parent`) or each parent's sum of rows
+(`sum_lte_parent`) is at or under the parent's column, exactly, in units of the
+child column's declared decimals. When the child column also carries an exact
+outcome curve or group shares, the clamp keeps them: the amount it removes
+moves onto rows of the same period and group whose bound still has room, so
+"no account spends more than it holds" and "the café took 41,250 on Monday" hold
+together.
+
+**Owns.** The child column's values on clamped rows, and on the rows that take
+the moved amount.
+
+**Costs.** Buffers parent and child.
+
+**Yields.** When no row in a period and group has room, the declared aggregate
+takes precedence, as it does over per-row bounds everywhere else. Generation
+warns with the number of bounds that yielded, and the audit and the
+attestation both report them.
+
 ### `min_children`: every parent covered
 
 `Relationship(..., min_children=1)`. An order with zero line items does not
@@ -212,6 +246,36 @@ mostly satisfiable and there is something to land on.
 **Note.** When the child carries its own date this is already handled by the
 cross-table causality pass, which shifts that date to postdate the parent.
 Declare it for the junction case, where the child has no date to shift.
+
+### containment: a child inside its parent's span
+
+```python
+Relationship(parent_table="visits", child_table="orders",
+             parent_key="visit_id", child_key="visit_id",
+             parent_time="arrived_at", parent_end="left_at",
+             child_time="ordered_at")
+```
+
+**Guarantees.** Every child's `child_time` lies inside its parent's span:
+`parent_time <= child_time <= parent_end`. An order is placed during its
+restaurant visit; a charge falls inside its billing period.
+
+**Owns.** The child's `child_time` on rows that fall outside the span. Such a row
+is moved to a moment drawn uniformly from the span, on the child column's time
+grid when it has one, and the row's later timestamps keep their gaps to it.
+
+**Costs.** Buffers parent and child. Runs after time grids, on the final clocks.
+
+**Refuses.** `parent_end` without `parent_time`, without a `child_time` on the
+child itself, or on a column that is not a timestamp.
+
+**Yields.** A move that would take the child out of its outcome-curve or
+rate-curve period is not made; generation warns and the audit reports the row.
+
+**Note.** Plain temporal eligibility (`parent_time` without `parent_end`) is
+re-established on the final clocks too. A time grid on the parent moves its
+start forward after the children were placed, which used to leave a child that
+sat between the raw and the gridded start before its parent.
 
 ### `scd2`: versions tile a timeline
 
@@ -317,6 +381,61 @@ the column name. That guess is still the default and is still unverified. This
 is what you write when the grid matters and you want it proven.
 
 ---
+
+### `no_overlap`: one place at a time
+
+```python
+NoOverlap(table="whereabouts", key="resident_id",
+          start="arrived_at", end="left_at")
+```
+
+**Guarantees.** For every `key`, its half-open intervals `[start, end)`, taken in
+start order, never overlap: each begins at or after the previous one ends. A
+resident is not at the café and on the bus at once.
+
+**Owns.** `start` and `end` on intervals that overlapped. The later interval
+moves forward to where the earlier one ends and keeps its duration; the row's
+other timestamps that it would overtake keep their gaps. Values only move
+forward, so no causal lower bound can be undone, and intervals already on a
+time grid stay on it.
+
+**Costs.** Buffers the table; one sort and one pass over it.
+
+**Refuses.** A table, key or bound that does not exist, and a bound that is not a
+timestamp.
+
+**Yields.** A move out of an outcome-curve or rate-curve period of `start` is not
+made. Moving forward can push an interval past a time grid's hours or a column's
+declared window; the audit reports both rather than hiding them. Intervals that
+fit their entity's day are the schema's job: declare durations that fit.
+
+### `capacity`: a resource never overfull
+
+```python
+Capacity(table="whereabouts", resource="place_id",
+         start="arrived_at", end="left_at", capacity_column="seats")
+```
+
+**Guarantees.** At every instant, the rows occupying one `resource` (intervals
+covering that instant) number at most its capacity: a constant `capacity`, or
+`capacity_column` on the resource's table, read through the declared
+relationship. Intervals are half-open, so one leaving at 10:00 and one arriving
+at 10:00 never meet.
+
+**Owns.** The `resource` foreign key on overflowing rows. Such a row moves to
+another resource with room for it that the relationship allows: the same
+`partition_by` values, passing its `filters`, and already existing at the
+interval's start when the relationship declares `parent_time`. Times never
+change, so curves and grids on them are untouched.
+
+**Costs.** Buffers the table and the resource table; one sweep over the
+intervals in start order.
+
+**Refuses.** Missing columns, a resource no relationship resolves, a
+`capacity_column` the resource table lacks, and a capacity of zero.
+
+**Yields.** A row with no allowed resource free keeps its own and overfills it;
+generation warns with the count and the audit reports the resource.
 
 ### `duplicates`: an exact number of copies
 
@@ -573,6 +692,13 @@ schema.
 Fifteen of them fail with its declarations removed, which is the control that
 keeps a suite from being decorative.
 
+`benchmarks/borough.py` is the fourth, shaped like a town's day: residents in one
+place at a time, cafés never over their seats, orders placed inside their visit,
+accounts spending within their means under exact daily takings and merchant
+shares, and a pantry that opens at declared levels. 51 assertions. On its first
+run it found a time grid collapsing "left after arriving" into a zero-length
+stay, a defect none of the other three suites could see.
+
 Alongside them, `misata.composition` answers a question none of the suites do:
 when two declarations write the same column, which one writes last. Every
 declaration is verified individually and nothing checked that several compose,
@@ -583,6 +709,7 @@ python -m benchmarks.gauntlet                        # 136/136
 python -m benchmarks.gauntlet_compare --tool faker   # 78/136
 python -m benchmarks.warren                          # 110/110
 python -m benchmarks.ledger                          # 48/48
+python -m benchmarks.borough                         # 51/51
 python -m benchmarks.bench_dynamics --big            # what the passes cost
 ```
 
