@@ -115,6 +115,29 @@ bug worth reporting.
   domain. Data can pass the audit and still be wrong in ways no rule covers.
   A clean audit means "no known defect class present", nothing stronger.
 
+## Intervals and bounds
+
+- **`no_overlap` moves intervals forward; it never shortens or reassigns
+  them.** An entity with more interval time than its day holds is laid end to
+  end and runs past the day, a time grid's hours or the column's declared
+  window. The audit and the certificate report it. Declare durations and
+  counts that fit the entity's day.
+- **`capacity` moves rows between resources, never in time.** It picks
+  uniformly among the allowed resources with room, not the nearest or the most
+  similar, and a row with no allowed resource free keeps its own and overfills
+  it, with a warning.
+- **Containment draws a moment uniformly inside the parent's span.** It honours
+  the child column's minute grid but not the grid's hours window, and
+  `parent_end` needs `child_time` on the child itself (the `child_time_table`
+  form is only a lower bound).
+- **A bound keeps outcome curves and group shares on its column, nothing
+  else.** The amount `lte_parent` or `sum_lte_parent` removes moves within the
+  curve period and share group. A waterfall, joint distribution or roll-up
+  declared over the same column is not consulted.
+- **A stock flow's movements scale with its opening level.** With `opening`
+  declared, a SKU that opens at 0 receives and ships a unit or two per period;
+  the ledger still chains exactly.
+
 ## Realism report
 
 - **The realism report detects tells, it does not prove realism.** Each

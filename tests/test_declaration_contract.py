@@ -103,7 +103,7 @@ class TestParseTimeRefusalReallyRefuses:
 class TestCoverageOnlyGoesUp:
     """The floor. Raise it when you close a gap; never lower it."""
 
-    FLOOR = 25
+    FLOOR = 27
 
     def test_certified_coverage_holds(self):
         certified, total = registry.coverage()

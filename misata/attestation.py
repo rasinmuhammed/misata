@@ -249,8 +249,12 @@ def _row_rule_invariants(schema: "SchemaConfig") -> List[Invariant]:
     disturbed = _disturbed_columns(schema)
     if disturbed is None:
         return []
-    # A lifecycle's states are its state column's domain, attested with its history.
-    lifecycle_owned = {(lc.table, lc.state_column) for lc in schema.lifecycles}
+    # A lifecycle's states are its state column's domain, attested with its
+    # history; a stock flow writes its own SKUs and periods, attested with its
+    # ledger.
+    identity_owned = {(lc.table, lc.state_column) for lc in schema.lifecycles}
+    identity_owned |= {(sf.table, c) for sf in schema.stock_flows
+                        for c in (sf.sku_column, sf.period_column)}
     out = []
 
     def violations(table: str, name: str, where: str) -> Invariant:
@@ -285,7 +289,7 @@ def _row_rule_invariants(schema: "SchemaConfig") -> List[Invariant]:
             choices = (column.distribution_params or {}).get("choices")
             if column.type == "categorical" and choices and all(
                     isinstance(c, str) for c in choices) and (
-                    (table.name, column.name) not in lifecycle_owned):
+                    (table.name, column.name) not in identity_owned):
                 domain = ", ".join(quote_literal(c) for c in choices)
                 out.append(violations(
                     table.name, f"{column.name}.domain",
@@ -472,6 +476,186 @@ def _lifecycle_invariants(schema: "SchemaConfig") -> List[Invariant]:
     return out
 
 
+def _relationship_to(schema: "SchemaConfig", child: str, parent: str) -> Optional[Any]:
+    return next((r for r in schema.relationships
+                 if r.child_table == child and r.parent_table == parent), None)
+
+
+def _cross_table_bound_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Declared ``lte_parent`` and ``sum_lte_parent`` bounds, under the JOIN.
+
+    Compared with half a unit of the column's declared precision as slack, so
+    a sum of cents that equals its cap is not failed by binary rounding.
+    """
+    from misata.crosstable import collect_cross_table_constraints
+    from misata.shares import measure_decimals
+
+    disturbed = _disturbed_columns(schema)
+    if disturbed is None:
+        return []
+    out = []
+    for child_name, rule in collect_cross_table_constraints(schema):
+        rel = _relationship_to(schema, child_name, str(rule.parent_table))
+        if rel is None or (child_name, rule.column) in disturbed:
+            continue
+        child, parent = quote_ident(child_name), quote_ident(str(rule.parent_table))
+        col, pcol = quote_ident(str(rule.column)), quote_ident(str(rule.parent_column))
+        pk, fk = quote_ident(rel.parent_key), quote_ident(rel.child_key)
+        slack = 0.5 * 10 ** -measure_decimals(schema, child_name, str(rule.column))
+        if rule.type == "lte_parent":
+            sql = (f"SELECT COUNT(*) FROM {child} c JOIN {parent} p ON p.{pk} = c.{fk} "
+                   f"WHERE c.{col} > p.{pcol} + {slack!r}")
+        else:
+            sql = (f"SELECT COUNT(*) FROM (SELECT {fk} AS k, SUM({col}) AS s FROM {child} "
+                   f"WHERE {fk} IS NOT NULL GROUP BY {fk}) x JOIN {parent} p ON p.{pk} = x.k "
+                   f"WHERE x.s > p.{pcol} + {slack!r}")
+        out.append(Invariant(id=f"{child_name}.{rule.name}.{rule.type}", kind=rule.type,
+                             sql=sql, expected="0", value_type="integer", table=child_name))
+    return out
+
+
+def _stock_flow_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Stock ledgers: each row balances, each period opens where the last
+    closed, no level is negative, and a declared opening is where each SKU starts."""
+    out = []
+    for spec in schema.stock_flows:
+        t = quote_ident(spec.table)
+        sku, period = quote_ident(spec.sku_column), quote_ident(spec.period_column)
+        o, r = quote_ident(spec.open_column), quote_ident(spec.received_column)
+        s, c = quote_ident(spec.shipped_column), quote_ident(spec.close_column)
+        base = f"{spec.table}.stock_flow"
+        out.append(Invariant(
+            id=f"{base}.arithmetic", kind="stock_flow_arithmetic",
+            sql=f"SELECT COUNT(*) FROM {t} WHERE ABS({o} + {r} - {s} - {c}) > 0.001",
+            expected="0", value_type="integer", table=spec.table))
+        out.append(Invariant(
+            id=f"{base}.non_negative", kind="stock_flow_negative",
+            sql=f"SELECT COUNT(*) FROM {t} WHERE {o} < 0 OR {r} < 0 OR {s} < 0 OR {c} < 0",
+            expected="0", value_type="integer", table=spec.table))
+        ordinal = " ".join(f"WHEN {quote_literal(str(p))} THEN {i}"
+                           for i, p in enumerate(spec.periods))
+        out.append(Invariant(
+            id=f"{base}.chain", kind="stock_flow_chain",
+            sql=(f"SELECT COUNT(*) FROM (SELECT {o} AS o, LAG({c}) OVER (PARTITION BY {sku} "
+                 f"ORDER BY CASE CAST({period} AS VARCHAR) {ordinal} END) AS prev FROM {t} "
+                 f"WHERE CAST({period} AS VARCHAR) IN "
+                 f"({', '.join(quote_literal(str(p)) for p in spec.periods)})) "
+                 f"WHERE prev IS NOT NULL AND ABS(o - prev) > 0.001"),
+            expected="0", value_type="integer", table=spec.table))
+        if spec.opening:
+            declared = ", ".join(f"({quote_literal(k)}, {int(v)})" for k, v in spec.opening.items())
+            out.append(Invariant(
+                id=f"{base}.opening", kind="stock_flow_opening",
+                sql=(f"SELECT COUNT(*) FROM (VALUES {declared}) d(sku, qty) LEFT JOIN {t} x "
+                     f"ON CAST(x.{sku} AS VARCHAR) = d.sku AND CAST(x.{period} AS VARCHAR) = "
+                     f"{quote_literal(str(spec.periods[0]))} "
+                     f"WHERE x.{o} IS NULL OR ABS(x.{o} - d.qty) > 0.001"),
+                expected="0", value_type="integer", table=spec.table))
+    return out
+
+
+def _time_grid_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Declared clocks: every value on its minute grid, in its hours, with no
+    seconds when the grid says so."""
+    disturbed = _disturbed_columns(schema)
+    if disturbed is None:
+        return []
+    out = []
+    for spec in schema.time_grids:
+        if (spec.table, spec.column) in disturbed:
+            continue
+        col = f"CAST({quote_ident(spec.column)} AS TIMESTAMP)"
+        minute = f"(EXTRACT(hour FROM {col}) * 60 + EXTRACT(minute FROM {col}))"
+        terms = [f"{minute} % {int(spec.minute_grid)} <> 0"]
+        if spec.seconds == "zero":
+            terms.append(f"EXTRACT(microseconds FROM {col}) <> 0")
+        if spec.hours:
+            lo, hi = spec.hours
+            terms.append(f"EXTRACT(hour FROM {col}) < {int(lo)} OR EXTRACT(hour FROM {col}) >= {int(hi)}")
+        out.append(Invariant(
+            id=f"{spec.table}.{spec.column}.time_grid", kind="time_grid",
+            sql=(f"SELECT COUNT(*) FROM {quote_ident(spec.table)} WHERE {col} IS NOT NULL "
+                 f"AND ({' OR '.join(terms)})"),
+            expected="0", value_type="integer", table=spec.table))
+    return out
+
+
+def _temporal_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Temporal relationships: no child before its parent existed, and none
+    after the parent's declared end."""
+    disturbed = _disturbed_columns(schema)
+    if disturbed is None:
+        return []
+    out = []
+    for rel in schema.relationships:
+        if not (rel.parent_time and rel.child_time) or rel.child_time_table:
+            continue
+        if (rel.child_table, rel.child_time) in disturbed:
+            continue
+        child, parent = quote_ident(rel.child_table), quote_ident(rel.parent_table)
+        pk, fk = quote_ident(rel.parent_key), quote_ident(rel.child_key)
+
+        def at(alias: str, column: str) -> str:
+            return f"CAST({alias}.{quote_ident(column)} AS TIMESTAMP)"
+
+        outside = f"{at('c', rel.child_time)} < {at('p', rel.parent_time)}"
+        kind = "temporal_eligibility"
+        if rel.parent_end:
+            outside += f" OR {at('c', rel.child_time)} > {at('p', rel.parent_end)}"
+            kind = "temporal_containment"
+        out.append(Invariant(
+            id=f"{rel.parent_table}.{rel.parent_key}->{rel.child_table}.{rel.child_key}.{kind}",
+            kind=kind,
+            sql=f"SELECT COUNT(*) FROM {child} c JOIN {parent} p ON p.{pk} = c.{fk} WHERE {outside}",
+            expected="0", value_type="integer", table=rel.child_table))
+    return out
+
+
+def _interval_invariants(schema: "SchemaConfig") -> List[Invariant]:
+    """Timelines that never overlap, and resources never over capacity.
+
+    Intervals are half-open, ``[start, end)``: one that ends at 10:00 and one
+    that starts at 10:00 share no instant. At equal instants ends are counted
+    before starts for the same reason.
+    """
+    out = []
+    for timeline in schema.no_overlap:
+        t, k = quote_ident(timeline.table), quote_ident(timeline.key)
+        s, e = quote_ident(timeline.start), quote_ident(timeline.end)
+        out.append(Invariant(
+            id=f"{timeline.table}.{timeline.key}.no_overlap", kind="no_overlap",
+            sql=(f"SELECT COUNT(*) FROM (SELECT s, MAX(e) OVER (PARTITION BY k ORDER BY s, e "
+                 f"ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev FROM "
+                 f"(SELECT {k} AS k, CAST({s} AS TIMESTAMP) AS s, CAST({e} AS TIMESTAMP) AS e "
+                 f"FROM {t} WHERE {k} IS NOT NULL AND {s} IS NOT NULL AND {e} IS NOT NULL)) "
+                 f"WHERE s < prev"),
+            expected="0", value_type="integer", table=timeline.table))
+    for spec in schema.capacity:
+        rel = next((r for r in schema.relationships
+                    if r.child_table == spec.table and r.child_key == spec.resource), None)
+        if rel is None:
+            continue
+        t, res = quote_ident(spec.table), quote_ident(spec.resource)
+        s, e = quote_ident(spec.start), quote_ident(spec.end)
+        peaks = (f"WITH iv AS (SELECT {res} AS k, CAST({s} AS TIMESTAMP) AS s, "
+                 f"CAST({e} AS TIMESTAMP) AS e FROM {t} WHERE {res} IS NOT NULL "
+                 f"AND {s} IS NOT NULL AND {e} IS NOT NULL AND {e} > {s}), "
+                 f"ev AS (SELECT k, s AS t, 1 AS d FROM iv UNION ALL SELECT k, e AS t, -1 AS d FROM iv), "
+                 f"occ AS (SELECT k, SUM(d) OVER (PARTITION BY k ORDER BY t, d "
+                 f"ROWS UNBOUNDED PRECEDING) AS o FROM ev), "
+                 f"peak AS (SELECT k, MAX(o) AS m FROM occ GROUP BY k) ")
+        if spec.capacity_column:
+            sql = (peaks + f"SELECT COUNT(*) FROM peak JOIN {quote_ident(rel.parent_table)} p "
+                   f"ON p.{quote_ident(rel.parent_key)} = peak.k "
+                   f"WHERE peak.m > p.{quote_ident(spec.capacity_column)}")
+        else:
+            sql = peaks + f"SELECT COUNT(*) FROM peak WHERE m > {int(spec.capacity or 0)}"
+        out.append(Invariant(
+            id=f"{spec.table}.{spec.resource}.capacity", kind="capacity",
+            sql=sql, expected="0", value_type="integer", table=spec.table))
+    return out
+
+
 def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     """Every invariant the schema's declarations imply, before any data exists.
 
@@ -503,6 +687,11 @@ def derive_invariants(schema: "SchemaConfig") -> List[Invariant]:
     invariants += _partition_invariants(schema)
     invariants += _graph_invariants(schema)
     invariants += _lifecycle_invariants(schema)
+    invariants += _cross_table_bound_invariants(schema)
+    invariants += _stock_flow_invariants(schema)
+    invariants += _time_grid_invariants(schema)
+    invariants += _temporal_invariants(schema)
+    invariants += _interval_invariants(schema)
 
     seen: Dict[str, int] = {}
     unique_ids = []

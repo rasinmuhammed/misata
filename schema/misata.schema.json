@@ -319,6 +319,15 @@
             "default": 500,
             "minimum": 0
           },
+          "opening": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Declared stock before the first period, keyed by SKU. Fixes the SKUs and their order; the table then holds one row per SKU per period."
+          },
           "description": {
             "type": "string"
           }
@@ -692,6 +701,95 @@
         ],
         "type": "object",
         "additionalProperties": false
+      }
+    },
+    "no_overlap": {
+      "type": "array",
+      "description": "Entity timelines: for every key, its half-open [start, end) intervals never overlap. Overlaps move forward to where the previous interval ends, keeping their duration.",
+      "items": {
+        "type": "object",
+        "required": [
+          "table",
+          "key",
+          "start",
+          "end"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Column identifying the entity whose timeline must not overlap."
+          },
+          "start": {
+            "type": "string",
+            "description": "Timestamp column opening each interval."
+          },
+          "end": {
+            "type": "string",
+            "description": "Timestamp column closing each interval (exclusive)."
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "capacity": {
+      "type": "array",
+      "description": "Shared resources: at every instant, the rows occupying one resource number at most its capacity. Overflow moves to another resource the relationship allows; times never change.",
+      "items": {
+        "type": "object",
+        "required": [
+          "table",
+          "resource",
+          "start",
+          "end"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string",
+            "description": "Foreign-key column naming the resource each row occupies."
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The same capacity for every resource."
+          },
+          "capacity_column": {
+            "type": "string",
+            "description": "Column on the resource's table holding its capacity."
+          },
+          "start": {
+            "type": "string",
+            "description": "Timestamp column opening each interval."
+          },
+          "end": {
+            "type": "string",
+            "description": "Timestamp column closing each interval (exclusive)."
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "capacity"
+            ]
+          },
+          {
+            "required": [
+              "capacity_column"
+            ]
+          }
+        ]
       }
     },
     "duplicates": {
@@ -1564,6 +1662,12 @@
         "time_grids": {
           "$ref": "#/properties/time_grids"
         },
+        "no_overlap": {
+          "$ref": "#/properties/no_overlap"
+        },
+        "capacity": {
+          "$ref": "#/properties/capacity"
+        },
         "duplicates": {
           "$ref": "#/properties/duplicates"
         },
@@ -1966,6 +2070,10 @@
             "child_time_table": {
               "type": "string",
               "description": "Table holding child_time when it is not the child table."
+            },
+            "parent_end": {
+              "type": "string",
+              "description": "Parent timestamp the child time must not pass: with parent_time, the child's moment lies inside the parent's span."
             },
             "partition_by": {
               "type": "array",

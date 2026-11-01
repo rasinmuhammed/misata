@@ -1,6 +1,6 @@
 [project]
 name = "misata"
-version = "0.9.8"
+version = "0.9.8.1"
 description = "Declarative synthetic data for Python. State the facts a dataset must hold and get multi-table data that holds them exactly, with a DuckDB certificate anyone can rerun."
 authors = [
     {name = "Muhammed Rasin", email = "rasin@misata.studio"}

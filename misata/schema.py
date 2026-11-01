@@ -217,6 +217,11 @@ class Relationship(BaseModel):
     parent_time: Optional[str] = None
     child_time: Optional[str] = None
     child_time_table: Optional[str] = None
+    # Containment: with `parent_end` as well, the child's moment lies inside
+    # the parent's span, parent_time <= child_time <= parent_end. An order is
+    # placed during its restaurant visit; a charge falls inside its billing
+    # period. Requires `parent_time`, and `child_time` on the child itself.
+    parent_end: Optional[str] = None
     # Partition isolation: the key must resolve to a parent that agrees with the
     # child on every one of these columns. Multi-tenancy is the usual reason
     # (`partition_by=["tenant_id"]`), and it is the same idea as the `partition
@@ -1082,6 +1087,11 @@ class StockFlowIdentity(BaseModel):
             The four quantity columns of the ledger.
         periods: Ordered period labels (e.g. ["2025-01", ..., "2025-06"]).
         starting_min / starting_max: Range for each SKU's initial stock.
+        opening: Declared stock before the first period, keyed by SKU. When
+            given, these are the ledger's SKUs, in this order, each opens at
+            exactly its value, and the table must hold one row per SKU per
+            period. This is how one run continues another: the closing levels
+            of the last period become the next run's ``opening``.
     """
 
     table: str
@@ -1094,7 +1104,20 @@ class StockFlowIdentity(BaseModel):
     periods: List[str]
     starting_min: int = 50
     starting_max: int = 500
+    opening: Optional[Dict[str, int]] = None
     description: Optional[str] = None
+
+    @field_validator("opening")
+    @classmethod
+    def validate_opening(cls, v: Optional[Dict[str, int]]) -> Optional[Dict[str, int]]:
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("opening must declare at least one SKU")
+        negative = sorted(str(k) for k, q in v.items() if int(q) < 0)
+        if negative:
+            raise ValueError(f"opening stock cannot be negative (SKUs {negative})")
+        return {str(k): int(q) for k, q in v.items()}
 
 
 class SCD2Config(BaseModel):
@@ -1237,6 +1260,70 @@ class TimeGrid(BaseModel):
             raise ValueError(
                 f"hours must be a window 0 <= start < end <= 24, got ({lo}, {hi})")
         return (lo, hi)
+
+
+class NoOverlap(BaseModel):
+    """An entity's intervals never overlap: it is in one place at a time.
+
+    For every value of ``key``, the half-open intervals ``[start, end)`` of
+    its rows, taken in start order, never overlap: each begins at or after
+    the previous one ends. A resident is not at the café and on the bus at
+    once; an employee does not work two shifts in the same hour.
+
+    An overlap is resolved by moving the later interval forward to where the
+    earlier one ends, keeping its duration. Values only move forward, so no
+    causal lower bound can be undone, and intervals already on a time grid
+    stay on it.
+
+    Attributes:
+        table: Table whose rows are intervals.
+        key: Column identifying the entity whose timeline must not overlap.
+        start / end: Timestamp columns bounding each interval.
+    """
+
+    table: str
+    key: str
+    start: str
+    end: str
+    description: Optional[str] = None
+
+
+class Capacity(BaseModel):
+    """A shared resource never holds more concurrent intervals than it can.
+
+    At every instant, the rows sharing a ``resource`` whose half-open interval
+    ``[start, end)`` covers that instant number at most the resource's
+    capacity: a café's seats, a ward's beds, a classroom, a bus. The capacity
+    is a constant (``capacity``) or a column on the resource's own table
+    (``capacity_column``), read through the declared relationship.
+
+    Overflow is resolved by moving a row to another resource with room for it
+    that the relationship allows: the same ``partition_by`` values, passing
+    its ``filters``, and already existing when the interval starts if it
+    declares ``parent_time``. Times never change, so curves and grids on them
+    are untouched.
+
+    Attributes:
+        table: Table whose rows are intervals.
+        resource: Foreign-key column naming the resource each row occupies.
+        start / end: Timestamp columns bounding each interval.
+        capacity: The same capacity for every resource.
+        capacity_column: Column on the resource's table holding its capacity.
+    """
+
+    table: str
+    resource: str
+    start: str
+    end: str
+    capacity: Optional[int] = Field(default=None, ge=0)
+    capacity_column: Optional[str] = None
+    description: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_capacity(self) -> "Capacity":
+        if (self.capacity is None) == (self.capacity_column is None):
+            raise ValueError("declare exactly one of capacity or capacity_column")
+        return self
 
 
 class Duplicates(BaseModel):
@@ -1725,6 +1812,8 @@ class SchemaConfig(BaseModel):
     missingness: List[Missingness] = Field(default_factory=list)
     late_arrivals: List[LateArrival] = Field(default_factory=list)
     time_grids: List[TimeGrid] = Field(default_factory=list)
+    no_overlap: List[NoOverlap] = Field(default_factory=list)
+    capacity: List[Capacity] = Field(default_factory=list)
     duplicates: List[Duplicates] = Field(default_factory=list)
     event_logs: List[EventLog] = Field(default_factory=list)
     processes: List[Process] = Field(default_factory=list)

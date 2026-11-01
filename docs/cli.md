@@ -32,7 +32,7 @@ exactly one JSON document on stdout:
   "data": null,
   "warnings": [],
   "text": "what the command would have printed",
-  "misata_version": "0.9.8"
+  "misata_version": "0.9.8.1"
 }
 ```
 

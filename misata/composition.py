@@ -40,7 +40,8 @@ PASS_ORDER = [
     "lifecycle", "group_shares", "waterfall", "stock_flow", "scd2", "rollup",
     "curve", "graphs", "bitemporal", "event_log",
     # dynamics, last, in apply_dynamics order
-    "retention", "late_arrival", "time_grid", "missingness", "outliers",
+    "retention", "late_arrival", "time_grid", "no_overlap", "capacity",
+    "containment", "missingness", "outliers",
     "typos", "duplicates",
 ]
 _RANK = {name: i for i, name in enumerate(PASS_ORDER)}
@@ -141,6 +142,15 @@ def _claims(config: Any) -> List[Claim]:
         add(spec.table, spec.ingest_time, "late_arrivals", "late_arrival")
     for spec in (getattr(config, "time_grids", None) or []):
         add(spec.table, spec.column, "time_grids", "time_grid")
+    for spec in (getattr(config, "no_overlap", None) or []):
+        add(spec.table, spec.start, "no_overlap", "no_overlap")
+        add(spec.table, spec.end, "no_overlap", "no_overlap")
+    for spec in (getattr(config, "capacity", None) or []):
+        add(spec.table, spec.resource, "capacity", "capacity")
+    for rel in (getattr(config, "relationships", None) or []):
+        if rel.parent_end and rel.parent_time and rel.child_time and not rel.child_time_table:
+            add(rel.child_table, rel.child_time,
+                f"parent_end {rel.parent_table}->{rel.child_table}", "containment")
     for spec in (getattr(config, "missingness", None) or []):
         add(spec.table, spec.column, "missingness", "missingness")
     for spec in (getattr(config, "outliers", None) or []):
@@ -173,6 +183,13 @@ _DESTRUCTIVE: Dict[Tuple[str, str], str] = {
     ("causality", "time_grid"):
         "a grid that moved a timestamp backwards would undo causality; "
         "TimeGrid is forward-only for exactly this reason",
+    ("time_grid", "no_overlap"):
+        "no_overlap moves intervals forward after the grid ran; a moved "
+        "interval stays on the grid when the interval it follows ends on it",
+    ("time_grid", "containment"):
+        "containment moves a child's moment into its parent's span after the "
+        "grid ran and picks a grid slot, so the grid holds unless the span "
+        "has no slot",
     ("formula", "missingness"):
         "if this column is an input to a formula, nulling it afterwards leaves "
         "the derived column computed from a value no longer present",

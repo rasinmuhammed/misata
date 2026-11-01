@@ -73,10 +73,11 @@ fp = misata.fingerprint(tables)            # canonical hash per table and overal
   pins each file by SHA-256 and writes an in-toto Statement plus a
   standalone `verify.py`. Report its `result`: `PASSED` means every
   invariant the certificate carries holds on disk. It covers curves, rates,
-  group shares, ledgers, waterfalls, foreign keys, `min_children`,
-  `partition_by`, unique columns, row rules, graph structure and lifecycles;
-  the README's declaration table marks which ones are re-checked in process
-  only.
+  group shares, ledgers, waterfalls, stock flows, foreign keys,
+  `min_children`, `partition_by`, `lte_parent` and `sum_lte_parent`, unique
+  columns, row rules, time grids, temporal eligibility and containment,
+  `no_overlap`, `capacity`, graph structure and lifecycles; the README's
+  declaration table marks which ones are re-checked in process only.
   The MCP tool is `attest_dataset`.
 - `misata audit ./data` checks any CSV folder for reader-visible contradictions.
 - `misata publish out --hf owner/name --dry-run` re-verifies the folder and
@@ -105,8 +106,8 @@ reproduces it.
   five seeds; 0.5 is indistinguishable). On taxi trips it beats the script
   (0.75 vs 0.79) but not SDV trained on the trips (0.68): blind fares are a
   miss. `mimic`, which does see the data, scores 0.54 on both.
-- **Conformance.** 294 SQL assertions in three suites (the Gauntlet 136,
-  the Warren 110, the Ledger 48) all hold. A Faker script with the Gauntlet's
+- **Conformance.** 345 SQL assertions in four suites (the Gauntlet 136,
+  the Warren 110, the Ledger 48, the Borough 51) all hold. A Faker script with the Gauntlet's
   columns holds 78 of its 136: it ties on single-column facts and loses on
   every fact that relates columns, rows or tables.
 - **Scale.** 10,000,000 rows across 14 tables stream to Parquet in 36.3 s at
